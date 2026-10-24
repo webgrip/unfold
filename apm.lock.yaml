@@ -4,18 +4,24 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-baseline
   host: forgejo.webgrip.dev
-  resolved_commit: acbff951dba1ab0d7963d04976a637c14eee7992
-  resolved_ref: v0.1.0
+  resolved_commit: ae2b3d947442bf34aa5b26783c068592d645b0d1
+  resolved_ref: v0.2.0
   version: 0.0.0
   virtual_path: packages/baseline
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:16248a589a4a969f532c6efe6d254b9a5562b1e5ff725c1e523dbd5b85cf5a22
+  deployed_files:
+  - .claude/rules/baseline.md
+  - .claude/rules/forgejo-ci.md
+  deployed_file_hashes:
+    .claude/rules/baseline.md: sha256:c6644318fe8544b9ad009e3e8a6626310666906270ca42ae3f1b621657e67801
+    .claude/rules/forgejo-ci.md: sha256:18ac65e57d86f5d0c46da55d53582fbfb94ba74d87605e7394a39858fdac3011
+  content_hash: sha256:2930efa4f18a116b92d688e7cc6111f2337e217a111287a96af8e93b1a3ac21b
 - repo_url: webgrip/agent-standards
   name: webgrip-board
   host: forgejo.webgrip.dev
-  resolved_commit: acbff951dba1ab0d7963d04976a637c14eee7992
-  resolved_ref: v0.1.0
+  resolved_commit: ae2b3d947442bf34aa5b26783c068592d645b0d1
+  resolved_ref: v0.2.0
   version: 0.0.0
   virtual_path: packages/board
   is_virtual: true
@@ -24,8 +30,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-secrets
   host: forgejo.webgrip.dev
-  resolved_commit: acbff951dba1ab0d7963d04976a637c14eee7992
-  resolved_ref: v0.1.0
+  resolved_commit: ae2b3d947442bf34aa5b26783c068592d645b0d1
+  resolved_ref: v0.2.0
   version: 0.0.0
   virtual_path: packages/secrets
   is_virtual: true
@@ -320,6 +326,123 @@ deployments:
   content_hash: sha256:f783ff501c9c1ec167f5a644ba7c8547bfc345074a67dd8a9bad2bb6567eb753
 - kind: project-relative
   target: claude
+  value: .claude/rules/apps-site.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4d36db0c14674e15e91155c045e8c7dca3d4c423a9a1d3d0d557a2fb80ac2e21
+- kind: project-relative
+  target: claude
+  value: .claude/rules/apps-unfold.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:98f4f72a8f06cfef2953c5b06a61a7940309b6006628d84669659f2d24c5fcbe
+- kind: project-relative
+  target: claude
+  value: .claude/rules/baseline.md
+  runtime: null
+  scope: project
+  owners:
+  - forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
+  active_owner: forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
+  content_hash: sha256:c6644318fe8544b9ad009e3e8a6626310666906270ca42ae3f1b621657e67801
+- kind: project-relative
+  target: claude
+  value: .claude/rules/forgejo-ci.md
+  runtime: null
+  scope: project
+  owners:
+  - forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
+  active_owner: forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
+  content_hash: sha256:18ac65e57d86f5d0c46da55d53582fbfb94ba74d87605e7394a39858fdac3011
+- kind: project-relative
+  target: claude
+  value: .claude/rules/forgejo.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4e5e272fa024766d9fb8cec042e63f4c2a4c9b85cdfd876bb62879cd7518e61f
+- kind: project-relative
+  target: claude
+  value: .claude/rules/repo.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c3c3c403e185339a1844b4066c6fc8247a5089426ea1976892349513f385219d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/explain-a-dependency-update
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/explain-a-dependency-update/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:8c0f8d75233f5646d91eef9f37dd326c63e1410eb411ffd21dc9d23a05c21ccb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/expressive-product-sites
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/expressive-product-sites/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:57a3add9d93e378fa65c6e0eaf220cefcb041e7dc041e1dee100c5e3908770ca
+- kind: project-relative
+  target: claude
+  value: .claude/skills/expressive-product-sites/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f7b4dfafb76f2aa68d52ac82a72ce2b57554fd0d9042822aeb5382c47152c1e2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/expressive-product-sites/references/implementation-and-validation.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6ff4edabd16abbf6afed31a2923c4639aa02580510bf1cfbfe6791e043bbf3c4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/expressive-product-sites/references/unfold-case-study.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
+- kind: project-relative
+  target: claude
   value: .claude/skills/guard-secrets
   runtime: null
   scope: project
@@ -408,6 +531,33 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   content_hash: sha256:a9f8ce58bbb82a59442950e161367fd03b360fd54d37c2bdf5d9c4376aa876d4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/investigate-session
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/investigate-session/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/investigate-session/scripts/investigate.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner
@@ -797,6 +947,69 @@ deployments:
   content_hash: sha256:9acda08a09b8a3e00497f0e16d97bbbd4939f4976dbfed69710f1fd125c91e41
 - kind: project-relative
   target: codex
+  value: .agents/skills/explain-a-dependency-update
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/explain-a-dependency-update/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:8c0f8d75233f5646d91eef9f37dd326c63e1410eb411ffd21dc9d23a05c21ccb
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expressive-product-sites
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expressive-product-sites/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:57a3add9d93e378fa65c6e0eaf220cefcb041e7dc041e1dee100c5e3908770ca
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expressive-product-sites/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f7b4dfafb76f2aa68d52ac82a72ce2b57554fd0d9042822aeb5382c47152c1e2
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expressive-product-sites/references/implementation-and-validation.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6ff4edabd16abbf6afed31a2923c4639aa02580510bf1cfbfe6791e043bbf3c4
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expressive-product-sites/references/unfold-case-study.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
+- kind: project-relative
+  target: codex
   value: .agents/skills/guard-secrets
   runtime: null
   scope: project
@@ -885,6 +1098,33 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   content_hash: sha256:a9f8ce58bbb82a59442950e161367fd03b360fd54d37c2bdf5d9c4376aa876d4
+- kind: project-relative
+  target: codex
+  value: .agents/skills/investigate-session
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/investigate-session/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
+- kind: project-relative
+  target: codex
+  value: .agents/skills/investigate-session/scripts/investigate.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner
@@ -1337,8 +1577,50 @@ mcp_target_servers:
 mcp_config_provenance:
   vikunja: webgrip-board
 local_deployed_files:
+- .agents/skills/explain-a-dependency-update
+- .agents/skills/explain-a-dependency-update/SKILL.md
+- .agents/skills/expressive-product-sites
+- .agents/skills/expressive-product-sites/SKILL.md
+- .agents/skills/expressive-product-sites/agents/openai.yaml
+- .agents/skills/expressive-product-sites/references/implementation-and-validation.md
+- .agents/skills/expressive-product-sites/references/unfold-case-study.md
+- .agents/skills/investigate-session
+- .agents/skills/investigate-session/SKILL.md
+- .agents/skills/investigate-session/scripts/investigate.py
 - .claude/commands/unfold-review.md
+- .claude/rules/apps-site.md
+- .claude/rules/apps-unfold.md
+- .claude/rules/forgejo.md
+- .claude/rules/repo.md
+- .claude/skills/explain-a-dependency-update
+- .claude/skills/explain-a-dependency-update/SKILL.md
+- .claude/skills/expressive-product-sites
+- .claude/skills/expressive-product-sites/SKILL.md
+- .claude/skills/expressive-product-sites/agents/openai.yaml
+- .claude/skills/expressive-product-sites/references/implementation-and-validation.md
+- .claude/skills/expressive-product-sites/references/unfold-case-study.md
+- .claude/skills/investigate-session
+- .claude/skills/investigate-session/SKILL.md
+- .claude/skills/investigate-session/scripts/investigate.py
 - .opencode/commands/unfold-review.md
 local_deployed_file_hashes:
+  .agents/skills/explain-a-dependency-update/SKILL.md: sha256:8c0f8d75233f5646d91eef9f37dd326c63e1410eb411ffd21dc9d23a05c21ccb
+  .agents/skills/expressive-product-sites/SKILL.md: sha256:57a3add9d93e378fa65c6e0eaf220cefcb041e7dc041e1dee100c5e3908770ca
+  .agents/skills/expressive-product-sites/agents/openai.yaml: sha256:f7b4dfafb76f2aa68d52ac82a72ce2b57554fd0d9042822aeb5382c47152c1e2
+  .agents/skills/expressive-product-sites/references/implementation-and-validation.md: sha256:6ff4edabd16abbf6afed31a2923c4639aa02580510bf1cfbfe6791e043bbf3c4
+  .agents/skills/expressive-product-sites/references/unfold-case-study.md: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
+  .agents/skills/investigate-session/SKILL.md: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
+  .agents/skills/investigate-session/scripts/investigate.py: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
   .claude/commands/unfold-review.md: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806
+  .claude/rules/apps-site.md: sha256:4d36db0c14674e15e91155c045e8c7dca3d4c423a9a1d3d0d557a2fb80ac2e21
+  .claude/rules/apps-unfold.md: sha256:98f4f72a8f06cfef2953c5b06a61a7940309b6006628d84669659f2d24c5fcbe
+  .claude/rules/forgejo.md: sha256:4e5e272fa024766d9fb8cec042e63f4c2a4c9b85cdfd876bb62879cd7518e61f
+  .claude/rules/repo.md: sha256:c3c3c403e185339a1844b4066c6fc8247a5089426ea1976892349513f385219d
+  .claude/skills/explain-a-dependency-update/SKILL.md: sha256:8c0f8d75233f5646d91eef9f37dd326c63e1410eb411ffd21dc9d23a05c21ccb
+  .claude/skills/expressive-product-sites/SKILL.md: sha256:57a3add9d93e378fa65c6e0eaf220cefcb041e7dc041e1dee100c5e3908770ca
+  .claude/skills/expressive-product-sites/agents/openai.yaml: sha256:f7b4dfafb76f2aa68d52ac82a72ce2b57554fd0d9042822aeb5382c47152c1e2
+  .claude/skills/expressive-product-sites/references/implementation-and-validation.md: sha256:6ff4edabd16abbf6afed31a2923c4639aa02580510bf1cfbfe6791e043bbf3c4
+  .claude/skills/expressive-product-sites/references/unfold-case-study.md: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
+  .claude/skills/investigate-session/SKILL.md: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
+  .claude/skills/investigate-session/scripts/investigate.py: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
   .opencode/commands/unfold-review.md: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806

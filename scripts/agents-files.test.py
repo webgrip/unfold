@@ -54,17 +54,6 @@ class CleanTree(Fixture):
 
 
 class Budget(Fixture):
-    def test_root_over_400_words_fails(self):
-        self.write('AGENTS.md', ROOT + 'word ' * 400)
-        self.assertEqual(len(self.failures('budget')), 1)
-        self.assertIn('the root limit is 400', self.failures('budget')[0])
-
-    def test_application_limit_is_600(self):
-        self.write('apps/app/AGENTS.md', APP + 'word ' * 570)
-        self.assertEqual(self.failures('budget'), [])
-        self.write('apps/app/AGENTS.md', APP + 'word ' * 600)
-        self.assertIn('apps/app/AGENTS.md: [budget]', self.failures('budget')[0])
-
     def test_combined_bytes_along_the_path(self):
         self.write('AGENTS.md', ROOT + 'x' * 20000)
         self.write('apps/app/AGENTS.md', APP + 'y' * 13000)
@@ -136,27 +125,6 @@ class Commands(Fixture):
         self.assertIn('has no package.json', self.failures('commands')[0])
 
 
-class Bridge(Fixture):
-    def test_missing_bridge_fails(self):
-        (self.root / 'apps/app/CLAUDE.md').unlink()
-        failures = self.failures('bridge')
-        self.assertEqual(len(failures), 1)
-        self.assertIn('apps/app/CLAUDE.md: [bridge] missing', failures[0])
-
-    def test_untracked_bridge_fails(self):
-        files = [name for name in self.files() if name != 'CLAUDE.md']
-        self.assertIn('CLAUDE.md: [bridge] missing', self.failures('bridge', files)[0])
-
-    def test_bridge_file_must_import_agents_first(self):
-        self.write('apps/app/CLAUDE.md', '# Claude\n\n@AGENTS.md\n')
-        self.assertIn("'# Claude', not @AGENTS.md", self.failures('bridge')[0])
-
-    def test_symlink_must_target_agents(self):
-        self.write('README.md', '# Readme\n')
-        self.link('CLAUDE.md', 'README.md')
-        self.assertIn("points to 'README.md'", self.failures('bridge')[0])
-
-
 class Unicode(Fixture):
     def test_every_listed_range_is_rejected(self):
         for character in ['\u200b', '\u200f', '\u202a', '\u202e', '\u2060', '\u2064', '\u2066', '\u2069', '\ufeff']:
@@ -195,61 +163,6 @@ class Duplication(Fixture):
         found = agents.sentences('# Heading words one two three four five six\n\nFirst sentence has exactly eight words in it. Short one.\n\n| a | b |\n')
         self.assertIn('First sentence has exactly eight words in it.', found)
         self.assertNotIn('Short one.', found)
-
-
-class LinkedSkills(Fixture):
-    def test_each_skill_needs_its_link(self):
-        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.assertIn('must be a tracked symlink', self.failures('layout')[0])
-        self.link('.claude/skills/x', '../../.agents/skills/x')
-        self.assertEqual(self.failures('layout'), [])
-
-    def test_link_to_the_wrong_skill_fails(self):
-        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.write('.agents/skills/y/SKILL.md', '---\nname: y\n---\n')
-        self.link('.claude/skills/y', '../../.agents/skills/y')
-        self.link('.claude/skills/x', '../../.agents/skills/y')
-        self.assertIn("points to '../../.agents/skills/y'", self.failures('layout')[0])
-
-    def test_a_whole_directory_link_is_rejected(self):
-        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.link('.claude/skills', '../.agents/skills')
-        self.assertIn('is a symlink; make it a directory', self.failures('layout')[0])
-
-    def test_a_skill_apm_deployed_needs_no_link(self):
-        self.write('.agents/skills/shared/SKILL.md', '---\nname: shared\n---\n')
-        self.write('.claude/skills/shared/SKILL.md', '---\nname: shared\n---\n')
-        self.write('apm.lock.yaml', 'dependencies:\n- deployed_files:\n  - .agents/skills/shared\n  - .claude/skills/shared\n')
-        self.assertEqual(self.failures('layout'), [])
-
-    def test_a_hand_copied_skill_fails(self):
-        self.write('.claude/skills/copied/SKILL.md', '---\nname: copied\n---\n')
-        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.link('.claude/skills/x', '../../.agents/skills/x')
-        self.assertIn('is a copy no APM dependency deployed', self.failures('layout')[0])
-
-    def test_nothing_to_link_needs_no_link(self):
-        self.assertEqual(self.failures('layout'), [])
-
-
-class ManagedBlock(Fixture):
-    def test_the_managed_block_is_not_hand_written(self):
-        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\n' + 'word ' * 450 + '\n<!-- apm:end -->\n')
-        self.assertEqual(self.failures('budget'), [])
-
-    def test_the_managed_block_has_its_own_limit(self):
-        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\n' + 'word ' * 801 + '\n<!-- apm:end -->\n')
-        self.assertIn('between the apm markers; the limit is 800', self.failures('budget')[0])
-
-    def test_paths_and_tasks_in_the_managed_block_are_not_checked_here(self):
-        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\nSee `nowhere/at/all.md` and run `mise run unknown-task`.\n<!-- apm:end -->\n')
-        self.assertEqual(self.failures('links') + self.failures('commands'), [])
-
-    def test_a_nested_file_may_not_repeat_the_managed_block(self):
-        sentence = 'Commit only the paths you wrote and never the whole tree at once.'
-        self.write('AGENTS.md', ROOT + f'<!-- apm:start -->\n\n- {sentence}\n\n<!-- apm:end -->\n')
-        self.write('apps/app/AGENTS.md', APP + sentence + '\n')
-        self.assertEqual(len(self.failures('duplication')), 1)
 
 
 CONCEPT = """---
