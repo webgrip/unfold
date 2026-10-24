@@ -46,18 +46,20 @@ export function takeOverCommand(detail) {
 
 /**
  * A Work Item's total cost: what Ploeg recorded over every attempt plus the API-price estimates of the linked sessions
- * whose telemetry the viewer may see. `hidden` counts linked sessions whose cost only their owner or an administrator
- * sees, and `unknown` those whose telemetry had no cost.
+ * whose telemetry the viewer may see. `untracked` counts linked sessions of harnesses that send no cost (only Claude Code
+ * does), `hidden` Claude Code sessions whose cost only their owner or an administrator sees, and `unknown` those whose
+ * telemetry had no cost.
  */
 export function workCost(detail, linked) {
   const shifts = (detail.shifts?.length ? detail.shifts : [detail.item?.latestShift]).filter(Boolean);
   const spent = shifts.map(shift => shift.spentUsd).filter(amount);
   const ploegUsd = spent.length ? spent.reduce((sum, value) => sum + value, 0) : null;
-  const sessions = linked?.sessions ?? [];
+  const all = linked?.sessions ?? [];
+  const sessions = all.filter(session => (session.harness ?? 'claude-code') === 'claude-code');
   const seen = sessions.filter(session => session.telemetry);
   const priced = seen.filter(session => amount(session.telemetry.costUsd));
   const sessionsUsd = priced.length ? priced.reduce((sum, session) => sum + session.telemetry.costUsd, 0) : null;
-  return { ploegUsd, sessionsUsd, totalUsd: ploegUsd === null && sessionsUsd === null ? null : (ploegUsd ?? 0) + (sessionsUsd ?? 0), sessions: sessions.length, priced: priced.length, hidden: sessions.length - seen.length, unknown: seen.length - priced.length };
+  return { ploegUsd, sessionsUsd, totalUsd: ploegUsd === null && sessionsUsd === null ? null : (ploegUsd ?? 0) + (sessionsUsd ?? 0), sessions: all.length, priced: priced.length, untracked: all.length - sessions.length, hidden: sessions.length - seen.length, unknown: seen.length - priced.length };
 }
 
 function costMarkup(detail, linked) {
@@ -66,6 +68,7 @@ function costMarkup(detail, linked) {
   const notes = [
     cost.hidden ? `The cost of ${plural(cost.hidden, 'linked session')} is not counted: only ${cost.hidden === 1 ? 'its owner' : 'their owners'} and administrators see it.` : '',
     cost.unknown ? `${plural(cost.unknown, 'session')} sent no cost to the telemetry store.` : '',
+    cost.untracked ? `${plural(cost.untracked, 'linked session')} ran in OpenCode, Codex or an ACP editor, which report no cost. Only Claude Code sessions are counted.` : '',
   ].filter(Boolean).map(text => `<p class="meta">${escape(text)}</p>`).join('');
   return `<div class="stat-row linked-cost-stats">${[
     stat({ label: 'Total cost', value: money(cost.totalUsd), detail: cost.sessionsUsd === null ? 'What Ploeg recorded' : 'Ploeg plus the linked sessions’ estimate', icon: 'coins' }),
@@ -106,7 +109,7 @@ export function digestMarkup(digest) {
     stat({ label: 'Sessions', value: compactCount(digest.active), detail: `${compactCount(digest.started)} started in the last ${days}`, icon: 'bot' }),
     stat({ label: 'Work Items', value: compactCount(digest.workItems), detail: 'Linked to those sessions', icon: 'work' }),
     stat({ label: 'Commits', value: compactCount(digest.commits), detail: `${compactCount(digest.aiLines)} AI-written ${digest.aiLines === 1 ? 'line' : 'lines'}`, icon: 'check' }),
-    stat({ label: 'API-price estimate', value: digest.costUsd === null ? 'Not reported' : money(digest.costUsd), detail: digest.costReason || 'Claude Code’s own estimate. A Claude plan is not billed this.', icon: 'coins', quiet: digest.costUsd === null }),
+    stat({ label: 'API-price estimate', value: digest.costUsd === null ? 'Not reported' : money(digest.costUsd), detail: digest.costReason || (digest.uncosted ? `Claude Code sessions only: ${plural(digest.uncosted, 'other session')} reported no cost. A Claude plan is not billed this.` : 'Claude Code’s own estimate. A Claude plan is not billed this.'), icon: 'coins', quiet: digest.costUsd === null }),
   ].join('');
   return `<div class="stat-row linked-digest-stats">${tiles}</div>${digest.truncated ? '<p class="meta">Only your most recent sessions are counted.</p>' : ''}`;
 }

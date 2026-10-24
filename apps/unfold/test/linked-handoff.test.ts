@@ -13,13 +13,14 @@ const repository = (key: string, readiness: 'ready' | 'not_ready' | 'unknown' = 
 
 test('the digest counts the sessions active in the window, the Work Items they touched and their commits and AI lines', () => {
   const since = Date.parse('2026-10-17T00:00:00Z');
-  const session = (id: string, startedAt: string, lastSeenAt: string, workItems: string[], commits: { at: string; aiLines: number | null }[]) => ({ id, startedAt, lastSeenAt, workItems: workItems.map(entry => ({ id: entry, how: 'explicit' as const, linkedAt: startedAt, linkedBy: 'ryan' })), commits: commits.map((commit, index) => ({ sha: String(index).repeat(40), subject: '', trailer: true, files: 1, ...commit })) });
+  const session = (id: string, startedAt: string, lastSeenAt: string, workItems: string[], commits: { at: string; aiLines: number | null }[], harness: 'claude-code' | 'opencode' = 'claude-code') => ({ id, harness, startedAt, lastSeenAt, workItems: workItems.map(entry => ({ id: entry, how: 'explicit' as const, linkedAt: startedAt, linkedBy: 'ryan' })), commits: commits.map((commit, index) => ({ sha: String(index).repeat(40), subject: '', trailer: true, files: 1, ...commit })) });
   const facts = digestFacts([
     session('session-new-1', '2026-10-20T10:00:00Z', '2026-10-20T12:00:00Z', ['184', '185'], [{ at: '2026-10-20T11:00:00Z', aiLines: 12 }, { at: '2026-10-20T11:30:00Z', aiLines: null }]),
     session('session-old-2', '2026-10-10T10:00:00Z', '2026-10-18T09:00:00Z', ['184'], [{ at: '2026-10-11T10:00:00Z', aiLines: 99 }, { at: '2026-10-18T08:00:00Z', aiLines: 3 }]),
     session('session-gone-3', '2026-10-01T10:00:00Z', '2026-10-02T09:00:00Z', ['300'], [{ at: '2026-10-02T08:00:00Z', aiLines: 50 }]),
+    session('ses_opencode-4', '2026-10-20T10:00:00Z', '2026-10-20T10:30:00Z', [], [], 'opencode'),
   ], since);
-  assert.deepEqual(facts, { started: 1, active: 2, workItems: 2, commits: 3, aiLines: 15, ids: ['session-new-1', 'session-old-2'] });
+  assert.deepEqual(facts, { started: 2, active: 3, workItems: 2, commits: 3, aiLines: 15, ids: ['session-new-1', 'session-old-2'], uncosted: 1 }, 'an OpenCode session counts as a session but its id is not asked for a cost');
 });
 
 test('the digest cost is one PromQL query with a regex matcher over well-formed session ids only', async () => {

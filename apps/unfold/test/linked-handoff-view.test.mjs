@@ -24,13 +24,14 @@ test('a shell argument survives any quote, and the take-over command switches to
 });
 
 test('the total cost adds the visible sessions’ API-price estimate to Ploeg’s spend and says what it cannot see', () => {
-  const linked = { sessions: [{ id: 'a', telemetry: telemetry(2) }, { id: 'b' }, { id: 'c', telemetry: telemetry(null) }] };
-  assert.deepEqual(workCost(detail(), linked), { ploegUsd: 1.75, sessionsUsd: 2, totalUsd: 3.75, sessions: 3, priced: 1, hidden: 1, unknown: 1 });
+  const linked = { sessions: [{ id: 'a', harness: 'claude-code', telemetry: telemetry(2) }, { id: 'b', harness: 'claude-code' }, { id: 'c', harness: 'claude-code', telemetry: telemetry(null) }, { id: 'ses_d', harness: 'opencode' }] };
+  assert.deepEqual(workCost(detail(), linked), { ploegUsd: 1.75, sessionsUsd: 2, totalUsd: 3.75, sessions: 4, priced: 1, untracked: 1, hidden: 1, unknown: 1 }, 'an OpenCode session is not counted as hidden: it reports no cost at all');
   const html = linkedWorkMarkup(detail(), { linkedSessions: linked, userId: 'op' });
   assert.match(html, /Total cost/);
   assert.match(html, /API-price estimate\. A Claude plan is not billed this/);
   assert.match(html, /The cost of 1 linked session is not counted: only its owner and administrators see it/);
   assert.match(html, /1 session sent no cost/);
+  assert.match(html, /1 linked session ran in OpenCode, Codex or an ACP editor, which report no cost\. Only Claude Code sessions are counted/);
   assert.doesNotMatch(linkedWorkMarkup(detail(), { linkedSessions: { sessions: [] } }), /Total cost/, 'no linked session, no total');
   assert.equal(workCost(detail(), { sessions: [{ id: 'b' }] }).sessionsUsd, null);
 });
@@ -52,6 +53,7 @@ test('the digest is a stat row, the start form preselects the session’s reposi
   assert.match(html, /2 started in the last 7 days/);
   assert.match(html, /120 AI-written lines/);
   assert.match(digestMarkup({ window: '30d', started: 0, active: 0, workItems: 0, commits: 0, aiLines: 0, costUsd: null, costReason: 'No metrics store is configured, so the cost is unknown.' }), /No metrics store/);
+  assert.match(digestMarkup({ window: '7d', started: 1, active: 2, workItems: 0, commits: 0, aiLines: 0, costUsd: 0.5, costReason: null, uncosted: 1, truncated: false }), /Claude Code sessions only: 1 other session reported no cost/);
   const session = { id: 'abcd1234', mine: true, title: '<b>Fix</b>', workItems: [{ id: '101' }, { id: '102' }] };
   const form = startWorkItemForm(session, { teams: ['delivery'], targets: [{ key: 'order-service', repository: 'example/order-service', baseBranch: 'main' }, { key: 'other', repository: 'example/other', baseBranch: '' }], suggested: 'order-service', message: '' });
   assert.match(form, /<option value="order-service" selected>/);
