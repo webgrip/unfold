@@ -29,11 +29,11 @@ run = [
 description = "Install the locked application and documentation dependencies"
 
 [tasks.agents-install]
-run = "uvx --from 'git+https://forgejo.webgrip.dev/webgrip/agent-standards.git@v0.2.0#subdirectory=cli' agentstd install"
+run = "uvx --from 'git+https://forgejo.webgrip.dev/webgrip/agent-standards.git@v0.3.0#subdirectory=cli' agentstd install"
 description = "Install the agent-standards packages pinned in apm.yml and compile .apm into .claude/rules and AGENTS.md"
 
 [tasks.agents-check]
-run = "uvx --from 'git+https://forgejo.webgrip.dev/webgrip/agent-standards.git@v0.2.0#subdirectory=cli' agentstd check"
+run = "uvx --from 'git+https://forgejo.webgrip.dev/webgrip/agent-standards.git@v0.3.0#subdirectory=cli' agentstd check"
 description = "Fail when a generated agent file differs from .apm and apm.lock.yaml, CLAUDE.md imports anything, or the session budget is exceeded"
 
 [tasks.verify]
