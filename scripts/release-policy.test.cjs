@@ -207,7 +207,7 @@ test('one release prepares and commits Unfold at the Unfold version and never to
 test('effective configuration uses unfold-v tags and CI tests it before invoking release', () => {
   assert.equal(config.tagFormat, 'unfold-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
-  const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_source_change.yml'), 'utf8'));
+  const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_train.yml'), 'utf8'));
   const steps = workflow.jobs.release.steps;
   const policy = steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
   assert.ok(policy >= 0 && policy < steps.findIndex(step => step.id === 'release'));
