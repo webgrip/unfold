@@ -171,3 +171,52 @@ a.stream-bar:hover {
   margin: 0;
   color: var(--danger-fg);
 }
+
+.tracks-swatch {
+  display: inline-block;
+  flex: none;
+  width: 1.25rem;
+  height: 0.75rem;
+  border: 1px solid var(--tone-border);
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg);
+}
+
+.tracks-swatch[data-waiting] {
+  border-style: dashed;
+  background: repeating-linear-gradient(135deg, var(--tone-bg) 0 4px, transparent 4px 8px);
+}
+
+.tracks-swatch-fold {
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-sunken);
+}
+
+.tracks-stretches {
+  fill: var(--text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.tracks-fold-label {
+  fill: var(--text-subtle);
+  font-weight: var(--weight-regular);
+}
+
+.tracks-fold {
+  fill: var(--bg-sunken);
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 3;
+}
+
+.time-cursor {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.time-cursor-label {
+  fill: var(--text);
+  font-weight: var(--weight-medium);
+  paint-order: stroke;
+  stroke: var(--bg-surface);
+  stroke-width: 4px;
+}

@@ -245,7 +245,9 @@
 .lv-plane-fold { fill: var(--brand-fold); }
 .lv-plane-ring { fill: var(--bg-surface); stroke: var(--lv-live); stroke-width: 2; }
 
-.lv-fp { margin: 0; container-type: inline-size; min-width: 0; overflow-x: auto; }
+.lv-fp { margin: 0; container-type: inline-size; min-width: 0; overflow-x: auto; position: relative; }
+.lv-fp-cursor { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--text-muted); pointer-events: none; }
+.lv-fp-cursor[hidden] { display: none; }
 
 .lv-fp-track {
   display: flex;
