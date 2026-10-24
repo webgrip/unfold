@@ -10,8 +10,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  pending:
+  merge-pin:
     if: github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    runs-on: docker
+    timeout-minutes: 5
+    outputs:
+      merged: ${{ steps.merge.outputs.merged }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+      - name: Merge the newest green Ploeg pin pull request and close the ones it supersedes
+        id: merge
+        env:
+          FORGEJO_REPOSITORY_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
+          PIN_BASE: development
+          PIN_AUTHOR: ploeg-release
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: python3 scripts/release_train_pin.py
+
+  pending:
+    needs: [merge-pin]
+    if: always() && needs.merge-pin.result != 'cancelled' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     runs-on: docker
     timeout-minutes: 5
     outputs:

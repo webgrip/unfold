@@ -54,6 +54,29 @@ Chosen option: "**An hourly release train in its own queue that releases the dev
 * Mutation, 2026-10-24: dropping the release-commit filter from the script, the head check's `if` from semantic release, the push's `cancel-in-progress` expression, the train's own group, or the checked head from `checks` each failed the suite; unmutated, it passes.
 * In operation: an `On Release Train` run each hour on the Actions list, and a new `unfold-v` tag within a quiet hour of an application merge.
 
+## Amendment 2026-10-24: the train merges the waiting Ploeg pin first
+
+Ploeg released 0.2.0-rc.61 at 13:16, rc.62 at 13:30 and rc.63 at 14:39 on 2026-10-24. Each pin pull request merged itself when its checks passed ([ADR-0041](adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md)), so `development` moved during the train's 45-minute check every time and no release was cut after `unfold-v0.4.0-rc.111`. The owner decided on 2026-10-24 (homelab RFC `rfc-unfold-release-train`, decision D14) that Ploeg's pin pull requests stop merging themselves and that the train merges a waiting pin before it reads the head.
+
+1. **`merge-pin`** is the train's first job, with the same branch and `UNFOLD_RELEASES_ENABLED` gate as `pending`. It runs [scripts/release_train_pin.py](../../scripts/release_train_pin.py) with `WEBGRIP_CI_TOKEN`. The script lists the open pull requests into `development` from `ploeg/<version>` branches of this repository authored by `ploeg-release`, newest version first. It asks Forgejo to merge each in turn with a merge commit at the head it read (`head_commit_id`) and stops at the first merge. Forgejo refuses a merge with HTTP 405 while a required check of `development` has not passed or the branch conflicts, and with 409 when the head moved; the script reads those as "not green" and tries the next older pin. A 405 that refuses the CI bot itself (not allowed to merge, an unsigned merge, a disallowed merge style) and any other answer fail the job instead, so a broken token or protection does not pass as "no green pin". A pin the forge reports as conflicting is not asked. After a merge it comments on and closes every older pin pull request; a newer pin that is not green stays open.
+2. **`pending`** needs `merge-pin` and runs when that job succeeded, failed or was skipped, but not when the run was cancelled. A pin that is not green, or a failed `merge-pin`, therefore leaves the train as it was before this amendment; the failure shows as a red job. `pending` checks out the branch head after the merge, so `checks`, `ploeg-pin` and `release` see the pin.
+3. Ploeg's release stops asking Forgejo to merge the pin when the `RELEASE_CONSUMERS` entry carries `"merge": "by-consumer"` ([Ploeg ADR 0127](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0127-a-release-opens-each-consumers-update-by-running-the-consumers-own-recipe.md), amended the same day). Until that entry changes, a pin can still merge itself mid-check.
+
+### Consequences of the amendment
+
+* Good, because a Ploeg release no longer moves `development` during the train's checks; only people's merges do.
+* Good, because the train picks the newest pin that passed, so a burst of Ploeg candidates becomes one pin merge per hour.
+* Bad, because a pin now reaches `development` up to an hour later than a merge-when-green pin did.
+* Bad, because `ploeg-release` and the CI bot both act on pin pull requests: Ploeg closes superseded ones when it opens a new one, the train closes the ones older than the pin it merged.
+* Neutral: `merge-pin` relies on `development`'s protection to define "green". If the required checks were removed from it, the train could merge a pin whose checks failed; `checks` and `ploeg-pin` would still stop the release of that head.
+
+### Confirmation of the amendment
+
+* [scripts/test_release_train_pin.py](../../scripts/test_release_train_pin.py), run by `mise run verify`, fails when pins are not ordered by version precedence, when another author's, another base's, a fork's or a non-version branch counts as a pin, when a conflicting pin is asked to merge, when the merge is not a merge commit at the read head, when a refused newest pin stops an older green one from merging, when a newer pin is closed, when an older one stays open, or when an authentication or server error, or a 405 refusing the CI bot itself, reads as "not green".
+* [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) fails when `merge-pin` loses the release gate, stops being the first job, passes the wrong author or token, hides its failure, or when another job merges pins; and when `pending` stops waiting for it, stops after its failure or continues after a cancel.
+* Mutation, 2026-10-24: nine mutants of the script and seven of the workflow each failed the suites; unmutated, both pass.
+* In operation: the first train after a Ploeg candidate shows a green `merge-pin` that names the pull request it merged, and the `fix(ploeg)` merge commit is authored by the CI bot.
+
 ## Pros and Cons of the Options
 
 ### Keep releasing from each push, with `cancel-in-progress: true`
@@ -73,3 +96,4 @@ Chosen option: "**An hourly release train in its own queue that releases the dev
 * Forgejo 15.0.10 source: `ConfigureActionRunConcurrency` in `services/actions/workflows.go` maps an explicit `cancel-in-progress: false` with a group to `QueueBehind`, which cancels nothing; only `CancelInProgress` calls `CancelPreviousWithConcurrencyGroup`. The runner's job parser (v12.10.2) evaluates an expression in `cancel-in-progress`.
 * [CI and release workflows](../operations/ci.md) and [Troubleshoot CI and releases](../operations/ci-troubleshooting.md) describe the train in operation.
 * 2026-10-24: proposed.
+* 2026-10-24: amended. The train merges the newest green Ploeg pin pull request first, after the owner's decision D14 that Ploeg's pins stop merging themselves.
