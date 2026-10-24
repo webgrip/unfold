@@ -14,7 +14,7 @@ Three terms first:
 
 * **Pod**: the smallest thing Kubernetes runs, one or more containers that start and stop together.
 * **Harness**: the agent program that loops between the model and tools (edit a file, run a command). OpenHands is one; Ploeg drives it but does not contain it.
-* **Kata Containers**: a container runtime that starts each pod inside its own small virtual machine (a micro-VM) with its own Linux kernel. A process that escapes the container is still inside that VM. The normal runtime, runc, shares the node's kernel.
+* **Kata Containers**: a container runtime that starts each pod inside its own small virtual machine (a micro-VM) with its own Linux kernel. A process that escapes the container is still inside that VM. The normal runtime, runc, shares the node's kernel. gVisor is the other sandbox runtime Unfold supports; [How agent code is contained](how-agent-code-is-contained.md) compares the two.
 
 ## The parts
 

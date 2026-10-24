@@ -17,6 +17,7 @@ nav:
       - How work flows: concepts/how-work-flows.md
       - Architecture: concepts/architecture.md
       - Inside a Run: concepts/inside-a-run.md
+      - How agent code is contained: concepts/how-agent-code-is-contained.md
       - Users and their journeys: concepts/users-and-journeys.md
       - Connect a repository: concepts/connect-a-repository.md
       - Journeys: concepts/journeys.md
@@ -28,6 +29,8 @@ nav:
       - Prepare a repository: how-to/prepare-a-repository.md
       - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Link your Claude Code sessions: how-to/link-claude-code-sessions.md
+      - Run agent code in a sandbox runtime: how-to/run-agent-code-in-a-sandbox-runtime.md
+      - Protect data at rest and in transit: how-to/protect-data-at-rest-and-in-transit.md
       - Operate Ploeg:
           - Overview: ploeg/index.md
           - Runbooks: ploeg/how-to/index.md
@@ -41,6 +44,7 @@ nav:
       - Decisions: reference/decisions.md
       - Ploeg configuration: ploeg/reference/configuration.md
       - Capability matrix: reference/capability-matrix.md
+      - Sandbox runtimes: reference/sandbox-runtimes.md
       - KPIs (proposal): reference/kpis.md
       - Run Cards works council pack: reference/run-cards-works-council-pack.md
       - Product language: domain/overview.md
