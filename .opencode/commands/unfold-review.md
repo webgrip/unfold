@@ -1,4 +1,5 @@
 ---
+argument-hint: '[pull request number]'
 description: Review a pull request or the current branch against docs/contributing/review.md
 ---
 

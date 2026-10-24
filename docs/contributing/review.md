@@ -8,7 +8,7 @@ verified_by: "Risk areas grouped from the fix commits on development between 202
 
 # Review guide
 
-How a pull request to Unfold is reviewed, by a person, by Ploeg's `reviewer` Role, or by an interactive agent through the review command (`/unfold:review` in Claude Code, `/unfold-review` in opencode). Review comments are input to the owner's decision, never the approval.
+How a pull request to Unfold is reviewed, by a person, by Ploeg's `reviewer` Role, or by an interactive agent through the review command (`/unfold-review` in Claude Code and opencode). Review comments are input to the owner's decision, never the approval.
 
 ## What tools decide
 
