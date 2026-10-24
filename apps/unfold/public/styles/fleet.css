@@ -188,6 +188,8 @@
 
 .fb-chips { display: flex; flex-direction: column; gap: var(--space-1-5); margin: 0; padding: 0; list-style: none; min-width: 0; }
 .fb-chip-item { min-width: 0; }
+.fb-chip-answer { display: grid; gap: var(--space-1); justify-items: start; padding-top: var(--space-1); }
+.fb-chip-answer .fb-chip-sub { white-space: normal; overflow-wrap: anywhere; }
 
 .fb-chip {
   --fb-chip-tone: var(--border-strong);

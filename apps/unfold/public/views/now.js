@@ -14,6 +14,7 @@ import { enabled, exposed, track } from '../core/flags.js';
 import { segmented } from '../core/ui.js';
 import { fleetBoard, fleetModel } from '../live/fleet.js';
 import { linkedWaitingCard } from '../core/linked-waiting.js';
+import { permissionsChangedEvent } from '../core/linked-permissions.js';
 import { taskStandings } from '../handoff.js';
 import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
@@ -128,7 +129,7 @@ function loopContent() {
   return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart() });
 }
 
-function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions) : ''; }
+function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions, { permissions: view.linked?.permissions }) : ''; }
 
 function renderNow() {
   if (view.since === undefined) arrive();
@@ -136,7 +137,7 @@ function renderNow() {
   const fleet = fleetShown();
   const loop = !fleet && loopShown();
   const content = fleet && view.data
-    ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, linked: view.linked?.sessions, at: Date.now() }))
+    ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, linked: view.linked?.sessions, permissions: view.linked?.permissions, at: Date.now() }))
     : loop ? loopContent()
     : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
   const subtitle = fleet ? 'Every Team you can read, from the gate to landed.' : loop ? 'Decide, unstick, then start: in that order.' : 'What waits on you, what runs and what finished, across your Teams.';
@@ -176,10 +177,13 @@ async function loadAsks() {
 }
 
 async function loadLinked() {
-  try { view.linked = { sessions: (await api('/api/linked-sessions')).sessions || [] }; }
-  catch { if (!view.linked) view.linked = { sessions: [] }; }
+  const [sessions, permissions] = await Promise.all([api('/api/linked-sessions').then(answer => answer.sessions || [], () => null), api('/api/linked-permissions').then(answer => answer.requests || [], () => [])]);
+  if (sessions) view.linked = { sessions, permissions };
+  else if (!view.linked) view.linked = { sessions: [], permissions: [] };
   if (onNow() && view.data) renderNow();
 }
+
+if (globalThis.window) window.addEventListener(permissionsChangedEvent, () => { if (onNow()) void loadLinked(); });
 
 async function loadNow(mode = 'open') {
   const request = ++view.request;

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "unfold",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Links your agent sessions to Unfold Work Items. In Claude Code it also reports each session to Unfold and records Agent Trace attribution for its commits.",
   "author": { "name": "Ryan Grippeling / WebGrip", "url": "https://unfoldhq.dev" },
   "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/claude-code",

@@ -49,6 +49,7 @@ import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
 import { LinkedInbox } from './linked-inbox.ts';
+import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
 import type { AddressInfo } from 'node:net';
@@ -197,6 +198,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const linked = new LinkedSessions(store.db, config, ploeg);
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
   const inbox = new LinkedInbox(store.db, linked.store, ploeg);
+  const permissions = new LinkedPermissions(store.db, linked.store);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -713,13 +715,22 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const answer = await serveLinkedHandoff(linkedHandoff, { method, path, query: url.searchParams, user, base: config.baseUrl ?? `http://${req.headers.host}`, body: () => body(req) });
           return json(res, answer.status, sanitize(answer.body));
         }
+        if (isPermissionRoute(path)) {
+          const signIn = auth.scope(req) === 'editor' ? auth.signIn(req) : undefined;
+          const answer = await permissionRoute(permissions, { method, path, caller: { user, scope: auth.scope(req), credential: signIn, confirmation: confirmationOf(req.headers['x-unfold-confirmation']) }, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
         const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions|messages|inbox)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
         const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
         if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
           const base = config.baseUrl ?? `http://${req.headers.host}`;
           if (path === '/api/linked-sessions/events') {
             if (method !== 'POST') fault(405, 'method', 'Report a session event with POST.');
-            return json(res, 200, sanitize(await linked.report(user, parseLinkedEvent(await body(req), new Date()), base, { credentialExpiresAt: auth.editorExpiresAt(req) })));
+            const reported = await body(req);
+            const answer = await linked.report(user, parseLinkedEvent(reported, new Date()), base, { credentialExpiresAt: auth.editorExpiresAt(req) });
+            if (reported.event === 'start' && typeof reported.remoteApproval === 'boolean') permissions.setOptIn(user, answer.session.id, reported.remoteApproval);
+            if (reported.event === 'idle' || reported.event === 'end') permissions.settle(answer.session.id);
+            return json(res, 200, sanitize(answer));
           }
           if (path === '/api/linked-sessions') {
             if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');

@@ -8,6 +8,7 @@ import { compactDuration, dateTime, money, plural, time } from '../core/format.j
 import { cx, escape, plane, span } from './parts.js';
 import { harnessName } from '../core/linked-sessions.js';
 import { linkedWaitReason } from '../core/linked-waiting.js';
+import { permissionButtons, permissionsBySession } from '../core/linked-permissions.js';
 
 /** The places a Work Item can be on the fleet board, in flight order. */
 export const fleetStages = Object.freeze([
@@ -59,7 +60,7 @@ export const yourStages = Object.freeze({ idle: 'gate', working: 'air', waiting:
 
 const yourLabels = { gate: 'Idle', air: 'Working', holding: 'Waits for you', approach: '', landed: '' };
 
-function yourPlane(session, at) {
+function yourPlane(session, at, asked = []) {
   const seen = moment(session.lastSeenAt);
   const started = moment(session.startedAt);
   return {
@@ -71,15 +72,17 @@ function yourPlane(session, at) {
     branch: String(session.branch ?? ''),
     waited: seen === null ? null : Math.max(0, Math.round((at - seen) / 1000)),
     seconds: started === null ? null : Math.max(0, Math.round((at - started) / 1000)),
-    reason: session.state === 'waiting' ? linkedWaitReason(session) : null,
+    reason: session.state === 'waiting' ? linkedWaitReason(session, asked) : null,
+    permission: session.state === 'waiting' ? asked[0] ?? null : null,
   };
 }
 
-function yourLane(linked, at) {
+function yourLane(linked, at, permissions) {
+  const asked = permissionsBySession(permissions);
   const live = list(linked).filter(session => session?.mine && yourStages[session.state]);
   if (!live.length) return null;
   const lane = { team: 'You', yours: true, gate: [], air: [], holding: [], approach: [], refused: [], landed: null, trail: [], spend: null, lastActivityAt: null, parked: false };
-  for (const session of live) lane[yourStages[session.state]].push(yourPlane(session, at));
+  for (const session of live) lane[yourStages[session.state]].push(yourPlane(session, at, asked.get(String(session.id)) ?? []));
   for (const stage of ['gate', 'air', 'holding']) lane[stage].sort((a, b) => (b.waited ?? -1) - (a.waited ?? -1));
   lane.tone = lane.holding.length ? 'attention' : lane.air.length ? 'live' : 'neutral';
   return lane;
@@ -120,11 +123,12 @@ function laneTone(lane) {
  * placed and flew no Run in 24 hours is parked. `missing` names what Ploeg could not list, so a short count says so.
  * `linked`, the person's own Linked Sessions (`GET /api/linked-sessions`), becomes `yours`: a lane of their live
  * sessions, idle, working or waiting for them, kept apart from the Teams' lanes and totals. Ended and stale sessions
- * are left out; null when none is live.
- * @param {{ now: object|null, summary?: object|null, linked?: object[]|null, at?: number }} input
+ * are left out; null when none is live. `permissions` (`GET /api/linked-permissions`) gives a waiting session the tool
+ * prompt it asked Unfold to answer, which its chip offers to approve or deny.
+ * @param {{ now: object|null, summary?: object|null, linked?: object[]|null, permissions?: object[]|null, at?: number }} input
  * @returns {object}
  */
-export function fleetModel({ now, summary = null, linked = null, at = Date.now() } = {}) {
+export function fleetModel({ now, summary = null, linked = null, permissions = null, at = Date.now() } = {}) {
   const waiting = list(now?.waiting);
   const active = list(now?.active);
   const running = list(now?.running);
@@ -186,7 +190,7 @@ export function fleetModel({ now, summary = null, linked = null, at = Date.now()
     ...['waiting', 'active', 'running', 'recent', 'refused'].filter(group => now?.errors?.[group]),
     ...(summary ? [] : ['summary']),
   ];
-  return { at, demo: Boolean(now?.demo), lanes, yours: yourLane(linked, at), totals, refused: refused.map(entry => refusalOf(entry, at)), departures, arrivals, missing };
+  return { at, demo: Boolean(now?.demo), lanes, yours: yourLane(linked, at, permissions), totals, refused: refused.map(entry => refusalOf(entry, at)), departures, arrivals, missing };
 }
 
 /**
@@ -242,8 +246,8 @@ const waitedFor = entry => entry.waited === null ? '' : `waiting ${compactDurati
 
 function yourChip(entry, stage) {
   const sub = stage === 'holding' ? [waitedFor(entry), entry.reason?.chip] : stage === 'air' ? [entry.branch, entry.waited === null ? '' : `last heard ${compactDuration(entry.waited)} ago`] : [entry.branch, entry.waited === null ? '' : `idle ${compactDuration(entry.waited)}`];
-  const label = `${entry.ref}: ${entry.title}.${entry.reason ? ` ${entry.reason.sentence} ${entry.reason.fix}` : ''} Unfold does not run it.`;
-  return `<li class="fb-chip-item"><a class="${cx('fb-chip', `is-${stage}`, 'is-yours')}" href="${escape(entry.href)}" title="${escape(label)}">${markSvg('fb-chip-mark')}<span class="fb-chip-text"><span class="fb-chip-ref">${escape(entry.ref)}</span><span class="fb-chip-title">${escape(entry.title)}</span>${sub.some(Boolean) ? `<span class="fb-chip-sub">${escape(sub.filter(Boolean).join(' · '))}</span>` : ''}</span></a></li>`;
+  const label = `${entry.ref}: ${entry.title}.${entry.reason ? ` ${entry.reason.sentence} ${entry.reason.fix}` : ''}${entry.permission ? '' : ' Unfold does not run it.'}`;
+  return `<li class="fb-chip-item"><a class="${cx('fb-chip', `is-${stage}`, 'is-yours')}" href="${escape(entry.href)}" title="${escape(label)}">${markSvg('fb-chip-mark')}<span class="fb-chip-text"><span class="fb-chip-ref">${escape(entry.ref)}</span><span class="fb-chip-title">${escape(entry.title)}</span>${sub.some(Boolean) ? `<span class="fb-chip-sub">${escape(sub.filter(Boolean).join(' · '))}</span>` : ''}</span></a>${entry.permission ? `<div class="fb-chip-answer"><span class="fb-chip-sub">${escape(entry.reason?.sentence ?? '')}</span>${permissionButtons(entry.permission, { prefix: 'fleet', size: 'xs' })}</div>` : ''}</li>`;
 }
 
 function yourCell(lane, stage) {
