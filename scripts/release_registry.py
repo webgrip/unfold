@@ -26,6 +26,11 @@ READ_ATTEMPTS = 3
 COMMAND_TIMEOUT = 600
 TRANSIENT_STATUS = {429, 500, 502, 503, 504}
 TRANSIENT_ERRORS = (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError, urllib.error.URLError)
+OPENBAO = 'http://openbao.security.svc.cluster.local:8200'
+SIGNING_AUDIENCE = 'openbao-cosign'
+SIGNING_ROLE = 'cosign-signer'
+SIGNING_KEY = 'hashivault://cosign-webgrip'
+PUBLIC_KEY = str(Path(__file__).resolve().parent.parent / 'ops/security/cosign.pub')
 
 
 def request(url, method='GET', data=None, headers=None, missing=False):
@@ -181,10 +186,47 @@ def verify_image(registry, repository, version, revision):
     return digest(raw)
 
 
+def signing_identity(environ=os.environ):
+    url = environ['ACTIONS_ID_TOKEN_REQUEST_URL']
+    url += ('&' if '?' in url else '?') + urllib.parse.urlencode({'audience': SIGNING_AUDIENCE})
+    data, _ = request(url, headers={'Authorization': 'Bearer ' + environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+    return json.loads(data)['value']
+
+
+def signing_session(jwt):
+    data, _ = request(f'{OPENBAO}/v1/auth/forgejo/login', method='POST', data=json.dumps({'jwt': jwt, 'role': SIGNING_ROLE}).encode(), headers={'Content-Type': 'application/json'})
+    session = json.loads(data)['auth']
+    if SIGNING_ROLE not in session['policies']:
+        raise RuntimeError('Unfold did not receive the signing policy')
+    return session['client_token']
+
+
+def revoke_signing_session(token):
+    request(f'{OPENBAO}/v1/auth/token/revoke-self', method='POST', data=b'', headers={'X-Vault-Token': token})
+
+
+def verify_signed(reference):
+    command('cosign', 'verify', '--key', PUBLIC_KEY, '--insecure-ignore-tlog', reference)
+
+
+def sign_once(reference):
+    try:
+        verify_signed(reference)
+        return False
+    except RuntimeError:
+        pass
+    token = signing_session(signing_identity())
+    try:
+        command('cosign', 'sign', '--yes', '--tlog-upload=false', '--key', SIGNING_KEY, reference, env={**os.environ, 'VAULT_ADDR': OPENBAO, 'VAULT_TOKEN': token})
+    finally:
+        revoke_signing_session(token)
+    verify_signed(reference)
+    return True
+
+
 def verify_signature(reference):
-    key = str(Path(__file__).resolve().parent.parent / 'ops/security/cosign.pub')
-    command('cosign', 'verify', '--key', key, '--insecure-ignore-tlog', reference)
-    statements = command('cosign', 'verify-attestation', '--key', key, '--insecure-ignore-tlog', '--type', 'cyclonedx', reference)
+    verify_signed(reference)
+    statements = command('cosign', 'verify-attestation', '--key', PUBLIC_KEY, '--insecure-ignore-tlog', '--type', 'cyclonedx', reference)
     if not statements:
         raise RuntimeError(f'Missing verified SBOM for {reference}')
 

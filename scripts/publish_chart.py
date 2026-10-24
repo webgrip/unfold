@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from publish_release import publishable_tag
-from release_registry import Registry, command, digest, require_same
+from release_registry import Registry, command, digest, require_same, sign_once
 
 IMAGE_DIGESTS = {'unfold': 'UNFOLD_IMAGE_DIGEST', 'unfold-agent': 'UNFOLD_AGENT_IMAGE_DIGEST'}
 WORKSPACE_REPOSITORY = 'ghcr.io/webgrip/unfold-agent'
@@ -91,13 +91,16 @@ def publish(application, version):
         require_complete(packaged, archive, version, digests, locked_ploeg(staged))
         if existing is None:
             command('helm', 'push', packaged, 'oci://harbor.webgrip.dev/webgrip/charts')
-    manifest = json.loads(registry.manifest(repository, version))
+    published_manifest = registry.manifest(repository, version)
+    manifest = json.loads(published_manifest)
     config = json.loads(registry.blob(repository, manifest['config']['digest']))
     require_same(config['version'], version, 'published chart version')
     require_same(config['appVersion'], version, 'published chart appVersion')
     layer = next(layer for layer in manifest['layers'] if layer['mediaType'] == 'application/vnd.cncf.helm.chart.content.v1.tar+gzip')
     published = registry.blob(repository, layer['digest'])
     require_same(chart_files(published), chart_files(archive), 'published chart contents')
+    reference = f'{registry.host}/{repository}@{digest(published_manifest)}'
+    print(f'{"Signed" if sign_once(reference) else "Kept the existing signature of"} {reference}')
     print(f'Published {repository}:{version} with {", ".join(f"{name}@{value}" for name, value in digests.items())}')
 
 
