@@ -27,7 +27,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'agents-check', 'checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
@@ -154,7 +154,7 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
   assert.match(train.on.schedule[0].cron, /^\d+ \* \* \* \*$/, 'every hour');
   assert.deepEqual(train.concurrency, { group: 'release-train', 'cancel-in-progress': false });
   assert.ok(Object.values(workflows).every(other => other === train || other.concurrency?.group !== train.concurrency.group), 'no other workflow shares the train\'s queue');
-  assert.deepEqual(Object.keys(train.jobs).sort(), ['checks', 'pending', 'ploeg-pin', 'release', 'site-release']);
+  assert.deepEqual(Object.keys(train.jobs).sort(), ['checks', 'merge-pin', 'pending', 'ploeg-pin', 'release', 'site-release']);
   const pending = train.jobs.pending;
   assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'the train reads the branch head when it starts, not the commit it was queued for');
   assert.equal(pending.steps.at(-1).run, 'sh scripts/release-train.sh pending');
@@ -163,7 +163,7 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
       for (const gate of ['', 'false', 'true']) {
         const context = { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
         const expected = ref === 'refs/heads/development' && gate === 'true';
-        assert.equal(evaluate(pending.if, context), expected, `pending ${event_name} ${ref} ${gate}`);
+        assert.equal(evaluate(pending.if, { ...context, needs: { 'merge-pin': { result: 'success' } } }), expected, `pending ${event_name} ${ref} ${gate}`);
         assert.equal(evaluate(train.jobs.release.if, context), expected, `release ${event_name} ${ref} ${gate}`);
         assert.equal(evaluate(train.jobs['site-release'].if, context), expected, `site-release ${event_name} ${ref} ${gate}`);
       }
@@ -192,6 +192,38 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
   assert.equal(job.steps[release].with['package-name'], 'unfold');
   for (const [file, workflow] of Object.entries(workflows)) {
     if (file !== 'on_release_train.yml' && file !== 'on_release_preview.yml') assert.doesNotMatch(JSON.stringify(workflow), /"package-name":"unfold"/, `${file} must not version Unfold`);
+  }
+});
+
+test('the release train merges the newest green Ploeg pin first, so its checks and its release read a head that already holds it', () => {
+  const merge = train.jobs['merge-pin'];
+  const pending = train.jobs.pending;
+  assert.equal(merge.needs, undefined, 'merging the pin is the first job of the train');
+  assert.deepEqual(pending.needs, ['merge-pin']);
+  for (const ref of ['refs/heads/development', 'refs/heads/main']) {
+    for (const gate of ['', 'true']) {
+      const context = { github: { event_name: 'schedule', ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
+      assert.equal(evaluate(merge.if, context), ref === 'refs/heads/development' && gate === 'true', `merge-pin ${ref} ${gate}`);
+    }
+  }
+  const released = { github: { event_name: 'schedule', ref: 'refs/heads/development' }, vars: { UNFOLD_RELEASES_ENABLED: 'true' } };
+  for (const result of ['success', 'failure', 'skipped']) assert.equal(evaluate(pending.if, { ...released, needs: { 'merge-pin': { result } } }), true, `a pin merge that ended ${result} leaves the train unchanged`);
+  assert.equal(evaluate(pending.if, { ...released, needs: { 'merge-pin': { result: 'cancelled' } } }), false, 'a cancelled train stops');
+  assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'pending reads the head after the pin merged, not the commit the train was queued for');
+  const step = merge.steps.at(-1);
+  assert.equal(step.run, 'python3 scripts/release_train_pin.py');
+  assert.deepEqual(step.env, {
+    FORGEJO_REPOSITORY_API: '${{ github.server_url }}/api/v1/repos/${{ github.repository }}',
+    REPOSITORY: '${{ github.repository }}',
+    PIN_BASE: 'development',
+    PIN_AUTHOR: 'ploeg-release',
+    WEBGRIP_CI_TOKEN: '${{ secrets.WEBGRIP_CI_TOKEN }}',
+  });
+  assert.equal(step['continue-on-error'], undefined, 'a broken pin merge shows red instead of passing quietly');
+  for (const [file, workflow] of Object.entries(workflows)) {
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      if (file !== 'on_release_train.yml' || name !== 'merge-pin') assert.doesNotMatch(JSON.stringify(job), /release_train_pin\.py/, `${file} ${name} must not merge Ploeg pins`);
+    }
   }
 });
 
