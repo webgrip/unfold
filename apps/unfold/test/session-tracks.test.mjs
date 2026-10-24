@@ -98,7 +98,7 @@ test('an idle session never collides with a Run, and a session never collides wi
   const other = session('other', { state: 'waiting', mine: false, ownerName: 'sam' });
   const found = collisions({ sessions: [other, claimer], runs });
   assert.deepEqual(found[0].members.map(member => `${member.kind}:${member.id}`), ['session:other', 'session:claimer', 'run:r3'], 'someone else’s session still collides with the Run');
-  assert.equal(collisionsOf(collisions({ sessions: [idle, session('idle2', { state: 'idle', mine: false, ownerName: 'sam' })] }), { workItemId: '184' }).length, 1, 'two idle sessions still collide with each other');
+  assert.equal(collisionsOf(collisions({ sessions: [idle, session('idle2', { state: 'idle', mine: false, ownerName: 'sam' })] }), { workItemId: '184' }).length, 0, 'two idle sessions edit nothing, so they do not collide');
 });
 
 test('linked sessions join the value stream as one lane per person and harness that links to each session', () => {

@@ -93,6 +93,11 @@ test('two live sessions, or a session and a running Run, collide on a Work Item 
   const branch = collisions({ sessions: sameBranch });
   assert.deepEqual(branch.map(group => [group.on, group.repository, group.branch]), [['branch', 'webgrip/unfold', 'main']]);
   assert.equal(collisionSentence(branch[0], { sessionId: 'dddddddd1' }), 'This session and sam’s Claude Code session are on webgrip/unfold, branch main.');
+  const crowded = collisions({ sessions: ['dddddddd3', 'dddddddd4', 'dddddddd5'].map(id => session(id, { branch: 'main' })) });
+  assert.equal(collisionSentence(crowded[0], { sessionId: 'dddddddd3' }), 'This session and 2 of your other Claude Code sessions are on webgrip/unfold, branch main.');
+  assert.equal(collisionSentence(crowded[0]), '3 of your Claude Code sessions are on webgrip/unfold, branch main.');
+  assert.match(collisionCallout(crowded, { sessionId: 'dddddddd3' }), /href="#linked-session\/dddddddd4">Session dddddddd4</);
+  assert.deepEqual(collisions({ sessions: [session('dddddddd6', { branch: 'main' }), ...['dddddddd7', 'dddddddd8'].map(id => session(id, { branch: 'main', state: 'idle' }))] }), [], 'an idle session edits nothing, so it never collides');
 
   const onRunBranch = collisions({ sessions: [session('eeeeeeee1', { branch: 'agent/vik-2051' })], runs: runningRunsOf(detail) });
   assert.deepEqual(onRunBranch.map(group => group.on), ['branch'], 'a session on the branch a Run pushes to collides even when not linked');
@@ -110,7 +115,7 @@ test('the Agent sessions card and the session page warn about a collision with l
   const card = linkedSessionsMarkup(detail, linked, { now });
   assert.match(card, /Another agent works the same thing/);
   assert.match(card, /href="#work\/184">builder Run</);
-  assert.match(card, /href="#linked-session\/gggggggg2">sam’s session</);
+  assert.match(card, /href="#linked-session\/gggggggg2">sam’s session: Session gggggggg2</);
   assert.doesNotMatch(linkedSessionsMarkup(detail, { sessions: [{ ...linked.sessions[0], state: 'ended' }] }, { now }), /collision-warning/);
   const clashes = collisionsOf(collisions({ sessions: linked.sessions, runs: runningRunsOf(detail) }), { sessionId: 'gggggggg1' });
   const page = linkedSessionPage(linked.sessions[0], { now, clashes });
