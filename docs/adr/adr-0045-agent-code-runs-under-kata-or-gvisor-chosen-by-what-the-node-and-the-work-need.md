@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-24
 decision-makers: Ryan Grippeling
 ---
@@ -87,3 +87,4 @@ Chosen option: **"Kata with Cloud Hypervisor and gVisor as equals, chosen per wo
 * Explanation: [How agent code is contained](../concepts/how-agent-code-is-contained.md). Comparison: [Sandbox runtimes](../reference/sandbox-runtimes.md). Evidence: [research record of 2026-10-24](../research/2026-10-24-sandbox-runtimes-and-encryption.md).
 * Re-evaluate when a Talos extension ships Firecracker or Kata's Rust runtime, when Ploeg ADR-0106 is decided, or when a supported harness needs something neither runtime runs.
 * 2026-10-24 — Proposed. The owner agreed the direction ("support both patterns", "the best thing for everything") the same day.
+* 2026-10-24 — Accepted by Ryan Grippeling.
