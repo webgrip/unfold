@@ -16,7 +16,7 @@ const transcript = [
   { seq: 8, at, kind: 'tool_call', toolCallId: 'c2', status: 'completed' },
   { seq: 11, at, kind: 'tool_call', toolCallId: 'c3', title: 'npm test', toolKind: 'execute', status: 'failed', input: 'npm test' },
   { seq: 12, at, kind: 'plan', plan: [{ content: 'Read the failing test', status: 'completed' }, { content: 'Fix <rounding>', status: 'in_progress' }] },
-  { seq: 13, at, kind: 'message', text: 'I fixed the rounding.\n\nTests <still> fail.' },
+  { seq: 13, at, kind: 'message', text: 'I fixed the rounding.\n\n- **Tests:** `npm test` <still> fails.' },
 ];
 
 test('tool calls fold by toolCallId into one row at the first entry, with the latest status, outputs joined, and the latest plan only', () => {
@@ -52,8 +52,8 @@ test('the transcript shows messages, muted thoughts, one row per tool call, the 
   assert.match(html, /<p class="work-transcript-paths"><span class="mono">src\/order\.js<\/span> <span class="mono">test\/order\.test\.js<\/span><\/p>/);
   assert.match(html, /<span class="stream-tool">Ran a command<\/span><span class="badge sm" data-tone="danger">Failed<\/span>[^]*<span class="console-prompt" aria-hidden="true">\$ <\/span>npm test<\/span>/, 'a command shows once, at a prompt');
   assert.match(html, /<div class="console console-compact" data-private><pre data-private class="console-text"><span class="console-line" data-diff="file">edit src\/order\.js<\/span><span class="console-line" data-diff="hunk">@@ line 4[^<]*<\/span><span class="console-line" data-diff="del">-return round\(x\)<\/span><span class="console-line" data-diff="add">\+return roundHalfEven\(x\)<\/span><\/pre><\/div>/, 'a short change shows in full');
-  assert.match(html, /data-kind="thought"[^]*Thought · The rounding happens before tax\.[^]*<div class="work-transcript-thought">/);
-  assert.match(html, /<strong class="stream-actor">Builder<\/strong>[^]*<p>I fixed the rounding\.<\/p><p>Tests &lt;still&gt; fail\.<\/p>/);
+  assert.match(html, /data-kind="thought"[^]*Thought · The rounding happens before tax\.[^]*<div data-private class="prose work-transcript-thought"><p>The rounding happens before tax\.<\/p>/);
+  assert.match(html, /<strong class="stream-actor">Builder<\/strong>[^]*<div data-private class="prose stream-text work-transcript-text"><p>I fixed the rounding\.<\/p><ul><li><strong>Tests:<\/strong> <code>npm test<\/code> &lt;still&gt; fails\.<\/li><\/ul>/, 'agent Markdown renders, escape-first');
   assert.match(html, /Plan · 1 of 2 done[^]*<li data-status="completed">[^]*Read the failing test[^]*<li data-status="in_progress">[^]*Fix &lt;rounding&gt;/);
   assert.equal(html.match(/work-transcript-checklist/g).length, 1, 'only the latest plan');
   assert.match(html, /<li class="work-transcript-stage"><span>Workspace ready<\/span>/);
