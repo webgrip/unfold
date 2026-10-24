@@ -87,6 +87,9 @@ workspacePodRuntimeClassName: ""
 # Days a finished session's workspace volume (pod provisioner) is kept after the
 # session last changed, once its change was captured. 0 keeps every volume.
 workspaceRetentionDays: 7
+# Annotations set on a workspace volume just before the retention sweep deletes
+# it, for clusters whose admission policy refuses unannotated PVC deletes.
+workspaceVolumeDeleteAnnotations: {}
 workspaceTransport: pull
 workspaceRelayUrl: ""
 workspaceProvisioner: pod

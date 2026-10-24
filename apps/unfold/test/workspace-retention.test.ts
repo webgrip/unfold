@@ -68,6 +68,22 @@ test('releasing a volume removes the pod and its objects first, then the claim; 
   assert.deepEqual(calls, []);
 });
 
+test('a cluster that refuses unannotated claim deletes gets its annotation on the claim first, and other annotations stay', async () => {
+  const calls: { method: string; path: string; body?: any }[] = [];
+  const name = workspaceName('session-2');
+  const claim = `/api/v1/namespaces/unfold-workspaces/persistentvolumeclaims/${name}`;
+  const client = { request: async (path: string, method = 'GET', body?: unknown) => {
+    calls.push({ method, path, body });
+    return path === claim && method === 'GET' ? { metadata: { name, annotations: { 'volume.kubernetes.io/storage-provisioner': 'driver.longhorn.io' } }, spec: {} } : null;
+  } } as unknown as KubernetesClient;
+  const annotated = config('/tmp');
+  annotated.kubernetes!.volumeDeleteAnnotations = { 'policy.example/allow-stateful-delete': 'true' };
+  assert.equal(await new KubernetesWorkspaces(annotated, client).releaseVolume({ id: 'session-2', backend: 'kubernetes', directory: '/workspace/repository' }), true);
+  const onClaim = calls.filter(call => call.path === claim);
+  assert.deepEqual(onClaim.map(call => call.method), ['GET', 'PUT', 'DELETE']);
+  assert.deepEqual(onClaim[1]!.body.metadata.annotations, { 'volume.kubernetes.io/storage-provisioner': 'driver.longhorn.io', 'policy.example/allow-stateful-delete': 'true' });
+});
+
 class VolumeRuntime implements AgentRuntime {
   kind = 'opencode' as const;
   released: string[] = [];
