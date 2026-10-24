@@ -198,25 +198,58 @@ class Duplication(Fixture):
 
 
 class LinkedSkills(Fixture):
-    def test_skills_need_their_symlink(self):
+    def test_each_skill_needs_its_link(self):
         self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
         self.assertIn('must be a tracked symlink', self.failures('layout')[0])
-        self.link('.claude/skills', '../.agents/skills')
+        self.link('.claude/skills/x', '../../.agents/skills/x')
         self.assertEqual(self.failures('layout'), [])
 
-    def test_symlink_to_the_wrong_directory_fails(self):
+    def test_link_to_the_wrong_skill_fails(self):
         self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.write('elsewhere/x/SKILL.md', '---\nname: x\n---\n')
-        self.link('.claude/skills', '../elsewhere')
-        self.assertIn("points to '../elsewhere'", self.failures('layout')[0])
+        self.write('.agents/skills/y/SKILL.md', '---\nname: y\n---\n')
+        self.link('.claude/skills/y', '../../.agents/skills/y')
+        self.link('.claude/skills/x', '../../.agents/skills/y')
+        self.assertIn("points to '../../.agents/skills/y'", self.failures('layout')[0])
 
-    def test_a_real_directory_is_not_a_link(self):
+    def test_a_whole_directory_link_is_rejected(self):
         self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.write('.claude/skills/x/SKILL.md', '---\nname: x\n---\n')
-        self.assertIn('must be a tracked symlink', self.failures('layout')[0])
+        self.link('.claude/skills', '../.agents/skills')
+        self.assertIn('is a symlink; make it a directory', self.failures('layout')[0])
+
+    def test_a_skill_apm_deployed_needs_no_link(self):
+        self.write('.agents/skills/shared/SKILL.md', '---\nname: shared\n---\n')
+        self.write('.claude/skills/shared/SKILL.md', '---\nname: shared\n---\n')
+        self.write('apm.lock.yaml', 'dependencies:\n- deployed_files:\n  - .agents/skills/shared\n  - .claude/skills/shared\n')
+        self.assertEqual(self.failures('layout'), [])
+
+    def test_a_hand_copied_skill_fails(self):
+        self.write('.claude/skills/copied/SKILL.md', '---\nname: copied\n---\n')
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.link('.claude/skills/x', '../../.agents/skills/x')
+        self.assertIn('is a copy no APM dependency deployed', self.failures('layout')[0])
 
     def test_nothing_to_link_needs_no_link(self):
         self.assertEqual(self.failures('layout'), [])
+
+
+class ManagedBlock(Fixture):
+    def test_the_managed_block_is_not_hand_written(self):
+        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\n' + 'word ' * 450 + '\n<!-- apm:end -->\n')
+        self.assertEqual(self.failures('budget'), [])
+
+    def test_the_managed_block_has_its_own_limit(self):
+        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\n' + 'word ' * 801 + '\n<!-- apm:end -->\n')
+        self.assertIn('between the apm markers; the limit is 800', self.failures('budget')[0])
+
+    def test_paths_and_tasks_in_the_managed_block_are_not_checked_here(self):
+        self.write('AGENTS.md', ROOT + '<!-- apm:start -->\nSee `nowhere/at/all.md` and run `mise run unknown-task`.\n<!-- apm:end -->\n')
+        self.assertEqual(self.failures('links') + self.failures('commands'), [])
+
+    def test_a_nested_file_may_not_repeat_the_managed_block(self):
+        sentence = 'Commit only the paths you wrote and never the whole tree at once.'
+        self.write('AGENTS.md', ROOT + f'<!-- apm:start -->\n\n- {sentence}\n\n<!-- apm:end -->\n')
+        self.write('apps/app/AGENTS.md', APP + sentence + '\n')
+        self.assertEqual(len(self.failures('duplication')), 1)
 
 
 CONCEPT = """---
