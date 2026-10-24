@@ -1,0 +1,4 @@
+link_base = "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/"
+
+[skills]
+ignore = ["openspec-*", "source-command-*"]

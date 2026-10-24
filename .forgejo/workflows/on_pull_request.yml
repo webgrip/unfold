@@ -71,10 +71,10 @@ jobs:
       - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.7
-          install_args: uv pipx:apm-cli
+          install_args: uv
           cache: false
           github_token: ''
-      - name: Compare the agent files APM deploys with apm.lock.yaml, without blocking until 2026-11-07
+      - name: Check the agent files against the agent standard, without blocking until 2026-11-07
         continue-on-error: true
         run: mise run agents-check
 
