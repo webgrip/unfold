@@ -1,6 +1,6 @@
 dependencies:
 - name: ploeg
   repository: oci://ghcr.io/ploeg-hq/charts
-  version: 0.2.0-rc.62
-digest: sha256:ac54a83dc8cf996542e491c27f5007b602158cf8d697d5d7706c46c5b617b4b3
-generated: "2026-10-24T13:21:36.631214987Z"
+  version: 0.2.0-rc.63
+digest: sha256:70b6850ed47f4561634a1fd43fc8ca8a05ba2fe5ee8b08a0808c682ad1ee0dfe
+generated: "2026-10-24T13:48:42.195635359Z"

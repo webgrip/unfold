@@ -2,7 +2,7 @@ module forgejo.webgrip.dev/webgrip/unfold/unified-demo
 
 go 1.26.0
 
-require github.com/ploeg-hq/ploeg v0.2.0-rc.62
+require github.com/ploeg-hq/ploeg v0.2.0-rc.63
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
