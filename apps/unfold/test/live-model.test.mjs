@@ -9,6 +9,7 @@ import { instruments } from '../public/live/instruments.js';
 import { fixtureNow, scenarios } from '../public/live/fixtures.js';
 import { liveSentence } from '../public/live/parts.js';
 import { flightLegs } from '../public/live/flight-path.js';
+import { foldStrip } from '../public/live/fold-strip.js';
 
 const model = (name, change = input => input) => liveModel(change(scenarios[name].input()));
 
@@ -92,6 +93,17 @@ test('the stages say where the Work Item stands and who acts', () => {
   assert.deepEqual([at('review').pr[0], at('review').review], ['done', ['current', 'review']]);
   assert.deepEqual(at('needsYou').build, ['current', 'attention']);
   assert.deepEqual(Object.values(at('landed')).map(([status]) => status), ['done', 'done', 'done', 'done', 'done', 'done', 'unknown'], 'production is not tracked, so it is not claimed');
+});
+
+test('the stages say how long building, the pull request and your review took, and your review only counts up', () => {
+  const minutes = times => Object.fromEntries(Object.entries(times).map(([id, leg]) => [id, leg && [Math.round(leg.seconds / 60), leg.to === null]]));
+  assert.deepEqual(minutes(model('review').stageTimes), { build: [23, false], pr: [7, false], review: [24, true] });
+  assert.deepEqual(minutes(model('landed').stageTimes), { build: [29, false], pr: [40, false], review: [50, false] });
+  assert.deepEqual(minutes(model('running').stageTimes), { build: null, pr: null, review: null }, 'a stage not reached has no time');
+  const asked = model('review', input => { input.detail.events = [{ id: '1', at: new Date(fixtureNow - 10 * 60000).toISOString(), actor: 'ploegd', action: 'work_item.awaiting_review', workItemId: '190', team: 'bronze', detail: {} }]; return input; });
+  assert.deepEqual(minutes(asked.stageTimes).review, [10, true], 'Ploeg’s own event marks when your review began');
+  const notes = [...foldStrip(model('review')).matchAll(/lv-fold-note">([^<]*)/g)].map(match => match[1]);
+  assert.ok(notes.includes('23 min') && notes.includes('#812 · 7 min') && notes.includes('ready for 24 min'), notes.join(' | '));
 });
 
 test('an estimate appears only when the caller passes one', () => {

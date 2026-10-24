@@ -17,8 +17,10 @@ function note(model, stage) {
     const parts = [attempt ? `attempt ${attempt.n}` : '', model.running ? span(model.running.seconds) : '', model.lost.runs ? `${model.lost.runs} lost` : ''].filter(Boolean);
     return parts.join(' · ');
   }
-  if (stage.id === 'pr' && stage.status === 'current') return [model.pullRequest?.number ? `#${model.pullRequest.number}` : '', model.runs.some(run => !run.writes && ['pending', 'running'].includes(run.state)) ? 'agent review' : ''].filter(Boolean).join(' · ');
-  if (stage.id === 'pr' && model.pullRequest?.number) return `#${model.pullRequest.number}`;
+  const took = model.stageTimes?.[stage.id] ?? null;
+  if (stage.id === 'build') return took ? span(took.seconds) : '';
+  if (stage.id === 'pr') return [model.pullRequest?.number ? `#${model.pullRequest.number}` : '', stage.status === 'current' && model.runs.some(run => !run.writes && ['pending', 'running'].includes(run.state)) ? 'agent review' : '', took ? span(took.seconds) : ''].filter(Boolean).join(' · ');
+  if (stage.id === 'review' && took) return stage.status === 'current' ? `ready for ${span(took.seconds)}` : span(took.seconds);
   return '';
 }
 
