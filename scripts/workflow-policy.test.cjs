@@ -234,6 +234,16 @@ test('the chart is published only after every image of the release, and defaults
   assert.ok(publisher.jobs['unfold-release-distribute'].needs.includes('unfold-release-publish-chart'), 'the mirrors copy the chart only after it is published');
 });
 
+test('the chart job signs the chart it publishes with the image signing identity, so a consumer can verify it before following a candidate', () => {
+  const chart = publisher.jobs['unfold-release-publish-chart'];
+  assert.equal(chart['enable-openid-connect'], true);
+  assert.deepEqual(chart.permissions, { contents: 'read' });
+  const publish = chart.steps.find(step => step.run?.includes('python3 scripts/publish_chart.py unfold'));
+  assert.match(publish.name, /sign and verify/);
+  const script = fs.readFileSync(path.join(root, 'scripts/publish_chart.py'), 'utf8');
+  assert.match(script, /sign_once\(reference\)/);
+});
+
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {
   assert.deepEqual(Object.keys(publisher.jobs).filter(name => name.startsWith('ploeg-')), []);
   assert.doesNotMatch(JSON.stringify(publisher), /ploeg/i);

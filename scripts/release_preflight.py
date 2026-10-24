@@ -1,10 +1,9 @@
 import base64
 import json
 import os
-import urllib.parse
 
 from publish_release import FORGEJO, GITHUB, api, git
-from release_registry import Registry, request, require_same
+from release_registry import Registry, require_same, revoke_signing_session, signing_identity, signing_session
 
 
 CANONICAL = 'webgrip/unfold'
@@ -55,18 +54,11 @@ def main():
         print(host + ': registry authentication passed')
     if not os.environ.get('OVSX_PAT'):
         raise RuntimeError('Unfold has no Open VSX publishing credential')
-    url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
-    url += ('&' if '?' in url else '?') + urllib.parse.urlencode({'audience': 'openbao-cosign'})
-    data, _ = request(url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
-    jwt = json.loads(data)['value']
+    jwt = signing_identity()
     payload = jwt.split('.')[1]
     claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
     require_same(claims['repository'], CANONICAL, 'signing identity')
-    data, _ = request('http://openbao.security.svc.cluster.local:8200/v1/auth/forgejo/login', method='POST', data=json.dumps({'jwt': jwt, 'role': 'cosign-signer'}).encode(), headers={'Content-Type': 'application/json'})
-    session = json.loads(data)['auth']
-    if 'cosign-signer' not in session['policies']:
-        raise RuntimeError('Unfold did not receive the signing policy')
-    request('http://openbao.security.svc.cluster.local:8200/v1/auth/token/revoke-self', method='POST', data=b'', headers={'X-Vault-Token': session['client_token']})
+    revoke_signing_session(signing_session(jwt))
     print('Unfold OIDC signing authorization passed; temporary token revoked')
 
 
