@@ -2,6 +2,7 @@ import copy
 import inspect
 import json
 import re
+import shutil
 import tempfile
 import unittest
 import urllib.error
@@ -214,9 +215,26 @@ class DistributionTests(unittest.TestCase):
         digests = {'unfold': 'sha256:' + 'a' * 64, 'unfold-agent': 'sha256:' + 'b' * 64}
         values = publish_chart.release_values((root / 'apps/unfold/ops/helm/unfold/values.yaml').read_text(), '0.4.0-rc.9', digests)
         self.assertIn('image:\n  repository: ghcr.io/webgrip/unfold\n  tag: "0.4.0-rc.9"\n  digest: "sha256:' + 'a' * 64 + '"\n', values)
-        self.assertIn('\nworkspaceImage: ghcr.io/webgrip/unfold-agent:0.4.0-rc.9@sha256:' + 'b' * 64 + '\n', values)
-        with self.assertRaisesRegex(RuntimeError, 'one empty image.tag'):
+        self.assertIn('\nworkspaceImage: ""\nworkspaceAgentImage:\n  repository: ghcr.io/webgrip/unfold-agent\n  tag: "0.4.0-rc.9"\n  digest: "sha256:' + 'b' * 64 + '"\n', values)
+        with self.assertRaisesRegex(RuntimeError, 'one image block with an empty tag and digest'):
             publish_chart.release_values(values, '0.4.0-rc.9', digests)
+
+    def test_a_consumer_moves_the_released_workspace_image_to_its_registry_and_keeps_the_stamped_version_and_digest(self):
+        root = Path(__file__).resolve().parent.parent
+        chart = root / 'apps/unfold/ops/helm/unfold'
+        agent = 'sha256:' + 'b' * 64
+        with tempfile.TemporaryDirectory() as directory:
+            staged = Path(directory) / 'unfold'
+            shutil.copytree(chart, staged)
+            values = staged / 'values.yaml'
+            values.write_text(publish_chart.release_values(values.read_text(), '0.4.0-rc.9', {'unfold': 'sha256:' + 'a' * 64, 'unfold-agent': agent}))
+            self.assertIn(f'ghcr.io/webgrip/unfold-agent:0.4.0-rc.9@{agent}', publish_chart.rendered_images(str(staged)))
+            mirrored = publish_chart.rendered_images(str(staged), 'workspaceAgentImage.repository=harbor.webgrip.dev/webgrip/unfold-agent')
+            self.assertIn(f'harbor.webgrip.dev/webgrip/unfold-agent:0.4.0-rc.9@{agent}', mirrored)
+            self.assertNotIn(f'ghcr.io/webgrip/unfold-agent:0.4.0-rc.9@{agent}', mirrored)
+            overridden = publish_chart.rendered_images(str(staged), 'workspaceAgentImage.repository=harbor.webgrip.dev/webgrip/unfold-agent', 'workspaceImage=registry.example/agent:1.0.0@sha256:' + 'c' * 64)
+            self.assertIn('registry.example/agent:1.0.0@sha256:' + 'c' * 64, overridden)
+            self.assertFalse([image for image in overridden if 'unfold-agent' in image])
 
     def test_the_chart_waits_for_the_pushed_digest_of_every_image(self):
         registry = MemoryRegistry('harbor.webgrip.dev')

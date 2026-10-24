@@ -14,8 +14,7 @@ from release_registry import Registry, command, digest, require_same, sign_once
 IMAGE_DIGESTS = {'unfold': 'UNFOLD_IMAGE_DIGEST', 'unfold-agent': 'UNFOLD_AGENT_IMAGE_DIGEST'}
 WORKSPACE_REPOSITORY = 'ghcr.io/webgrip/unfold-agent'
 DIGEST = re.compile(r'^sha256:[0-9a-f]{64}$')
-IMAGE_BLOCK = re.compile(r'^(image:\n  repository: \S+\n)  tag: ""\n  digest: ""\n', re.M)
-WORKSPACE_IMAGE = re.compile(r'^workspaceImage: ""$', re.M)
+RELEASED_IMAGE_BLOCKS = {'image': 'unfold', 'workspaceAgentImage': 'unfold-agent'}
 
 
 def released_digests(registry, version, environ=os.environ):
@@ -30,15 +29,18 @@ def released_digests(registry, version, environ=os.environ):
 
 
 def release_values(values, version, digests):
-    values, images = IMAGE_BLOCK.subn(rf'\g<1>  tag: "{version}"\n  digest: "{digests["unfold"]}"\n', values)
-    values, workspaces = WORKSPACE_IMAGE.subn(f'workspaceImage: {WORKSPACE_REPOSITORY}:{version}@{digests["unfold-agent"]}', values)
-    if (images, workspaces) != (1, 1):
-        raise RuntimeError('values.yaml must hold one empty image.tag and image.digest and one empty workspaceImage for the release to fill')
+    for key, name in RELEASED_IMAGE_BLOCKS.items():
+        block = re.compile(rf'^({key}:\n  repository: \S+\n)  tag: ""\n  digest: ""\n', re.M)
+        values, stamped = block.subn(rf'\g<1>  tag: "{version}"\n  digest: "{digests[name]}"\n', values)
+        if stamped != 1:
+            raise RuntimeError(f'values.yaml must hold one {key} block with an empty tag and digest for the release to fill')
+    if not re.search(r'^workspaceImage: ""$', values, re.M):
+        raise RuntimeError('values.yaml must leave workspaceImage empty so the released workspaceAgentImage applies')
     return values
 
 
-def rendered_images(archive_path):
-    rendered = command('helm', 'template', 'unfold', archive_path, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'baseUrl=https://unfold.invalid')
+def rendered_images(archive_path, *overrides):
+    rendered = command('helm', 'template', 'unfold', archive_path, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'baseUrl=https://unfold.invalid', *(argument for override in overrides for argument in ('--set', override)))
     return sorted(set(re.findall(r'^\s*(?:- )?image: "?([^"\s]+)"?\s*$', rendered, re.M)) | set(re.findall(r'\\?"image\\?":\s*\\?"([^"\\]+)', rendered)))
 
 
