@@ -9,6 +9,7 @@ import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile }
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
 import type { DeliveryService } from '../delivery.ts';
+import type { PersonProof } from '../person-proof.ts';
 import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
 import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta, isAutomationsChannel } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
@@ -303,6 +304,7 @@ export class AgentHost {
 
   private readonly review: CandidateReview;
   private readonly chatAsks: ChatAsks;
+  private readonly ploegClients: PloegClient[];
   /** Ploeg's tracker routes as a read-only automation catalogue. */
   readonly automations: TrackerAutomations;
   /** Ploeg's Work Items as read-only sessions. */
@@ -345,16 +347,17 @@ export class AgentHost {
       announceSession: session => this.announceSession(session),
       sessionPage: session => this.sessionPage(session),
     });
+    this.ploegClients = [new PloegClient(config, contract), new PloegClient(config, contract)];
     this.automations = new TrackerAutomations(config, {
       watchers: () => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(isAutomationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
       workspaceFolder: repositoryId => { const name = repositoryFolderNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
-    }, new PloegClient(config, contract));
+    }, this.ploegClients[0]);
     this.workItems = new WorkItemSessions(config, {
       viewers: () => [...new Map([...this.clients].filter(client => client.initialized).map(client => [client.user.id, client.user])).values()],
       listed: (user, change) => this.announceWorkItems(user, change),
       transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
-    }, new PloegClient(config, contract));
+    }, this.ploegClients[1]);
     this.workItemCommands = new WorkItemCommands(store, this.workItems.client, config.maxBudgetUsd);
     this.runLive = new RunLive(this.workItems.client, {
       watchers: (publicId, toolCallId, terminal) => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(channel => channel === terminal || (parseChannel(channel)?.id === publicId && parseChannel(channel)?.run === toolCallId))).map(client => [client.user.id, client.user])).values()],
@@ -377,6 +380,9 @@ export class AgentHost {
 
   /** Connects candidate delivery, so a gated session's verified candidate offers Accept and open pull request through the publish route. */
   useDelivery(service: DeliveryService): void { this.delivery = service; }
+
+  /** Sends each Ploeg change made from an editor with its person's token when one can be had (Unfold ADR 0055). */
+  usePersonProof(proof: PersonProof | undefined): void { for (const client of this.ploegClients) client.usePersonProof(proof); }
 
   /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
   evictIdleSessions(now = Date.now()): string[] {

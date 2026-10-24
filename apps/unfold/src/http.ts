@@ -17,6 +17,7 @@ import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
+import { personProof } from './person-proof.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
@@ -194,8 +195,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
+  const proof = personProof(config, store, oidc?.configured() ? refreshToken => oidc.refresh(refreshToken) : undefined);
+  ploeg.usePersonProof(proof);
+  engine.usePersonProof(proof);
+  agentHost?.usePersonProof(proof);
   const delivery = new DeliveryService(config, store);
   delivery.useContract(ploegCompatibility);
+  delivery.usePersonProof(proof);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
@@ -363,6 +369,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const name = store.upsertUser({ id: identity.id, name: claimedName, role: identity.role, passwordHash: '' });
           if (name !== claimedName) console.error(JSON.stringify({ level: 'warn', event: 'login.name_taken', method: 'oidc', user: identity.id, name }));
           const issued = auth.issue({ id: identity.id, name, role: identity.role });
+          if (proof && identity.tokens) proof.remember(issued.signIn, identity.id, identity.subject, identity.tokens);
           if (identity.editor) auth.claimEditor(identity.editor, issued.user);
           res.writeHead(303, { Location: identity.editor ? `/#editor-sign-in/${encodeURIComponent(identity.editor)}` : '/', 'Set-Cookie': issued.cookie });
         } catch (error: any) {
@@ -375,6 +382,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (method === 'POST' && path === '/api/logout') {
         const signIn = auth.signIn(req);
         if (signIn) agentHost?.revokeSignIn(signIn);
+        if (signIn) proof?.forget(signIn);
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
@@ -533,7 +541,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions,
           flags: await flags.clientValues(flagContext(user))
         }));
-        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize(await status.report(user)));
+        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize({ ...await status.report(user), ...(proof ? { personProof: proof.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined) } : {}) }));
         if (method === 'POST' && path === '/api/status/notes') return json(res, 201, sanitize(status.addNote(user, await body(req))));
         const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
         if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
@@ -1055,8 +1063,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const path = requested.pathname;
     if (!isAction(method, path)) { void handle(req, res); return; }
     const scope = auth.scope(req);
-    const signIn = scope === 'editor' ? auth.signIn(req) : undefined;
-    const channel = channelOf(scope, signIn ? store.getEditorCredential(signIn)?.label : undefined, req.headers['x-unfold-client']);
+    const signIn = scope === 'editor' || scope === 'browser' ? auth.signIn(req) : undefined;
+    const channel = channelOf(scope, scope === 'editor' && signIn ? store.getEditorCredential(signIn)?.label : undefined, req.headers['x-unfold-client']);
     const confirmation = confirmationOf(req.headers['x-unfold-confirmation']);
     res.once('finish', () => {
       const user = auth.user(req);
@@ -1065,7 +1073,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       try { store.recordAction({ at: new Date().toISOString(), userId: user.id, userName: user.name, role: user.role, channel, action, method, target, inputs: recordedInputs({ ...(parsedBodies.get(req) ?? {}), ...(requested.search ? { query: Object.fromEntries(requested.searchParams) } : {}) }) as Record<string, unknown>, confirmation, status: res.statusCode, outcome: outcomeOf(res.statusCode) }); }
       catch (error) { console.error(JSON.stringify({ level: 'error', event: 'action_record.failed', action, message: String((error as Error).message).slice(0, 300) })); }
     });
-    void actionContext.run({ via: channel, confirmation }, () => handle(req, res));
+    void actionContext.run({ via: channel, confirmation, ...(scope ? { scope } : {}), ...(scope === 'browser' && signIn ? { signIn } : {}) }, () => handle(req, res));
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;

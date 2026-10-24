@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
 import type { AppConfig, UserRole } from './types.ts';
+import type { SignInTokens } from './person-proof.ts';
 
 export type OidcSettings = { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
 export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string };
@@ -42,6 +43,14 @@ export function lowerRole(left: UserRole, right: UserRole): UserRole {
 }
 
 function base64url(bytes: Buffer): string { return bytes.toString('base64url'); }
+function signInTokens(data: any): SignInTokens | undefined {
+  const token = (value: unknown) => typeof value === 'string' && /^[!-~]{1,8192}$/.test(value) ? value : undefined;
+  const accessToken = token(data?.access_token);
+  if (!accessToken) return undefined;
+  const refreshToken = token(data?.refresh_token);
+  const expiresInSeconds = typeof data?.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0 ? data.expires_in : undefined;
+  return { accessToken, ...(refreshToken ? { refreshToken } : {}), ...(expiresInSeconds ? { expiresInSeconds } : {}) };
+}
 function decodeSegment(segment: string): any {
   try { return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')); } catch { throw new OidcError(502, 'oidc_token', 'The identity provider returned an unreadable token.'); }
 }
@@ -121,7 +130,8 @@ export class Oidc {
     return url.toString();
   }
 
-  async complete(code: string, state: string, browserBinding: string): Promise<OidcIdentity & { editor?: string }> {
+  /** Completes a sign-in: the person's identity, the editor sign-in it was for, and the tokens the provider returned, which only the server ever holds. */
+  async complete(code: string, state: string, browserBinding: string): Promise<OidcIdentity & { editor?: string; tokens?: SignInTokens }> {
     const settings = this.required();
     const pending = this.pending.get(state);
     if (!browserBinding || pending?.browserBinding !== browserBinding) throw new OidcError(400, 'oidc_state', 'The sign-in attempt was not started in this browser. Start again.');
@@ -139,7 +149,25 @@ export class Oidc {
     try { data = await response.json(); } catch { throw new OidcError(502, 'oidc_exchange', 'The identity provider returned an invalid token response.'); }
     if (typeof data?.id_token !== 'string') throw new OidcError(502, 'oidc_exchange', 'The identity provider returned no identity token.');
     const claims = await this.validate(data.id_token, pending.nonce);
-    return { ...this.identity(claims), ...(pending.editor ? { editor: pending.editor } : {}) };
+    const tokens = signInTokens(data);
+    return { ...this.identity(claims), ...(pending.editor ? { editor: pending.editor } : {}), ...(tokens ? { tokens } : {}) };
+  }
+
+  /** Trades a person's refresh token for a new access token at the provider's token endpoint. */
+  async refresh(refreshToken: string): Promise<SignInTokens> {
+    const settings = this.required();
+    const discovery = await this.discover();
+    const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: settings.clientId });
+    if (settings.clientSecret) body.set('client_secret', settings.clientSecret);
+    let response: Response;
+    try { response = await this.fetchImpl(discovery.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: body.toString(), signal: AbortSignal.timeout(10_000), redirect: 'error' }); }
+    catch { throw new OidcError(502, 'oidc_refresh', 'The identity provider could not be reached to refresh a sign-in.'); }
+    if (!response.ok) { await response.body?.cancel().catch(() => undefined); throw new OidcError(response.status === 400 || response.status === 401 ? response.status : 502, 'oidc_refresh', `The identity provider refused the refresh with HTTP ${response.status}.`); }
+    let data: unknown;
+    try { data = await response.json(); } catch { throw new OidcError(502, 'oidc_refresh', 'The identity provider returned an invalid refresh response.'); }
+    const tokens = signInTokens(data);
+    if (!tokens) throw new OidcError(502, 'oidc_refresh', 'The identity provider returned no access token.');
+    return tokens;
   }
 
   private async validate(token: string, nonce: string): Promise<Record<string, unknown>> {

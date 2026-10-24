@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answer, phaseLabel, returnTo, startLine } from '../public/views/status.js';
+import { answer, phaseLabel, proofMarkup, returnTo, startLine } from '../public/views/status.js';
 import { contractBanner, contractFrom, signalFrom } from '../public/core/status-signal.js';
 
 const check = (id, state, summary = `${id} ${state}`) => ({ id, title: id, state, summary, checkedAt: '2026-10-05T06:29:14Z' });
@@ -94,4 +94,13 @@ test('every page the shell draws carries the banner above its content while Ploe
   const clear = shell('<p>Own data</p>', { title: 'Sessions' });
   assert.match(clear, /class="app-contract-banner" data-ploeg-contract="" role="status" aria-live="polite" hidden><\/div>/);
   state.bootstrap = null;
+});
+
+test('the Status page tells a person in plain words when Ploeg cannot check that their actions are theirs', () => {
+  assert.equal(proofMarkup({}), '', 'nothing without person tokens configured');
+  assert.equal(proofMarkup({ personProof: { state: 'proven', summary: 'Ploeg records what you do here as proven by your sign-in.' } }), '');
+  const line = proofMarkup({ personProof: { state: 'degraded', summary: 'Your sign-in’s proof ran out, so Ploeg records your actions as named by Unfold, not proven. Sign out and sign in again to restore it.' } });
+  assert.match(line, /data-tone="attention"/);
+  assert.match(line, /Ploeg cannot check that your actions are yours/);
+  assert.match(line, /Sign out and sign in again/);
 });

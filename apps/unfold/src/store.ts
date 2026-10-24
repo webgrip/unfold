@@ -18,6 +18,8 @@ export type FlagAuditEntry = { flagKey: string; action: 'override_set' | 'overri
 /** Distinct people who saw each variant of a flag, and who then did each tracked thing, with the summed values. */
 export type FlagExperiment = { exposures: Record<string, number>; conversions: { event: string; variant: string; people: number; value: number }[] };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
+/** A person's sign-in tokens, kept encrypted and bound to one browser login so Unfold can prove that person to Ploeg. */
+export type PersonGrant = { userId: string; subject: string; accessToken: string; accessExpiresAt: number; refreshToken?: string };
 /** A credential issued to one editor after its person approved the sign-in in a browser. The token itself is never stored. */
 export type EditorCredential = { id: string; tokenHash: string; userId: string; label: string; scope: 'editor'; createdAt: string; expiresAt: string; lastUsedAt?: string };
 /** A note an administrator posts on the Status page while something affects the workbench. */
@@ -397,7 +399,33 @@ export class Store {
     return row ? { tokenHash: row.token_hash, userId: row.user_id, expiresAt: row.expires_at } : undefined;
   }
 
-  deleteLogin(tokenHash: string): void { this.db.prepare('DELETE FROM logins WHERE token_hash=?').run(tokenHash); }
+  deleteLogin(tokenHash: string): void {
+    this.deletePersonGrant(tokenHash);
+    this.db.prepare('DELETE FROM logins WHERE token_hash=?').run(tokenHash);
+  }
+
+  /** Keeps a person's sign-in tokens for the login `tokenHash` identifies, encrypted like every internal secret. */
+  setPersonGrant(tokenHash: string, grant: PersonGrant): void { this.setSecret(`person-grant:${tokenHash}`, grant); }
+
+  /** The sign-in tokens kept for a live login, or undefined once the login has ended or expired. */
+  personGrant(tokenHash: string): PersonGrant | undefined {
+    if (!this.getLogin(tokenHash)) return undefined;
+    return this.getSecret<PersonGrant>(`person-grant:${tokenHash}`);
+  }
+
+  deletePersonGrant(tokenHash: string): void { this.deleteSecret(`person-grant:${tokenHash}`); }
+
+  /** The live logins of `userId` that hold sign-in tokens, the one that lasts longest first. */
+  personGrantLogins(userId: string): string[] {
+    const rows = this.db.prepare("SELECT l.token_hash FROM logins l JOIN internal_state s ON s.id = 'person-grant:' || l.token_hash WHERE l.user_id=? AND l.expires_at>? ORDER BY l.expires_at DESC").all(userId, new Date().toISOString()) as { token_hash: string }[];
+    return rows.map(row => row.token_hash);
+  }
+
+  /** Deletes the sign-in tokens of every login that has ended or expired, and returns how many it deleted. */
+  prunePersonGrants(): number {
+    const now = new Date().toISOString();
+    return Number(this.db.prepare("DELETE FROM internal_state WHERE id LIKE 'person-grant:%' AND substr(id, 14) NOT IN (SELECT token_hash FROM logins WHERE expires_at>?)").run(now).changes);
+  }
 
   createEditorCredential(credential: EditorCredential): void {
     this.db.prepare('INSERT INTO editor_credentials(id,token_hash,user_id,label,scope,created_at,expires_at,last_used_at) VALUES(?,?,?,?,?,?,?,?)').run(credential.id, credential.tokenHash, credential.userId, credential.label, credential.scope, credential.createdAt, credential.expiresAt, credential.lastUsedAt ?? null);

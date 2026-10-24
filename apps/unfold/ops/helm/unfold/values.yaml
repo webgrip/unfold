@@ -139,6 +139,16 @@ config:
   # agent gets one remote MCP server `litellm` at <litellm root>/mcp. Absent means no MCP tools.
   repositories: []
   taskSources: []
+  # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a
+  # Ploeg-audience token sent with every change Unfold makes for them. The secret comes from credentialsSecret.
+  # ploeg:
+  #   url: http://ploeg.ploeg.svc:8080
+  #   tokenEnv: PLOEG_OPERATOR_UNFOLD_TOKEN
+  #   personTokens:
+  #     tokenUrl: https://authentik.example/application/o/token/
+  #     clientId: unfold-exchange
+  #     clientSecretEnv: UNFOLD_EXCHANGE_CLIENT_SECRET
+  #     audience: ploeg-for-unfold
   litellm:
     ttl: 4h
     settlementDelayMs: 60000

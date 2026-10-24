@@ -68,7 +68,7 @@ test('the store is not checked at boot', async () => {
 test('upkeep refreshes planner statistics every four hours, not on every tick', () => {
   let now = 0, optimized = 0;
   const state = new Map<string, unknown>([[quickCheckStateId, { at: 0, ok: true }]]);
-  const store = { optimize() { optimized++; }, quickCheck: () => [], getSecret: <T>(id: string) => state.get(id) as T | undefined, setSecret(id: string, value: unknown) { state.set(id, value); } };
+  const store = { prunePersonGrants: () => 0, optimize() { optimized++; }, quickCheck: () => [], getSecret: <T>(id: string) => state.get(id) as T | undefined, setSecret(id: string, value: unknown) { state.set(id, value); } };
   const upkeep = new StoreUpkeep(store, recordingErrors().errors, () => now);
   now = optimizeEveryMs - 1; upkeep.run();
   assert.equal(optimized, 0);
@@ -104,7 +104,7 @@ test('upkeep runs quick_check once a day, on the first tick when no check is rec
 test('a failing quick_check is logged and reported as fatal, and checked again the next day', () => {
   let now = 0;
   const state = new Map<string, unknown>();
-  const store = { optimize() {}, quickCheck: () => ['row 3 missing from index events_session', 'wrong # of entries in index events_session'], getSecret: <T>(id: string) => state.get(id) as T | undefined, setSecret(id: string, value: unknown) { state.set(id, value); } };
+  const store = { prunePersonGrants: () => 0, optimize() {}, quickCheck: () => ['row 3 missing from index events_session', 'wrong # of entries in index events_session'], getSecret: <T>(id: string) => state.get(id) as T | undefined, setSecret(id: string, value: unknown) { state.set(id, value); } };
   const { errors, captured } = recordingErrors();
   const upkeep = new StoreUpkeep(store, errors, () => now);
   const { logged } = quiet(() => upkeep.run());
@@ -124,7 +124,7 @@ test('a failing quick_check is logged and reported as fatal, and checked again t
 });
 
 test('a quick_check that throws, as SQLite does on a damaged file, is reported too', () => {
-  const store = { optimize() {}, quickCheck: (): string[] => { throw new Error('database disk image is malformed'); }, getSecret: () => undefined, setSecret() {} };
+  const store = { prunePersonGrants: () => 0, optimize() {}, quickCheck: (): string[] => { throw new Error('database disk image is malformed'); }, getSecret: () => undefined, setSecret() {} };
   const { errors, captured } = recordingErrors();
   quiet(() => new StoreUpkeep(store, errors, () => 0).run());
   assert.equal(captured.length, 1);

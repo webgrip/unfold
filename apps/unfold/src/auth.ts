@@ -287,11 +287,13 @@ export class Auth {
     return item;
   }
 
-  issue(user: User): { user: User; cookie: string } {
+  /** Starts a browser session for `user`: its cookie, and the hash that identifies its login without exposing it. */
+  issue(user: User): { user: User; cookie: string; signIn: string } {
     const token = randomBytes(32).toString('base64url');
     const seconds = this.config.auth.sessionHours * 3600;
-    this.store.createLogin(digest(token), user.id, new Date(Date.now() + seconds * 1000).toISOString());
-    return { user, cookie: this.cookie(token, seconds) };
+    const signIn = digest(token);
+    this.store.createLogin(signIn, user.id, new Date(Date.now() + seconds * 1000).toISOString());
+    return { user, cookie: this.cookie(token, seconds), signIn };
   }
   cookie(value: string, seconds: number): string {
     return `${this.cookieName}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${this.config.auth.secureCookies ? '; Secure' : ''}`;

@@ -87,6 +87,7 @@ Live mode reaches services the chart cannot guess, and none of them has a defaul
 | Service | Where |
 | --- | --- |
 | Ploeg, the engine | `config.ploeg.url` and `config.ploeg.tokenEnv`; the token lives in `credentialsSecret` |
+| Proving people to Ploeg (optional) | `config.ploeg.personTokens` (`tokenUrl`, `clientId`, `clientSecretEnv`, `audience`); the exchange client's secret lives in `credentialsSecret` under the name `clientSecretEnv` gives. Off when absent. [Live operation](../../../docs/operations/live.md#proving-people-to-ploeg) lists what the identity provider and Ploeg need |
 | Model gateway | `config.litellm.baseUrl`, or `LITELLM_BASE_URL` in `credentialsSecret` |
 | Forge repositories | `config.repositories[].url` |
 | Tracker | `config.taskSources[]` |

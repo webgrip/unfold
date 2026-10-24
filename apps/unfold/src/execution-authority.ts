@@ -5,6 +5,7 @@ import type { Store } from './store.ts';
 import { PloegError, contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PloegRevision } from './investigation.ts';
+import type { PersonProof } from './person-proof.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
 /** The Operator Execution states Unfold accepts from Ploeg; `test/ploeg-contract.test.ts` checks them against Ploeg's domain model. */
@@ -30,12 +31,16 @@ export class ExecutionAuthority {
   private store: Store;
   private config: AppConfig;
   private contract: PloegContractGate | undefined;
+  private proof: PersonProof | undefined;
   constructor(store: Store, config: AppConfig, contract?: PloegContractGate) {
     this.store = store;
     this.config = config;
     this.contract = contract;
     if (!config.ploeg?.url || config.ploeg.demo || !config.ploeg.tokenEnv || !config.execution) throw unavailable();
   }
+
+  /** Sends each execution change with its owner's person token when one can be had (RFC-0011, Unfold ADR 0055). */
+  usePersonProof(proof: PersonProof | undefined): void { this.proof = proof; }
 
   current(id: string): ExecutionBinding | undefined { return this.store.getSecret<ExecutionBinding>(`authority:${id}`); }
 
@@ -51,7 +56,8 @@ export class ExecutionAuthority {
     if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw unavailable({ cause: 'not_configured' });
     const started = Date.now();
     try {
-      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
+      const send = (extra: Record<string, string>) => fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }), ...extra }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
+      const response = body !== undefined && this.proof ? await this.proof.send(session.ownerId, actingUser, send) : await send({});
       if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
       if (!response.body || !(response.headers.get('content-type') ?? '').includes('application/json')) throw unavailable();
       const chunks: Uint8Array[] = []; let size = 0;

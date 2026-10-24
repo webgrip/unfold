@@ -3,6 +3,7 @@ import { knownSecrets } from './redaction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
 import { authorityFailure, authorityRequestTimeoutMs, ExecutionAuthority } from './execution-authority.ts';
+import type { PersonProof } from './person-proof.ts';
 import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, leftWorkingForRestart, workbenchRestart, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
@@ -124,6 +125,9 @@ export class Engine {
       this.maintenanceTask = this.observeSpend().catch(() => undefined).then(() => this.reconcilePending()).catch(() => undefined).finally(() => { this.maintenanceTask = undefined; });
     }, 15000).unref();
   }
+
+  /** Sends each execution change with its owner's person token when one can be had (Unfold ADR 0055). */
+  usePersonProof(proof: PersonProof | undefined): void { this.authority?.usePersonProof(proof); }
 
   create(input: CreateSessionInput, user: User): Session {
     this.operator(user);

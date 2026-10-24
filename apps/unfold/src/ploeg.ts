@@ -1,4 +1,5 @@
 import { ploegAttribution } from './action-records.ts';
+import type { PersonProof, PersonTokenSettings } from './person-proof.ts';
 import { legacyServed, type PloegCompatibility, type PloegContractGate, type PloegContractRequirement, type PloegServed, type PloegServedContract } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
@@ -1074,10 +1075,24 @@ const attributionId = (value: unknown, label: string): string => {
   return text;
 };
 
+function personTokenSettings(raw: unknown, demo: boolean): PersonTokenSettings {
+  if (demo) throw new Error('ploeg.personTokens needs a real Ploeg; the demo proves nobody');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('ploeg.personTokens must be an object');
+  const data = raw as Record<string, unknown>;
+  if (Object.keys(data).some(key => !['tokenUrl', 'clientId', 'clientSecretEnv', 'audience'].includes(key))) throw new Error('Unknown ploeg.personTokens field; it takes tokenUrl, clientId, clientSecretEnv and audience');
+  let tokenUrl: URL;
+  try { tokenUrl = new URL(typeof data.tokenUrl === 'string' && data.tokenUrl.length <= 2048 ? data.tokenUrl : ''); } catch { throw new Error('ploeg.personTokens.tokenUrl must be the identity provider token endpoint URL'); }
+  if (!['http:', 'https:'].includes(tokenUrl.protocol) || tokenUrl.username || tokenUrl.password || tokenUrl.hash) throw new Error('ploeg.personTokens.tokenUrl must use HTTP(S) without credentials or fragment');
+  if (typeof data.clientId !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(data.clientId)) throw new Error('ploeg.personTokens.clientId must be the exchange client id');
+  if (typeof data.clientSecretEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(data.clientSecretEnv)) throw new Error('ploeg.personTokens.clientSecretEnv must name an environment variable');
+  if (typeof data.audience !== 'string' || !/^[A-Za-z0-9_.:/-]{1,200}$/.test(data.audience)) throw new Error('ploeg.personTokens.audience must be the target provider audience, without spaces');
+  return { tokenUrl: tokenUrl.href, clientId: data.clientId, clientSecretEnv: data.clientSecretEnv, audience: data.audience };
+}
+
 export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig['ploeg'] {
   if (raw === undefined) return undefined;
   const data = record(raw);
-  if (Object.keys(data).some(key => !['url', 'tokenEnv', 'teams', 'userTeams', 'forgeLogins', 'trackerUrl', 'demo'].includes(key))) throw new Error('Unknown ploeg field; credentials must use tokenEnv');
+  if (Object.keys(data).some(key => !['url', 'tokenEnv', 'teams', 'userTeams', 'forgeLogins', 'trackerUrl', 'demo', 'personTokens'].includes(key))) throw new Error('Unknown ploeg field; credentials must use tokenEnv');
   if (data.demo !== undefined && (data.demo !== true || mode !== 'demo')) throw new Error('ploeg.demo requires explicit application demo mode');
   let url: URL;
   try { url = new URL(field(data.url, 2048)); } catch { throw new Error('ploeg.url must be an HTTP(S) origin or base path'); }
@@ -1092,7 +1107,8 @@ export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig[
   if (forgeLogins && (Object.keys(forgeLogins).length > 1000 || Object.entries(forgeLogins).some(([id, login]) => !/^[A-Za-z0-9_-]{1,128}$/.test(id) || typeof login !== 'string' || !forgeLogin.test(login)))) throw new Error('ploeg.forgeLogins must map user IDs to forge logins');
   const trackerUrl = data.trackerUrl === undefined ? undefined : link(data.trackerUrl);
   if (data.trackerUrl !== undefined && !trackerUrl) throw new Error('ploeg.trackerUrl must be an HTTP(S) URL without credentials');
-  return { url: url.href.replace(/\/+$/, ''), ...(data.tokenEnv ? { tokenEnv: data.tokenEnv as string } : {}), ...(data.teams !== undefined ? { teams: parseTeams(data.teams) } : {}), ...(userTeams ? { userTeams: Object.fromEntries(Object.entries(userTeams).map(([id, value]) => [id, parseTeams(value)])) } : {}), ...(forgeLogins ? { forgeLogins: { ...forgeLogins } as Record<string, string> } : {}), ...(trackerUrl ? { trackerUrl } : {}), ...(data.demo ? { demo: true } : {}) };
+  const personTokens = data.personTokens === undefined ? undefined : personTokenSettings(data.personTokens, Boolean(data.demo));
+  return { url: url.href.replace(/\/+$/, ''), ...(data.tokenEnv ? { tokenEnv: data.tokenEnv as string } : {}), ...(personTokens ? { personTokens } : {}), ...(data.teams !== undefined ? { teams: parseTeams(data.teams) } : {}), ...(userTeams ? { userTeams: Object.fromEntries(Object.entries(userTeams).map(([id, value]) => [id, parseTeams(value)])) } : {}), ...(forgeLogins ? { forgeLogins: { ...forgeLogins } as Record<string, string> } : {}), ...(trackerUrl ? { trackerUrl } : {}), ...(data.demo ? { demo: true } : {}) };
 }
 
 export class PloegClient {
@@ -1105,6 +1121,7 @@ export class PloegClient {
   private readonly titles = new Map<string, string>();
   private readonly demoDecisions = new Map<string, PloegDecision>();
   private cardService: CardService | undefined;
+  private proof: PersonProof | undefined;
   private factsProbe: { until: number; supported: boolean } | null = null;
   private notesRoute: boolean | undefined;
   private cancelGuard: boolean | undefined;
@@ -1174,6 +1191,8 @@ export class PloegClient {
   }
   constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
+  /** Sends each operator change made for a person with that person's token when one can be had (RFC-0011, Unfold ADR 0055). */
+  usePersonProof(proof: PersonProof | undefined): void { this.proof = proof; }
   /** Whether this client answers from the deterministic demo instead of a Ploeg. */
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
@@ -1188,7 +1207,8 @@ export class PloegClient {
     if (!post && !fresh && cached && cached.until > Date.now()) return structuredClone(cached.value);
     try {
       const headers: Record<string, string> = { accept: 'application/json', authorization: `Bearer ${token}`, ...(post ? { 'X-Ploeg-Actor': options.actor!, 'X-Ploeg-Acting-User': options.actingUser ?? options.actor!, ...ploegAttribution() } : {}), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.raw !== undefined ? { 'content-type': 'application/octet-stream' } : {}) };
-      const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
+      const send = (extra: Record<string, string>) => fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers: { ...headers, ...extra }, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
+      const response = post && this.proof ? await this.proof.send(options.actor!, options.actingUser, send) : await send({});
       if (post) this.cache.clear();
       if (!response.ok) {
         const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.chat ? await chatRefusal(response) : options.requeue ? await requeueRefusal(response) : options.takeOver ? await takeOverRefusalOf(response) : options.admission ? await admissionRefusal(response) : options.claim ? await claimRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.questionAnswer !== undefined ? await answerRefusal(response, options.questionAnswer) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;

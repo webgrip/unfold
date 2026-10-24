@@ -500,6 +500,12 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
     config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), ...(oidc.subjectNamespace !== undefined ? { subjectNamespace: oidc.subjectNamespace.replace(/\/$/, '') } : {}), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'unfold_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
   } else delete (config.auth as { oidc?: unknown }).oidc;
+  const exchange = config.ploeg?.personTokens;
+  if (exchange) {
+    if (!config.auth.oidc) throw new Error('ploeg.personTokens needs auth.oidc: Unfold exchanges the token a person signed in with');
+    if (!process.env[exchange.clientSecretEnv]) throw new Error(`ploeg.personTokens.clientSecretEnv names ${exchange.clientSecretEnv}, which is not set`);
+    if (config.runtime.agentEnvironment?.includes(exchange.clientSecretEnv)) throw new Error('The token exchange secret must never enter an agent workspace');
+  }
   const mcp = mcpHttpSettings();
   if (mcp) {
     if (mode !== 'live') throw new Error('UNFOLD_MCP_RESOURCE serves unfold-mcp over HTTP for signed-in people, which needs live mode');

@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
 import { deadlineAfter, settle, waitFor } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
+import type { PersonProof } from '../src/person-proof.ts';
 import { chatChannel } from '../src/ahp/host.ts';
 import { connect } from './ahp-support.ts';
 import type { AgentRuntime, Credential, ExecutionContext, ExecutionResult, Repository, RepositoryMcp, Session, User } from '../src/types.ts';
@@ -366,6 +367,22 @@ test('an old replay receipt after a newer refresh clears the pending command wit
   assert.equal(next.revision, refreshed.revision + 1);
   assert.equal(f.state.credentialRequests, 0);
   assert.equal(f.runtime.calls, 0);
+});
+
+test('execution changes go through person proof with their owner and acting person, and reads never do', async t => {
+  const f = await governed(t); const session = f.create();
+  const authority = new ExecutionAuthority(f.server.app.store, f.server.config);
+  const sent: { person: string; actingUser: string | undefined }[] = [];
+  authority.usePersonProof({ send: (person: string, actingUser: string | undefined, call: (headers: Record<string, string>) => Promise<Response>) => { sent.push({ person, actingUser }); return call({}); } } as unknown as PersonProof);
+  await authority.admit(session);
+  await authority.command(session, 'start');
+  const writes = sent.length;
+  assert.ok(writes >= 2);
+  assert.ok(sent.every(entry => entry.person === session.ownerId && entry.actingUser === session.ownerId));
+  await authority.refresh(session);
+  assert.equal(sent.length, writes, 'a refresh reads and sends no person token');
+  await authority.command(session, 'heartbeat', {}, 'another-admin');
+  assert.deepEqual(sent.at(-1), { person: session.ownerId, actingUser: 'another-admin' }, 'person proof decides that someone acting for the owner is not proven');
 });
 
 test('authority revoked during credential delivery prevents even the preliminary brief model request', async t => {

@@ -5,6 +5,7 @@ import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
 import type { DeliveryConfig } from './delivery-config.ts';
 import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
+import type { PersonTokenSettings } from './person-proof.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -50,7 +51,7 @@ export type AppConfig = {
   /** `unfold-mcp` served over Streamable HTTP on its own path, from `UNFOLD_MCP_*`; off when absent. */
   mcp?: McpHttpSettings;
   maxConcurrentSessions: number; maxBudgetUsd: number;
-  ploeg?: { url: string; tokenEnv?: string; teams?: string[]; userTeams?: Record<string, string[]>; forgeLogins?: Record<string, string>; trackerUrl?: string; demo?: boolean };
+  ploeg?: { url: string; tokenEnv?: string; teams?: string[]; userTeams?: Record<string, string[]>; forgeLogins?: Record<string, string>; trackerUrl?: string; demo?: boolean; personTokens?: PersonTokenSettings };
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
