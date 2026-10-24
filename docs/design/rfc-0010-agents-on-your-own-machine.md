@@ -1,6 +1,6 @@
 # RFC-0010: Agents on your own machine, started from Unfold
 
-> Status: **Proposed** 2026-10-24, design only; nothing in this RFC is built · Owner request (2026-10-24): "take on the actual agents on your laptop whenever you want, maybe to give it more rights" · Builds on: [Unfold ADR 0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md) (Linked Sessions), [Unfold ADR 0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) (editor sign-in and its credential), [system ADR-0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) (Action Records), [Ploeg ADR-0112](../../apps/ploeg/docs/adrs/0112-a-claude-environment-run-uses-the-claude-login-of-the-person-it-acts-for.md) (client-carried Runs), and the Ploeg proposal for personal cells, [Ploeg ADR-0143](https://github.com/ploeg-hq/ploeg/pull/239) (proposed, not in the pinned contract bundle yet)
+> Status: **Proposed** 2026-10-24, design only; nothing in this RFC is built; owner decisions recorded 2026-10-24 · Owner request (2026-10-24): "take on the actual agents on your laptop whenever you want, maybe to give it more rights" · Builds on: [Unfold ADR 0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md) (Linked Sessions), [Unfold ADR 0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) (editor sign-in and its credential), [system ADR-0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) (Action Records), [Ploeg ADR-0112](../../apps/ploeg/docs/adrs/0112-a-claude-environment-run-uses-the-claude-login-of-the-person-it-acts-for.md) (client-carried Runs), and the Ploeg proposal for personal cells, [Ploeg ADR-0143](https://github.com/ploeg-hq/ploeg/pull/239) (proposed, not in the pinned contract bundle yet)
 >
 > **TL;DR.** A small daemon on your machine, `unfold-daemon`, takes commands from Unfold, so that tapping **Start on my laptop** on Work Item 184 from your phone makes a git worktree for it, starts `claude` there with the Unfold plugin and `UNFOLD_WORK_ITEM=184`, and the session shows up on the Work Item page within seconds. It runs several sessions per Work Item, each in its own worktree. It lists, stops and cleans them up, and never deletes work you have not pushed without asking. It signs in like the VS Code extension does (a code you approve in the browser) and gets its own credential, which you can revoke in Settings. It only ever dials out. Permission prompts and messages reach those sessions through what already exists: the permission answers of slice H1 and the inbox of [#534](https://forgejo.webgrip.dev/webgrip/unfold/pulls/534). Later, the same daemon becomes the client for Ploeg's **personal cell**: Ploeg Runs that need what only your machine has (a VPN, Docker, a local secret, your MCP servers) run there, and asking for one more right ("egress to host X", "secret Y") becomes a prompt on your phone that you approve once, for that Run.
 
@@ -167,14 +167,16 @@ Each phase is one pull request in Unfold unless it says otherwise, and each says
 
 ## Owner decisions
 
-1. **Packaging.** (a) a Node program next to the plugin, run with `npx`, (b) a single Go binary that also contains `ploeg-worker cell`, (c) part of the VS Code extension. Recommended: (a) for phases 1 to 3, because it shares the plugin's modules; phase 4 starts `ploeg-worker` as a child and does not need (b).
-2. **How `claude` runs.** (a) tmux, interactive, (b) headless `claude -p` with stream-json input, (c) Remote Control server mode. Recommended: (a), with Remote Control as a per-start option; (b) loses the channel and hooks the plugin depends on.
-3. **Starting from a phone.** (a) the phone's confirmation is enough, (b) the first start in each repository also needs one click on the machine, (c) every start needs a click on the machine. Recommended: (b). It caps what a stolen Unfold session can do to repositories the person has not used remotely before.
-4. **Cloning.** (a) only repositories already cloned under the daemon's roots, (b) the daemon may clone a repository Ploeg has registered into its own root when the person allows it in the command. Recommended: (b), off by default.
-5. **Remote permission answers.** (a) once and for this session only, (b) also "always". Recommended: (a).
-6. **Cleanup.** Remove clean, pushed worktrees after (a) 1 hour, (b) 24 hours, (c) never automatically. Recommended: (b).
-7. **Where Settings lists machines.** (a) one **Machines** page with editors and daemons, (b) daemons beside **Signed-in editors**. Recommended: (a).
-8. The Ploeg decisions in [ADR-0143](https://github.com/ploeg-hq/ploeg/pull/239) under "Questions for the owner": reachability of ploegd from laptops, the harness container, grant scope, seat mode, offline fallback, lease grace and the first operating systems.
+The owner answered all of these on 2026-10-24, each as recommended, on the [decision page](https://claude.ai/artifact/BEgZNwzptbYdxc6Q1qH7j1):
+
+1. **Packaging.** A Node program next to the plugin, run with `npx`, for phases 1 to 3; phase 4 starts `ploeg-worker` as a child.
+2. **How `claude` runs.** In tmux, interactive, with Remote Control as a per-start option.
+3. **Starting from a phone.** The first start in each repository also needs one click on the machine; later starts there need only the phone.
+4. **Cloning.** The daemon may clone a repository Ploeg has registered into its own root when the person allows it in the command. Off by default.
+5. **Remote permission answers.** Once, or for this session only. Never "always".
+6. **Cleanup.** Clean, pushed worktrees are removed after 24 hours.
+7. **Where Settings lists machines.** One **Machines** page with editors and daemons.
+8. **The Ploeg decisions in ADR-0143.** Public TLS cell routes; a container by default with native as an opt-in; per-Run grants with a rest-of-Shift option; seat mode only for Runs the owner started; cluster fallback by default; a 15-minute lease grace; Linux and macOS first ([ploeg-hq #252](https://github.com/ploeg-hq/ploeg/pull/252)).
 
 ## Risks
 
