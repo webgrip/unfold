@@ -458,7 +458,15 @@ export class KubernetesWorkspaces {
 
   async releaseVolume(workspace: Workspace): Promise<boolean> {
     await this.dispose(workspace);
-    await this.client.request(this.path('PersistentVolumeClaim', workspaceName(workspace.id)), 'DELETE', undefined, true);
+    const claim = this.path('PersistentVolumeClaim', workspaceName(workspace.id));
+    const annotations = this.kube.volumeDeleteAnnotations ?? {};
+    if (Object.keys(annotations).length) {
+      const current = await this.client.request(claim, 'GET', undefined, true);
+      if (!current) return true;
+      current.metadata = { ...current.metadata, annotations: { ...(current.metadata?.annotations ?? {}), ...annotations } };
+      await this.client.request(claim, 'PUT', current);
+    }
+    await this.client.request(claim, 'DELETE', undefined, true);
     return true;
   }
 

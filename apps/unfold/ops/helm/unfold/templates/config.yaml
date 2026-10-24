@@ -17,6 +17,7 @@
 {{- if and .Values.workspacePodRuntimeClassName .Values.workspaceUserNamespaces -}}{{- fail "workspacePodRuntimeClassName cannot be combined with workspaceUserNamespaces: a sandboxed runtime such as Kata already remaps the workload" -}}{{- end -}}
 {{- if and .Values.workspacePodRuntimeClassName (eq .Values.workspaceProvisioner "pod") -}}{{- $_ := set $kube "runtimeClassName" .Values.workspacePodRuntimeClassName -}}{{- end -}}
 {{- $_ := set $kube "workspaceRetentionDays" (int .Values.workspaceRetentionDays) -}}
+{{- with .Values.workspaceVolumeDeleteAnnotations -}}{{- $_ := set $kube "volumeDeleteAnnotations" . -}}{{- end -}}
 {{- $_ := set $kube "transport" .Values.workspaceTransport -}}
 {{- if eq .Values.workspaceTransport "pull" -}}{{- $_ := set $kube "relayUrl" (default (printf "http://%s.%s.svc:%d" (include "unfold.name" .) .Release.Namespace (int .Values.service.port)) .Values.workspaceRelayUrl) -}}{{- end -}}
 {{- $_ := set $kube "provisioner" .Values.workspaceProvisioner -}}
