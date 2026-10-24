@@ -1,4 +1,5 @@
 import { ploegAttribution } from './action-records.ts';
+import { legacyServed, type PloegServed } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
 import { descriptionMarkdown } from './rich-text.ts';
@@ -1064,6 +1065,13 @@ export class PloegClient {
   private crackFailure(error: unknown): never {
     if (error instanceof CrackError) throw new PloegError(error.status, error.code === 'not_found' ? 'ploeg_not_found' : `crack_${error.code}`, error.message);
     throw error;
+  }
+  /** Reads which contract majors the connected Ploeg serves (Ploeg ADR-0147); a Ploeg that predates the version route serves major 1 of each. */
+  async served(): Promise<PloegServed> {
+    let data: Record<string, unknown>;
+    try { data = envelope(await this.request('version', true, { added: true })); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return legacyServed(); throw error; }
+    return { ploeg: field(data.ploeg, 128), legacy: false, contracts: array(data.contracts, value => { const contract = record(value); return { name: field(contract.name, 128), versions: array(contract.versions, version => numeric(version, true), 20) }; }, 100) };
   }
   /** Whether the connected Ploeg serves delivery facts (Ploeg ADR-0079), probed at most once a minute. */
   async factsSupported(fresh = false): Promise<boolean> {

@@ -21,6 +21,7 @@ import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
 import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
+import { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -190,6 +191,7 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config);
+  const ploegCompatibility = config.ploeg && !ploeg.isDemo ? new PloegCompatibilityMonitor(() => ploeg.served(), applicationVersion) : undefined;
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
   const delivery = new DeliveryService(config, store);
@@ -317,6 +319,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         if (path === '/readyz') store.ping();
+        const compatibility = path === '/readyz' ? ploegCompatibility?.status : undefined;
+        if (compatibility?.state === 'incompatible') return json(res, 503, { status: 'ploeg_incompatible', version: applicationVersion, error: { code: 'ploeg_contract_incompatible', message: compatibility.message } });
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
@@ -1061,5 +1065,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
+  return { server, cards, tripwire, ploegCompatibility, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); ploegCompatibility?.stop(); }, reports };
 }
