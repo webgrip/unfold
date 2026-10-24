@@ -9,9 +9,9 @@ By default it runs the deterministic **demo**, which needs nothing outside the c
 | Image | Default | Notes |
 | --- | --- | --- |
 | Workbench | `ghcr.io/webgrip/unfold@<digest>` | Public. The published chart sets `image.tag` to its version and `image.digest` to the digest the release pushed. Harbor and Forgejo hold the same signed digest; see [release artifacts](../../../../../docs/operations/artifacts.md). For a private copy set only `image.repository` and `imagePullSecrets`: the digest stays. |
-| Workspace (live mode) | `ghcr.io/webgrip/unfold-agent:<version>@<digest>` | The published chart sets `workspaceImage` to the digest the release pushed. Set `workspaceImage` and `workspaceImagePullSecrets` to use a private copy of that digest. |
+| Workspace (live mode) | `ghcr.io/webgrip/unfold-agent:<version>@<digest>` | The published chart sets `workspaceAgentImage.tag` to its version and `workspaceAgentImage.digest` to the digest the release pushed. For a private copy set only `workspaceAgentImage.repository` and `workspaceImagePullSecrets`: the version and digest stay. `workspaceImage`, when set, replaces the whole reference and pins it. |
 
-The chart in this repository leaves `image.tag`, `image.digest` and `workspaceImage` empty and renders the tag of its `appVersion`. Only the release fills them, after every image is pushed ([publication order](../../../../../docs/operations/ci.md#publication-and-recovery)), so set none of them in a cluster that installs a published chart.
+The chart in this repository leaves `image.tag`, `image.digest`, `workspaceAgentImage.tag`, `workspaceAgentImage.digest` and `workspaceImage` empty and renders the tag of its `appVersion`. Only the release fills them, after every image is pushed ([publication order](../../../../../docs/operations/ci.md#publication-and-recovery)), so set none of them in a cluster that installs a published chart.
 
 ## Demo install
 

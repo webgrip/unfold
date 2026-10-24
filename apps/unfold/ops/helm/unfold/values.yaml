@@ -60,6 +60,10 @@ credentialsSecret: unfold-credentials
 workspaceNamespace: unfold-workspaces
 createWorkspaceNamespace: true
 workspaceImage: ""
+workspaceAgentImage:
+  repository: ghcr.io/webgrip/unfold-agent
+  tag: ""
+  digest: ""
 workspaceStorageSize: 8Gi
 workspaceStorageClass: ""
 workspaceCpu: "1"

@@ -13,5 +13,11 @@ app.kubernetes.io/name: unfold
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- define "unfold.workspaceImage" -}}
-{{- default (printf "ghcr.io/webgrip/unfold-agent:%s" .Chart.AppVersion) .Values.workspaceImage -}}
+{{- if .Values.workspaceImage -}}
+{{- .Values.workspaceImage -}}
+{{- else -}}
+{{- $image := .Values.workspaceAgentImage -}}
+{{- printf "%s:%s" $image.repository (default .Chart.AppVersion $image.tag) -}}
+{{- with $image.digest -}}@{{ . }}{{- end -}}
+{{- end -}}
 {{- end -}}
