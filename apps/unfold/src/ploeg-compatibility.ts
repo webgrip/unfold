@@ -17,7 +17,7 @@ const expectations = JSON.parse(readFileSync(ploegExpectationsUrl, 'utf8')) as {
 /** The contract majors this Unfold requires of the Ploeg it talks to. */
 export const ploegRequirements: readonly PloegContractRequirement[] = Object.freeze(expectations.requires.map(requirement => Object.freeze({ ...requirement })));
 
-/** What a Ploeg without the version route serves: major 1 of every contract, because it predates every major 2 (Ploeg ADR-0146). */
+/** What a Ploeg without the version route serves: major 1 of every contract, because it predates every major 2 (Ploeg ADR-0147). */
 export function legacyServed(required: readonly PloegContractRequirement[] = ploegRequirements): PloegServed {
   return { ploeg: null, legacy: true, contracts: required.map(requirement => ({ name: requirement.contract, versions: [1] })) };
 }

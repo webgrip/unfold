@@ -1066,7 +1066,7 @@ export class PloegClient {
     if (error instanceof CrackError) throw new PloegError(error.status, error.code === 'not_found' ? 'ploeg_not_found' : `crack_${error.code}`, error.message);
     throw error;
   }
-  /** Reads which contract majors the connected Ploeg serves (Ploeg ADR-0146); a Ploeg that predates the version route serves major 1 of each. */
+  /** Reads which contract majors the connected Ploeg serves (Ploeg ADR-0147); a Ploeg that predates the version route serves major 1 of each. */
   async served(): Promise<PloegServed> {
     let data: Record<string, unknown>;
     try { data = envelope(await this.request('version', true, { added: true })); }
