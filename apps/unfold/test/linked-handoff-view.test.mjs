@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { digestMarkup, handOffMarkup, linkedWorkMarkup, shellQuote, startWorkItemForm, takeOverBrief, takeOverCommand, workCost, workItemBranch } from '../public/core/linked-handoff.js';
+import { briefCheck, digestMarkup, handOffMarkup, linkedWorkMarkup, shellQuote, startWorkItemForm, takeOverBrief, takeOverCommand, workCost, workItemBranch } from '../public/core/linked-handoff.js';
 
 const shift = (spentUsd, branch = 'claude/vik-9') => ({ id: '1', branch, spentUsd, closedAt: '2026-10-20T10:00:00Z' });
 const detail = (fields = {}) => ({ item: { id: '184', state: 'needs_human', title: "Fix the user's login", target: { owner: 'example', repo: 'order-service' }, latestShift: shift(1.25), ...fields }, shifts: [shift(1.25), shift(0.5)], runs: [{ state: 'finished', role: 'implementer', finishedAt: '2026-10-20T09:00:00Z', summary: "Changed login; tests fail on 'expired' tokens." }], questions: [{ text: 'Keep the old cookie name?', to: 'person', answer: null, waitingForPerson: true }] });
@@ -60,7 +60,24 @@ test('the digest is a stat row, the start form preselects the session’s reposi
   assert.match(form, /runs it with the Team’s budget\. Starting it spends nothing/);
   assert.doesNotMatch(form, /<b>Fix/);
   assert.equal(startWorkItemForm({ ...session, mine: false }, null), '');
+  const drafted = startWorkItemForm(session, { teams: ['delivery', 'bronze'], targets: [{ key: 'order-service', repository: 'example/order-service', baseBranch: 'main' }, { key: 'other', repository: 'example/other', baseBranch: '' }], suggested: 'order-service' }, { title: 'Kept', brief: 'Keep <this>', team: 'bronze', target: 'other' });
+  assert.match(drafted, /value="Kept"/, 'a draft survives a re-render');
+  assert.match(drafted, />Keep &lt;this&gt;<\/textarea>/);
+  assert.match(drafted, /<option value="bronze" selected>/);
+  assert.match(drafted, /<option value="other" selected>/);
+  assert.doesNotMatch(drafted, /<option value="order-service" selected>/);
   const handOff = handOffMarkup(session, { workItems: [{ id: '101', title: 'A', available: true, reason: '' }, { id: '102', title: 'B', available: false, reason: 'Ploeg is working on it now.' }] });
   assert.match(handOff, /Let Ploeg finish this/);
   assert.match(handOff, /<button[^>]*title="Ploeg is working on it now\."[^>]*disabled/);
+});
+
+test('the brief check says what an agent would start from and offers a Done when list until the brief names one', () => {
+  assert.match(briefCheck(''), /data-ok="false"[\s\S]*No brief/);
+  const vague = briefCheck('Make the webhooks retry.');
+  assert.match(vague, /Brief of 4 words/);
+  assert.match(vague, /data-ok="unknown"[\s\S]*No acceptance conditions/);
+  assert.match(vague, /data-action="linked-start-done-when"/);
+  const ready = briefCheck('Make the webhooks retry.\n\nDone when:\n- a failed delivery retries three times');
+  assert.match(ready, /Names acceptance conditions/);
+  assert.doesNotMatch(ready, /linked-start-done-when/);
 });
