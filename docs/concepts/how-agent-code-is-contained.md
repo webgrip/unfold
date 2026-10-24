@@ -41,7 +41,7 @@ No single layer is enough. A sandbox does nothing for a key the harness can read
 
 ## Two sandbox runtimes, chosen by fit
 
-Unfold supports two sandbox runtimes and treats them as equals ([ADR-0045](../adr/adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md), proposed). Each workload takes the one that fits its node and its work.
+Unfold supports two sandbox runtimes and treats them as equals ([ADR-0045](../adr/adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md)). Each workload takes the one that fits its node and its work.
 
 **Kata Containers** starts each pod in a small virtual machine with its own Linux kernel. Code that escapes the container is inside that VM. Leaving it takes a second bug, in the CPU's virtualization support (KVM) or in the program that plays the VM's devices (the VMM). Kata needs hardware virtualization, so bare metal or a VM whose provider passes it through. It costs 130 to 160 MiB and a second or two of start-up per pod, and anything a Linux kernel runs works inside, including container builds.
 
