@@ -8,11 +8,11 @@ import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/
 import { linkedInboxCard } from '../core/linked-inbox.js';
 import { permissionsCard, permissionsChangedEvent } from '../core/linked-permissions.js';
 import { shell } from '../shell.js';
-import { digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
+import { briefCheck, digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {} };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {} }));
 const clashItems = 5;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
@@ -52,12 +52,12 @@ function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
   const page = linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
-  const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError });
+  const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError, draft: view.draft.message });
   if (!view.session.mine) return `${page}${inboxCard}`;
   const waiting = permissionsCard(view.session, view.permissions);
   const handOff = handOffMarkup(view.session, view.readiness);
-  const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', body: startWorkItemForm(view.session, view.options) });
-  return `${waiting}${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}${inboxCard}`;
+  const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', icon: 'work', body: startWorkItemForm(view.session, view.options, view.draft) });
+  return `${waiting}${page}${inboxCard}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}`;
 }
 
 function renderLinked() {
@@ -118,6 +118,7 @@ async function sendMessage(data, form) {
   if (!text) throw new Error('Write a message first.');
   await api(`/api/linked-sessions/${encodeURIComponent(form.dataset.id)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
   notify('Sent. The session reads it on its next prompt, command or stop.');
+  delete view.draft.message;
   form.reset();
   await loadMessages(form.dataset.id);
 }
@@ -125,7 +126,7 @@ async function sendMessage(data, form) {
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = ''; view.permissions = null;
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = ''; view.permissions = null; view.draft = {};
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;
@@ -182,8 +183,26 @@ async function startWorkItem(data, form) {
   const id = form.dataset.id;
   const result = await api(`/api/linked-sessions/${encodeURIComponent(id)}/work-items`, { method: 'POST', body: JSON.stringify({ team: data.team, target: data.target, title: data.title, brief: data.brief, requestId: `unfold-linked-${crypto.randomUUID()}` }) });
   window.dispatchEvent(new CustomEvent(linkedChangedEvent, { detail: { id, workItem: result.workItem.id } }));
+  view.draft = view.draft.message ? { message: view.draft.message } : {};
   notify(result.linkError || `Ploeg queued Work Item ${result.workItem.id} for ${result.workItem.team}. This session is linked to it.`, Boolean(result.linkError));
   void loadSession(id);
+}
+
+const keepDraft = key => element => { view.draft[key] = element.value; };
+
+function checkBrief(textarea) {
+  view.draft.brief = textarea.value;
+  const check = textarea.form?.querySelector('[data-brief-check]');
+  if (check) check.innerHTML = briefCheck(textarea.value);
+}
+
+function addDoneWhen(element) {
+  const brief = element.closest('form')?.querySelector('#linked-start-brief');
+  if (!brief) return;
+  brief.value = `${brief.value.trimEnd()}${brief.value.trim() ? '\n\n' : ''}Done when:\n- `;
+  brief.focus();
+  brief.setSelectionRange(brief.value.length, brief.value.length);
+  checkBrief(brief);
 }
 
 async function handOff(element) {
@@ -210,7 +229,9 @@ export default {
   match: hash => hash === 'settings/agent-sessions' ? {} : (sessionPath.exec(hash) ? { id: sessionPath.exec(hash)[1] } : null),
   enter: enterLinked,
   render: renderLinked,
-  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested, 'linked-session-hand-off': handOff, 'linked-digest-window': digestWindow },
+  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested, 'linked-session-hand-off': handOff, 'linked-digest-window': digestWindow, 'linked-start-done-when': addDoneWhen },
+  inputs: { '#linked-start-brief': checkBrief, '#linked-start-title': keepDraft('title'), '#linked-session-message': keepDraft('message') },
+  changes: { '#linked-start-team': keepDraft('team'), '#linked-start-target': keepDraft('target') },
   forms: { 'linked-session-link': link, 'linked-session-start': startWorkItem, 'linked-session-message': sendMessage },
 };
 

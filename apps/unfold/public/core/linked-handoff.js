@@ -1,6 +1,8 @@
 import { escape } from './dom.js';
 import { button, callout, card, stat } from './ui.js';
 import { compactCount, money, plural } from './format.js';
+import { icon } from './icons.js';
+import { briefFacts } from '../start.js';
 
 const closedStates = new Set(['done', 'withdrawn']);
 const amount = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -114,22 +116,33 @@ export function digestMarkup(digest) {
   return `<div class="stat-row linked-digest-stats">${tiles}</div>${digest.truncated ? '<p class="meta">Only your most recent sessions are counted.</p>' : ''}`;
 }
 
-/** The owner's form that starts a Work Item from this session: Team, title, brief and a ready repository, preselected from the session's own. */
-export function startWorkItemForm(session, options) {
+/** The live check under a brief: its length and whether it names acceptance conditions, as the Start lane judges a task. */
+export function briefCheck(brief) {
+  const glyph = fact => fact.ok === true ? icon('check') : fact.ok === false ? icon('x-circle') : icon('help-circle');
+  const facts = briefFacts(brief);
+  const doneWhen = facts.some(fact => fact.ok === null) ? ` ${button({ label: 'Add a Done when list', icon: 'plus', variant: 'ghost', size: 'xs', action: 'linked-start-done-when' })}` : '';
+  return `<ul class="sheet-facts">${facts.map(fact => `<li data-ok="${fact.ok === null ? 'unknown' : fact.ok}"><span class="sheet-fact-mark" aria-hidden="true">${glyph(fact)}</span><span>${escape(fact.text)}</span></li>`).join('')}</ul>${doneWhen}`;
+}
+
+/** The owner's form that starts a Work Item from this session: title, brief with its live check, then Team and a ready repository, preselected from the session's own. */
+export function startWorkItemForm(session, options, draft = {}) {
   if (!session.mine) return '';
   if (!options) return '<p class="meta">Reading your Teams and repositories…</p>';
   if (options.error) return callout({ tone: 'neutral', icon: 'info', title: 'Cannot start a Work Item here', body: `<p>${escape(options.error)}</p>` });
   if (!options.teams.length || !options.targets.length) return `<p class="meta">${escape(options.message || 'You have no Team to start a Work Item for.')}</p>`;
-  const teams = options.teams.map(team => `<option value="${escape(team)}">${escape(team)}</option>`).join('');
-  const targets = options.targets.map(target => `<option value="${escape(target.key)}"${target.key === options.suggested ? ' selected' : ''}>${escape(`${target.repository}${target.baseBranch ? ` @ ${target.baseBranch}` : ''}`)}</option>`).join('');
-  const title = session.title ? escape(session.title.slice(0, 200)) : '';
+  const teams = options.teams.map(team => `<option value="${escape(team)}"${team === draft.team ? ' selected' : ''}>${escape(team)}</option>`).join('');
+  const chosen = options.targets.some(target => target.key === draft.target) ? draft.target : options.suggested;
+  const targets = options.targets.map(target => `<option value="${escape(target.key)}"${target.key === chosen ? ' selected' : ''}>${escape(`${target.repository}${target.baseBranch ? ` @ ${target.baseBranch}` : ''}`)}</option>`).join('');
+  const title = escape(String(draft.title ?? session.title ?? '').slice(0, 200));
+  const brief = String(draft.brief ?? '');
   return `<form class="linked-start-form" data-form="linked-session-start" data-id="${escape(session.id)}">
-    <label class="field-label" for="linked-start-team">Team</label><select id="linked-start-team" name="team" required>${teams}</select>
-    <label class="field-label" for="linked-start-target">Repository</label><select id="linked-start-target" name="target" required>${targets}</select>
-    <label class="field-label" for="linked-start-title">Title</label><input id="linked-start-title" name="title" maxlength="200" required value="${title}">
-    <label class="field-label" for="linked-start-brief">Brief</label><textarea id="linked-start-brief" name="brief" rows="5" maxlength="20000" required placeholder="What should Ploeg do, and how will you know it is done?"></textarea>
-    <p class="meta">Ploeg queues it and runs it with the Team’s budget. Starting it spends nothing; this session is linked to the new Work Item.</p>
-    ${button({ label: 'Start a Work Item from this session', icon: 'send', type: 'submit', size: 'sm' })}
+    <div class="field"><label class="field-label" for="linked-start-title">Title</label><input id="linked-start-title" class="linked-start-title" name="title" maxlength="200" required value="${title}" placeholder="Retry failed webhooks with backoff"></div>
+    <div class="field"><label class="field-label" for="linked-start-brief">Brief</label><textarea id="linked-start-brief" name="brief" rows="6" maxlength="20000" required aria-describedby="linked-start-brief-hint linked-start-brief-check" placeholder="What should Ploeg change, and what must be true when it is done?">${escape(brief)}</textarea><p class="field-hint" id="linked-start-brief-hint">Ploeg’s Runs start from this brief alone, not from this session’s conversation.</p><div class="linked-start-check" id="linked-start-brief-check" data-brief-check aria-live="polite">${briefCheck(brief)}</div></div>
+    <div class="linked-start-where">
+      <div class="field"><label class="field-label" for="linked-start-team">Team</label><select id="linked-start-team" name="team" required>${teams}</select></div>
+      <div class="field"><label class="field-label" for="linked-start-target">Repository</label><select id="linked-start-target" name="target" required>${targets}</select></div>
+    </div>
+    <div class="linked-start-submit">${button({ label: 'Start the Work Item', icon: 'send', type: 'submit', variant: 'primary' })}<p class="meta">Ploeg queues it and runs it with the Team’s budget. Starting it spends nothing; this session is linked to the new Work Item.</p></div>
   </form>`;
 }
 

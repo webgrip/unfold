@@ -18,6 +18,7 @@ test('the Messages card lists what Unfold sent with its delivery state, escaped,
   assert.doesNotMatch(html, /<b>184/);
   assert.equal(linkedInboxCard({ ...session, mine: false }, messages, { now }), '', 'someone else’s session shows no messages');
   assert.match(linkedInboxCard(session, [], { now }), /No messages yet/);
+  assert.match(linkedInboxCard(session, [], { now, draft: 'half <typed>' }), />half &lt;typed&gt;<\/textarea>/, 'a draft survives a re-render');
   assert.match(linkedInboxCard(session, null, { now }), /Loading messages/);
   assert.match(linkedInboxCard(session, null, { now, error: 'Unfold is down' }), /Unfold is down/);
   assert.equal(messageSender({ kind: 'person', createdBy: 'admin', fromOwner: false }), 'admin · administrator');
