@@ -2,6 +2,7 @@ import { ploegAttribution } from './action-records.ts';
 import { legacyServed, type PloegServed } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
+import { takeOverRefusal } from '../public/core/take-over.js';
 import { descriptionMarkdown } from './rich-text.ts';
 import { cardKpis, playKpis } from './card-kpis.ts';
 import { sourceTaskUrl, type TaskSourceConfig } from './tasks.ts';
@@ -29,7 +30,7 @@ export type PloegClientClaim = { run: { id: string; workItemId: string; shiftId:
 export type PloegMergeState = 'clean' | 'conflicted' | 'unknown';
 /** A Work Item's pull request as Ploeg reports it. `mergeState` is null when Ploeg did not report one; `number`, `baseBranch` and `checkedAt` are null when unknown. */
 export type PloegPullRequest = { url: string; number: number | null; mergeState: PloegMergeState | null; baseBranch: string | null; headSha: string; checkedAt: string | null };
-export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; problem: string; solution: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: PloegCostStatus; keyAlias: string | null; limits?: PloegRunLimits } & PloegBlackboardRun;
+export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; problem: string; solution: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: PloegCostStatus; keyAlias: string | null; limits?: PloegRunLimits; harness?: string | null } & PloegBlackboardRun;
 /** A shadow reviewer's Run (Ploeg ADR-0096) carries `shadow: true`; any other Run leaves it out. */
 export type PloegBlackboardRun = { shadow?: true };
 /** A finding raised by id on a Work Item, with the writer's answer (Ploeg ADR-0121, ploeg-hq/ploeg#180). */
@@ -41,9 +42,15 @@ export type PloegQuestion = { id: string; shiftId: string | null; runId: string;
 export type PloegReviewDisagreement = { shiftId: string; round: number; shadowRunId: string; shadowRole: string; primaryVerdict: PloegDisagreementVerdict; shadowVerdict: PloegDisagreementVerdict };
 export type PloegDisagreementVerdict = 'approve' | 'request_changes' | 'none';
 /** What a Work Item detail adds on the blackboard (Ploeg ADR-0121). Each list is absent from an older ploegd. */
-export type PloegBlackboard = { findings?: PloegFinding[]; questions?: PloegQuestion[]; reviewDisagreements?: PloegReviewDisagreement[]; resume?: PloegResumeOffer | null };
+export type PloegBlackboard = { findings?: PloegFinding[]; questions?: PloegQuestion[]; reviewDisagreements?: PloegReviewDisagreement[]; resume?: PloegResumeOffer | null; takeOver?: PloegTakeOver | null };
 /** What resuming a Work Item parked on a question would do (Ploeg ADR-0121): the Round it reopens and what it may spend. */
-export type PloegResumeOffer = { shiftId: string; askedRound: number; fromRound: number; roundCapUsd: number; poolUsd: number; ready: boolean; waitingQuestionIds: string[] };
+export type PloegResumeOffer = { shiftId: string; askedRound: number; fromRound: number; roundCapUsd: number; poolUsd: number; ready: boolean; waitingQuestionIds: string[]; reason?: 'question_for_person' | 'taken_over' };
+/** A person's take-over of a Work Item's running Runs (Ploeg ADR-0142): `yielding` until they stop at a safe point, `taken_over` while the person holds it, `handed_back` after their resume, `ended` when the Shift closed another way first. */
+export type PloegTakeOver = { id: string; state: 'yielding' | 'taken_over' | 'handed_back' | 'ended'; by: string; shiftId: string; round: number; branch: string; requestedAt: string; yieldedAt: string | null; commit: string | null; workInProgress: string | null; pushed: boolean | null; detail: string | null; handedBackAt: string | null; handedBackShiftId: string | null };
+/** What a take-over asks of Ploeg: the command id a retry reuses, the Shift the person saw, and, for an administrator acting for someone, the person it is done for. */
+export type PloegTakeOverCommand = { commandId: string; expectedShiftId?: string; actFor?: string };
+/** Ploeg's 202 answer to a take-over: the Runs it asked to yield and the Runs nobody had claimed that it cancelled. */
+export type PloegTakeOverStarted = { id: string; workItemId: string; shiftId: string; round: number; branch: string; state: PloegTakeOver['state']; runs: { id: string; role: string }[]; cancelledPendingRuns: number; commandId: string; replayed: boolean };
 /** Ploeg's answer to a stored question answer (Ploeg ADR-0121). */
 export type PloegQuestionAnswered = { workItemId: string; questionId: string; commandId: string; replayed: boolean; demo: boolean };
 /** The limits that stop a Run, as Ploeg records them when its prompt starts (RFC-0007, ploeg-hq/ploeg#160): the prompt and idle limits in seconds and when the prompt started. Absent for an older Ploeg; a limit Ploeg did not set is absent. */
@@ -125,7 +132,7 @@ export const demoContextRefusal = 'The demo does not store context files.';
 /** What the deterministic demo answers a note: it stores nothing and says so. */
 export const demoNoteRefusal = 'Illustrative demo: Ploeg stored no note and no Run will read it.';
 /** What a requeue asks of Ploeg (Ploeg ADR-0044): the command id a retry reuses, the state the person saw, and an optional note and pool. Ploeg restarts from Round 1. */
-export type PloegRequeueCommand = { commandId: string; expectedState: PloegState; note?: string; poolUsd?: number; resume?: boolean };
+export type PloegRequeueCommand = { commandId: string; expectedState: PloegState; note?: string; poolUsd?: number; resume?: boolean; actFor?: string };
 /** Ploeg's answer to a requeue: the new state and pool, and whether it replayed an earlier command with the same id. */
 export type PloegRequeued = { workItemId: string; team: string; state: string; fromRound: number; poolUsd: number | null; commandId: string | null; replayed: boolean; demo: boolean; resumed?: boolean };
 /** What a note asks of Ploeg (Ploeg ADR-0068): the command id a retry reuses, the instruction, and the Shift the person saw open, if any. */
@@ -329,7 +336,7 @@ function run(value: unknown): PloegRun {
   if (!(runStates as string[]).includes(data.state as string) || !(runCostStatuses as string[]).includes(data.costStatus as string)) throw invalid();
   const usage = nullable(data.usage, value => { const usage = record(value); return Object.fromEntries(['inputTokens', 'outputTokens', 'costUsd'].filter(key => usage[key] !== undefined).map(key => [key, numeric(usage[key], key !== 'costUsd')])); });
   if (data.costStatus !== 'unknown' && usage?.costUsd === undefined) throw invalid();
-  return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), problem: optionalText(data.problem, 16000), solution: optionalText(data.solution, 16000), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)), ...limitsOf(data.limits), ...blackboardOf(data) };
+  return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), problem: optionalText(data.problem, 16000), solution: optionalText(data.solution, 16000), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)), ...limitsOf(data.limits), ...harnessOf(data.harness), ...blackboardOf(data) };
 }
 const questionRecipients = ['person', 'reviewer', 'next_run'] as const;
 const findingSeverities = ['blocking', 'should_fix', 'nit'] as const;
@@ -372,7 +379,28 @@ function resumeOffer(value: unknown): PloegResumeOffer | null {
   const roundCapUsd = money(data.roundCapUsd), poolUsd = money(data.poolUsd);
   if (!shiftId || !askedRound || !fromRound || roundCapUsd === null || poolUsd === null || typeof data.ready !== 'boolean') return null;
   const waitingQuestionIds = Array.isArray(data.waitingQuestionIds) ? data.waitingQuestionIds.filter((entry): entry is string => typeof entry === 'string' && /^q[1-9][0-9]{0,18}-[1-9][0-9]{0,3}$/.test(entry)).slice(0, 50) : [];
-  return { shiftId, askedRound, fromRound, roundCapUsd, poolUsd, ready: data.ready, waitingQuestionIds };
+  const reason = pick(data.reason, resumeReasons);
+
+  return { shiftId, askedRound, fromRound, roundCapUsd, poolUsd, ready: data.ready, waitingQuestionIds, ...(reason ? { reason } : {}) };
+}
+const takeOverStates = ['yielding', 'taken_over', 'handed_back', 'ended'] as const;
+const resumeReasons = ['question_for_person', 'taken_over'] as const;
+const commitSha = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+/** Reads a Work Item's take-over (Ploeg ADR-0142); null when Ploeg sent none or one Unfold cannot read. */
+export function takeOverOf(value: unknown): PloegTakeOver | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const data = value as Record<string, unknown>;
+  const id = ref(data.id), shiftId = ref(data.shiftId), round = wholeNumber(data.round);
+  const state = pick(data.state, takeOverStates);
+  const by = shortText(data.by, 256), requestedAt = moment(data.requestedAt);
+  if (!id || !shiftId || round === null || !state || !by || !requestedAt) return null;
+  const sha = (entry: unknown) => typeof entry === 'string' && commitSha.test(entry) ? entry : null;
+  return { id, state, by, shiftId, round, branch: shortText(data.branch, 512), requestedAt, yieldedAt: moment(data.yieldedAt), commit: sha(data.commit), workInProgress: sha(data.workInProgress), pushed: typeof data.pushed === 'boolean' ? data.pushed : null, detail: shortText(data.detail, 4096) || null, handedBackAt: moment(data.handedBackAt), handedBackShiftId: ref(data.handedBackShiftId) || null };
+}
+function moment(value: unknown): string | null { return typeof value === 'string' && value.length <= 64 && Number.isFinite(Date.parse(value)) ? value : null; }
+function harnessOf(value: unknown): { harness?: string | null } {
+  if (value === undefined) return {};
+  return { harness: typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value) ? value : null };
 }
 /** Reads the blackboard lists of a Work Item detail (Ploeg ADR-0121), each only when Ploeg sent it, dropping entries Unfold cannot read. */
 function blackboardDetail(data: Record<string, unknown>): PloegBlackboard {
@@ -380,6 +408,7 @@ function blackboardDetail(data: Record<string, unknown>): PloegBlackboard {
   if (Array.isArray(data.findings)) out.findings = entries(data.findings, 500).map(finding).filter((entry): entry is PloegFinding => entry !== null);
   if (Array.isArray(data.questions)) out.questions = entries(data.questions, 200).map(question).filter((entry): entry is PloegQuestion => entry !== null);
   if (data.resume !== undefined) out.resume = resumeOffer(data.resume);
+  if (data.takeOver !== undefined) out.takeOver = takeOverOf(data.takeOver);
   if (Array.isArray(data.reviewDisagreements)) out.reviewDisagreements = entries(data.reviewDisagreements, 200).map(disagreement).filter((entry): entry is PloegReviewDisagreement => entry !== null);
   return out;
 }
@@ -469,10 +498,23 @@ const requeueFailures: Record<string, string> = {
   command_conflict: 'Ploeg already took a different restart under this command. Refresh to see where it stands.',
   question_unanswered: 'Another question of that Round still waits for an answer. Answer it too, then resume.',
   nothing_to_resume: 'Ploeg has no Round to resume for this Work Item any more. Refresh, then start it over instead.',
+  taken_over_by_another: takeOverRefusal('taken_over_by_another'),
 };
 async function refusalCode(response: Response): Promise<string> {
   if (!response.body || Number(response.headers.get('content-length')) > 65_536) return '';
   try { const data = JSON.parse(await response.text()); return typeof data?.error?.code === 'string' ? data.error.code : ''; } catch { return ''; }
+}
+/** The refusal code and message of a Ploeg error answer, or empty strings when it has none Unfold can read. */
+async function refusalOf(response: Response): Promise<{ code: string; message: string }> {
+  if (!response.body || Number(response.headers.get('content-length')) > 65_536) return { code: '', message: '' };
+  try { const data = JSON.parse(await response.text()); return { code: typeof data?.error?.code === 'string' ? data.error.code : '', message: typeof data?.error?.message === 'string' ? data.error.message.slice(0, 4096) : '' }; } catch { return { code: '', message: '' }; }
+}
+/** Ploeg's refusal of a take-over (Ploeg ADR-0142) in plain words; an older Ploeg without the route answers 501. */
+async function takeOverRefusalOf(response: Response): Promise<PloegError | null> {
+  const { code, message } = await refusalOf(response);
+  const sentence = takeOverRefusal(code, message);
+  if (sentence) return new PloegError(response.status, code, sentence);
+  return response.status === 404 && !code || response.status === 405 ? new PloegError(501, 'ploeg_take_over_unsupported', 'This Ploeg version cannot hand a running Run to a person. Update Ploeg to 0.2.0-rc.53 or later.') : null;
 }
 async function requeueRefusal(response: Response): Promise<PloegError | null> {
   const code = await refusalCode(response);
@@ -1115,7 +1157,7 @@ export class PloegClient {
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -1123,11 +1165,11 @@ export class PloegClient {
     const cached = this.cache.get(path);
     if (!post && !fresh && cached && cached.until > Date.now()) return structuredClone(cached.value);
     try {
-      const headers: Record<string, string> = { accept: 'application/json', authorization: `Bearer ${token}`, ...(post ? { 'X-Ploeg-Actor': options.actor!, 'X-Ploeg-Acting-User': options.actor!, ...ploegAttribution() } : {}), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.raw !== undefined ? { 'content-type': 'application/octet-stream' } : {}) };
+      const headers: Record<string, string> = { accept: 'application/json', authorization: `Bearer ${token}`, ...(post ? { 'X-Ploeg-Actor': options.actor!, 'X-Ploeg-Acting-User': options.actingUser ?? options.actor!, ...ploegAttribution() } : {}), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.raw !== undefined ? { 'content-type': 'application/octet-stream' } : {}) };
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.chat ? await chatRefusal(response) : options.requeue ? await requeueRefusal(response) : options.admission ? await admissionRefusal(response) : options.claim ? await claimRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.questionAnswer !== undefined ? await answerRefusal(response, options.questionAnswer) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.chat ? await chatRefusal(response) : options.requeue ? await requeueRefusal(response) : options.takeOver ? await takeOverRefusalOf(response) : options.admission ? await admissionRefusal(response) : options.claim ? await claimRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.questionAnswer !== undefined ? await answerRefusal(response, options.questionAnswer) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
@@ -1669,10 +1711,44 @@ export class PloegClient {
     if (this.demo) return { workItemId: id, team: '', state: command.expectedState, fromRound: 1, poolUsd: null, commandId: command.commandId, replayed: false, demo: true };
     if (command.resume && command.poolUsd !== undefined) throw new PloegError(400, 'ploeg_requeue', 'A resume keeps the parked attempt\'s pool; it takes no pool.');
     const body = { commandId: command.commandId, expectedState: command.expectedState, ...(note ? { note } : {}), ...(command.poolUsd !== undefined ? { poolUsd: command.poolUsd } : {}), ...(command.resume ? { resume: true } : {}) };
-    const result = record(envelope(await this.request(`work-items/${id}/requeue`, true, { actor: user.id, body, requeue: true })).requeue);
+    const acting = this.actingFor(user, command.actFor);
+    const result = record(envelope(await this.request(`work-items/${id}/requeue`, true, { ...acting, body, requeue: true })).requeue);
     const workItemId = identifier(typeof result.workItemId === 'number' ? String(result.workItemId) : result.workItemId);
     if (workItemId !== id) throw invalid();
     return { workItemId, team: typeof result.team === 'string' ? result.team : '', state: token(result.state), fromRound: typeof result.fromRound === 'number' && Number.isSafeInteger(result.fromRound) ? result.fromRound : 1, poolUsd: typeof result.poolUsd === 'number' && Number.isFinite(result.poolUsd) ? result.poolUsd : null, commandId: typeof result.commandId === 'string' ? result.commandId : null, replayed: result.replayed === true, demo: false, ...(result.resume === true ? { resumed: true } : {}) };
+  }
+  /**
+   * The ADR-0108 actor headers of a command: the caller themselves, or, for an administrator acting for `actFor`, that
+   * person as the actor and the administrator as the acting user. Only an administrator may act for someone else.
+   */
+  private actingFor(user: User, actFor: string | undefined): { actor: string; actingUser?: string } {
+    if (actFor === undefined || actFor === user.id) return { actor: user.id };
+    if (user.role !== 'admin') throw new PloegError(403, 'forbidden', 'Only an administrator can act for another person.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$/.test(actFor)) throw new PloegError(400, 'ploeg_actor', 'Name the person you act for by their Unfold account id.');
+    return { actor: actFor, actingUser: user.id };
+  }
+  /**
+   * Asks the running Runs of a Work Item to stop at their next safe point so a person can finish the work (Ploeg
+   * ADR-0142), as that person, or as an administrator acting for `actFor`. Ploeg answers 202 once it asked; the Work
+   * Item detail's `takeOver` follows the yield. The same `commandId` replays the first take-over. The demo runs no
+   * agents and refuses.
+   */
+  async takeOver(user: User, id: string, command: PloegTakeOverCommand): Promise<PloegTakeOverStarted> {
+    if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+    this.connected(user);
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A take-over needs a command id of 1 to 128 identifier characters.');
+    if (command.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(command.expectedShiftId)) throw new PloegError(400, 'ploeg_take_over', 'expectedShiftId must be a Shift id.');
+    const acting = this.actingFor(user, command.actFor);
+    if (this.demo) throw new PloegError(409, 'ploeg_demo', 'The demo runs no agents, so there is nothing to take over.');
+    const body = { commandId: command.commandId, ...(command.expectedShiftId ? { expectedShiftId: command.expectedShiftId } : {}) };
+    const data = record(envelope(await this.request(`work-items/${id}/take-over`, true, { ...acting, body, takeOver: true })).takeOver);
+    const workItemId = identifier(typeof data.workItemId === 'number' ? String(data.workItemId) : data.workItemId);
+    const state = pick(data.state, takeOverStates);
+    if (workItemId !== id || !state) throw invalid();
+    const runs = Array.isArray(data.runs) ? entries(data.runs, 100).map(entry => ({ id: ref(entry.id), role: shortText(entry.role, 100) })).filter(entry => entry.id) : [];
+    return { id: identifier(String(data.id ?? '')), workItemId, shiftId: identifier(String(data.shiftId ?? '')), round: wholeNumber(data.round) ?? 0, branch: shortText(data.branch, 512), state, runs, cancelledPendingRuns: wholeNumber(data.cancelledPendingRuns) ?? 0, commandId: typeof data.commandId === 'string' ? data.commandId : command.commandId, replayed: data.replayed === true };
   }
   /**
    * Admits a manual-origin Work Item for the caller's Team (Ploeg ADR-0102), as that person. It only queues the Work

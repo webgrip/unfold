@@ -44,7 +44,7 @@ test('Work Item states use the one vocabulary: Needs you, Ready for review, Done
 test('Run states, outcomes and agent verdicts read in plain words, and agent review never reads as human review', () => {
   assert.deepEqual(Object.values(runStates).map(meta => meta.label), ['Pending', 'Running', 'Stopped', 'Finished']);
   assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.label])), {
-    pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'No change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Stuck', failed: 'Failed',
+    pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'No change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Stuck', yielded: 'Stopped for a person', failed: 'Failed',
   });
   assert.equal(verdict('approve').label, 'Agent review: approve');
   assert.equal(verdict('request_changes').label, 'Agent review: changes requested');
@@ -113,7 +113,7 @@ test('verdicts have a short form for a reviewer’s own cell that still never sa
 
 test('outcomes have a short form that fits one line of a Round ladder cell', () => {
   assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.short])), {
-    pr_opened: 'PR opened', pr_updated: 'PR updated', no_change_needed: 'No change', follow_up_created: 'Follow-up created', issue_updated: 'Tracker updated', stuck: 'Stuck', failed: 'Failed',
+    pr_opened: 'PR opened', pr_updated: 'PR updated', no_change_needed: 'No change', follow_up_created: 'Follow-up created', issue_updated: 'Tracker updated', stuck: 'Stuck', yielded: 'Taken over', failed: 'Failed',
   });
   assert(Object.values(runOutcomes).every(meta => meta.short.length <= 17));
 });

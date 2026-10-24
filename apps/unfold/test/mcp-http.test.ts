@@ -151,7 +151,7 @@ test('a valid token runs the tools as the Unfold account its subject maps to; an
   const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token() });
   assert.equal(listed.status, 200, listed.text);
   assert.equal(listed.json.result.resultType, 'complete');
-  assert.deepEqual(listed.json.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_answer_question', 'unfold_add_note', 'unfold_steer_session', 'unfold_message_session', 'unfold_permission_requests', 'unfold_answer_permission']);
+  assert.deepEqual(listed.json.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_answer_question', 'unfold_add_note', 'unfold_take_over', 'unfold_hand_back', 'unfold_steer_session', 'unfold_message_session', 'unfold_permission_requests', 'unfold_answer_permission']);
   assert.equal(listed.headers.get('mcp-session-id'), null, 'a stateless server mints no session');
 
   const sessions = await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } }, { token: token() });
@@ -208,7 +208,7 @@ test('a 2025-11-25 client initializes over HTTP and lists tools without a sessio
   const initialized = await post(unfold.url, { jsonrpc: '2.0', method: 'notifications/initialized' }, { token: token(), version: '2025-11-25' });
   assert.equal(initialized.status, 202);
   const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token(), version: '2025-11-25' });
-  assert.equal(listed.json.result.tools.length, 20);
+  assert.equal(listed.json.result.tools.length, 22);
   assert.equal(listed.json.result.resultType, undefined);
 });
 

@@ -21,6 +21,7 @@ import { answerLimit, answerNote, resumeOffer, waitingQuestion, waitingQuestions
 import { detailReason } from '../core/reasons.js';
 import { attachSession, sessionParts } from './session.js';
 import { announcesTripwire, tripwireCheckLabel } from '../core/tripwire.js';
+import { takeControlDialogMarkup, takeControlOffer } from '../core/take-over.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -34,9 +35,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -113,6 +114,8 @@ function model() {
     landingHistory: work.landing && work.landing.team === state.ploegDetail?.item?.team ? work.landing.runs : null,
     actions: work.actions?.id === work.detailId ? work.actions.data : null,
     userRole: state.bootstrap?.user?.role,
+    takeOverBusy: work.takeOverBusy,
+    takeOverResult: work.takeOverResult?.id === work.detailId ? work.takeOverResult : null,
   };
 }
 
@@ -1246,6 +1249,51 @@ async function submitNote(data, form) {
   await sendWrite(id, 'notes', { commandId: crypto.randomUUID(), text: String(data.text).trim(), ...(open?.id ? { expectedShiftId: String(open.id) } : {}) }, result => result.demo ? result.message || 'This is the demo: the note was not stored.' : 'Saved. The next Run of this Work Item reads your note.');
 }
 
+function openTakeControl() {
+  const detail = currentDetail();
+  const user = state.bootstrap?.user;
+  const offer = detail && user ? takeControlOffer(detail, { id: user.id, role: user.role }) : null;
+  if (!offer?.enabled || work.takeOverBusy) return;
+  const dialog = openPloegDialog(takeControlDialogMarkup(detail, offer));
+  dialog.querySelector('[data-action="close-dialog"].button')?.focus();
+  dialog.addEventListener('close', () => { if (!work.takeOverBusy) $('[data-action="work-take-control"]')?.focus(); }, { once: true });
+}
+
+async function sendTakeOver(id, path, body, settled) {
+  work.takeOverBusy = true;
+  work.takeOverResult = null;
+  renderWork();
+  try {
+    const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/${path}`, { method: 'POST', body: JSON.stringify(body) });
+    work.takeOverResult = { id };
+    notify(settled(result));
+  } catch (error) {
+    work.takeOverResult = { id, error: error.message };
+    notify(error.message, true);
+  } finally {
+    work.takeOverBusy = false;
+    if (visible() && work.detailId === id) {
+      await Promise.all([loadOverview({ fresh: true, quiet: true }).catch(() => {}), loadDetail(id, { fresh: true, quiet: true }).catch(() => {})]);
+      renderWork();
+    }
+  }
+}
+
+async function submitTakeControl(_data, form) {
+  const id = form.dataset.id;
+  form.closest('dialog')?.close();
+  if (!id || work.takeOverBusy) return;
+  await sendTakeOver(id, 'take-over', { commandId: crypto.randomUUID(), ...(form.dataset.shift ? { expectedShiftId: form.dataset.shift } : {}), ...(form.dataset.actFor ? { actFor: form.dataset.actFor } : {}) }, result => result.takeOver?.replayed ? 'Ploeg had already asked the Run to stop.' : 'Asked. The Run stops at its next safe point, then the Work Item waits for you.');
+}
+
+async function submitHandBack(data, form) {
+  const id = form.dataset.id;
+  const note = String(data.note ?? '').trim();
+  if (fieldError(form, 'note', note.length > 4096 ? 'A note is at most 4096 characters.' : '')) return;
+  if (!id || work.takeOverBusy) return;
+  await sendTakeOver(id, 'hand-back', { commandId: crypto.randomUUID(), ...(note ? { note } : {}) }, result => result.demo ? 'This is the demo: nothing restarted.' : `Handed back. Ploeg resumes Round ${result.fromRound} on the same branch.`);
+}
+
 function traceData() {
   return work.trace?.id === work.detailId ? work.trace.data : null;
 }
@@ -1445,6 +1493,7 @@ export default {
     'work-ask-open': () => openAsk(),
     'work-answer-open': () => openAnswer(),
     'work-note-open': () => openNote(),
+    'work-take-control': () => openTakeControl(),
     'work-ask-model': askModelAnyway,
     'work-ask-again': askAgain,
     'work-actions-retry': () => { if (work.detailId) { work.actions = null; renderWork(); void loadActions(work.detailId); } },
@@ -1455,7 +1504,7 @@ export default {
     'trace-dispute': openCrackStep('dispute'),
     'trace-resolve': openCrackStep('resolve'),
   },
-  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk, 'work-steer': submitSteer, 'work-answer': submitAnswer, 'work-note': submitNote },
+  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk, 'work-steer': submitSteer, 'work-answer': submitAnswer, 'work-note': submitNote, 'work-take-control': submitTakeControl, 'work-hand-back': submitHandBack },
   inputs: { '[data-run-log-search]': searchRunLog },
   changes: {
     '#ploeg-team': changeTeam,

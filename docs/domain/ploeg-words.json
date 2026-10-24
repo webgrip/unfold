@@ -201,6 +201,12 @@
           "mcp": "stuck"
         },
         {
+          "value": "yielded",
+          "label": "Stopped for a person",
+          "short": "Taken over",
+          "mcp": "yielded"
+        },
+        {
           "value": "failed",
           "label": "Failed",
           "short": "Failed",
@@ -522,6 +528,13 @@
           "chip": "Question for you",
           "mcp": "question_for_person",
           "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it."
+        },
+        {
+          "value": "taken_over",
+          "ploegSource": "pkg/work/take_over.go (ADR-0142)",
+          "label": "A person took it over",
+          "chip": "Taken over by a person",
+          "mcp": "taken_over"
         }
       ]
     },

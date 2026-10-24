@@ -76,6 +76,7 @@ MCP: passes the Ploeg value through as `outcome` in unfold_get_work.
 | `issue_updated` | Updated the tracker item (short: Tracker updated) | same |  |
 | `follow_up_created` | Created follow-up work (short: Follow-up created) | same |  |
 | `stuck` | Stuck | same |  |
+| `yielded` | Stopped for a person (short: Taken over) | same |  |
 | `failed` | Failed | same |  |
 | `no_change_needed` | No change needed (short: No change) | same |  |
 
@@ -148,6 +149,7 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 | `run stuck`… | The writer got stuck in Round 2 | Agent is stuck | run stuck: writer round 2 | Prefix; the label shown is for `run stuck: writer round 2`. |
 | `plan removed from configuration`… | The Team plan was removed | Team plan removed | same | Prefix; the label shown is for `plan removed from configuration`. |
 | `question_for_person` | An agent asked a person a question | Question for you | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it. |
+| `taken_over` | A person took it over | Taken over by a person | same |  |
 
 ## Finding answer status
 

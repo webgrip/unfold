@@ -1,6 +1,6 @@
 {
   "name": "unfold",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Reports your Claude Code sessions to Unfold, links them to Work Items, records Agent Trace attribution for their commits, and brings Unfold's messages into the session.",
   "author": {
     "name": "Ryan Grippeling / WebGrip",
