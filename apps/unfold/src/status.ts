@@ -4,6 +4,7 @@ import { executionFailure, type FailureCategory } from './failures.ts';
 import type { StatusNote, Store } from './store.ts';
 import type { AppConfig, User } from './types.ts';
 import type { PloegCompatibility } from './ploeg-compatibility.ts';
+import type { PersonProofStatus } from './person-proof.ts';
 
 export type CheckState = 'ok' | 'degraded' | 'down' | 'idle' | 'not_used';
 export type StatusCheck = { id: 'workspaces' | 'gateway' | 'ploeg'; title: string; state: CheckState; summary: string; checkedAt: string; detail?: string };
@@ -20,6 +21,8 @@ export type StatusReport = {
   notes: StatusNote[];
   /** Whether the connected Ploeg serves the contract majors this Unfold requires; absent without a Ploeg to check (system ADR-0044). */
   ploegContract?: PloegCompatibility;
+  /** Whether Ploeg records the reader's actions as proven by their sign-in; absent unless `ploeg.personTokens` is configured (Unfold ADR 0055). */
+  personProof?: PersonProofStatus;
 };
 export type PloegProbe = 'ok' | 'unconfigured' | 'down';
 export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe>; cards?(): string | null; contract?(): PloegCompatibility };

@@ -106,6 +106,18 @@ function answerMarkup() {
   return `<section class="status-answer" data-tone="${failure ? 'neutral' : result.tone}"${failure ? ' data-stale' : ''} aria-labelledby="status-verdict"><p class="status-question">Can a new session start?</p><h2 class="status-verdict" id="status-verdict">${escape(verdict)}</h2><p class="status-reason">${escape(reason)}</p>${returnMarkup(result)}${notes}<ol class="status-line" aria-label="${failure ? 'The steps a new session takes, as last checked' : 'The steps a new session takes'}">${startLine(report).map(stepMarkup).join('')}</ol>${result.next && !failure ? `<p class="status-next">${escape(result.next)}</p>` : ''}<div class="status-checked"><span>Checked ${escape(time(report.generatedAt, { seconds: true }))}</span>${refresh}</div></section>`;
 }
 
+/**
+ * The line that tells a person Ploeg records their actions as named by Unfold rather than proven by their sign-in, or
+ * '' while their sign-in proves them or the workbench does not prove people to Ploeg.
+ * @param {{ personProof?: { state: string, summary: string } }} value
+ * @returns {string}
+ */
+export function proofMarkup(value) {
+  const proof = value?.personProof;
+  if (!proof || proof.state !== 'degraded') return '';
+  return callout({ tone: 'attention', title: 'Ploeg cannot check that your actions are yours', body: `<p>${escape(proof.summary)}</p>` });
+}
+
 function noteMarkup(note) {
   const look = noteLooks[note.severity] ?? noteLooks.info;
   const resolve = isAdmin() && !note.resolvedAt ? button({ label: 'Mark resolved', icon: 'check', size: 'sm', action: 'status-note-resolve', data: { id: note.id } }) : '';
@@ -149,7 +161,7 @@ function renderStatus() {
   if (!state.bootstrap) return;
   let content;
   if (!report) content = failure ? callout({ tone: 'danger', title: 'Could not read the status', body: `<p>${escape(failure)}</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'status-refresh' }) }) : `<div class="status-page" aria-busy="true"><section class="status-answer status-loading"><p class="status-question">Can a new session start?</p><p class="status-verdict status-checking">Checking…</p><ol class="status-line" aria-hidden="true">${steps.map((step, index) => `<li class="status-step" data-state="unreached"><span class="status-knot">${index + 1}</span><div class="status-step-text"><p class="status-step-name">${escape(step.name)}</p><span class="status-bone"></span></div></li>`).join('')}</ol></section></div>`;
-  else content = `<div class="status-page">${answerMarkup()}<div class="status-lists">${waitingMarkup()}${failuresMarkup()}</div>${noteToolsMarkup()}</div>`;
+  else content = `<div class="status-page">${answerMarkup()}${proofMarkup(report)}<div class="status-lists">${waitingMarkup()}${failuresMarkup()}</div>${noteToolsMarkup()}</div>`;
   renderHtml(shell(content, { title: 'Status', subtitle: 'Whether new work can start right now, and what got in the way recently.' }));
 }
 

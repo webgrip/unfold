@@ -67,6 +67,7 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `LITELLM_ADMIN_URL` | Gateway root the Status page checks for liveness; defaults to inference URL with trailing `/v1` removed |
 | `LITELLM_MASTER_KEY` | Not used: Ploeg holds the gateway management credential and Unfold discards this value under managed execution. Leave it unset |
 | The variable `ploeg.tokenEnv` names | Unfold's Ploeg operator consumer token, the same one registered in Ploeg's `PLOEG_OPERATOR_CONSUMERS`; never listed in `agentEnvironment` |
+| The variable `ploeg.personTokens.clientSecretEnv` names | The secret of the confidential client Unfold exchanges sign-in tokens with ([Proving people to Ploeg](#proving-people-to-ploeg)); never listed in `agentEnvironment` |
 | `UNFOLD_INSIGHT_EVENTS` | `on` (default) records product events from the browser; `off` stores none, and the browser posts none |
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_URL` | Full collector URL the server posts to; required for `faro` and `otlp`. For Faro it ends in `/collect`, for OTLP/HTTP in `/v1/logs` |
@@ -343,6 +344,44 @@ A person's account is identified by the provider's subject together with `subjec
 ```
 
 This carries accounts across only while the provider keeps issuing the same subject for a person. Authentik's default subject mode, a hashed user id, is the same in every application of one Authentik. A provider set to a per-application subject breaks the link, and so does pointing the namespace at a different provider, which would hand one provider's accounts to another provider's people.
+
+## Proving people to Ploeg
+
+Without this, Unfold calls Ploeg with its consumer token and names the person in `X-Ploeg-Actor`, which Ploeg records as *asserted*. With `ploeg.personTokens`, Unfold also sends a short-lived token the identity provider issued for that person, and Ploeg records the change as *proven* ([Unfold ADR 0055](../adrs/0055-unfold-proves-the-person-to-ploeg-with-a-token-exchanged-from-their-sign-in.md), Ploeg ADR-0150, [RFC-0011](../../../../docs/design/rfc-0011-every-agent-action-names-its-person.md)). It needs single sign-on (`auth.oidc`) and a Ploeg release that accepts `X-Ploeg-Person-Token`.
+
+```json
+"ploeg": {
+  "url": "https://ploeg.internal.example",
+  "tokenEnv": "PLOEG_OPERATOR_UNFOLD_TOKEN",
+  "personTokens": {
+    "tokenUrl": "https://authentik.example/application/o/token/",
+    "clientId": "unfold-exchange",
+    "clientSecretEnv": "UNFOLD_EXCHANGE_CLIENT_SECRET",
+    "audience": "ploeg-for-unfold"
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `tokenUrl` | The identity provider's token endpoint. Authentik serves one for all applications at `/application/o/token/` |
+| `clientId` | A confidential client allowed only the token exchange grant, which federates the provider people sign in to Unfold with |
+| `clientSecretEnv` | The environment variable holding that client's secret. At the estate it comes from OpenBao `authentik/unfold-exchange-oidc`, key `client_secret`, through the credentials Secret |
+| `audience` | The exchange's target: the provider whose tokens Ploeg accepts for Unfold, such as `ploeg-for-unfold` |
+
+Unfold refuses to start when `clientSecretEnv` is unset or listed in `agentEnvironment`, or when `auth.oidc` is missing.
+
+What Unfold does with it:
+
+* At sign-in it keeps the person's access token, and the refresh token when the provider returns one, encrypted in its store and bound to that browser login. Signing out deletes them; store upkeep deletes them once the login expires. The browser never sees them.
+* Before each change it makes in Ploeg for a person, it exchanges the access token (`grant_type` `urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type` access token, `audience` as configured) and sends the result as `X-Ploeg-Person-Token` beside the usual headers. It reuses the result until 30 seconds before it expires. Reads carry no person token.
+* When it cannot get a token, the change goes out as before, with the person named by Unfold, and the Status page tells that person in plain words. An expired access token is refreshed first when a refresh token is kept. An administrator acting for someone else's session and `unfold-mcp` over HTTP never send one.
+
+What the identity provider and Ploeg need:
+
+* **The sign-in provider.** Authentik exchanges only an access token it still holds. Its access tokens last as long as the provider's access token validity (one hour by default), and Unfold sessions last `sessionHours` (twelve by default). For proof to last the whole session, allow the `refresh_token` grant on the provider, give it the `offline_access` scope mapping and add `offline_access` to `auth.oidc.scopes`. Without that, proof lapses an hour after sign-in, and the Status page asks the person to sign in again.
+* **Ploeg.** Unfold's consumer in `PLOEG_OPERATOR_CONSUMERS` lists `"audiences": ["ploeg-for-unfold"]`. `PLOEG_OPERATOR_PERSON_ISSUER` is the issuer of the exchanged tokens; for Authentik's global issuer that is `https://authentik.example/`. Set `PLOEG_OPERATOR_PERSON_SUBJECT_NAMESPACE` to Unfold's account namespace: `auth.oidc.subjectNamespace`, or `auth.oidc.issuer` when that is unset. Ploeg derives the person's id from that namespace and the token's subject. That id must equal the Unfold account id Unfold puts in `X-Ploeg-Actor`, or Ploeg refuses every change with `actor_conflict`.
+* **The same subject.** The target provider must issue the same `sub` for a person as the sign-in provider; Authentik's default subject mode, a hashed user id, does. Unfold checks it and sends no token for another subject.
 
 ## Linking GitLab
 

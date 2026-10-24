@@ -10,16 +10,16 @@ const reportedProblems = 10;
 type QuickCheckState = { at: number; ok: boolean };
 
 /**
- * Database upkeep for a maintenance timer: refreshes the planner's statistics every few hours, and once a day runs
- * `quick_check`, logging the result and reporting a damaged database through error reports. It never runs at boot.
+ * Database upkeep for a maintenance timer: deletes the sign-in tokens of ended logins, refreshes the planner's
+ * statistics every few hours, and once a day runs `quick_check`, logging the result and reporting a damaged database through error reports. It never runs at boot.
  */
 export class StoreUpkeep {
-  private store: Pick<Store, 'optimize' | 'quickCheck' | 'getSecret' | 'setSecret'>;
+  private store: Pick<Store, 'optimize' | 'quickCheck' | 'getSecret' | 'setSecret' | 'prunePersonGrants'>;
   private errors: ErrorReports;
   private now: () => number;
   private optimizedAt: number;
 
-  constructor(store: Pick<Store, 'optimize' | 'quickCheck' | 'getSecret' | 'setSecret'>, errors: ErrorReports, now: () => number = Date.now) {
+  constructor(store: Pick<Store, 'optimize' | 'quickCheck' | 'getSecret' | 'setSecret' | 'prunePersonGrants'>, errors: ErrorReports, now: () => number = Date.now) {
     this.store = store;
     this.errors = errors;
     this.now = now;
@@ -28,6 +28,7 @@ export class StoreUpkeep {
 
   run(): void {
     const at = this.now();
+    this.store.prunePersonGrants();
     if (at - this.optimizedAt >= optimizeEveryMs) {
       this.optimizedAt = at;
       this.store.optimize();

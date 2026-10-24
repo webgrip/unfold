@@ -69,7 +69,24 @@
       "type": "object",
       "properties": {
         "teams": { "type": "array", "items": { "type": "object" }, "description": "The Teams sessions run with: each {id, name, description, roles}. Unset means Unfold's default Teams." },
-        "crews": { "type": "array", "items": { "type": "object" }, "deprecated": true, "description": "Deprecated name of config.teams (system ADR-0036). Still read; set teams instead. Setting both with different lists stops Unfold from starting." }
+        "crews": { "type": "array", "items": { "type": "object" }, "deprecated": true, "description": "Deprecated name of config.teams (system ADR-0036). Still read; set teams instead. Setting both with different lists stops Unfold from starting." },
+        "ploeg": {
+          "type": "object",
+          "properties": {
+            "personTokens": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tokenUrl", "clientId", "clientSecretEnv", "audience"],
+              "description": "Optional. Exchange each person's sign-in token for a Ploeg-audience token and send it with every change Unfold makes for them (Unfold ADR 0055). Off when absent.",
+              "properties": {
+                "tokenUrl": { "type": "string", "pattern": "^https?://[^\\s#]+$" },
+                "clientId": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,200}$" },
+                "clientSecretEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,127}$" },
+                "audience": { "type": "string", "pattern": "^[A-Za-z0-9_.:/-]{1,200}$" }
+              }
+            }
+          }
+        }
       }
     },
     "ingress": {

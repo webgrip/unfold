@@ -20,8 +20,12 @@ export type ActionRecord = {
 /** What an action was about: a Ploeg Work Item, a workbench session or a tracker task. */
 export type ActionTarget = { kind: 'work-item' | 'session' | 'task'; id: string };
 
-/** The channel and confirmation of the request being served, which the Ploeg client forwards as `X-Ploeg-Via` and `X-Ploeg-Confirmation`. */
-export type ActionContext = { via: string; confirmation: string | null };
+/**
+ * The channel and confirmation of the request being served, which the Ploeg client forwards as `X-Ploeg-Via` and
+ * `X-Ploeg-Confirmation`, the credential kind that authenticated it, and for a browser session the hash of its login,
+ * whose kept sign-in tokens prove the person to Ploeg.
+ */
+export type ActionContext = { via: string; confirmation: string | null; scope?: 'browser' | 'editor' | 'mcp'; signIn?: string };
 
 /** Holds the {@link ActionContext} of the request being served. */
 export const actionContext = new AsyncLocalStorage<ActionContext>();
