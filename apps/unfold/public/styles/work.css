@@ -2711,16 +2711,6 @@ button.stream-bar:hover {
   inset-inline-start: calc(var(--space-3) + 0.75rem - 0.5px);
 }
 
-.work-transcript-text > p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.work-transcript-text > p + p {
-  margin-block-start: var(--space-2);
-}
-
 .stream-item[data-kind="thought"] .disclosure > summary {
   color: var(--text-muted);
   font-size: var(--text-xs);
@@ -2732,19 +2722,9 @@ button.stream-bar:hover {
   overflow-wrap: anywhere;
 }
 
-.work-transcript-thought {
+.prose.work-transcript-thought {
   color: var(--text-muted);
   font-size: var(--text-sm);
-}
-
-.work-transcript-thought > p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.work-transcript-thought > p + p {
-  margin-block-start: var(--space-2);
 }
 
 .work-transcript-paths {

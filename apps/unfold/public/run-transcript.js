@@ -1,6 +1,7 @@
 import { escape } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { dateTime, plural, time as clock } from './core/format.js';
+import { markdown } from './core/markdown.js';
 import * as ui from './core/ui.js';
 
 /** The most transcript entries the page keeps for one Run; older entries are dropped first. */
@@ -71,10 +72,6 @@ function streamItem({ kind, tone, marker = '', head, body = '' }) {
   return `<li class="stream-item" data-kind="${kind}"${tone ? ` data-tone="${tone}"` : ''}><span class="stream-marker" aria-hidden="true">${marker}</span><div class="stream-body"><div class="stream-head">${head}</div>${body}</div></li>`;
 }
 
-function paragraphs(text) {
-  return text.split(/\n{2,}/).filter(part => part.trim()).map(part => `<p>${escape(part)}</p>`).join('');
-}
-
 const diffLine = [[/^\+(?!\+\+ )/, 'add'], [/^-(?!-- )/, 'del'], [/^@@/, 'hunk'], [/^(?:edit|new file|delete|move) \S/, 'file']];
 const commandTitle = /^(.*?):\s*\$\s+([^]*)$/;
 const outputPreviewLines = 6;
@@ -127,10 +124,10 @@ function toolItem(tool, base, complete) {
 
 function itemMarkup(item, { base, actor, complete }) {
   if (item.type === 'tool') return toolItem(item, base, complete);
-  if (item.type === 'message') return streamItem({ kind: 'message', marker: icon('bot'), head: `<strong class="stream-actor">${escape(actor)}</strong>${time(item.at)}`, body: `<div class="stream-text work-transcript-text">${paragraphs(item.text)}</div>` });
+  if (item.type === 'message') return streamItem({ kind: 'message', marker: icon('bot'), head: `<strong class="stream-actor">${escape(actor)}</strong>${time(item.at)}`, body: `<div data-private class="prose stream-text work-transcript-text">${markdown(item.text, { baseLevel: 4 })}</div>` });
   if (item.type === 'thought') {
     const preview = item.text.replace(/\s+/g, ' ').trim();
-    return streamItem({ kind: 'thought', marker: icon('spark'), head: ui.disclosure({ id: `${base}-${item.key}`, plain: true, summary: `Thought · ${preview.length > 72 ? `${preview.slice(0, 72)}…` : preview}`, body: `<div class="work-transcript-thought">${paragraphs(item.text)}</div>` }) });
+    return streamItem({ kind: 'thought', marker: icon('spark'), head: ui.disclosure({ id: `${base}-${item.key}`, plain: true, summary: `Thought · ${preview.length > 72 ? `${preview.slice(0, 72)}…` : preview}`, body: `<div data-private class="prose work-transcript-thought">${markdown(item.text, { baseLevel: 4 })}</div>` }) });
   }
   if (item.type === 'stage') return `<li class="work-transcript-stage"><span>${escape(item.text || 'Stage')}</span>${time(item.at)}</li>`;
   if (item.type === 'truncated') return streamItem({ kind: 'system', tone: 'attention', marker: icon('alert'), head: `<span class="stream-text-inline"><strong>Recording stopped.</strong> ${escape(item.text || 'The transcript reached its limit.')}</span>${time(item.at)}` });
