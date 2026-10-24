@@ -63,13 +63,12 @@ Talos encrypts two system volumes with LUKS2: STATE, which holds the machine con
 
 Talos cannot encrypt a partition that holds data. The partition is wiped, and encrypted on the next boot. Do one node at a time:
 
-1. If the node stores Longhorn replicas, check in the Longhorn UI that every volume on it has a healthy replica on another node. A volume with one replica loses its data.
+1. If the node stores Longhorn replicas, check that every volume on it has a healthy replica on another node. A volume with one replica loses its data: raise its `numberOfReplicas` to 2 and wait for the copy first.
 2. Drain the node: `kubectl drain <node> --ignore-daemonsets --delete-emptydir-data`.
-3. Stage the new configuration: `talosctl -n <node> apply-config --file worker-encrypted.yaml --mode staged`.
-4. Wipe EPHEMERAL and reboot: `talosctl -n <node> reset --system-labels-to-wipe EPHEMERAL --reboot`.
-5. STATE holds the configuration itself, so wiping it puts the node in maintenance mode: `talosctl -n <node> reset --system-labels-to-wipe STATE`, then `talosctl -n <node> apply-config --insecure --file worker-encrypted.yaml`.
-6. Check that both volumes are encrypted: `talosctl -n <node> get volumestatus STATE -o yaml` and the same for `EPHEMERAL` show `encryptionProvider: luks2`.
-7. Uncordon the node, wait until Longhorn reports every volume healthy again, then go on to the next node.
+3. Wipe both volumes and reboot: `talosctl -n <node> reset --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL --reboot`. A control-plane node leaves etcd first.
+4. STATE held the node's configuration, so the node comes back in maintenance mode. Apply the encrypted configuration: `talosctl -n <node> apply-config --insecure --file worker-encrypted.yaml`. Both volumes are formatted encrypted on this boot.
+5. Check that both volumes are encrypted: `talosctl -n <node> get volumestatus STATE -o yaml` and the same for `EPHEMERAL` show `encryptionProvider: luks2`.
+6. Wait until the node is `Ready` and Longhorn reports every volume healthy again, then go on to the next node.
 
 A control-plane node also holds an etcd member. Remove nothing from etcd by hand; wipe one control-plane node at a time and wait for `talosctl -n <node> etcd status` to show it back in the cluster.
 
