@@ -1,0 +1,6 @@
+machine:
+  sysctls:
+    user.max_user_namespaces: "11255"
+  nodeLabels:
+    runtime.unfoldhq.dev/kata: "true"
+    runtime.unfoldhq.dev/gvisor: "true"
