@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { answer, phaseLabel, returnTo, startLine } from '../public/views/status.js';
-import { signalFrom } from '../public/core/status-signal.js';
+import { contractBanner, contractFrom, signalFrom } from '../public/core/status-signal.js';
 
 const check = (id, state, summary = `${id} ${state}`) => ({ id, title: id, state, summary, checkedAt: '2026-10-05T06:29:14Z' });
 const report = (states, extra = {}) => ({ overall: 'operational', notes: [], checks: [check('ploeg', states[0]), check('gateway', states[1]), check('workspaces', states[2], states[2] === 'down' ? 'Every machine is busy.' : states[2] === 'ok' ? 'The last workspace started 12 min ago.' : 'Workspace check.')], ...extra });
@@ -56,4 +56,42 @@ test('the navigation signal shows only while new work is affected', () => {
   assert.equal(signalFrom({ overall: 'degraded' }), 'degraded');
   assert.equal(signalFrom({ overall: 'operational' }), null);
   assert.equal(signalFrom(null), null);
+});
+
+test('a Ploeg whose version does not match puts a banner on every page that names both versions and says managed actions are paused', () => {
+  const message = 'Unfold 0.4.0 requires Ploeg contract operator-api v1, but this Ploeg (0.3.0) serves operator-api v2. Run the Ploeg this Unfold release carries or the minor before it, or upgrade Unfold.';
+  const contract = contractFrom({ overall: 'down', ploegContract: { state: 'incompatible', unfold: '0.4.0', ploeg: '0.3.0', missing: [{ contract: 'operator-api', version: 1 }], message } });
+  assert.deepEqual(contract, { state: 'incompatible', message });
+  const banner = contractBanner(contract);
+  assert.match(banner, /class="callout" data-tone="danger"/);
+  assert.match(banner, /Ploeg’s version doesn’t match this Unfold/);
+  assert.match(banner, /Managed actions are paused: Unfold sends nothing to Ploeg until the versions match\. Your sessions and Unfold’s own pages keep working\./);
+  assert.match(banner, /requires Ploeg contract operator-api v1, but this Ploeg \(0\.3\.0\) serves operator-api v2/);
+  assert.match(banner, /href="#status"/);
+  assert.match(contractBanner({ message: '<img src=x onerror=alert(1)>' }), /&lt;img/, 'the server sentence is escaped');
+});
+
+test('no banner while Ploeg is compatible, unchecked or not connected', () => {
+  for (const report of [{ overall: 'operational', ploegContract: { state: 'compatible', ploeg: '0.3.0' } }, { overall: 'operational', ploegContract: { state: 'unchecked' } }, { overall: 'operational' }, null]) {
+    assert.equal(contractFrom(report), null);
+    assert.equal(contractBanner(contractFrom(report)), '');
+  }
+});
+
+test('every page the shell draws carries the banner above its content while Ploeg does not match, and none once it does', async () => {
+  globalThis.document ??= { title: '' };
+  const { state } = await import('../public/core/state.js');
+  const { shell } = await import('../public/shell.js');
+  state.bootstrap = { mode: 'live', version: '0.4.0', user: { id: 'admin', name: 'admin', role: 'admin' } };
+  state.ploegContract = { state: 'incompatible', message: 'Unfold 0.4.0 requires Ploeg contract operator-api v1, but this Ploeg (0.3.0) serves operator-api v2.' };
+  const page = shell('<p>Own data</p>', { title: 'Sessions' });
+  const banner = page.indexOf('class="app-contract-banner"');
+  assert(banner > 0 && banner < page.indexOf('<main id="main"'), 'the banner sits outside the page content, on every page');
+  const shown = page.slice(banner, page.indexOf('<main id="main"'));
+  assert.match(shown, /^class="app-contract-banner" data-ploeg-contract="[^"]+" role="status" aria-live="polite" >/, 'shown, not hidden');
+  assert.match(shown, /Ploeg’s version doesn’t match this Unfold/);
+  state.ploegContract = null;
+  const clear = shell('<p>Own data</p>', { title: 'Sessions' });
+  assert.match(clear, /class="app-contract-banner" data-ploeg-contract="" role="status" aria-live="polite" hidden><\/div>/);
+  state.bootstrap = null;
 });

@@ -1,5 +1,5 @@
 import { ploegAttribution } from './action-records.ts';
-import { legacyServed, type PloegServed } from './ploeg-compatibility.ts';
+import { legacyServed, type PloegCompatibility, type PloegContractGate, type PloegContractRequirement, type PloegServed, type PloegServedContract } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
 import { takeOverRefusal } from '../public/core/take-over.js';
@@ -205,6 +205,24 @@ export class PloegError extends Error {
   readonly status: number;
   readonly code: string;
   constructor(status: number, code: string, message: string) { super(message); this.name = 'PloegError'; this.status = status; this.code = code; }
+}
+
+/** Unfold refused to send a call because the connected Ploeg does not serve a contract major this Unfold requires (system ADR-0044). Nothing reached Ploeg. */
+export class PloegContractIncompatible extends PloegError {
+  readonly unfold: string;
+  readonly ploeg: string | null;
+  readonly missing: PloegContractRequirement[];
+  readonly served: PloegServedContract[];
+  constructor(status: Extract<PloegCompatibility, { state: 'incompatible' }>) {
+    super(503, 'ploeg_contract_incompatible', `Managed actions are paused, so Unfold sent nothing to Ploeg. ${status.message}`);
+    this.name = 'PloegContractIncompatible'; this.unfold = status.unfold; this.ploeg = status.ploeg; this.missing = status.missing; this.served = status.served;
+  }
+}
+
+/** The refusal for a call to Ploeg while `gate` reports an incompatible Ploeg, or undefined while calls may be sent. */
+export function contractRefusal(gate: PloegContractGate | undefined): PloegContractIncompatible | undefined {
+  const status = gate?.status;
+  return status?.state === 'incompatible' ? new PloegContractIncompatible(status) : undefined;
 }
 
 /** Ploeg refused an Ask because the scope's Ask Allowance cannot cover another one (system ADR-0031, Ploeg ADR-0082). `resetAt` is when the next period opens. */
@@ -1091,6 +1109,9 @@ export class PloegClient {
   private notesRoute: boolean | undefined;
   private cancelGuard: boolean | undefined;
   private rarityShown: (user: User) => Promise<boolean>;
+  private readonly contract: PloegContractGate | undefined;
+  /** Throws `PloegContractIncompatible` while the connected Ploeg does not serve what this Unfold requires; for callers that reach Ploeg without this client. */
+  refuseWhenIncompatible(): void { const refusal = contractRefusal(this.contract); if (refusal) throw refusal; }
   /** Decides per person whether the cards they read keep their rarity; a card read without it carries `rarity: null` (Unfold ADR 0045). */
   useRarity(shown: (user: User) => Promise<boolean>): void { this.rarityShown = shown; }
   private async withRarity(user: User, cards: RunCard[]): Promise<RunCard[]> {
@@ -1111,7 +1132,7 @@ export class PloegClient {
   /** Reads which contract majors the connected Ploeg serves (Ploeg ADR-0147); a Ploeg that predates the version route serves major 1 of each. */
   async served(): Promise<PloegServed> {
     let data: Record<string, unknown>;
-    try { data = envelope(await this.request('version', true, { added: true })); }
+    try { data = envelope(await this.request('version', true, { added: true, contractProbe: true })); }
     catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return legacyServed(); throw error; }
     return { ploeg: field(data.ploeg, 128), legacy: false, contracts: array(data.contracts, value => { const contract = record(value); return { name: field(contract.name, 128), versions: array(contract.versions, version => numeric(version, true), 20) }; }, 100) };
   }
@@ -1151,13 +1172,14 @@ export class PloegClient {
     const pr = record(comment.pullRequest);
     return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
   }
-  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
+  constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   /** Whether this client answers from the deterministic demo instead of a Ploeg. */
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number }; contractProbe?: boolean } = {}): Promise<unknown> {
+    if (!options.contractProbe) this.refuseWhenIncompatible();
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }

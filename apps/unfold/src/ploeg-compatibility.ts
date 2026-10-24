@@ -7,7 +7,9 @@ export type PloegServed = { ploeg: string | null; contracts: PloegServedContract
 export type PloegCompatibility =
   | { state: 'unchecked' }
   | { state: 'compatible'; ploeg: string | null; checkedAt: string }
-  | { state: 'incompatible'; ploeg: string | null; missing: PloegContractRequirement[]; checkedAt: string; message: string };
+  | { state: 'incompatible'; unfold: string; ploeg: string | null; missing: PloegContractRequirement[]; served: PloegServedContract[]; checkedAt: string; message: string };
+/** Where Unfold reads whether it may send a call to Ploeg; `PloegCompatibilityMonitor` is the one source. */
+export type PloegContractGate = { readonly status: PloegCompatibility };
 type LogLine = { level: 'info' | 'warn' | 'error'; event: string; message: string } & Record<string, unknown>;
 
 /** The expectation set Unfold records for Ploeg's CI; Ploeg keeps it at `docs/contracts/consumers/unfold/<line>.json` (system ADR-0044). */
@@ -39,10 +41,10 @@ const writeLog = (line: LogLine) => (line.level === 'info' ? console.log : conso
 
 /**
  * Asks Ploeg which contract majors it serves, at start and then on an interval, and keeps the answer.
- * A Ploeg that does not serve a required major makes Unfold not ready; a Ploeg that cannot be reached keeps the last answer,
- * because an outage is not an incompatibility.
+ * While a required major is missing, Unfold stays ready and refuses every call to Ploeg before it is sent (system ADR-0044);
+ * a Ploeg that cannot be reached keeps the last answer, because an outage is not an incompatibility.
  */
-export class PloegCompatibilityMonitor {
+export class PloegCompatibilityMonitor implements PloegContractGate {
   private current: PloegCompatibility = { state: 'unchecked' };
   private timer: NodeJS.Timeout | undefined;
   private unreadable = false;
@@ -51,7 +53,6 @@ export class PloegCompatibilityMonitor {
   private readonly log: (line: LogLine) => void;
   constructor(probe: () => Promise<PloegServed>, unfoldVersion: string, log: (line: LogLine) => void = writeLog) { this.probe = probe; this.unfoldVersion = unfoldVersion; this.log = log; }
   get status(): PloegCompatibility { return this.current; }
-  get ready(): boolean { return this.current.state !== 'incompatible'; }
   async check(): Promise<PloegCompatibility> {
     let served: PloegServed;
     try { served = await this.probe(); }
@@ -63,7 +64,7 @@ export class PloegCompatibilityMonitor {
     this.unreadable = false;
     const missing = missingContracts(served);
     const checkedAt = new Date().toISOString();
-    const next: PloegCompatibility = missing.length ? { state: 'incompatible', ploeg: served.ploeg, missing, checkedAt, message: incompatibleMessage(this.unfoldVersion, served, missing) } : { state: 'compatible', ploeg: served.ploeg, checkedAt };
+    const next: PloegCompatibility = missing.length ? { state: 'incompatible', unfold: this.unfoldVersion, ploeg: served.ploeg, missing, served: served.contracts, checkedAt, message: incompatibleMessage(this.unfoldVersion, served, missing) } : { state: 'compatible', ploeg: served.ploeg, checkedAt };
     if (next.state === 'incompatible' && (this.current.state !== 'incompatible' || this.current.message !== next.message)) this.log({ level: 'error', event: 'ploeg.contract_incompatible', ploeg: served.ploeg, unfold: this.unfoldVersion, required: ploegRequirements, served: served.contracts, message: next.message });
     if (next.state === 'compatible' && this.current.state !== 'compatible') this.log({ level: 'info', event: 'ploeg.contract_compatible', ploeg: served.ploeg, unfold: this.unfoldVersion, legacy: served.legacy, message: served.legacy ? 'Ploeg predates the version route; it serves major 1 of every contract, which this Unfold requires.' : 'Ploeg serves every contract major this Unfold requires.' });
     this.current = next;

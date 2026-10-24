@@ -827,6 +827,14 @@
   outline: none;
 }
 
+.app-contract-banner {
+  padding: 16px 32px 0;
+}
+
+.app-contract-banner[hidden] {
+  display: none;
+}
+
 .app-page-header {
   display: flex;
   flex-wrap: wrap;
@@ -1392,6 +1400,10 @@
 
   .app-main {
     padding: 16px 16px calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .app-contract-banner {
+    padding: 16px 16px 0;
   }
 
   .app-page-header {

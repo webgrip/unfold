@@ -4,9 +4,17 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { PloegClient, PloegError } from '../src/ploeg.ts';
-import { PloegCompatibilityMonitor, legacyServed, missingContracts, ploegExpectationsUrl, ploegRequirements, type PloegServed } from '../src/ploeg-compatibility.ts';
-import { application, configuration, request } from './api-support.ts';
+import { PloegClient, PloegContractIncompatible, PloegError } from '../src/ploeg.ts';
+import { PloegCompatibilityMonitor, legacyServed, missingContracts, ploegExpectationsUrl, ploegRequirements, type PloegContractGate, type PloegServed } from '../src/ploeg-compatibility.ts';
+import { ExecutionAuthority } from '../src/execution-authority.ts';
+import { DeliveryService } from '../src/delivery.ts';
+import { lookupTaskBinding } from '../src/task-binding.ts';
+import { LinkedHandoff } from '../src/linked-handoff.ts';
+import type { LinkedSessions } from '../src/linked-sessions.ts';
+import type { Store } from '../src/store.ts';
+import type { AppConfig, Session } from '../src/types.ts';
+import type { TaskSnapshot } from '../src/tasks.ts';
+import { application, configuration, login, request } from './api-support.ts';
 
 const unfold = resolve(import.meta.dirname, '..');
 const contracts = resolve(unfold, '../ploeg/docs/contracts');
@@ -18,33 +26,30 @@ function recorder() {
   return { lines, log: (line: Record<string, unknown>) => { lines.push(line); }, events: () => lines.map(line => line.event) };
 }
 
-test('Unfold is ready against a Ploeg that serves every contract major it requires, and against one that predates the version route', async () => {
+test('a Ploeg that serves every contract major Unfold requires, or predates the version route, is compatible', async () => {
   for (const served of [servedAll(), servedAll({ 'operator-api': [1, 2] }), legacyServed()]) {
     const logged = recorder();
     const monitor = new PloegCompatibilityMonitor(async () => served, '0.4.0', logged.log);
-    assert.equal(monitor.status.state, 'unchecked');
-    assert.equal(monitor.ready, true, 'not checked yet is ready: an unreachable Ploeg must not take Unfold down');
+    assert.equal(monitor.status.state, 'unchecked', 'not checked yet refuses nothing: an unreachable Ploeg must not pause Unfold');
     assert.equal((await monitor.check()).state, 'compatible');
-    assert.equal(monitor.ready, true);
     assert.deepEqual(logged.events(), ['ploeg.contract_compatible']);
   }
 });
 
-test('a Ploeg that no longer serves a required major makes Unfold not ready, names both versions and logs it once', async () => {
+test('a Ploeg that no longer serves a required major is incompatible, names both versions and logs it once', async () => {
   const logged = recorder();
   let served = servedAll({ 'operator-api': [2] });
   const monitor = new PloegCompatibilityMonitor(async () => served, '0.4.0-rc.112', logged.log);
   const status = await monitor.check();
-  assert.equal(status.state, 'incompatible');
-  assert.equal(monitor.ready, false);
   assert(status.state === 'incompatible');
   assert.deepEqual(status.missing, [{ contract: 'operator-api', version: 1 }]);
+  assert.equal(status.unfold, '0.4.0-rc.112');
+  assert.equal(status.ploeg, '0.2.0-rc.60');
   assert.match(status.message, /Unfold 0\.4\.0-rc\.112 requires Ploeg contract operator-api v1, but this Ploeg \(0\.2\.0-rc\.60\) serves operator-api v2/);
   await monitor.check();
   assert.deepEqual(logged.events(), ['ploeg.contract_incompatible'], 'an unchanged mismatch is logged once');
   served = servedAll();
-  await monitor.check();
-  assert.equal(monitor.ready, true);
+  assert.equal((await monitor.check()).state, 'compatible');
   assert.deepEqual(logged.events(), ['ploeg.contract_incompatible', 'ploeg.contract_compatible']);
 });
 
@@ -53,7 +58,7 @@ test('a contract Ploeg does not list at all is missing too', () => {
   assert.deepEqual(missingContracts(served), ploegRequirements);
 });
 
-test('an unreachable Ploeg keeps the last answer instead of flipping readiness', async () => {
+test('an unreachable Ploeg keeps the last answer instead of flipping it', async () => {
   const logged = recorder();
   let reachable = true;
   const monitor = new PloegCompatibilityMonitor(async () => { if (!reachable) throw new Error('connect ECONNREFUSED'); return servedAll({ 'operator-api': [2] }); }, '0.4.0', logged.log);
@@ -61,11 +66,11 @@ test('an unreachable Ploeg keeps the last answer instead of flipping readiness',
   reachable = false;
   await monitor.check();
   await monitor.check();
-  assert.equal(monitor.ready, false);
+  assert.equal(monitor.status.state, 'incompatible');
   assert.deepEqual(logged.events(), ['ploeg.contract_incompatible', 'ploeg.version_unreadable'], 'an outage is logged once');
   const fresh = new PloegCompatibilityMonitor(async () => { throw new Error('down'); }, '0.4.0', recorder().log);
   await fresh.check();
-  assert.equal(fresh.ready, true);
+  assert.equal(fresh.status.state, 'unchecked');
 });
 
 async function versionServer(t: TestContext, answer: (res: import('node:http').ServerResponse) => void) {
@@ -90,24 +95,111 @@ test('the client reads Ploeg\'s version route, and reads a Ploeg without it as s
   await assert.rejects(new PloegClient({ ...configuration('/unused', 'live'), ploeg: broken.config }).served(), (error: unknown) => error instanceof PloegError && error.code === 'ploeg_response');
 });
 
-test('/readyz answers 503 with the reason while the connected Ploeg is incompatible, and 200 again once it is not', async t => {
-  let contracts = [{ name: 'operator-api', versions: [2] }, { name: 'operator-delivery', versions: [1] }, { name: 'tracker-execution', versions: [1] }];
-  const ploeg = await versionServer(t, res => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ploeg: '0.3.0', contracts })));
-  const server = await application('demo', config => { config.ploeg = ploeg.config; });
+type FakePloeg = { config: { url: string; tokenEnv: string }; paths: string[]; serve(contracts: { name: string; versions: number[] }[]): void };
+
+async function fakePloeg(t: TestContext): Promise<FakePloeg> {
+  const env = `UNFOLD_PLOEG_CONTRACT_${randomBytes(6).toString('hex').toUpperCase()}`;
+  process.env[env] = randomBytes(24).toString('hex');
+  const paths: string[] = [];
+  let contracts = ploegRequirements.map(requirement => ({ name: requirement.contract, versions: [requirement.version] }));
+  const send = (res: import('node:http').ServerResponse, body: object) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...body }));
+  const server = createServer((req, res) => {
+    paths.push(req.url!);
+    if (req.headers.authorization !== `Bearer ${process.env[env]}`) return void res.writeHead(401).end();
+    if (req.url === '/api/v1/operator/version') return send(res, { ploeg: '0.3.0', contracts });
+    if (req.url === '/api/v1/operator/teams') return send(res, { teams: [{ id: 'delivery', paused: false, queueDepth: 0, roles: [] }] });
+    res.writeHead(404).end();
+  });
+  await new Promise<void>(done => server.listen(0, '127.0.0.1', done));
+  t.after(async () => { await new Promise<void>(done => server.close(() => done())); delete process.env[env]; });
+  const address = server.address();
+  assert(address && typeof address !== 'string');
+  return { config: { url: `http://127.0.0.1:${address.port}`, tokenEnv: env }, paths, serve(next) { contracts = next; } };
+}
+
+const withoutOperatorApiV1 = () => [{ name: 'operator-api', versions: [2] }, ...ploegRequirements.filter(requirement => requirement.contract !== 'operator-api').map(requirement => ({ name: requirement.contract, versions: [requirement.version] }))];
+const callsBesideTheProbe = (paths: string[]) => paths.filter(path => path !== '/api/v1/operator/version');
+
+test('while Ploeg is incompatible Unfold stays ready, shows the mismatch, keeps its own data and refuses every call to Ploeg before sending it', async t => {
+  const ploeg = await fakePloeg(t);
+  ploeg.serve(withoutOperatorApiV1());
+  const server = await application('live', config => { config.ploeg = { ...ploeg.config, userTeams: {} }; });
   t.after(() => server.close());
   const monitor = server.app.ploegCompatibility;
   assert(monitor, 'a configured Ploeg gets a compatibility monitor');
-  assert.equal((await request(server.url, '/readyz')).status, 200, 'unchecked is ready');
   await monitor.check();
-  const refused = await request(server.url, '/readyz');
+  assert.equal(monitor.status.state, 'incompatible');
+
+  const ready = await request(server.url, '/readyz');
+  assert.equal(ready.status, 200, `readiness never depends on Ploeg's contract: one replica with Recreate would take the screens that fix it offline. ${ready.text}`);
+  assert.equal(ready.body.status, 'ok');
+  const health = await request(server.url, '/healthz');
+  assert.equal(health.status, 200);
+  assert.equal(health.body.ploegContract.state, 'incompatible', 'an operator reads the mismatch from /healthz without signing in');
+  assert.match(health.body.ploegContract.message, /requires Ploeg contract operator-api v1, but this Ploeg \(0\.3\.0\) serves operator-api v2/);
+
+  const { cookie } = await login(server.url);
+  const status = await request(server.url, '/api/status', { cookie });
+  assert.equal(status.status, 200, status.text);
+  assert.equal(status.body.ploegContract.state, 'incompatible');
+  assert.deepEqual(status.body.ploegContract.missing, [{ contract: 'operator-api', version: 1 }]);
+  assert.equal(status.body.checks.find((check: { id: string }) => check.id === 'ploeg').state, 'down');
+  assert.equal((await request(server.url, '/api/sessions', { cookie })).status, 200, 'Unfold\'s own data stays readable');
+
+  const before = callsBesideTheProbe(ploeg.paths).length;
+  const refused = await request(server.url, '/api/ploeg/teams?fresh=1', { cookie });
   assert.equal(refused.status, 503, refused.text);
-  assert.equal(refused.body.status, 'ploeg_incompatible');
   assert.equal(refused.body.error.code, 'ploeg_contract_incompatible');
-  assert.match(refused.body.error.message, /requires Ploeg contract operator-api v1, but this Ploeg \(0\.3\.0\) serves operator-api v2/);
-  assert.equal((await request(server.url, '/healthz')).status, 200, 'liveness never depends on Ploeg, so the pod is not restarted for it');
-  contracts = [{ name: 'operator-api', versions: [1] }, ...contracts.slice(1)];
+  assert.match(refused.body.error.message, /Unfold \S+ requires Ploeg contract operator-api v1, but this Ploeg \(0\.3\.0\) serves operator-api v2/);
+  assert.equal(callsBesideTheProbe(ploeg.paths).length, before, 'nothing reached Ploeg');
+
+  ploeg.serve(ploegRequirements.map(requirement => ({ name: requirement.contract, versions: [requirement.version] })));
   await monitor.check();
-  assert.equal((await request(server.url, '/readyz')).status, 200);
+  const flows = await request(server.url, '/api/ploeg/teams?fresh=1', { cookie });
+  assert.equal(flows.status, 200, flows.text);
+  assert(callsBesideTheProbe(ploeg.paths).includes('/api/v1/operator/teams'), 'a compatible Ploeg receives the call');
+  const recovered = await request(server.url, '/api/status', { cookie });
+  assert.equal(recovered.body.ploegContract.state, 'compatible');
+  assert.equal((await request(server.url, '/healthz')).body.ploegContract.state, 'compatible');
+});
+
+const incompatible: PloegContractGate = { status: { state: 'incompatible', unfold: '0.4.0', ploeg: '0.3.0', missing: [{ contract: 'operator-api', version: 1 }], served: [{ name: 'operator-api', versions: [2] }], checkedAt: '2026-10-24T08:00:00Z', message: 'Unfold 0.4.0 requires Ploeg contract operator-api v1, but this Ploeg (0.3.0) serves operator-api v2.' } };
+const compatible: PloegContractGate = { status: { state: 'compatible', ploeg: '0.3.0', checkedAt: '2026-10-24T08:00:00Z' } };
+const namesBothVersions = (error: unknown) => error instanceof PloegContractIncompatible && error.status === 503 && error.code === 'ploeg_contract_incompatible' && error.unfold === '0.4.0' && error.ploeg === '0.3.0' && /requires Ploeg contract operator-api v1, but this Ploeg \(0\.3\.0\) serves operator-api v2/.test(error.message);
+
+test('the Ploeg client refuses an incompatible Ploeg with a typed error before sending, and sends again once it is compatible', async t => {
+  const ploeg = await fakePloeg(t);
+  const config = { ...configuration('/unused', 'live'), ploeg: { ...ploeg.config, userTeams: {} } };
+  const admin = { id: 'admin', name: 'admin', role: 'admin' as const };
+  await assert.rejects(new PloegClient(config, incompatible).teams(admin, true), namesBothVersions);
+  assert.equal(ploeg.paths.length, 0);
+  assert.equal((await new PloegClient(config, incompatible).served()).ploeg, '0.3.0', 'the version probe itself is never refused, or Unfold could not see Ploeg recover');
+  assert.deepEqual(await new PloegClient(config, compatible).teams(admin, true), [{ id: 'delivery', paused: false, queueDepth: 0, roles: [], assignees: [], pinnedScopes: [] }]);
+  assert(ploeg.paths.includes('/api/v1/operator/teams'));
+});
+
+test('execution authority, delivery, task binding and the linked hand-off refuse an incompatible Ploeg before sending', async t => {
+  const ploeg = await fakePloeg(t);
+  process.env[ploeg.config.tokenEnv] = randomBytes(32).toString('hex');
+  const config = { ...configuration('/unused', 'live'), ploeg: { ...ploeg.config, userTeams: {} }, execution: { team: 'delivery' }, delivery: { policies: [] } } as unknown as AppConfig;
+  const secrets = new Map<string, unknown>();
+  const store = { getSecret: (id: string) => secrets.get(id), setSecret: (id: string, value: unknown) => { secrets.set(id, value); }, deleteSecret: (id: string) => { secrets.delete(id); } } as unknown as Store;
+  const session = { id: 'session-1', ownerId: 'admin', repositoryId: 'order-service', title: 'Fix rounding', objective: 'Fix it.', runtime: 'opencode', budgetUsd: 1, execution: { id: 'a'.repeat(32) } } as unknown as Session;
+
+  await assert.rejects(new ExecutionAuthority(store, config, incompatible).admit(session), (error: unknown) => namesBothVersions(error) && (error as { failure?: { cause: string } }).failure?.cause === 'incompatible');
+  const delivery = new DeliveryService(config, store);
+  delivery.useContract(incompatible);
+  await assert.rejects((delivery as unknown as { exchange(session: Session): Promise<unknown> }).exchange(session), namesBothVersions);
+  await assert.rejects(lookupTaskBinding(config, { id: '7', sourceId: 'vikunja' } as unknown as TaskSnapshot, incompatible), namesBothVersions);
+  const claim = { userId: 'admin', workItemId: '7', runToken: 'run-token', controlToken: null, workerId: null, environmentId: 'env', baseBranch: 'main', title: 'Fix', reference: 'ref', deadline: '2026-10-24T09:00:00Z' };
+  let handoffFetches = 0;
+  const handoff = new LinkedHandoff({} as LinkedSessions, new PloegClient(config, incompatible), { getSecret: <T>() => claim as T, setSecret: () => undefined, deleteSecret: () => undefined }, config, { fetch: async () => { handoffFetches++; return new Response(null, { status: 204 }); } });
+  await assert.rejects(handoff.recordSession({ id: 'admin', name: 'admin', role: 'admin' }, '7', { runId: '12', sessionId: 'session_abcdef' }), namesBothVersions);
+  assert.equal(handoffFetches, 0);
+  assert.equal(ploeg.paths.length, 0, 'nothing reached Ploeg');
+
+  await assert.rejects(new ExecutionAuthority(store, config, compatible).admit(session), (error: unknown) => error instanceof PloegError && !(error instanceof PloegContractIncompatible));
+  assert(ploeg.paths.includes('/api/v1/operator/executions'), 'a compatible Ploeg receives the admission');
 });
 
 test('the demo without a Ploeg has no compatibility monitor', async t => {

@@ -1,6 +1,7 @@
 import type { AppConfig } from './types.ts';
 import { createHash } from 'node:crypto';
-import { PloegError } from './ploeg.ts';
+import { PloegError, contractRefusal } from './ploeg.ts';
+import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { taskBindingConfiguration, type PloegTaskSource, type TaskSnapshot, type TaskTarget } from './tasks.ts';
 
 const unavailable = () => new PloegError(503, 'task_binding_unavailable', 'Ploeg could not confirm the existing work item. Refresh before importing or starting work.');
@@ -11,7 +12,9 @@ export function sameTaskTarget(left: TaskTarget, right: TaskTarget): boolean { r
 export function sameTaskBinding(left: PloegTaskSource, right: PloegTaskSource): boolean { return ['workItemId', 'provider', 'externalId', 'expectedBaseUrl', 'expectedScope', 'expectedRevision', 'expectedUpdatedAt'].every(key => left[key as keyof PloegTaskSource] === right[key as keyof PloegTaskSource]) && sameTaskTarget(left.expectedTarget, right.expectedTarget); }
 export function taskBindingRevision(source: PloegTaskSource): string { return createHash('sha256').update(JSON.stringify(source)).digest('hex'); }
 
-export async function lookupTaskBinding(config: AppConfig, task: TaskSnapshot): Promise<TaskSnapshot> {
+export async function lookupTaskBinding(config: AppConfig, task: TaskSnapshot, contract?: PloegContractGate): Promise<TaskSnapshot> {
+  const refusal = contractRefusal(contract);
+  if (refusal) throw refusal;
   const source = config.taskSources?.find(source => source.id === task.sourceId);
   const repository = config.repositories.find(repository => repository.id === task.repositoryId);
   if (!config.execution || !source?.ploeg || source.executionOwner !== 'ploeg' || !['vikunja', 'clickup'].includes(source.provider) || !repository || source.repositoryId !== repository.id) throw new PloegError(409, 'task_binding_unconfigured', 'This task connection needs a registered Ploeg tracker target before it can be imported into shared execution.');

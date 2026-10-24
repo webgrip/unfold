@@ -12,7 +12,9 @@ import { AgentHost } from './ahp/host.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { Links } from './links.ts';
 import { Oidc } from './oidc.ts';
-import { buildServer } from './http.ts';
+import { applicationVersion, buildServer } from './http.ts';
+import { PloegClient } from './ploeg.ts';
+import { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { loadConfig, requirePloegExecution } from './config.ts';
 import { knownSecrets } from './redaction.ts';
 import { ErrorReporter } from './error-reports.ts';
@@ -36,10 +38,12 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   }
   const broker = config.mode === 'live' && config.litellm?.masterKey && !config.execution ? new LiteLLMBroker(config.litellm) : undefined;
   const links = new Links(store, config);
-  const engine = new Engine(store, config, runtimes, broker, links);
+  const versionProbe = new PloegClient(config);
+  const ploegCompatibility = config.ploeg && !versionProbe.isDemo ? new PloegCompatibilityMonitor(() => versionProbe.served(), applicationVersion) : undefined;
+  const engine = new Engine(store, config, runtimes, broker, links, ploegCompatibility);
   const recoveredSessions = engine.recover();
-  const agentHost = new AgentHost(config, store, engine);
-  const { server, cards, tripwire, ploegCompatibility, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
+  const agentHost = new AgentHost(config, store, engine, ploegCompatibility);
+  const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors, ploegCompatibility);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];
@@ -60,6 +64,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     agentHost.close();
     closeStreams();
     stopInsight();
+    ploegCompatibility?.stop();
     await engine.shutdown();
     relay.close();
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });

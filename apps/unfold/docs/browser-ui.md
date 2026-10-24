@@ -205,6 +205,7 @@ The search button, `/`, and Ctrl K or ⌘ K open the palette ([`palette.js`](../
 * While something waits, the favicon becomes a PNG drawn on a canvas with an amber dot (`--attention-signal`), from the same shapes as `favicon.svg` ([`favicon.js`](../public/core/favicon.js)).
 * Desktop notifications are off by default. Turned on in Preferences or the palette, the browser first asks for permission. Then an Unfold tab that is open but not in front notifies once per item that starts waiting, and once per head commit when a waiting pull request starts to conflict ("PR #N now conflicts"); more than three at once become one summary. Open tabs share `localStorage` key `unfold.notified`, so only one of them notifies ([`attention.js`](../public/core/attention.js)).
 * The counts behind these refresh every 60 seconds, also in a background tab, which browsers slow to about once a minute. The job skips its read while Now is on screen, because Now reads the same data.
+* While the connected Ploeg does not serve a contract major this Unfold requires, every page shows a danger banner between the top bar and the page: **Ploeg’s version doesn’t match this Unfold**, that managed actions are paused and Unfold's own pages keep working, the server's sentence naming both versions, and **Open Status**. It comes from `ploegContract` in `GET /api/status`, read with the navigation signal every 60 seconds ([`status-signal.js`](../public/core/status-signal.js)), and is announced once when it appears or its sentence changes.
 
 ### Not built
 

@@ -8,6 +8,7 @@ import { keyLabel, openShortcuts, singleKeysEnabled } from './core/keys.js';
 import { sessionsNeedingYou } from './core/counts.js';
 import { lockupSvg, markSvg } from './core/brand.js';
 import { avatar } from './core/ui.js';
+import { contractBanner } from './core/status-signal.js';
 
 const lockup = lockupSvg({ className: 'app-lockup' });
 const mark = markSvg({ className: 'app-mark' });
@@ -216,7 +217,21 @@ export function shell(content, titleOrOptions, subtitle) {
   lastTitle = page.documentTitle || page.title;
   syncSessionCount();
   document.title = documentTitle(lastTitle);
-  return `<div class="app-shell" data-area="${escape(area())}">${sidebarMarkup()}<div class="app-body">${topbarMarkup(page)}<main id="main" class="app-main${page.wide ? ' is-wide' : ''}" tabindex="-1">${headerMarkup(page)}${settingsMarkup()}${content}</main></div>${tabbarMarkup()}</div>`;
+  return `<div class="app-shell" data-area="${escape(area())}">${sidebarMarkup()}<div class="app-body">${topbarMarkup(page)}${contractBannerMarkup()}<main id="main" class="app-main${page.wide ? ' is-wide' : ''}" tabindex="-1">${headerMarkup(page)}${settingsMarkup()}${content}</main></div>${tabbarMarkup()}</div>`;
+}
+
+function contractBannerMarkup() {
+  return `<div class="app-contract-banner" data-ploeg-contract="${escape(state.ploegContract?.message ?? '')}" role="status" aria-live="polite" ${state.ploegContract ? '' : 'hidden'}>${contractBanner(state.ploegContract)}</div>`;
+}
+
+function updateContractBanner() {
+  const message = state.ploegContract?.message ?? '';
+  for (const banner of document.querySelectorAll('[data-ploeg-contract]')) {
+    if (banner.dataset.ploegContract === message) continue;
+    banner.dataset.ploegContract = message;
+    banner.innerHTML = contractBanner(state.ploegContract);
+    banner.hidden = !state.ploegContract;
+  }
 }
 
 /** Folds whether the open session's event stream is connected into the status dot: its tooltip, and "Reconnecting…" when it is not. */
@@ -252,6 +267,7 @@ export function updateChrome() {
   for (const dot of document.querySelectorAll('[data-report-signal]')) dot.hidden = !state.reportUpdates;
   for (const flag of document.querySelectorAll('[data-report-flag]')) { flag.setAttribute('aria-label', reportLabel()); flag.title = reportLabel(); }
   for (const section of document.querySelectorAll('.app-nav-section[data-group="ploeg"]')) section.toggleAttribute('data-unconfigured', state.ploegStatus === 'unconfigured');
+  updateContractBanner();
   updateLiveState();
   const theme = prefs.get('theme');
   for (const button of document.querySelectorAll('[data-action="theme-set"]')) button.setAttribute('aria-pressed', String(button.dataset.value === theme));
