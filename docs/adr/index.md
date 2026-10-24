@@ -59,3 +59,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0043](adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md) | An Unfold release is one chart that carries the Ploeg it was tested with | accepted | 2026-10-19 |
 | [ADR-0044](adr-0044-unfold-refuses-a-ploeg-that-does-not-serve-the-contract-majors-it-requires.md) | Unfold refuses a Ploeg that does not serve the contract majors it requires, and records what it relies on for Ploeg's CI | proposed | 2026-10-24 |
 | [ADR-0045](adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md) | Agent code runs under Kata or gVisor, chosen by what the node and the work need | accepted | 2026-10-24 |
+| [ADR-0046](adr-0046-an-hourly-release-train-versions-unfold-from-a-checked-development-head.md) | An hourly release train versions Unfold from a checked development head, and a push only checks | proposed | 2026-10-24 |
