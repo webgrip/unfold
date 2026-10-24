@@ -23,7 +23,7 @@ export const handoverLimit = 20;
 export type SessionDigest = {
   window: DigestWindow; since: string; until: string;
   started: number; active: number; workItems: number; commits: number; aiLines: number;
-  costUsd: number | null; costStatus: 'estimate'; costReason: string | null; truncated: boolean;
+  costUsd: number | null; costStatus: 'estimate'; costReason: string | null; uncosted: number; truncated: boolean;
 };
 
 /** Whether a Work Item can be handed back to Ploeg with a requeue now, and in plain words why not. */
@@ -43,7 +43,7 @@ const notRequeueable: Partial<Record<PloegState, string>> = {
 };
 
 /** The counts of a digest from the sessions a person owns, for the window that starts at `since` (epoch ms). */
-export function digestFacts(sessions: Pick<LinkedSession, 'id' | 'startedAt' | 'lastSeenAt' | 'workItems' | 'commits'>[], since: number): Pick<SessionDigest, 'started' | 'active' | 'workItems' | 'commits' | 'aiLines'> & { ids: string[] } {
+export function digestFacts(sessions: Pick<LinkedSession, 'id' | 'harness' | 'startedAt' | 'lastSeenAt' | 'workItems' | 'commits'>[], since: number): Pick<SessionDigest, 'started' | 'active' | 'workItems' | 'commits' | 'aiLines' | 'uncosted'> & { ids: string[] } {
   const active = sessions.filter(session => Date.parse(session.lastSeenAt) >= since);
   const commits = active.flatMap(session => session.commits.filter(commit => Date.parse(commit.at) >= since));
   return {
@@ -52,7 +52,8 @@ export function digestFacts(sessions: Pick<LinkedSession, 'id' | 'startedAt' | '
     workItems: new Set(active.flatMap(session => session.workItems.map(entry => entry.id))).size,
     commits: commits.length,
     aiLines: commits.reduce((sum, commit) => sum + (commit.aiLines ?? 0), 0),
-    ids: active.map(session => session.id),
+    ids: active.filter(session => session.harness === 'claude-code').map(session => session.id),
+    uncosted: active.filter(session => session.harness !== 'claude-code').length,
   };
 }
 
@@ -121,7 +122,7 @@ export class LinkedHandoff {
     const facts = digestFacts(sessions, since);
     const cost = await readSessionsCost(this.config.observability, facts.ids.slice(0, digestSessionLimit), `${days * 86_400}s`, { fetch: this.fetcher });
     const truncated = sessions.length >= digestReadLimit || facts.ids.length > digestSessionLimit;
-    return { window: window as DigestWindow, since: new Date(since).toISOString(), until: until.toISOString(), started: facts.started, active: facts.active, workItems: facts.workItems, commits: facts.commits, aiLines: facts.aiLines, costUsd: cost.costUsd, costStatus: 'estimate', costReason: cost.reason, truncated };
+    return { window: window as DigestWindow, since: new Date(since).toISOString(), until: until.toISOString(), started: facts.started, active: facts.active, workItems: facts.workItems, commits: facts.commits, aiLines: facts.aiLines, costUsd: cost.costUsd, costStatus: 'estimate', costReason: cost.reason, uncosted: facts.uncosted, truncated };
   }
 
   private remember(session: LinkedSession, handover: LinkedHandover): void {

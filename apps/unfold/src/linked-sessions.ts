@@ -273,9 +273,34 @@ export class LinkedSessions {
    * first report claims the session id for its sender; a report for someone else's session is refused as not found.
    */
   async report(user: User, input: LinkedEventInput, base: string, options: { credentialExpiresAt?: string } = {}): Promise<{ session: PresentedLinkedSession; context: string; suggestedTitle: string; trackerPrefixes: string[]; credential: { expiresAt: string; expiresSoon: boolean } | null }> {
+    const snapshot = this.store.get(input.sessionId);
+    this.claimable(snapshot, user, input);
+    const known = new Set(snapshot?.workItems.map(entry => entry.id) ?? []);
+    const dismissed = new Set(snapshot?.dismissed ?? []);
+    const attachments: { id: string; how: LinkedHow }[] = [];
+    if (input.workItem && !known.has(input.workItem) && await this.ploeg.detail(user, input.workItem).then(() => true, () => false)) attachments.push({ id: input.workItem, how: 'explicit' });
+    const branch = input.branch || snapshot?.branch || '';
+    const branchChanged = Boolean(branch) && branch !== (snapshot?.resolvedBranch ?? '');
+    if (branchChanged) for (const ref of branchReferences(branch)) {
+      const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
+      for (const item of found.items.slice(0, 3)) attachments.push({ id: item.id, how: 'branch' });
+    }
+    const mentioned: LinkedHow = input.event === 'commit' ? 'commit' : 'mention';
+    for (const ref of input.mentions.refs) {
+      const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
+      for (const item of found.items.slice(0, 3)) attachments.push({ id: item.id, how: mentioned });
+    }
+    for (const id of input.mentions.workItems) {
+      if (known.has(id) || dismissed.has(id)) continue;
+      if (await this.ploeg.detail(user, id).then(() => true, () => false)) attachments.push({ id, how: mentioned });
+    }
+    const freshPulls = input.pullRequests.filter(url => !(snapshot?.pullRequests ?? []).includes(url));
+    if (freshPulls.length && this.ploeg.now) {
+      const keys = new Set(freshPulls.map(pullRequestKey).filter(Boolean));
+      for (const item of await this.openWork(user)) if ([item.pullRequest?.url, item.pullRequestUrl].some(url => url && keys.has(pullRequestKey(url)))) attachments.push({ id: item.id, how: 'pull_request' });
+    }
     const existing = this.store.get(input.sessionId);
-    if (existing && existing.ownerId !== user.id) fail(404, 'not_found', 'Linked session not found.');
-    if (existing && existing.harness !== input.harness) fail(409, 'linked_harness', 'This session id was reported by another harness.');
+    this.claimable(existing, user, input);
     const session: LinkedSession = existing ?? { id: input.sessionId, harness: input.harness, harnessVersion: '', ownerId: user.id, ownerName: user.name, title: '', repository: '', branch: '', model: '', remoteUrl: '', status: 'idle', waitingFor: '', startedAt: input.at, lastSeenAt: input.at, endedAt: null, workItems: [], dismissed: [], resolvedBranch: '', pullRequests: [], commits: [] };
     session.ownerName = user.name;
     session.lastSeenAt = input.at;
@@ -283,37 +308,17 @@ export class LinkedSessions {
     const status = nextStatus[input.event];
     if (status) { session.status = status; session.waitingFor = status === 'waiting' ? input.waitingFor : ''; session.endedAt = status === 'ended' ? input.at : null; }
     else if (session.status === 'ended') { session.status = 'idle'; session.endedAt = null; }
-    const freshPulls = input.pullRequests.filter(url => !session.pullRequests.includes(url));
-    for (const url of freshPulls) if (session.pullRequests.length < linkedLimits.pullRequests) session.pullRequests.push(url);
+    for (const url of input.pullRequests) if (!session.pullRequests.includes(url) && session.pullRequests.length < linkedLimits.pullRequests) session.pullRequests.push(url);
     if (input.commit) {
-      const known = session.commits.find(entry => entry.sha === input.commit!.sha);
-      if (known) Object.assign(known, { subject: input.commit.subject || known.subject, trailer: known.trailer || input.commit.trailer });
+      const seen = session.commits.find(entry => entry.sha === input.commit!.sha);
+      if (seen) Object.assign(seen, { subject: input.commit.subject || seen.subject, trailer: seen.trailer || input.commit.trailer });
       else session.commits = [...session.commits, { sha: input.commit.sha, subject: input.commit.subject, at: input.at, trailer: input.commit.trailer, aiLines: null, files: null }].slice(-linkedLimits.commits);
     }
-    if (input.workItem && !session.workItems.some(entry => entry.id === input.workItem) && await this.ploeg.detail(user, input.workItem).then(() => true, () => false)) {
-      this.attach(session, input.workItem, 'explicit', user, input.at);
+    for (const entry of attachments) {
+      if (entry.how === 'explicit') { if (!session.workItems.some(item => item.id === entry.id)) this.attach(session, entry.id, 'explicit', user, input.at); }
+      else this.attachAutomatic(session, entry.id, entry.how, user, input.at);
     }
-    if (session.branch && session.branch !== session.resolvedBranch) {
-      for (const ref of branchReferences(session.branch)) {
-        const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
-        for (const item of found.items.slice(0, 3)) this.attachAutomatic(session, item.id, 'branch', user, input.at);
-      }
-      session.resolvedBranch = session.branch;
-    }
-    const mentioned: LinkedHow = input.event === 'commit' ? 'commit' : 'mention';
-    for (const ref of input.mentions.refs) {
-      const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
-      for (const item of found.items.slice(0, 3)) this.attachAutomatic(session, item.id, mentioned, user, input.at);
-    }
-    for (const id of input.mentions.workItems) {
-      if (!this.canAttach(session, id)) continue;
-      if (await this.ploeg.detail(user, id).then(() => true, () => false)) this.attachAutomatic(session, id, mentioned, user, input.at);
-    }
-    if (freshPulls.length && this.ploeg.now) {
-      const keys = new Set(freshPulls.map(pullRequestKey).filter(Boolean));
-      const open = await this.openWork(user);
-      for (const item of open) if ([item.pullRequest?.url, item.pullRequestUrl].some(url => url && keys.has(pullRequestKey(url)))) this.attachAutomatic(session, item.id, 'pull_request', user, input.at);
-    }
+    if (branchChanged && session.branch === branch) session.resolvedBranch = branch;
     this.store.save(session);
     const presented = this.present(session, user, base);
     const expiresAt = options.credentialExpiresAt && Number.isFinite(Date.parse(options.credentialExpiresAt)) ? new Date(options.credentialExpiresAt).toISOString() : '';
@@ -322,6 +327,11 @@ export class LinkedSessions {
       session: presented, context: await this.context(user, presented, credential), suggestedTitle: !session.title && session.workItems.length ? await this.suggestTitle(user, session) : '',
       trackerPrefixes: Object.keys(trackerPrefixes).map(prefix => prefix.toUpperCase()), credential,
     };
+  }
+
+  private claimable(session: LinkedSession | undefined, user: User, input: LinkedEventInput): void {
+    if (session && session.ownerId !== user.id) fail(404, 'not_found', 'Linked session not found.');
+    if (session && session.harness !== input.harness) fail(409, 'linked_harness', 'This session id was reported by another harness.');
   }
 
   private canAttach(session: LinkedSession, id: string): boolean {
@@ -416,11 +426,15 @@ export class LinkedSessions {
   /** Links or unlinks one Work Item. Only the owner or an administrator may, and only to a Work Item they may read; an unlinked Work Item is not linked again by the branch. */
   async setLink(user: User, id: string, workItemId: string, linked: boolean, base: string): Promise<PresentedLinkedSession> {
     if (!workItemPattern.test(workItemId)) fail(400, 'work_item_id', 'Use a Work Item id.');
-    const session = this.store.get(id);
-    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fail(404, 'not_found', 'Linked session not found.');
+    const allowed = (found: LinkedSession | undefined): LinkedSession => {
+      if (!found || (found.ownerId !== user.id && user.role !== 'admin')) fail(404, 'not_found', 'Linked session not found.');
+      return found!;
+    };
+    allowed(this.store.get(id));
+    if (linked) await this.ploeg.detail(user, workItemId);
+    const session = allowed(this.store.get(id));
     const at = this.clock().toISOString();
     if (linked) {
-      await this.ploeg.detail(user, workItemId);
       if (!session!.workItems.some(entry => entry.id === workItemId)) this.attach(session!, workItemId, 'explicit', user, at);
     } else {
       session!.workItems = session!.workItems.filter(entry => entry.id !== workItemId);
