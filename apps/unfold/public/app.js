@@ -19,6 +19,7 @@ import { insight, startInsight, linkOutTarget, screenFields } from './core/insig
 import { createConfusionRules, startConfusionDetector } from './core/confusion.js';
 import { startCapture } from './core/report-capture.js';
 import { popOnHover } from './core/motion.js';
+import { followTimeCursor } from './core/time-cursor.js';
 import { flyWhileLoading } from './core/boot-flight.js';
 
 const registry = createRegistry(views);
@@ -147,5 +148,6 @@ window.addEventListener('storage', preferencesChanged);
 window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 popOnHover(document, '.app-brand, .signin-brand', { ink: 'brand-ink', fold: 'brand-fold' });
+followTimeCursor(document);
 flyWhileLoading(document.querySelector('#app > .boot'));
 void boot();

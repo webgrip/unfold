@@ -230,7 +230,8 @@ export function flightLegs(model) {
   const asked = model.time.lead !== null ? model.now - model.time.lead * 1000 : null;
   legs.push({ kind: 'gate', id: 'ask', label: 'Ask', note: asked !== null ? `${calendarDay(asked)} ${clock(asked)}` : '' });
   let shownDay = asked !== null ? calendarDay(asked) : null;
-  legs.push({ kind: 'wait', label: queued ? 'At the gate' : 'Waited', note: model.time.waiting !== null ? span(model.time.waiting) : '', parked: queued && ['queued', 'ingested', 'leased'].includes(model.state) });
+  const firstStart = model.runs.reduce((min, run) => run.startedAt !== null && (min === null || run.startedAt < min) ? run.startedAt : min, null);
+  legs.push({ kind: 'wait', label: queued ? 'At the gate' : 'Waited', note: model.time.waiting !== null ? span(model.time.waiting) : '', parked: queued && ['queued', 'ingested', 'leased'].includes(model.state), from: asked, to: firstStart ?? (queued ? model.now : null) });
   for (const attempt of model.attempts) {
     if (!attempt.runs.length) continue;
     let from = 'ground';
@@ -267,7 +268,8 @@ export function flightLegs(model) {
   const pr = ['done', 'current'].includes(model.stages.find(stage => stage.id === 'pr')?.status);
   const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
   const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
-  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
+  const lastEnd = model.runs.reduce((max, run) => Math.max(max, run.finishedAt ?? run.startedAt ?? -Infinity), -Infinity);
+  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : ''), from: Number.isFinite(lastEnd) ? lastEnd : null, to: model.now });
   else if (!model.running && (model.state === 'awaiting_review' || model.state === 'done' || pr)) legs.push({ kind: 'approach', mode: 'landed', note: '' });
   else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.note || model.estimate.text : 'no estimate' });
   for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
@@ -351,7 +353,13 @@ function hopMarkup(hop, key, model) {
       : end === 'pending' ? planeMark('is-taxi')
         : `<span class="${cx('lv-fp-end', grounded(end) ? 'is-ground' : 'is-air', `is-${tone}`)}" aria-hidden="true">${icon(hop.glyph)}${badge}</span>`;
   const chip = `${end === 'live' || end === 'holding' || end === 'pending' ? planeMark(cx('is-chip', end === 'pending' ? '' : ring)) : `${icon(hop.glyph)}${badge}`}${chipMarks({ marks })}`;
-  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"><button type="button" class="lv-fp-hit" data-action="work-run" data-id="${escape(hop.runs?.at(-1)?.id ?? run.id)}" aria-label="${escape(`Open ${words}`)}"></button><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
+  const last = hop.runs.at(-1);
+  const until = last.finishedAt ?? (last.state === 'running' ? model.now : last.startedAt);
+  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"${timeAttrs(hop.runs[0].startedAt, until)}><button type="button" class="lv-fp-hit" data-action="work-run" data-id="${escape(hop.runs?.at(-1)?.id ?? run.id)}" aria-label="${escape(`Open ${words}`)}"></button><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
+}
+
+function timeAttrs(from, to) {
+  return from !== null && from !== undefined && to !== null && to !== undefined && to >= from ? ` data-from="${from}" data-to="${to}"` : '';
 }
 
 function head(name, note, extra = '') {
@@ -369,7 +377,8 @@ function head(name, note, extra = '') {
  * Run's health (`planeRing`): red with a halo when a high tripwire decided it. Columns
  * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the
  * same list stands up as a vertical flight log. Pure: the same model always gives the same markup, with no inline
- * styles. Every hop is a button that opens its Run on the Work Item page (`data-action="work-run"`).
+ * styles. Every hop is a button that opens its Run on the Work Item page (`data-action="work-run"`). Each hop, the wait
+ * and a stop carry their time range in `data-from` and `data-to` (ms) for the shared time cursor.
  * @param {object} model A `liveModel` result.
  * @param {{ id?: string }} [options] `id` prefixes gradient ids, so two flights of one model can share a page.
  * @returns {string}
@@ -377,9 +386,9 @@ function head(name, note, extra = '') {
 export function flightPath(model, { id = `lv-flight-${model.id}` } = {}) {
   const legs = flightLegs(model).map((leg, index) => {
     if (leg.kind === 'gate') return `<li class="lv-fp-leg lv-fp-gate lv-g2">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"></div><div class="lv-fp-runway is-apron" aria-hidden="true"><span class="lv-fp-gate-mark"></span></div></li>`;
-    if (leg.kind === 'wait') return `<li class="${cx('lv-fp-leg', 'lv-fp-wait', 'lv-g3', leg.parked ? 'is-parked' : '')}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky">${leg.parked ? planeMark('is-parked') : ''}</div><div class="lv-fp-runway is-taxiway" aria-hidden="true"><span class="lv-fp-break">≈</span></div></li>`;
+    if (leg.kind === 'wait') return `<li class="${cx('lv-fp-leg', 'lv-fp-wait', 'lv-g3', leg.parked ? 'is-parked' : '')}"${timeAttrs(leg.from, leg.to)}>${head(escape(leg.label), leg.note)}<div class="lv-fp-sky">${leg.parked ? planeMark('is-parked') : ''}</div><div class="lv-fp-runway is-taxiway" aria-hidden="true"><span class="lv-fp-break">≈</span></div></li>`;
     if (leg.kind === 'attempt') return `<li class="${cx('lv-fp-leg', 'lv-fp-attempt', `lv-g${leg.grow}`, `is-${leg.tone}`)}">${head(`${escape(leg.head)}${leg.time ? ` <span class="lv-fp-time">${escape(leg.time)}</span>` : ''}`, leg.note)}<ol class="lv-fp-hops">${leg.hops.map((hop, hopIndex) => hopMarkup(hop, `${id}-${index}-${hopIndex}`, model)).join('')}</ol></li>`;
-    if (leg.kind === 'stop') return `<li class="${cx('lv-fp-leg', 'lv-fp-stop', 'lv-g6', `lv-tone-${leg.tone}`)}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"><span class="lv-fp-flag" aria-hidden="true">${icon(leg.glyph)}</span></div><div class="lv-fp-runway is-closed" aria-hidden="true"></div></li>`;
+    if (leg.kind === 'stop') return `<li class="${cx('lv-fp-leg', 'lv-fp-stop', 'lv-g6', `lv-tone-${leg.tone}`)}"${timeAttrs(leg.from, leg.to)}>${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"><span class="lv-fp-flag" aria-hidden="true">${icon(leg.glyph)}</span></div><div class="lv-fp-runway is-closed" aria-hidden="true"></div></li>`;
     if (leg.kind === 'approach') {
       const descent = leg.mode === 'taxi' ? `M0 ${ground} L100 ${ground}` : `M0 ${cruise} C${leg.mode === 'landed' ? 40 : 45} ${cruise}, 55 ${ground}, 100 ${ground}`;
       return `<li class="${cx('lv-fp-leg', 'lv-fp-approach', 'lv-g4', `is-${leg.mode}`)}">${head(leg.mode === 'landed' ? 'Landed' : 'Approach', leg.mode === 'landed' ? '' : leg.note)}<div class="lv-fp-sky"><svg class="lv-fp-sky-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="lv-fp-descent" d="${descent}"></path></svg></div><div class="lv-fp-runway" aria-hidden="true"></div></li>`;

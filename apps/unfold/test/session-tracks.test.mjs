@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attachSession, attachmentWords, commitSpine, handoverMarks, roundWindows, sessionWindow, shiftWindows, workTracks } from '../public/core/session-tracks.js';
 import { clashesWithRun, collisions, collisionsOf, runningRunsOf, startedBy } from '../public/core/collisions.js';
-import { workTracksMarkup } from '../public/core/work-tracks.js';
+import { foldedWindow, workTracksMarkup } from '../public/core/work-tracks.js';
+import { flightSpot, momentAt, shareAt } from '../public/core/time-cursor.js';
 import { streamLanes } from '../public/core/value-stream.js';
 import { workView } from '../public/live/work-view.js';
 import { workPage } from '../public/live/pages.js';
@@ -130,6 +131,48 @@ test('the two tracks draw Ploeg above the people on one axis with hand-over conn
   assert.deepEqual(items, ['ploeg', 'ploeg', 'ploeg', 'people', 'handover', 'spine', 'handover', 'ploeg', 'ploeg', 'people', 'handover'], 'the phone list keeps one time order across both tracks');
   assert.match(html, /During attempt 2, Round 1/);
   assert.equal(workTracksMarkup(workTracks({ detail, sessions: [], now }), { detail, sessions: [], now }), '', 'nothing to add without a linked session');
+});
+
+test('the two tracks fold quiet hours away, name each stretch after the attempts, and key every bar colour', () => {
+  const later = 3000;
+  const lane = (key, bars) => ({ key, group: 'run', label: key, sublabel: '', url: null, bars, marks: [] });
+  const lanes = [lane('builder', [{ start: at(5), end: at(25) }]), lane('reviewer', [{ start: at(30), end: at(55) }]), { ...lane('you', [{ start: at(later), end: at(later + 30) }]), group: 'people' }];
+  const shifts = [{ attempt: 1, from: t0, to: t0 + 60 * 60_000 }];
+  const window = foldedWindow(lanes, shifts, now);
+  assert.equal(window.folds.length, 1, 'two days of nothing fold into one band');
+  assert.deepEqual(window.stretches.map(stretch => stretch.name), ['Attempt 1', 'After attempt 1']);
+  assert.ok(window.stretches.every(stretch => stretch.end - stretch.start > 25), 'every stretch keeps room to read its bars');
+  assert.ok(window.place(Date.parse(at(25))) > window.place(Date.parse(at(5))) + 10, 'a 20-minute Run is wide, not a sliver');
+  assert.equal(window.pieces.at(-1).end, 100);
+  const together = foldedWindow([lane('builder', [{ start: at(5), end: at(25) }]), lane('reviewer', [{ start: at(40), end: at(55) }])], shifts, now);
+  assert.equal(together.folds.length, 0, 'minutes apart stay on one straight scale');
+  assert.equal(together.place(Date.parse(at(5))), 0);
+
+  const stopped = { ...detail, shifts: [detail.shifts[0], { ...detail.shifts[1], closedAt: at(240) }], runs: [...detail.runs.slice(0, 2), { ...detail.runs[2], state: 'finished', finishedAt: at(235), failureReason: 'crashed' }] };
+  const sessions = [session('far', { startedAt: at(later), endedAt: at(later + 30) })];
+  const html = workTracksMarkup(workTracks({ detail: stopped, sessions, now: Date.parse(at(later + 40)) }), { detail: stopped, sessions, now: Date.parse(at(later + 40)) });
+  assert.match(html, />Attempts 1 to 2<.*>After attempt 2</, 'attempts two hours apart share a stretch');
+  assert.match(html, /A Run: failed/);
+  assert.match(html, /<rect class="tracks-fold"/);
+  assert.match(html, /class="tracks-fold-label"[^>]*>1 d \d\d h</);
+  assert.match(html, /Quiet hours are folded away/);
+  assert.match(html, /<li><span class="tracks-swatch" data-tone="success" aria-hidden="true"><\/span>A Run: finished<\/li>/);
+  assert.match(html, /<li><span class="tracks-swatch" data-tone="neutral" aria-hidden="true"><\/span>A person’s own session, ended<\/li>/);
+  assert.match(html, /data-time-scale="\[\[/);
+  assert.doesNotMatch(html, /style=/, 'the CSP forbids inline styles');
+});
+
+test('the time cursor turns a pointer position into a moment and back, and finds that moment on the flight path', () => {
+  const pieces = [[0, 100, 0, 40], [100, 1000, 40, 45], [1000, 1100, 45, 100]];
+  assert.equal(momentAt(pieces, 20), 50);
+  assert.equal(momentAt(pieces, 72.5), 1050);
+  assert.equal(shareAt(pieces, 1050), 72.5);
+  assert.equal(shareAt(pieces, 2000), null);
+  assert.equal(momentAt(pieces, -1), null);
+  const spans = [[0, 10], [20, 40], [50, 60]];
+  assert.deepEqual(flightSpot(spans, 30), { index: 1, fraction: 0.5 });
+  assert.deepEqual(flightSpot(spans, 45), { index: 2, fraction: 0 }, 'between two Runs the cursor waits at the next one');
+  assert.equal(flightSpot(spans, 61), null);
 });
 
 test('the one-page Work Item shows the two tracks above its views when a session is linked, and says where each session sat', () => {

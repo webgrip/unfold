@@ -114,3 +114,12 @@ test('the ask reads its day and clock time, and an attempt names its day only wh
 test('the review station keeps its full name', () => {
   assert.equal(legs('review').find(leg => leg.id === 'review').label, 'Your review');
 });
+
+test('each hop, the wait and a stop carry their time range for the shared time cursor', () => {
+  for (const [name, scenario] of Object.entries(scenarios)) {
+    const model = liveModel(scenario.input());
+    const html = flightPath(model);
+    for (const [, from, to] of html.matchAll(/data-from="(\d+)" data-to="(\d+)"/g)) assert.ok(Number(to) >= Number(from), `${name}: ${from}..${to}`);
+    if (model.runs.some(run => run.startedAt !== null)) assert.match(html, /class="lv-fp-hop [^"]*"[^>]* data-from="\d+" data-to="\d+"/, name);
+  }
+});

@@ -86,17 +86,22 @@ export function agentExtent(lanes, now) {
   return { from: Math.max(all.from, work.from - pad), to: all.to + Math.min(pad, Math.max(0, now - all.to)) };
 }
 
-/** Axis ticks for a window: at most about six, on whole minutes, hours or local days. */
-export function streamTicks({ from, to }) {
+/** A moment as a short day and a clock time, as the first tick of a day reads. */
+export function dayAndTime(at) {
+  return `${shortDay(at)} ${time(new Date(at).toISOString())}`;
+}
+
+/** Axis ticks for a window: at most about `most` (six by default), on whole minutes, hours or local days. */
+export function streamTicks({ from, to }, most = 6) {
   const span = to - from;
-  const step = steps.find(size => span / size <= 6) ?? steps.at(-1);
+  const step = steps.find(size => span / size <= most) ?? steps.at(-1);
   const offset = new Date(from).getTimezoneOffset() * minute;
   const first = Math.ceil((from - offset) / step) * step + offset;
   const ticks = [];
   let previousDay = '';
   for (let at = first; at <= to; at += step) {
     const today = dayKey(new Date(at).toISOString());
-    const label = step >= day ? shortDay(at) : today !== previousDay ? `${shortDay(at)} ${time(new Date(at).toISOString())}` : time(new Date(at).toISOString());
+    const label = step >= day ? shortDay(at) : today !== previousDay ? dayAndTime(at) : time(new Date(at).toISOString());
     ticks.push({ at, share: ((at - from) / span) * 100, label });
     previousDay = today;
   }
@@ -141,6 +146,16 @@ function statsMarkup(stats) {
   return parts.length ? `<div class="stat-row stream-stats">${parts.join('')}</div>` : '';
 }
 
+/**
+ * Where `at` falls across a chart window, from 0 to 100: straight along the window, or through `window.place` when the
+ * window folds idle stretches away.
+ * @param {{ from: number, to: number, place?: (at: number) => number }} window
+ * @param {number} at
+ */
+export function placeIn(window, at) {
+  return window.place ? window.place(at) : ((at - window.from) / (window.to - window.from)) * 100;
+}
+
 const clamp = share => Math.min(100, Math.max(0, share));
 const pct = share => `${share.toFixed(3)}%`;
 const minimumWidth = 0.4;
@@ -149,9 +164,8 @@ function itemMarkup(bar, window, now) {
   const start = toMs(bar.start);
   const end = bar.end === null ? now : toMs(bar.end);
   if (start === null || end === null || end < window.from || start > window.to) return '';
-  const span = window.to - window.from;
-  const from = clamp(((start - window.from) / span) * 100);
-  const width = Math.max(minimumWidth, clamp(((end - window.from) / span) * 100) - from);
+  const from = clamp(placeIn(window, start));
+  const width = Math.max(minimumWidth, clamp(placeIn(window, end)) - from);
   const running = bar.end === null;
   const spoken = `${bar.label}${bar.detail && bar.detail !== bar.label ? ` (${bar.detail})` : ''}: ${dateTime(bar.start)} to ${running ? 'now' : dateTime(bar.end)}, ${duration((end - start) / 1000) || '0 s'}`;
   const text = width >= labelledShare ? `<span class="stream-bar-label" aria-hidden="true">${escape(bar.label)}</span>` : '';
@@ -165,7 +179,7 @@ function itemMarkup(bar, window, now) {
 function markMarkup(mark, window) {
   const at = toMs(mark.at);
   if (at === null || at < window.from || at > window.to) return '';
-  const share = ((at - window.from) / (window.to - window.from)) * 100;
+  const share = placeIn(window, at);
   const spoken = `${mark.label}: ${dateTime(mark.at)}`;
   const shape = mark.shape === 'dot' ? '<circle r="5"/>' : '<rect x="-5" y="-5" width="10" height="10" transform="rotate(45)"/>';
   return `<svg x="${pct(share)}" y="50%" width="1" height="1" overflow="visible" class="stream-mark" data-tone="${escape(mark.tone)}"${mark.by ? ` data-by="${escape(mark.by)}"` : ''} role="img" aria-label="${escape(spoken)}"><title>${escape(spoken)}</title>${shape}</svg>`;
