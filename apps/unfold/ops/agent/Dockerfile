@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG REGISTRY_DHI=dhi.io
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:29828201fcab447665e099101c3ee960c2b7e9332198216863bd7b3139b70460
+ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.22.0-alpine3.24-dev@sha256:7aff626d8cb36fd5a7bc926b6922fb9b40af4cf046f285fa45c1f1712bacd4b1
 # renovate: datasource=npm depName=opencode-ai
 ARG OPENCODE_VERSION=1.19.4
 # renovate: datasource=npm depName=brace-expansion
