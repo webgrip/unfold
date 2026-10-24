@@ -49,3 +49,14 @@ test('a commit row says which agents wrote its AI lines', () => {
   assert.match(agentsText(undefined), /—/);
   assert.match(linkedSessionPage({ ...session, commits: [{ ...session.commits[0], agents: { 'code-reviewer': 12 } }] }, { now }), /code-reviewer 12/);
 });
+
+test('a session page heads with where it works and its cost, and puts what its owner acts on before the reference cards', () => {
+  const telemetry = { available: true, reason: null, costUsd: 1.5, tokens: null, activeSeconds: null, events: null, tools: [] };
+  const page = linkedSessionPage({ ...session, mine: true, telemetry }, { now, workItems: { 184: 'Fix login' }, act: '<section id="act-probe"></section>' });
+  assert.match(page, /forgejo\.example\.org:webgrip\/unfold\.git @ feat\/vik-2051-login/);
+  assert.match(page, /≈ US\$\s1,50 API-price estimate/);
+  assert.match(page, /linked-session-layout has-act[\s\S]*act-probe[\s\S]*linked-session-rail[\s\S]*id="linked-session-work"[\s\S]*id="linked-session-about"/);
+  assert.ok(page.indexOf('Resume it on your machine') < page.indexOf('act-probe'), 'resume sits in the head, above the actions');
+  const theirs = linkedSessionPage(session, { now });
+  assert.doesNotMatch(theirs, /has-act/, 'with nothing to act on the reference cards take the whole width');
+});

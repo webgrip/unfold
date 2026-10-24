@@ -151,5 +151,5 @@ export function handOffMarkup(session, readiness) {
   if (!session.mine || !session.workItems?.length) return '';
   if (!readiness) return '<p class="meta">Checking whether Ploeg can take it over…</p>';
   const rows = readiness.workItems.map(entry => `<li><span>${escape(entry.title ? `${entry.id} · ${entry.title}` : `Work Item ${entry.id}`)}</span> ${button({ label: 'Let Ploeg finish this', icon: 'send', size: 'sm', action: 'linked-session-hand-off', data: { id: session.id, workItem: entry.id }, disabled: !entry.available, title: entry.available ? 'Ploeg restarts it with a note on your branch, last commit and pull request.' : entry.reason })}${entry.available ? '' : ` <span class="meta">${escape(entry.reason)}</span>`}</li>`).join('');
-  return `<div class="linked-hand-off"><p class="field-label">Hand it to Ploeg</p><p class="meta">Ploeg starts a new attempt from the Team’s budget. Its Runs read where your session left off: your branch, last commit and pull request.</p><ul class="linked-session-work">${rows}</ul></div>`;
+  return `<div class="linked-hand-off"><p class="field-label">Let Ploeg finish</p><p class="meta">Ploeg starts a new attempt from the Team’s budget. Its Runs read where your session left off: your branch, last commit and pull request.</p><ul class="linked-session-work">${rows}</ul></div>`;
 }
