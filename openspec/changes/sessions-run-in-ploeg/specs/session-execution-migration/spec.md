@@ -1,9 +1,5 @@
 # Session execution migration
 
-All behaviour below is proposed. The Operator Execution protocol it drains is
-defined in [ploeg-execution.md](../../../../../apps/unfold/docs/contracts/ploeg-execution.md)
-and is not restated here.
-
 ## ADDED Requirements
 
 ### Requirement: Stored standalone sessions become read-only history

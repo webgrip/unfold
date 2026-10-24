@@ -49,6 +49,54 @@ The Ploeg side is planned in four ploeg-hq changes on the branch
 | `select-harness-per-run` | an optional Harness on that admission, refused outside the Team's allowlist or when unqualified; the resolved Harness per Role in the response; allowlist, default, qualification and the observed version per allowlisted Harness per Role on the Teams read; one workload per allowed Harness; per R1, the models each Role's policy lists and an optional model on the admission, refused when the Role's policy does not list it | ADR-0098, ADR-0099, and Ploeg ADR-0103, which narrows Ploeg ADR-0039 |
 | `interactive-runs` | an `attended` flag on the admission; per R2, a per-Run `autoApprove` flag; per-Run interaction reads and `answer`, `message`, `pause`, `resume` commands; request and resolution events on `/operator/events`; `interactive` per Harness on the Teams read | ADR-0100, ADR-0101, ADR-0104 (narrows Ploeg ADR-0068 for attended Runs) |
 
+## Spec scope
+
+Each capability spec below states only what Unfold does. These are the contracts each one relies on and does not restate.
+
+### Ploeg session execution (`specs/ploeg-session-execution`)
+
+All behaviour in this spec is proposed. The Ploeg routes it relies on are defined in
+Ploeg's operator API contract (`apps/ploeg/docs/contracts/README.md` and
+`operator-api.v1.schema.json`): cancel, requeue, notes and events exist in the
+pinned Ploeg; the submission route `POST /api/v1/operator/work-items` comes
+from ploeg-hq `submit-work-items`, the Harness and model fields from
+`select-harness-per-run`, and the `attended` and `autoApprove` flags and
+per-Run interaction commands from `interactive-runs`. This spec does not restate them.
+
+### Harness selection (`specs/harness-selection`)
+
+All behaviour in this spec is proposed. The shape of a Team's Harness offer and of
+the admission fields is owned by Ploeg's operator API contract as extended by
+the ploeg-hq changes `record-harness-per-run` (per Role `harness`, `model` and
+`observedHarness`), `select-harness-per-run` (allowlist, default and
+qualification per Role, a Harness on the admission) and `interactive-runs`
+(`interactive` per Harness). The models each Role's policy lists and the
+model on the admission come from `select-harness-per-run`, with Ploeg ADR-0103, which narrows Ploeg
+ADR-0039. The per-Run record is owned by Ploeg's Run shapes
+(Ploeg ADR-0091, extended by `record-harness-per-run` with `harnessVersion` and
+`harnessAgent`). This spec references them and does not restate them. The owner
+decided on 2026-10-13 that a person chooses the model per session from the
+Team's list (design R1).
+
+### Run interaction (`specs/run-interaction`)
+
+All behaviour in this spec is proposed. The relay, its states (`open`, `answered`,
+`expired`, `withdrawn`, `delivered`, `carried_over`), its commands (`answer`,
+`message`, `pause`, `resume`), its deadlines, the per-Run `autoApprove` flag
+and the `interactive` flag per Harness are owned by Ploeg's contract as extended by ploeg-hq
+`interactive-runs` (Ploeg ADR-0100 and ADR-0101, both proposed); next-Run
+notes are Ploeg's existing `notes` route (Ploeg ADR-0068; for attended Runs Ploeg ADR-0104 lets a message reach the running Run). This spec states
+what Unfold does with them and does not restate them. It replaces, for Unfold,
+the parts of ADR-0023 that ADR-0044 proposes to supersede. "Approve tool use
+automatically" maps to Ploeg's per-Run `autoApprove` flag (owner decision of
+2026-10-13, design R2).
+
+### Session execution migration (`specs/session-execution-migration`)
+
+All behaviour in this spec is proposed. The Operator Execution protocol it drains is
+defined in [ploeg-execution.md](../../../apps/unfold/docs/contracts/ploeg-execution.md)
+and is not restated here.
+
 ## Goals / Non-Goals
 
 **Goals:**
