@@ -3,7 +3,7 @@ type: reference
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-24
-verified_by: "Sources and live checks in research/2026-10-24-sandbox-runtimes-and-encryption.md: primary sources (project repositories, release notes, security advisories, vendor docs) read on 2026-10-24; Image Factory extension lists for Talos 1.13.4 and 1.14.0; the Kata configuration on a homelab Talos 1.13.10 worker read with talosctl; gVisor run on kind. Start-up and overhead figures are the vendors' own unless the record says it measured them."
+verified_by: "Sources and live checks in research/2026-10-24-sandbox-runtimes-and-encryption.md; extension tiers from the siderolabs/extensions README on 2026-10-24: primary sources (project repositories, release notes, security advisories, vendor docs) read on 2026-10-24; Image Factory extension lists for Talos 1.13.4 and 1.14.0; the Kata configuration on a homelab Talos 1.13.10 worker read with talosctl; gVisor run on kind. Start-up and overhead figures are the vendors' own unless the record says it measured them."
 ---
 
 # Sandbox runtimes
@@ -50,6 +50,10 @@ Firecracker has the smallest attack surface of any VMM a Kubernetes pod can use:
 * **The gain is small next to Cloud Hypervisor.** Both are Rust, built on the same rust-vmm crates. Cloud Hypervisor adds virtio-fs and hotplug, which is what makes a workspace volume and a cloned repository fast.
 
 Reconsider when a Talos extension ships Firecracker, or Kata's Rust runtime supports it, and a workspace no longer depends on a shared filesystem.
+
+## Who supports the Talos extensions
+
+Sidero Labs sorts its system extensions into three tiers ([siderolabs/extensions](https://github.com/siderolabs/extensions#readme), read 2026-10-24): **core**, fully supported by Sidero Labs; **extra**, best-effort support that varies per extension; and **contrib**, supported by the community. `gvisor` is core. `kata-containers` and `kata-containers-snp` are extra. Expect Kata fixes on Talos, such as the annotation allowlist below, to come from its users, and keep the admission policy whatever the extension's version.
 
 ## Advisories to know about
 
