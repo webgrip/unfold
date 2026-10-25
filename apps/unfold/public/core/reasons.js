@@ -162,6 +162,11 @@ const copy = {
     sentence: 'The Unfold session that drives this Work Item is waiting for a person to answer.',
     fix: 'Answer the question in the linked session.',
   },
+  operator_stopped: {
+    chip: 'Session stopped',
+    sentence: 'The Unfold session that drives this Work Item stopped it. Ploeg starts it again only through that session.',
+    fix: 'Open the linked session: deliver work its reviewer approved, run it again, or cancel it.',
+  },
   unrecognised: {
     chip: 'Unrecognised reason',
     sentence: 'Ploeg recorded a reason code this version of Unfold does not recognise.',
@@ -205,7 +210,12 @@ const held = (spent, reserved) => number(spent) && number(reserved) && reserved 
 
 const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_not_passed', 'ci_not_finished', 'ci_not_passed', 'review_failed', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
-const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input', 'operator_stopped']);
+
+/** Whether an Unfold session drives the Work Item: its latest Shift runs on the session's `operator/` branch, so Ploeg refuses every restart but the session's own. */
+export function sessionDriven(item) {
+  return String(item?.latestShift?.branch ?? '').startsWith('operator/');
+}
 
 const answeredHere = new Set(['person_question', 'taken_over', 'approved_to_merge', 'merged_untracked']);
 
@@ -278,6 +288,7 @@ const reasonGlyphs = Object.freeze({
   operator_expired: 'sessions',
   operator_paused: 'pause-circle',
   operator_waiting_input: 'sessions',
+  operator_stopped: 'sessions',
   unrecognised: 'help-circle',
   stale_infrastructure: 'zap',
   stale_attempts: 'clock',
@@ -325,8 +336,8 @@ export function listReason(item, { demo = false } = {}) {
   if (item.state === 'stale') return build(number(item.infraFailures) && item.infraFailures >= 10 ? 'stale_infrastructure' : 'stale_attempts', item);
   if (item.question?.typed === true) return build('person_question', item);
   const closeReason = item.latestShift?.closeReason ?? item.closeReason ?? '';
-  if (item.latestShift && !item.latestShift.closedAt && !item.closeReason) return build('unknown', item);
-  const { code, text } = classify(closeReason);
+  const { code, text } = item.latestShift && !item.latestShift.closedAt && !item.closeReason ? { code: 'unknown', text: '' } : classify(closeReason);
+  if (sessionDriven(item) && !sessionCodes.has(code)) return build('operator_stopped', item);
   return build(approvedCode(code, item), item, text, demo);
 }
 
@@ -479,9 +490,9 @@ export function detailReason(detail) {
     const killed = (detail.runs || []).filter(entry => entry.writes && (!shift?.id || entry.shiftId === shift.id) && failureReason(entry.failureReason)?.infra).length;
     if (killed > 1) reason = { ...reason, sentence: sentenceFor(reason.code, '', { ...item, infraFailures: killed }) };
   }
-  if (reason.code === 'unknown' && headline) {
+  if ((reason.code === 'unknown' || reason.code === 'operator_stopped') && headline) {
     const recorded = classify(headline);
-    if (recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
+    if (reason.code === 'operator_stopped' ? sessionCodes.has(recorded.code) : recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
   }
   if (reason.code === 'pull_request_closed' && headline && /a person is asked to merge/i.test(headline) && !/closed without merging/i.test(headline)) {
     reason = build('approved_to_merge', item, closeReason, Boolean(detail.demo));

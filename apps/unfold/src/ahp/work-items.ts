@@ -1,6 +1,6 @@
 import type { AppConfig, User } from '../types.ts';
 import { PloegClient, PloegError, type PloegDetail, type PloegItem, type PloegRun, type PloegShift, type PloegState } from '../ploeg.ts';
-import { listReason, withdrawnReason } from '../../public/core/reasons.js';
+import { listReason, sessionDriven, withdrawnReason } from '../../public/core/reasons.js';
 import { money } from '../../public/core/format.js';
 import { customizationRefusal } from './customizations.ts';
 import { sessionChatCatalog } from './versions.ts';
@@ -84,7 +84,6 @@ export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = []
 }
 
 /** Whether an Operator Execution owns the Work Item: an Unfold session bound to it, which the Agents window already lists as that session. Ploeg opens such a Shift on the branch `operator/<session>`. */
-export function operatorOwned(item: PloegItem): boolean { return Boolean(item.latestShift?.branch.startsWith('operator/')); }
 
 /** One Work Item as the host knows it for a viewer: Ploeg's record, the Runs behind its activity, and whether Ploeg could not be read since. */
 export type WorkItemRecord = { workItemId: string; publicId: string; item: PloegItem; activity: WorkItemActivity; stale: boolean };
@@ -402,7 +401,7 @@ export class WorkItemSessions {
       if (known && kept) return { entry: { ...known, stale: true }, detail: kept };
       throw error;
     }
-    if (operatorOwned(detail.item)) return undefined;
+    if (sessionDriven(detail.item)) return undefined;
     this.keep(workItemId, detail);
     const entry = record(detail.item, detail.runs, this.stale);
     const seen = this.seen.get(user.id) ?? new Map();
@@ -475,7 +474,7 @@ export class WorkItemSessions {
     catch (error) { if (!(error instanceof PloegError) || ![403, 404].includes(error.status)) throw error; }
     if (!detail) { for (const user of allowed) if (this.seen.get(user.id)?.has(publicId)) this.publishList(user, [], [], [publicId]); return; }
     const entry = record(detail.item, detail.runs);
-    const listed = !operatorOwned(detail.item) && this.inWindow(detail.item);
+    const listed = !sessionDriven(detail.item) && this.inWindow(detail.item);
     for (const user of allowed) {
       if (!this.allows(user, detail.item.team)) { if (this.seen.get(user.id)?.has(publicId)) this.publishList(user, [], [], [publicId]); continue; }
       const prior = this.seen.get(user.id)?.get(publicId);
@@ -543,11 +542,11 @@ export class WorkItemSessions {
     const teams = await this.ploeg.teams(user);
     await this.seeded();
     const pages = await Promise.all(teams.flatMap(team => openStates.map(state => this.stateItems(user, team.id, state))));
-    const open = pages.flat().filter(item => !operatorOwned(item)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || byId(b, a)).slice(0, this.cap);
+    const open = pages.flat().filter(item => !sessionDriven(item)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || byId(b, a)).slice(0, this.cap);
     const openIds = new Set(open.map(item => item.id));
     const cutoff = Date.now() - this.windowMs;
     const candidates = [...this.recent].filter(([id, seen]) => !openIds.has(id) && this.allows(user, seen.team) && Date.parse(seen.at) >= cutoff).sort(([, a], [, b]) => b.at.localeCompare(a.at)).slice(0, this.cap - open.length).map(([id]) => id);
-    const finished = (await Promise.all(candidates.map(id => this.finishedItem(user, id)))).filter((item): item is PloegItem => Boolean(item && finishedStates.includes(item.state) && this.inWindow(item) && !operatorOwned(item))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || byId(b, a));
+    const finished = (await Promise.all(candidates.map(id => this.finishedItem(user, id)))).filter((item): item is PloegItem => Boolean(item && finishedStates.includes(item.state) && this.inWindow(item) && !sessionDriven(item))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || byId(b, a));
     const runs = new Map(await Promise.all(open.filter(item => item.state === 'leased').map(async item => [item.id, (await this.ploeg.detail(user, item.id).catch(() => undefined))?.runs ?? []] as const)));
     return [...open, ...finished].slice(0, this.cap).map(item => record(item, runs.get(item.id) ?? []));
   }

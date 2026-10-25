@@ -734,7 +734,7 @@ test('Now rows carry the close reason, attempts, routing, priority and Shift mon
   assert.equal(row.infraFailures, 2);
   assert.equal(row.target, null, 'an unresolved repository stays null so the browser can say "Not routed"');
   assert.equal(row.closeReason, 'fix_round_cap_reached');
-  assert.deepEqual(row.latestShift, { round: 4, closeReason: 'fix_round_cap_reached', budgetUsd: 3, spentUsd: 2.5, reservedUsd: 0.25, closedAt: '2026-09-10T08:00:00Z' });
+  assert.deepEqual(row.latestShift, { round: 4, branch: 'demo/rounding-review', closeReason: 'fix_round_cap_reached', budgetUsd: 3, spentUsd: 2.5, reservedUsd: 0.25, closedAt: '2026-09-10T08:00:00Z' });
   assert.equal(row.spentUsd, 2.5, 'the existing spentUsd field is kept');
   for (const entry of now.waiting) {
     const source = upstreamApi.details[entry.id].item;
