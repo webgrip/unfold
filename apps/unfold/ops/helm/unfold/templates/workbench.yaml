@@ -148,6 +148,13 @@ spec:
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+            {{- range .Values.coderabbitSecrets }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ .key }}
+            {{- end }}
           {{- if eq .Values.mode "live" }}
           envFrom:
             - secretRef:

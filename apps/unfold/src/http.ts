@@ -24,6 +24,7 @@ import { rarityShown } from './cards/settings.ts';
 import { PloegClient, PloegContractIncompatible, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
 import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
+import { CodeRabbitService } from './coderabbit.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
@@ -201,6 +202,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   engine.usePersonProof(proof);
   agentHost?.usePersonProof(proof);
   const delivery = new DeliveryService(config, store);
+  const coderabbit = new CodeRabbitService(config, store);
   delivery.useContract(ploegCompatibility);
   delivery.usePersonProof(proof);
   void delivery.reconcileAll().catch(() => undefined);
@@ -530,7 +532,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           return json(res, 200, await adminFlags(user));
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), coderabbitRepositories: config.coderabbit?.repositories.map(repository => repository.repositoryId) ?? [], deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
@@ -968,6 +970,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const session = visible(id, user);
           if (method === 'GET' && !action) return json(res, 200, sanitize(publicSession(session)));
           if (method === 'GET' && action === 'delivery') return json(res, 200, sanitize(await delivery.view(id, user)));
+          if (method === 'GET' && action === 'coderabbit') return json(res, 200, sanitize(coderabbit.view(id, user)));
+          if (method === 'GET' && action.startsWith('coderabbit/review/')) return json(res, 200, sanitize(coderabbit.review(id, user, action.slice('coderabbit/review/'.length))));
           if (method === 'GET' && action === 'delivery/download') {
             const content = await delivery.download(id, user);
             res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="canonical-candidate.git.bundle"', 'Content-Length': content.length, 'Cache-Control': 'no-store' }); res.end(content); return;
@@ -1020,6 +1024,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'POST') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change work.');
             const data = await body(req);
+            if (action === 'coderabbit/review') return json(res, 202, sanitize(coderabbit.startReview(id, user, data)));
+            if (action === 'coderabbit/cancel') return json(res, 200, sanitize(coderabbit.cancelReview(id, user, data.requestId)));
+            if (action === 'coderabbit/security') return json(res, 200, sanitize(await coderabbit.importSecurity(id, user)));
             if (action === 'delivery/verify') return json(res, 200, sanitize(await delivery.verify(id, user)));
             if (action === 'delivery/approve') return json(res, 200, sanitize(await delivery.approve(id, user, data)));
             if (action === 'delivery/publish') return json(res, 200, sanitize(await delivery.publish(id, user, data)));
@@ -1090,5 +1097,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { coderabbit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }

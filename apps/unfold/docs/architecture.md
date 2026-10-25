@@ -71,6 +71,7 @@ Every module in `src/`:
 | [`src/attestations.ts`](../src/attestations.ts) | Signs candidate provenance and Agent Trace records as Ed25519 DSSE envelopes |
 | [`src/delivery.ts`](../src/delivery.ts) | Shared-mode candidate delivery: canonicalize, verify, record the receipt and approval in Ploeg |
 | [`src/delivery-config.ts`](../src/delivery-config.ts) | Validates delivery policies and computes the policy hash |
+| [`src/coderabbit.ts`](../src/coderabbit.ts), [`src/coderabbit-provider.ts`](../src/coderabbit-provider.ts), [`src/coderabbit-config.ts`](../src/coderabbit-config.ts) | Optional supplemental CodeRabbit review evidence, scoped findings imports, durable request lifecycle and pinned CLI configuration; see [operation](operations/coderabbit.md) |
 | [`src/delivery-verifier.ts`](../src/delivery-verifier.ts) | Runs a policy's pinned checks in throwaway Docker containers |
 | [`src/trusted-candidate.ts`](../src/trusted-candidate.ts) | Rebuilds a captured candidate as one canonical commit on the approved base, with hardened Git |
 | [`src/ahp/host.ts`](../src/ahp/host.ts) | Agent Host Protocol server: connection tokens, JSON-RPC methods and session events projected as turns |

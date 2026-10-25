@@ -1,8 +1,9 @@
 import type { AppConfig } from './types.ts';
 
-/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg, token exchange and task source credentials and the Sentry DSN. */
+/** The configured secret values the workbench never serves: CodeRabbit, card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg, token exchange and task source credentials and the Sentry DSN. */
 export function knownSecrets(config: AppConfig): string[] {
   return [
+    ...(config.coderabbit?.repositories ?? []).flatMap(repository => [repository.agenticKeyEnv ? process.env[repository.agenticKeyEnv] : undefined, repository.security ? process.env[repository.security.keyEnv] : undefined]),
     config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined,
     config.decider ? process.env[config.decider.keyEnv] : undefined,
     config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined,

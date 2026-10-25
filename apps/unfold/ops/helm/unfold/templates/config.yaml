@@ -1,4 +1,7 @@
 {{- $cfg := deepCopy .Values.config -}}
+{{- range .Values.coderabbitSecrets -}}
+{{- if has .existingSecret (default (list) $.Values.workspaceAgentSecrets) -}}{{- fail "workspaceAgentSecrets must not list a coderabbitSecrets existingSecret: CodeRabbit keys stay in the workbench" -}}{{- end -}}
+{{- end -}}
 {{- $_ := set $cfg "mode" .Values.mode -}}
 {{- $_ := set $cfg "dataDir" "/data/workbench" -}}
 {{- $_ := set $cfg "publicDir" "/app/public" -}}

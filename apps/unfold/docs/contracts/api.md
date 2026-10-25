@@ -188,6 +188,20 @@ A task connection whose configuration names no `tokenEnv` reads tasks with the s
 
 A link is the person's own credential. Tokens are encrypted at rest with the [store key](../operations/storage.md#the-store-key) and refreshed server-side before use. When a session starts on a repository whose origin matches the link's GitLab host, the clone step receives the access token as a git authorization header for that origin; the agent container and its environment never do. A Kubernetes workspace's Secret loses the token as soon as the clone container has finished. GitLab cannot mint a repository-scoped token from a person's OAuth link, so the clone uses the link's own token: an OAuth link's token expires within two hours, a pasted token lives as long as the person set it to. Publication through the link is [ADR 0016](../adrs/0016-sign-in-and-link-your-own-accounts.md) work that has not started.
 
+## CodeRabbit evidence
+
+These additive routes use the same session ownership and administrator rules as other session operations. POST requests also require live Ploeg-managed execution, execution scope and the standard mutation guard. They do not change verification receipts, approval, publication or measured Run spend. See [CodeRabbit operation](../operations/coderabbit.md) for configuration and provider limitations.
+
+| Route | Contract |
+| --- | --- |
+| `GET /api/sessions/:id/coderabbit` | Enabled capabilities, configured GitHub target, latest 20 request summaries, newest review findings and last complete security snapshot |
+| `GET /api/sessions/:id/coderabbit/review/:requestId` | Saved review scope, lifecycle, supplemental findings and unknown provider cost for one request |
+| `POST /api/sessions/:id/coderabbit/review` | `{requestId, headSha, acceptProviderBilling:true}`; durable request ID (16–80 letters, digits, `_` or `-`) and full lowercase 40-character pushed source SHA. Returns 202 with the evidence view. A replay returns the same request without another provider call; reuse for another scope returns 409 |
+| `POST /api/sessions/:id/coderabbit/cancel` | `{requestId}`; stop local supervision, retaining an explicit unknown provider billing outcome |
+| `POST /api/sessions/:id/coderabbit/security` | `{}`; import the complete bounded existing inventory into a timestamped snapshot, preserving the previous snapshot on failure |
+
+Review states are `running`, `completed`, `incomplete`, `skipped`, `failed`, `cancelled` and `interrupted`. A completed review requires matching remote context, successful exit, a terminal completion event with matching finding count and no missing files. `skipped` means no changes were reviewed. Request quotas return 429 before another request is started. Restart recovery occurs on read and never retries provider work. Durable `coderabbit.*` events carry request scope and lifecycle, not credentials or raw CLI logs.
+
 ## Linked Sessions
 
 A Linked Session is an agent session a person runs outside Unfold, such as Claude Code on their own machine, that reports through the [Claude Code plugin](../../extensions/claude-code/README.md) ([ADR 0047](../adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md)). Every route needs a signed-in person; the plugin uses the person's `vle_` editor credential.

@@ -35,6 +35,7 @@ All of these apply to the workbench pod only and are empty by default. Agent wor
 | `nodeSelector`, `tolerations`, `affinity` | Place the workbench on particular nodes. |
 | `podLabels`, `podAnnotations` | Add metadata that other tools act on, such as a policy engine or Reloader. They are added to the chart's own labels and its config checksum, never replacing them. |
 | `extraEnv` | Add environment variables, for example a credential read from a Secret other than `credentialsSecret`. Entries take the Kubernetes `env` form and come after the chart's own. |
+| `coderabbitSecrets` | Workbench-only Secret references `{name, existingSecret, key}` for the environment names in `config.coderabbit`. A referenced Secret cannot be in `workspaceAgentSecrets`. Reviews require a trusted image containing the digest-pinned CodeRabbit CLI. See [CodeRabbit](../../../docs/operations/coderabbit.md). |
 
 ## Product events and export
 

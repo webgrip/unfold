@@ -23,6 +23,7 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 extraEnv: []
+coderabbitSecrets: []
 # Feature flag rules for this deployment, as a flagd document (apps/unfold/docs/operations/feature-flags.md).
 # Mounted as its own ConfigMap and watched every 5 seconds, so a change applies without restarting Unfold.
 # Example: featureFlags: {flags: {work.live-view: {defaultVariant: "on"}}}

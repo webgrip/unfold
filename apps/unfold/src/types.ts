@@ -3,6 +3,7 @@ import type { ExecutionFailure } from './failures.ts';
 import type { Candidate } from './candidates.ts';
 import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
 import type { DeliveryConfig } from './delivery-config.ts';
+import type { CodeRabbitConfig } from './coderabbit-config.ts';
 import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
@@ -38,6 +39,7 @@ export type Workspace = { id: string; backend: 'demo' | 'local' | 'external' | '
 export type PermissionRequest = { id: string; sessionId: string; runId: string; nativeId: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: unknown[]; resolved?: boolean };
 export type ModelConfig = { id: string; name: string; providerId: string; modelId: string };
 export type AppConfig = {
+  coderabbit?: CodeRabbitConfig;
   delivery?: DeliveryConfig;
   mode: 'demo' | 'live'; host: string; port: number; dataDir: string; publicDir: string; baseUrl?: string;
   repositories: Repository[]; teams: Team[]; models: ModelConfig[];

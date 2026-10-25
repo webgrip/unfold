@@ -35,6 +35,7 @@
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
     "extraEnv": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1 } }, "required": ["name"] } },
+    "coderabbitSecrets": { "type": "array", "maxItems": 200, "items": { "type": "object", "additionalProperties": false, "properties": { "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,100}$" }, "existingSecret": { "type": "string", "minLength": 1 }, "key": { "type": "string", "minLength": 1 } }, "required": ["name", "existingSecret", "key"] } },
     "insight": { "type": "object", "additionalProperties": false, "properties": { "events": { "type": "boolean" }, "export": { "type": "string", "enum": ["off", "faro", "otlp"] }, "url": { "type": "string", "pattern": "^(https?://.+)?$" }, "level": { "type": "string", "enum": ["aggregate", "events"] } } },
     "errorReports": { "type": "object", "additionalProperties": false, "properties": { "environment": { "type": "string", "pattern": "^([A-Za-z0-9_.-]{1,64})?$" }, "otlpUrl": { "type": "string", "pattern": "^(https?://.+)?$" }, "sentry": { "type": "object", "additionalProperties": false, "properties": { "existingSecret": { "type": "string" }, "secretKey": { "type": "string", "minLength": 1 } } } } },
     "ploegMcp": { "type": "object", "additionalProperties": false, "properties": { "url": { "type": "string", "pattern": "^(https://[^\\s?#]+)?$" }, "clientId": { "type": "string", "pattern": "^([A-Za-z0-9._:-]{1,200})?$" } } },

@@ -11,6 +11,7 @@ import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { expectationKinds, expectationSettings } from '../public/core/expectations.js';
 import { validateDeliveryConfig } from './delivery-config.ts';
+import { validateCodeRabbitConfig } from './coderabbit-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
 
@@ -520,6 +521,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
   if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
   config.delivery = validateDeliveryConfig(raw.delivery, config);
+  config.coderabbit = validateCodeRabbitConfig(raw.coderabbit, config);
   config.reports = reportSettings(raw.reports, config.taskSources, mode);
   return config;
 }

@@ -1,4 +1,5 @@
 import { deliveryMarkup, deliveryGated, deliveryStatus } from '../delivery.js';
+import { codeRabbitMarkup } from './coderabbit.js';
 import { state, disconnect } from '../core/state.js';
 import { api, unauthorized } from '../core/api.js';
 import { $, escape, safeUrl, renderHtml, download, notify, announce } from '../core/dom.js';
@@ -661,7 +662,7 @@ function stateNoticeMarkup(session) {
 
 function decisionMarkup(session, { review = true } = {}) {
   const permissions = state.permissions.filter(request => !request.resolved).map(request => permissionMarkup(session, request)).join('');
-  const parts = [failureMarkup(session), permissions, deliveryMarkup(state), review ? reviewMarkup(session) : '', stateNoticeMarkup(session)].filter(Boolean);
+  const parts = [failureMarkup(session), permissions, deliveryMarkup(state), codeRabbitMarkup(state), review ? reviewMarkup(session) : '', stateNoticeMarkup(session)].filter(Boolean);
   return parts.length ? `<div class="session-decisions">${parts.join('')}</div>` : '';
 }
 
@@ -807,6 +808,33 @@ function renderSessionPage() {
   void loadSnapshotPatch(session);
 }
 
+async function loadCodeRabbit(id) {
+  const request = ++state.coderabbitRequest;
+  try { const view = await api(`/api/sessions/${id}/coderabbit`); if (state.session?.id !== id || request !== state.coderabbitRequest) return; state.coderabbit = view; state.coderabbitError = ''; }
+  catch (error) { if (state.session?.id !== id || request !== state.coderabbitRequest) return; state.coderabbitError = error.message; }
+  if (state.session?.id === id && shown()) renderSession();
+}
+
+async function actCodeRabbit(action, control) {
+  if (state.coderabbitBusy || !state.session) return;
+  const id = state.session.id;
+  let payload = {};
+  if (action === 'review') {
+    const headSha = $('#coderabbit-head')?.value?.trim();
+    if (!/^[a-f0-9]{40}$/.test(headSha ?? '') || !$('#coderabbit-billing')?.checked) { state.coderabbitError = 'Enter the full pushed GitHub commit SHA and accept provider billing.'; renderSession(); return; }
+    if (state.coderabbitDraft?.headSha !== headSha) state.coderabbitDraft = { requestId: crypto.randomUUID(), headSha };
+    payload = { ...state.coderabbitDraft, acceptProviderBilling: true };
+  } else if (action === 'cancel') payload = { requestId: control.dataset.requestId };
+  ++state.coderabbitRequest; state.coderabbitBusy = true; state.coderabbitError = ''; renderSession();
+  try {
+    const view = await api(`/api/sessions/${id}/coderabbit/${action}`, { method: 'POST', body: JSON.stringify(payload) });
+    if (state.session?.id !== id) return;
+    state.coderabbit = view; if (action === 'review') state.coderabbitDraft = null;
+    await loadCodeRabbit(id);
+  } catch (error) { if (state.session?.id === id) state.coderabbitError = error.message; }
+  finally { if (state.session?.id === id) { state.coderabbitBusy = false; if (shown()) renderSession(); } }
+}
+
 async function loadDelivery(id) {
   const request = ++state.deliveryRequest;
   try { const view = await api(`/api/sessions/${id}/delivery`); if (state.session?.id !== id || request !== state.deliveryRequest) return; state.delivery = view; state.deliveryError = ''; }
@@ -841,6 +869,7 @@ async function openSession(id) {
   if (listed) { location.replace(`#${listed}`); return; }
   disconnect();
   if (state.session?.id !== id) state.tab = 'stream';
+  ++state.coderabbitRequest; state.coderabbit = null; state.coderabbitError = ''; state.coderabbitBusy = false; state.coderabbitDraft = null;
   ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryPublishError = ''; state.deliveryBusy = false;
   load = { id, error: null };
   state.session = null; state.view = 'session'; state.online = false;
@@ -859,6 +888,7 @@ async function openSession(id) {
   state.session = session; state.events = events; state.permissions = permissions; state.view = 'session'; state.online = true; state.draft = ''; state.evidenceScroll = isFinished(session) ? { stream: { top: 0, atBottom: false } } : {}; render();
   live.touch('session');
   if (session.execution && state.bootstrap.deliveryRepositories?.includes(session.repositoryId)) void loadDelivery(id);
+  if (session.execution && state.bootstrap.coderabbitRepositories?.includes(session.repositoryId)) void loadCodeRabbit(id);
   follow(id, events.at(-1)?.id || 0);
 }
 
@@ -877,6 +907,7 @@ export async function attachSession(id, { view, render: draw, here, inspect = ()
   const token = ++opening;
   state.stream?.close(); state.stream = null;
   if (state.session?.id !== id) { state.tab = 'stream'; state.session = null; }
+  ++state.coderabbitRequest; state.coderabbit = null; state.coderabbitError = ''; state.coderabbitBusy = false; state.coderabbitDraft = null;
   ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryPublishError = ''; state.deliveryBusy = false;
   let session; let events; let permissions;
   try { [session, events, permissions] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/history`), api(`/api/sessions/${id}/permissions`)]); }
@@ -885,6 +916,7 @@ export async function attachSession(id, { view, render: draw, here, inspect = ()
   state.session = session; state.events = events; state.permissions = permissions; state.online = true; state.evidenceScroll = isFinished(session) ? { stream: { top: 0, atBottom: false } } : {};
   host.render();
   if (session.execution && state.bootstrap.deliveryRepositories?.includes(session.repositoryId)) void loadDelivery(id);
+  if (session.execution && state.bootstrap.coderabbitRepositories?.includes(session.repositoryId)) void loadCodeRabbit(id);
   follow(id, events.at(-1)?.id || 0);
   return true;
 }
@@ -916,6 +948,7 @@ function received(id, event) {
   if (state.session?.id !== id) return;
   const record = JSON.parse(event.data);
   if (record.type.startsWith('delivery.')) void loadDelivery(id);
+  if (record.type.startsWith('coderabbit.')) void loadCodeRabbit(id);
   if (!state.events.some(item => item.id === record.id)) state.events.push(record);
   clearTimeout(state.refreshTimer);
   state.refreshTimer = setTimeout(async () => {
@@ -1080,6 +1113,10 @@ export default {
   enter: ({ id }) => openSession(id),
   render: renderSessionPage,
   actions: {
+    'coderabbit-refresh': () => loadCodeRabbit(state.session.id),
+    'coderabbit-review': control => actCodeRabbit('review', control),
+    'coderabbit-security': control => actCodeRabbit('security', control),
+    'coderabbit-cancel': control => actCodeRabbit('cancel', control),
     'delivery-refresh': () => loadDelivery(state.session.id),
     'delivery-verify': control => actDelivery(control.dataset.action),
     'delivery-approve': control => actDelivery(control.dataset.action),
