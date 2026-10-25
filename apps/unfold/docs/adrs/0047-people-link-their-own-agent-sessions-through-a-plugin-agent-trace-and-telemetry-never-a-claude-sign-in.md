@@ -122,3 +122,14 @@ Unfold no longer only reads a Linked Session. Its owner can now act on it from U
 * **Hand-overs.** The owner hands a linked Work Item to Ploeg with a note, or claims a Run that waits for their own Claude Code; the session records each hand-over so it never collides with the Run it started.
 
 Unfold still never starts a Linked Session and never pays for it, and it still holds no Claude credential. Starting sessions on a person's own machine is proposed separately in [RFC-0010](../../../../docs/design/rfc-0010-agents-on-your-own-machine.md).
+
+## Update, 2026-10-25
+
+The owner asked to see what a session actually says on its page and to continue it from there ("I don't see what the actual conversation is"). Asked how much of the transcript may leave the machine, they chose that it **never leaves the machine to be stored**. That narrows the rejected transcript sync daemon above rather than adopting it:
+
+* **Relayed, never stored.** While the owner has a running session's page open, the plugin's channel server, the one process that lives as long as the session, reads the local transcript and hands entries to Unfold, which passes them to that browser and forgets them. Nothing reaches the database, the action log, logs or the error tracker; the relay routes are not Action Records. Unfold runs as one replica, so the relay is in memory. A closed or sleeping machine shows as not reachable, and an ended session's conversation stays on its machine ([RFC-0010](../../../../docs/design/rfc-0010-agents-on-your-own-machine.md)'s daemon will serve those).
+* **What an entry holds.** Prompts and text replies, with the secrets the permission summary masks replaced; one redacted summary line per tool call, the summary a tool prompt shows (for a shell command Claude's description, never the command). Never tool output, file contents, thinking or subagent turns. So "prompts are never sent" no longer holds while the owner reads; "tool output and file contents are never sent" still does.
+* **Who sees it.** The owner only. An administrator, who may read a session's messages and telemetry, may not read its conversation.
+* **Off switch.** `UNFOLD_CONVERSATION=0` on the machine. The transcript format is still internal and undocumented; the reader takes only `user` and `assistant` entries and skips anything it does not recognise.
+
+Plugin 0.14.0. Tickets: VIK-2414 (this), VIK-2415 (reply under the conversation), VIK-2417 (ended sessions through the daemon), VIK-2416 (linking or creating a Work Item from one search box).

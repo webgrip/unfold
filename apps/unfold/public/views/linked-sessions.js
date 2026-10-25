@@ -6,14 +6,16 @@ import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, ses
 import { icon } from '../core/icons.js';
 import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/collisions.js';
 import { linkedInboxCard } from '../core/linked-inbox.js';
+import { conversationCard, conversationList, mergedConversation } from '../core/linked-conversation.js';
 import { permissionsCard, permissionsChangedEvent } from '../core/linked-permissions.js';
 import { shell } from '../shell.js';
 import { briefCheck, digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {} };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {} }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {}, conversation: null, conversing: 0 };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null, draft: {}, conversation: null, conversing: view.conversing + 1 }));
 const clashItems = 5;
+const conversationEveryMs = 3000;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
 export const linkedChangedEvent = 'unfold:linked-sessions-changed';
@@ -42,7 +44,7 @@ function settingsContent() {
   else if (!view.sessions) list = skeleton({ rows: 3 });
   else if (!view.sessions.length) list = emptyState({ icon: 'bot', title: 'No sessions have reported yet', body: 'Once the plugin is installed, each Claude Code session you start shows up here within a second.', compact: true });
   else list = `<ul class="linked-session-list">${listRows(view.sessions, now)}</ul>`;
-  const note = `<p class="settings-footnote">${icon('lock')}<span>The plugin sends the session id, title, repository, branch, model, state and commit ids. Prompts, files and your Claude credentials never leave your machine through it.</span></p>`;
+  const note = `<p class="settings-footnote">${icon('lock')}<span>The plugin sends the session id, title, repository, branch, model, state and commit ids. While you read a session’s conversation here, it passes the prompts, replies and redacted tool lines to you; Unfold stores none of it. Files, tool output and your Claude credentials never leave your machine through it.</span></p>`;
   const windows = ['7d', '30d'].map(window => button({ label: window === '7d' ? '7 days' : '30 days', size: 'sm', variant: view.window === window ? 'primary' : 'ghost', action: 'linked-digest-window', data: { window } })).join(' ');
   const digest = card({ id: 'linked-digest', title: 'Your sessions at a glance', subtitle: 'Counted from what your sessions reported; the cost is Claude Code’s own estimate.', actions: windows, body: view.digest?.error ? `<p class="meta">${escape(view.digest.error)}</p>` : view.digest ? digestMarkup(view.digest) : skeleton({ rows: 1 }) });
   return `<div class="settings-page">${digest}${setup}${card({ id: 'linked-mine', title: 'Your agent sessions', subtitle: 'Newest report first.', body: list })}${note}</div>`;
@@ -54,13 +56,29 @@ function sessionContent() {
   const options = { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes };
   const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError, draft: view.draft.message });
   if (!view.session.mine) return linkedSessionPage(view.session, { ...options, act: inboxCard });
+  const talk = conversationCard(view.session, view.conversation);
   const handOff = handOffMarkup(view.session, view.readiness);
   const start = `<div class="linked-hand-start"><p class="field-label">${handOff ? 'Or start a new Work Item' : 'Start a new Work Item'}</p>${startWorkItemForm(view.session, view.options, view.draft)}</div>`;
   const handCard = card({ id: 'linked-session-start', title: 'Hand to Ploeg', subtitle: 'Ploeg runs it with the Team’s budget, and this session stays linked to it.', icon: 'work', body: `${handOff}${start}` });
-  return linkedSessionPage(view.session, { ...options, act: `${permissionsCard(view.session, view.permissions)}${inboxCard}${handCard}` });
+  return linkedSessionPage(view.session, { ...options, act: `${talk}${permissionsCard(view.session, view.permissions)}${inboxCard}${handCard}` });
+}
+
+function conversationScroll() {
+  const list = document.getElementById('linked-conversation-list');
+  return list ? { top: list.scrollTop, atBottom: list.scrollHeight - list.scrollTop - list.clientHeight < 40 } : null;
+}
+
+function settleConversation(before) {
+  const list = document.getElementById('linked-conversation-list');
+  if (list) list.scrollTop = !before || before.atBottom ? list.scrollHeight : before.top;
 }
 
 function renderLinked() {
+  const before = globalThis.document ? conversationScroll() : null;
+  try { renderPage(); } finally { if (globalThis.document) settleConversation(before); }
+}
+
+function renderPage() {
   if (view.mode === 'settings') return renderHtml(shell(settingsContent(), { title: 'Agent sessions', subtitle: 'Connect Claude Code, and see the sessions of yours that report to Unfold.' }));
   const title = view.session ? sessionTitle(view.session) : 'Agent session';
   renderHtml(shell(sessionContent(), { title, subtitle: 'An agent session that runs outside Unfold and reports to it.' }));
@@ -73,7 +91,7 @@ async function loadSession(id) {
     if (request !== view.request) return;
     view.session = session; view.error = '';
     renderLinked();
-    if (session.mine) { void loadMessages(id, request); void loadPermissions(id, request); }
+    if (session.mine) { void loadMessages(id, request); void loadPermissions(id, request); if (session.state !== 'ended') void followConversation(id); else view.conversation = mergedConversation(null, { reachable: false, reason: 'ended' }); }
     const details = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail], () => [entry.id, null])));
     if (request !== view.request) return;
     view.titles = Object.fromEntries(details.filter(([, detail]) => detail?.item?.title).map(([id, detail]) => [id, detail.item.title]));
@@ -104,6 +122,33 @@ async function loadMessages(id, request = view.request) {
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
 }
 
+function showConversation() {
+  const list = document.getElementById('linked-conversation-list');
+  const card = document.getElementById('linked-session-conversation');
+  if (!card || !list || !view.conversation?.reachable) { renderLinked(); return; }
+  const before = conversationScroll();
+  list.innerHTML = conversationList(view.conversation);
+  card.querySelector('.linked-conversation-gap')?.remove();
+  settleConversation(before);
+}
+
+async function followConversation(id) {
+  const turn = ++view.conversing;
+  const following = () => turn === view.conversing && state.view === 'linked-sessions' && view.session?.id === id;
+  while (following()) {
+    if (document.visibilityState === 'visible') {
+      const after = Number.isSafeInteger(view.conversation?.cursor) ? `?after=${view.conversation.cursor}` : '';
+      const read = await api(`/api/linked-sessions/${encodeURIComponent(id)}/conversation${after}`).catch(error => ({ reachable: false, reason: 'no_answer', message: error.message }));
+      if (!following()) return;
+      const had = view.conversation;
+      view.conversation = mergedConversation(view.conversation, read);
+      const changed = !had || had.reachable !== view.conversation.reachable || had.reason !== view.conversation.reason || had.entries.length !== view.conversation.entries.length || read.restarted;
+      if (changed) showConversation();
+    }
+    await new Promise(done => setTimeout(done, conversationEveryMs));
+  }
+}
+
 async function loadPermissions(id, request = view.request) {
   const requests = await api(`/api/linked-sessions/${encodeURIComponent(id)}/permissions`).then(answer => answer.requests ?? [], () => []);
   if (request !== view.request) return;
@@ -126,7 +171,7 @@ async function sendMessage(data, form) {
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = ''; view.permissions = null; view.draft = {};
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = ''; view.permissions = null; view.draft = {}; view.conversation = null; view.conversing += 1;
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;

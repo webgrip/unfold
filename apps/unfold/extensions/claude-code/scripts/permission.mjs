@@ -12,15 +12,18 @@ const transcriptTail = 524_288;
  * values, `key=value` secrets and long strings that mix letters and digits masked, on one line and at most `max` characters.
  */
 export function redact(value, max) {
+  return masked(String(value ?? '').replace(/[\0-\x1f\x7f]/g, ' ')).replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/** Text with the secrets {@link redact} masks replaced by `[redacted]`, its lines and spacing kept. */
+export function masked(value) {
   return String(value ?? '')
-    .replace(/[\0-\x1f\x7f]/g, ' ')
     .replace(/:\/\/[^\s/@]+@/g, '://[redacted]@')
     .replace(/\bsk-[\w-]+/g, '[redacted]')
     .replace(/\b(vle_|ghp_|gho_|github_pat_|glpat-|xox[abp]-)[\w-]+/g, '[redacted]')
     .replace(/\b(Bearer|Basic|token)\s+\S+/gi, '$1 [redacted]')
     .replace(/\b(token|password|passwd|secret|key|authorization|api[-_]?key)=[^\s&]+/gi, '$1=[redacted]')
-    .replace(/[A-Za-z0-9+_=-]{24,}/g, word => /\d/.test(word) && /[A-Za-z]/.test(word) ? '[redacted]' : word)
-    .replace(/\s+/g, ' ').trim().slice(0, max);
+    .replace(/[A-Za-z0-9+_=-]{24,}/g, word => /\d/.test(word) && /[A-Za-z]/.test(word) ? '[redacted]' : word);
 }
 
 /**
