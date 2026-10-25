@@ -77,6 +77,26 @@ Ploeg released 0.2.0-rc.61 at 13:16, rc.62 at 13:30 and rc.63 at 14:39 on 2026-1
 * Mutation, 2026-10-24: nine mutants of the script and seven of the workflow each failed the suites; unmutated, both pass.
 * In operation: the first train after a Ploeg candidate shows a green `merge-pin` that names the pull request it merged, and the `fix(ploeg)` merge commit is authored by the CI bot.
 
+## Amendment 2026-10-25: pending and current are computed from tags, because a release no longer commits
+
+Unfold moved to `@webgrip/semantic-release-config` 2.x ([homelab ADR-0078](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0078-one-release-recipe-four-kinds.md); the owner chose tags-only releases). A release is now the tag alone: semantic-release tags the commit the train checked and writes the notes to the Forgejo release page, and no `chore(release): … [skip ci]` commit follows. The last release commit is the one tagged `unfold-v0.4.0-rc.114`. Decision items 2 and 4 read release commits, so they change:
+
+1. **`pending`** counts every commit since the newest `unfold-v` tag on the first-parent line under `apps/` outside `apps/site`, and since the newest `unfold-site-v` tag under `apps/site`. Nothing is left out by subject. A release tag sits on the commit it released, so no release output follows it; a commit whose subject only looks like a release commit is an ordinary unreleased commit.
+2. **`release-train.sh current <checked head>`** is true only when the branch head is the checked commit itself. The Unfold release adds a tag and no commit, so `site-release` in the same train still finds the checked head. "That commit followed by release commits alone" no longer exists.
+3. The release jobs run in `harbor.webgrip.dev/webgrip/semantic-release` 2.x with the `semantic-release-monorepo` composite of `webgrip/workflows` v3. The repair step that created a Forgejo release from the release commit's body after a failed release is removed with `scripts/release-repair.mjs`: the configuration's own Forgejo release step adopts an existing release for the tag and retries a 409, 429 or 5xx with backoff.
+
+### Consequences of the 2026-10-25 amendment
+
+* Good, because the tag is the commit `checks` and `ploeg-pin` passed, not its `[skip ci]` child, and the release job no longer pushes to `development`, so it cannot race a merge on the branch.
+* Bad, because the committed chart, package manifests and `apps/CHANGELOG.md` stop at `0.4.0-rc.114`. Publication stamps the version from the tag, and Renovate moves the `unfold-agent` references.
+* Neutral: the composite's reset-and-retry when `development` moved during semantic-release is unchanged, so the Bad consequence about that window still holds.
+
+### Confirmation of the 2026-10-25 amendment
+
+* [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) runs `release-train.sh` against a scratch repository whose releases are tags only: a commit after a release tag is pending and the tagged commit is not; a tag added at the checked head keeps it current; a commit with a release-commit subject is pending and, after the checked head, makes it not current; an unknown or sideways commit is never current. It also requires every release job to use the same digest-pinned 2.x image and v3 composite as `mise run release-check`, and nothing to run after semantic release.
+* [scripts/release-policy.test.cjs](../../scripts/release-policy.test.cjs) and [scripts/release-isolation.test.cjs](../../scripts/release-isolation.test.cjs) require no prepare step, no `@semantic-release/git` or changelog step, the `ERELEASECOMMIT` guard, `initialDevelopment`, and that no commit scoped `site`, breaking or not, releases Unfold.
+* Mutation, 2026-10-25: putting the release-commit filter back into `pending`; restoring the 1.x rule for `current`; accepting any ancestor as current; counting `apps/site` for Unfold; leaving the breaking rule at major; passing the `site` rule through `extraReleaseRules`; adding `@semantic-release/git`; adding a `prepareCmd`; leaving one release job on the 0.3.6 image or the preview on the v2.8.3 composite; a different image in `mise run release-check`; a step after semantic release; and an `unfold-agent` reference that is not a candidate each failed the release suites. Unmutated, the suites pass.
+
 ## Pros and Cons of the Options
 
 ### Keep releasing from each push, with `cancel-in-progress: true`
@@ -97,3 +117,4 @@ Ploeg released 0.2.0-rc.61 at 13:16, rc.62 at 13:30 and rc.63 at 14:39 on 2026-1
 * [CI and release workflows](../operations/ci.md) and [Troubleshoot CI and releases](../operations/ci-troubleshooting.md) describe the train in operation.
 * 2026-10-24: proposed.
 * 2026-10-24: amended. The train merges the newest green Ploeg pin pull request first, after the owner's decision D14 that Ploeg's pins stop merging themselves.
+* 2026-10-25: amended. Releases are tags only, so `pending` and `current` are computed from tags, not release commits.

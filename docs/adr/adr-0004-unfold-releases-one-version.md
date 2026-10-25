@@ -28,7 +28,7 @@ Chosen option: "One Unfold version for both applications", because the applicati
 
 * One semantic-release train, configured in [apps/.releaserc.cjs](../../apps/.releaserc.cjs), runs with `package-path: apps` and `package-name: unfold`. Only commits that touch `apps/` count. Tags are `unfold-v<version>`.
 * [scripts/release-policy.cjs](../../scripts/release-policy.cjs) keeps the zero-major candidate policy of Ploeg [ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md) for both applications: a breaking change raises the minor version, and only `0.x.y-rc.N` from `development` is released.
-* [scripts/release-prepare.mjs](../../scripts/release-prepare.mjs) sets both charts, Unfold's package manifests and the extension to the same version. The notes go to `apps/CHANGELOG.md`; the application changelogs stay as history.
+* [scripts/release-prepare.mjs](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8d0ecb629e1c2adf6c7e0ab022344cac510a403f/scripts/release-prepare.mjs) sets both charts, Unfold's package manifests and the extension to the same version. The notes go to `apps/CHANGELOG.md`; the application changelogs stay as history.
 * A `unfold-v…` release publishes both applications' images, charts, extension and Go module export. Artifact names and paths do not change.
 * The annotated tag `glide-v0.3.0` at `0092618` marks where the last front-end (`vloer-v0.3.0-rc.16`) and Ploeg (`ploeg-v0.3.0-rc.7`) candidates met. It is a baseline, not a release. The first Unfold candidate is `0.4.0-rc.1`, above every version either application has published.
 * Release-channel notes stay on Forgejo only. The GitHub notes mirror is removed, and the preflight compares branches and tags.
