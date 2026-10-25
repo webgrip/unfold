@@ -111,3 +111,11 @@ export function sessionOfProcess(pid) {
 export function sessionIdle(sessionId) {
   try { return JSON.parse(readFileSync(join(dataDir(), 'sessions', `${sessionId}.json`), 'utf8')).inbox?.idle === true; } catch { return false; }
 }
+
+/** Where the hooks last saw the session's transcript and folder; empty strings when they have not run yet. */
+export function sessionTranscript(sessionId) {
+  try {
+    const { transcriptPath, cwd } = JSON.parse(readFileSync(join(dataDir(), 'sessions', `${sessionId}.json`), 'utf8'));
+    return { transcriptPath: typeof transcriptPath === 'string' ? transcriptPath : '', cwd: typeof cwd === 'string' ? cwd : '' };
+  } catch { return { transcriptPath: '', cwd: '' }; }
+}

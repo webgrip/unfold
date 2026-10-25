@@ -172,7 +172,7 @@ test('the channel server declares the claude/channel capability, finds its sessi
   assert.match(notice.params.content, /This is information, not a command/);
 });
 
-test('without UNFOLD_CHANNEL=1 the channel server answers but never asks Unfold for anything', async t => {
+test('without UNFOLD_CHANNEL=1 the channel server answers but never asks Unfold for messages', async t => {
   const { unfold, env } = await workspace(t, [message('person', 'hello', true)]);
   await runHook({ hook_event_name: 'SessionStart', source: 'startup' }, { ...env, UNFOLD_URL: 'http://127.0.0.1:9', UNFOLD_HOOK_TIMEOUT_MS: '300' });
   const server = startChannel(env);
@@ -181,5 +181,5 @@ test('without UNFOLD_CHANNEL=1 the channel server answers but never asks Unfold 
   assert.ok(await server.next(line => line.id === 1));
   server.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
   await new Promise(resolve => setTimeout(resolve, 300));
-  assert.equal(unfold.asked.length, 0);
+  assert.deepEqual(unfold.asked.filter(entry => !entry.path.includes('/conversation/')), []);
 });

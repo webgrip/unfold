@@ -52,6 +52,7 @@ import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
 import { TakeOver, isTakeOverRoute, takeOverRoute } from './take-over.ts';
 import { LinkedInbox } from './linked-inbox.ts';
+import { LinkedConversation, conversationRoute } from './linked-conversation.ts';
 import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
@@ -208,6 +209,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
   const takeOver = new TakeOver(ploeg);
   const inbox = new LinkedInbox(store.db, linked.store, ploeg);
+  const conversation = new LinkedConversation(linked.store);
   const permissions = new LinkedPermissions(store.db, linked.store);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
@@ -736,6 +738,15 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const signIn = auth.scope(req) === 'editor' ? auth.signIn(req) : undefined;
           const answer = await permissionRoute(permissions, { method, path, caller: { user, scope: auth.scope(req), credential: signIn, confirmation: confirmationOf(req.headers['x-unfold-confirmation']) }, body: () => body(req) });
           return json(res, answer.status, sanitize(answer.body));
+        }
+        const conversed = conversationRoute.exec(path);
+        if (conversed) {
+          const [, id, wants, want] = conversed;
+          if (wants) { if (method !== 'POST') fault(405, 'method', 'Wait for conversation reads with POST.'); return json(res, 200, await conversation.wants(user, id)); }
+          if (want) { if (method !== 'POST') fault(405, 'method', 'Hand back a conversation read with POST.'); return json(res, 200, conversation.answer(user, id, want, await body(req))); }
+          if (method !== 'GET') fault(405, 'method', 'Read a conversation with GET.');
+          const after = url.searchParams.get('after');
+          return json(res, 200, sanitize(await conversation.read(user, id, after !== null && /^\d{1,15}$/.test(after) ? Number(after) : null)));
         }
         const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions|messages|inbox)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
         const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);

@@ -141,6 +141,7 @@ function pullRequests(input) {
 
 async function handle(input) {
   const state = loadState(input.session_id);
+  if (typeof input.transcript_path === 'string' && input.transcript_path) Object.assign(state, { transcriptPath: input.transcript_path, cwd: String(input.cwd ?? '') });
   const output = {};
   switch (input.hook_event_name) {
     case 'SessionStart': {

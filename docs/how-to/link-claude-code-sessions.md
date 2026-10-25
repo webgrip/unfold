@@ -151,7 +151,17 @@ That is Zed's `settings.json`. JetBrains reads the same `agent_servers` block, w
 
 `unfold-acp` passes every message on unchanged and reports the session with `harness: acp`. Its title starts with the agent's name. The session shows as working during a prompt turn, waiting while the agent asks a permission, and idle when the turn ends. Commits follow the same rules as in Claude Code. Lines get an Agent Trace record only when an edit tool call that sent a diff completed. Other commits are reported without one. These sessions have no resume command in Unfold, because only the editor can resume them. If the agent is Claude Code through an ACP adapter and the plugin is installed too, the plugin may report the same work as a second session.
 
-## 6. Talk to the session from Unfold
+## 6. Read the conversation in Unfold
+
+On your own running session's page, **Conversation** shows what you typed, what Claude answered, and one line per tool call. It reads the session's transcript on your machine while you have the page open and refreshes every 3 seconds. Unfold passes it to your browser and stores none of it: not in its database, not in its logs, not in the action log. Nobody else sees it, an administrator neither.
+
+A tool call shows the summary a tool prompt shows ([What the summary contains](#what-the-summary-contains)), without the list of programs: for a shell command the description Claude gave it, never the command; for a file tool the path. Tool output, file contents and Claude's thinking never leave your machine. Prompts and replies have the secrets the summary masks replaced by `[redacted]`, which also masks long hashes and ids.
+
+The plugin's channel server does the reading, because it is the one process that lives as long as the session. It starts with every session, holds one request open to Unfold, and answers only when you look. It needs no development flag and no `UNFOLD_CHANNEL`. Turn it off with `UNFOLD_CONVERSATION=0`.
+
+When the page says the machine is not answering, the laptop is asleep or offline, the session closed, or it runs plugin 0.13 or older or with `UNFOLD_CONVERSATION=0`. An ended session's conversation stays on the machine that ran it.
+
+## 7. Talk to the session from Unfold
 
 On the session's page, **Send to this session** queues a message for it. So does the `unfold_message_session` tool, after you confirm. Only you and administrators can send; only your own credential collects. The page lists each message and whether the session has collected it.
 
@@ -276,7 +286,7 @@ The plugin sends:
 * with `UNFOLD_PUSH_AGENT_TRACE=1`, the same records to your git remote as `refs/notes/agent-trace`.
 * with `UNFOLD_REMOTE_APPROVAL=1`, for each tool prompt the tool name and the one-line summary described in [What the summary contains](#what-the-summary-contains).
 
-To collect messages it sends only the session id, and which kinds of message it wants. It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
+While you read a session's conversation in Unfold, it sends that session's prompts and replies, secrets masked, and one summary line per tool call, to your browser through Unfold, which stores none of it. To collect messages it sends only the session id, and which kinds of message it wants. It never sends tool output, file contents, Claude's thinking or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
 
 ## When it does not work
 
@@ -284,8 +294,9 @@ To collect messages it sends only the session id, and which kinds of message it 
 | --- | --- | --- |
 | No session appears | `UNFOLD_URL` or `UNFOLD_TOKEN` is missing from the environment Claude Code starts with, or the credential expired | Check `~/.claude/settings.json`, sign in again (step 1), and run one session with `UNFOLD_HOOK_DEBUG=1` to see the hook's errors |
 | The session does not link to the Work Item | The branch names no ticket, or Ploeg has no Work Item for that ticket in your Teams, or you unlinked it before | Link it on the session page or with `unfold_link_session` |
+| **Conversation** says the machine is not answering | The session runs plugin 0.13 or older, `UNFOLD_CONVERSATION=0`, or Claude Code without the plugin's MCP server, or the machine sleeps | Update the plugin, start a new session or resume this one, and check `/mcp` shows `unfold-channel` connected |
 | A message stays **Waiting** | The session has not had a prompt, command or stop since, or it is idle without the channel | Type anything in the session, or start it with the Unfold channel |
-| The channel pushes nothing | Claude Code started without `--dangerously-load-development-channels plugin:unfold@unfold`, without `UNFOLD_CHANNEL=1`, or with `-p` | Start it as in step 5 and check `/mcp` shows `unfold-channel` connected |
+| The channel pushes nothing | Claude Code started without `--dangerously-load-development-channels plugin:unfold@unfold`, without `UNFOLD_CHANNEL=1`, or with `-p` | Start it as in step 7 and check `/mcp` shows `unfold-channel` connected |
 | **Approve** and **Deny** never show | The session did not start with `UNFOLD_REMOTE_APPROVAL=1`, or the prompt was already answered in the terminal or waited longer than `UNFOLD_REMOTE_APPROVAL_WAIT_S` | Set the variable and start or resume the session; answer older prompts in the terminal |
 | An answer from `unfold-mcp` is refused with "cannot answer its own prompts" | `unfold-mcp` uses the same credential as the plugin | Give `unfold-mcp` its own credential, or answer in the browser |
 | A commit shows "no record" | The commit holds no line this session's editing tools wrote, such as a commit you made by hand | Nothing to fix; only agent-written lines are attributed |
