@@ -46,9 +46,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.7
+          version: 2026.10.18
           install_args: node
           cache: false
           github_token: ''
@@ -68,9 +68,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.7
+          version: 2026.10.18
           install_args: uv
           cache: false
           github_token: ''
@@ -83,9 +83,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: https://github.com/jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.11
+          version: 2026.10.18
           cache: false
           github_token: ''
       - run: mise trust apps/unfold/mise.toml
@@ -97,9 +97,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: https://github.com/jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.11
+          version: 2026.10.18
           install_args: uv
           cache: false
           github_token: ''
@@ -113,9 +113,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: https://github.com/jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.11
+          version: 2026.10.18
           install_args: uv
           cache: false
           github_token: ''
@@ -129,7 +129,7 @@ jobs:
   release-policy:
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4@sha256:0d6227231c9258c230360c51f9733fe3d60cc0b33860bb7b8769b8683d637c17
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6@sha256:58ce8639627ac522ceaee35b08803ec6846fd4fa138d4a3c3453a0afe75a0311
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
