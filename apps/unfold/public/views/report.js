@@ -3,7 +3,7 @@ import { $, announce, escape } from '../core/dom.js';
 import { badge, button, iconButton, segmented, timeAgo } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { isMac, isTyping, keyLabel, singleKeyAllowed } from '../core/keys.js';
-import { browserName, buffers, captureScreen, rememberRequest } from '../core/report-capture.js';
+import { browserName, buffers, captureScreen, privateRegions, rememberRequest } from '../core/report-capture.js';
 import { applyReports, following, markReportsSeen } from '../core/report-follow.js';
 import { api } from '../core/api.js';
 import { createAnnotation, markAround, markFrom, targetAt } from '../core/annotate.js';
@@ -92,8 +92,7 @@ function snapshotTargets(exclude) {
     found.push({ element, x: box.left, y: box.top, w: box.width, h: box.height });
     if (found.length >= 3000) break;
   }
-  const hidden = [...document.body.querySelectorAll('[data-private]')].filter(element => !exclude.contains(element) && !element.parentElement?.closest('[data-private]')).map(element => element.getBoundingClientRect()).filter(box => box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < height).map(box => ({ x: box.left, y: box.top, w: box.width, h: box.height }));
-  return { found, byElement: new Map(), hidden, width };
+  return { found, byElement: new Map(), hidden: privateRegions(document.body, { exclude, height }), width };
 }
 
 function scaled(rect, ratio) {
