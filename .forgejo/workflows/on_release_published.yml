@@ -61,6 +61,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+      - name: Stamp the release version into the chart
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: node apps/unfold/scripts/stamp-version.mjs "$VERSION" chart
       - name: Publish, sign and verify the canonical chart
         shell: bash
         env:
@@ -201,6 +206,11 @@ jobs:
           install_args: node
           cache: false
           github_token: ''
+      - name: Stamp the release version into the tagged tree
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: node apps/unfold/scripts/stamp-version.mjs "$VERSION"
       - name: Package the VSIX from the tagged tree
         shell: bash
         env:

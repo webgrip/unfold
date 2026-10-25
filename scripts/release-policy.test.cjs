@@ -198,9 +198,9 @@ test('one release prepares and commits Unfold at the Unfold version and never to
   }
   assert.deepEqual(assets.filter(asset => asset.startsWith('ploeg')), []);
   const prepare = fs.readFileSync(path.join(root, 'scripts/release-prepare.mjs'), 'utf8');
-  for (const chart of ['apps/unfold/ops/helm/unfold/Chart.yaml', 'apps/unfold/scripts/release-prepare.mjs']) {
-    assert.ok(prepare.includes(chart), chart);
-  }
+  assert.ok(prepare.includes('apps/unfold/scripts/release-prepare.mjs'));
+  assert.match(fs.readFileSync(path.join(root, 'apps/unfold/scripts/release-prepare.mjs'), 'utf8'), /^stampVersion\(version\);$/m);
+  assert.ok(fs.readFileSync(path.join(root, 'apps/unfold/scripts/stamp-version.mjs'), 'utf8').includes("'ops/helm/unfold/Chart.yaml'"));
   assert.doesNotMatch(prepare, /apps\/ploeg/);
 });
 

@@ -360,6 +360,30 @@ test('the chart is published only after every image of the release, and defaults
   assert.ok(publisher.jobs['unfold-release-distribute'].needs.includes('unfold-release-publish-chart'), 'the mirrors copy the chart only after it is published');
 });
 
+test('every publish job stamps the version from the release tag into the tagged tree before it packages or builds', () => {
+  const version = '${{ needs.parse-release-tag.outputs.version }}';
+  const stampAt = (steps, sources) => steps.findIndex(step => step.run === `node apps/unfold/scripts/stamp-version.mjs "$VERSION"${sources}` && step.env?.VERSION === version);
+  const chart = publisher.jobs['unfold-release-publish-chart'].steps;
+  const chartStamp = stampAt(chart, ' chart');
+  assert.ok(chartStamp > chart.findIndex(step => step.uses?.startsWith('actions/checkout@')), 'the chart job stamps its checkout of the tag');
+  assert.ok(chartStamp < chart.findIndex(step => step.run?.includes('python3 scripts/publish_chart.py unfold')), 'the chart job stamps before it packages');
+  const extension = publisher.jobs['unfold-release-publish-extension'].steps;
+  const extensionStamp = stampAt(extension, '');
+  assert.ok(extensionStamp > extension.findIndex(step => step.uses?.includes('/mise-action@')), 'the extension job installs Node before it stamps');
+  assert.ok(extensionStamp < extension.findIndex(step => step.run?.includes('run package --')), 'the extension job stamps before it packages the VSIX');
+  const build = publisher.jobs['unfold-release-distribute-harbor'].steps.find(step => step.id === 'build');
+  assert.match(build.uses, /\/docker-build-push-registry-fast@/);
+  assert.ok(build.with['docker-build-args'].split('\n').includes(`IMAGE_VERSION=${version}`), 'the composite checks the tag out again, so the image build stamps from its IMAGE_VERSION argument');
+  const dockerfile = fs.readFileSync(path.join(root, 'apps/unfold/Dockerfile'), 'utf8');
+  const stage = dockerfile.slice(dockerfile.indexOf(' AS stage\n'), dockerfile.indexOf(' AS git\n'));
+  const stamp = stage.indexOf('RUN if [ "${IMAGE_VERSION}" != dev ]; then node scripts/stamp-version.mjs "${IMAGE_VERSION}" app; fi\n');
+  assert.ok(stamp > stage.indexOf('COPY scripts ./scripts\n') && stage.indexOf('COPY scripts ./scripts\n') > stage.indexOf('COPY package.json package-lock.json ./\n'), 'the stage stamps the manifests the runtime reads after copying the stamp script');
+  assert.ok(stage.indexOf('ARG IMAGE_VERSION=dev\n') < stamp);
+  const publishChart = fs.readFileSync(path.join(root, 'scripts/publish_chart.py'), 'utf8');
+  assert.match(publishChart, /'helm', 'package', str\(staged\), '--destination', str\(destination\), '--version', version, '--app-version', version/);
+  assert.doesNotMatch(publishChart, /Chart metadata does not match the release version/);
+});
+
 test('the chart job signs the chart it publishes with the image signing identity, so a consumer can verify it before following a candidate', () => {
   const chart = publisher.jobs['unfold-release-publish-chart'];
   assert.equal(chart['enable-openid-connect'], true);

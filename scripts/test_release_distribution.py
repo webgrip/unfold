@@ -236,6 +236,28 @@ class DistributionTests(unittest.TestCase):
             self.assertIn('registry.example/agent:1.0.0@sha256:' + 'c' * 64, overridden)
             self.assertFalse([image for image in overridden if 'unfold-agent' in image])
 
+    def test_a_stale_committed_chart_version_is_packaged_at_the_release_version(self):
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as directory:
+            staged = Path(directory) / 'source' / 'unfold'
+            shutil.copytree(root / 'apps/unfold/ops/helm/unfold', staged)
+            chart = staged / 'Chart.yaml'
+            chart.write_text(re.sub(r'^(version|appVersion): .*$', r'\g<1>: 0.0.1-rc.1', chart.read_text(), flags=re.M))
+            committed = release_registry.command('helm', 'show', 'chart', str(staged))
+            expected = publish_chart.release_metadata(committed, '0.4.0-rc.9')
+            self.assertNotEqual(expected, committed)
+            packaged = publish_chart.package_release_chart(staged, directory, '0.4.0-rc.9')
+            self.assertEqual(packaged.name, 'unfold-0.4.0-rc.9.tgz')
+            shown = release_registry.command('helm', 'show', 'chart', str(packaged))
+            self.assertEqual(shown, expected)
+            self.assertIn('version: 0.4.0-rc.9', shown.splitlines())
+            self.assertIn('appVersion: 0.4.0-rc.9', shown.splitlines())
+            self.assertNotIn('0.0.1-rc.1', shown)
+
+    def test_chart_metadata_without_one_version_and_one_app_version_is_refused(self):
+        with self.assertRaisesRegex(RuntimeError, 'one version and one appVersion'):
+            publish_chart.release_metadata('apiVersion: v2\nname: unfold\nversion: 0.4.0-rc.1\n', '0.4.0-rc.9')
+
     def test_the_chart_waits_for_the_pushed_digest_of_every_image(self):
         registry = MemoryRegistry('harbor.webgrip.dev')
         registry.manifests['webgrip/unfold', '0.4.0-rc.9'] = b'unfold-index'

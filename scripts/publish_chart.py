@@ -67,14 +67,23 @@ def require_complete(archive_path, archive, version, digests, ploeg):
     require_same(match[1] if match else None, ploeg, 'the Ploeg chart the packaged chart carries')
 
 
+def release_metadata(metadata, version):
+    stamped, count = re.subn(r'^(version|appVersion): .*$', rf'\g<1>: {version}', metadata, flags=re.M)
+    if count != 2:
+        raise RuntimeError('Chart metadata must declare one version and one appVersion')
+    return stamped
+
+
+def package_release_chart(staged, destination, version):
+    command('helm', 'package', str(staged), '--destination', str(destination), '--version', version, '--app-version', version)
+    return Path(destination) / f'{Path(staged).name}-{version}.tgz'
+
+
 def publish(application, version):
     publishable_tag(application, version)
     chart = 'unfold'
     path = f'apps/{application}/ops/helm/{chart}'
-    metadata = command('helm', 'show', 'chart', path)
-    for line in [f'version: {version}', f'appVersion: {version}']:
-        if line not in metadata:
-            raise RuntimeError('Chart metadata does not match the release version')
+    metadata = release_metadata(command('helm', 'show', 'chart', path), version)
     registry = Registry('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN'])
     digests = released_digests(registry, version)
     repository = f'webgrip/charts/{chart}'
@@ -85,8 +94,7 @@ def publish(application, version):
         values = staged / 'values.yaml'
         values.write_text(release_values(values.read_text(), version, digests))
         command('helm', 'dependency', 'build', str(staged))
-        command('helm', 'package', str(staged), '--destination', directory)
-        packaged = str(Path(directory) / f'{chart}-{version}.tgz')
+        packaged = str(package_release_chart(staged, directory, version))
         archive = Path(packaged).read_bytes()
         shown = command('helm', 'show', 'chart', packaged)
         require_same(shown, metadata, 'packaged chart metadata')
