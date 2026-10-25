@@ -9,7 +9,7 @@ export const warningPatterns = [
   { tool: 'npm', pattern: /^npm warn\b/i },
   { tool: 'pnpm', pattern: /^\s*WARN\s/ },
   { tool: 'mise', pattern: /^mise WARN\b/ },
-  { tool: 'uv', pattern: /^warning: / },
+  { tool: 'git or uv', pattern: /^warning: / },
   { tool: 'node', pattern: /^\(node\) (\[[A-Z0-9_]+\] )?\w*Warning: / },
   { tool: 'python', pattern: /^\S+:\d+: \w+Warning: / },
   { tool: 'go', pattern: /^go: warning: / },
