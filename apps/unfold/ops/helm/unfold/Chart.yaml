@@ -9,6 +9,6 @@ version: 0.4.0-rc.114
 appVersion: 0.4.0-rc.114
 dependencies:
   - name: ploeg
-    version: 0.2.0-rc.76
+    version: 0.2.0-rc.77
     repository: oci://ghcr.io/ploeg-hq/charts
     condition: ploeg.enabled
