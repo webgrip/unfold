@@ -1,3 +1,20 @@
+## [unfold-v0.4.0-rc.113](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.112...unfold-v0.4.0-rc.113) (2026-10-25)
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.69 ([b83565e](https://forgejo.webgrip.dev/webgrip/unfold/commit/b83565e82c2748f1f92254406d71b61a5766938a))
+* **ploeg:** update Ploeg to 0.2.0-rc.70 ([5e7fca1](https://forgejo.webgrip.dev/webgrip/unfold/commit/5e7fca18cf8bf151b1dc129444d3c566a934b7ea))
+* **ploeg:** update Ploeg to 0.2.0-rc.71 ([12f84cd](https://forgejo.webgrip.dev/webgrip/unfold/commit/12f84cdec9d85067363d1e062f09941807d3edcb))
+
+### Tests
+
+* **unfold:** scale the fixed deadlines that fail correct tests on slow runners ([d274b1a](https://forgejo.webgrip.dev/webgrip/unfold/commit/d274b1ae91a1670f9f96195e2ee7a3adac227cb4))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.10 [skip ci] ([e079f4c](https://forgejo.webgrip.dev/webgrip/unfold/commit/e079f4ca5cccb4bb3403613eb0a2f69014e4a39e))
+* **renovate:** move the local e2e compose images with the nightly job's pins ([7abf94c](https://forgejo.webgrip.dev/webgrip/unfold/commit/7abf94c81ff18dd7ec7f8aad4455c1babee83af3)), references [#593](https://forgejo.webgrip.dev/webgrip/unfold/issues/593) [#597](https://forgejo.webgrip.dev/webgrip/unfold/issues/597)
+
 ## [unfold-v0.4.0-rc.112](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.111...unfold-v0.4.0-rc.112) (2026-10-25)
 
 ### Added
