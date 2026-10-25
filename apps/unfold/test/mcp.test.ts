@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { application, request } from './api-support.ts';
 import { confirmationLedger, createMcpServer, serveStdio } from '../src/mcp.ts';
+import { scaledTimeout } from './timeframes.ts';
 
 function conforms(schema: Record<string, any>, value: unknown, at: string): string[] {
   const types = [schema.type ?? []].flat();
@@ -148,7 +149,7 @@ test('unfold-mcp turns an echoing, slow or unreachable Unfold into tool errors a
   t.after(() => { echo.closeAllConnections(); echo.close(); });
   const address = echo.address();
   assert(address && typeof address !== 'string');
-  const server = createMcpServer({ url: `http://127.0.0.1:${address.port}`, token, timeoutMs: 200 });
+  const server = createMcpServer({ url: `http://127.0.0.1:${address.port}`, token, timeoutMs: scaledTimeout(200) });
   const echoed = await call(server, 'unfold_sessions');
   assert.equal(echoed.isError, true);
   assert(!echoed.content[0].text.includes(token), echoed.content[0].text);

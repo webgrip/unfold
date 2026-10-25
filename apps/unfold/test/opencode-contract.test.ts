@@ -9,6 +9,7 @@ import { OpenCodeRuntime, type RuntimeWorkspaces } from '../src/runtime/opencode
 import { managedConfig } from '../src/runtime/workspace.ts';
 import type { AppConfig, RuntimeEvent, Workspace } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
+import { deadlineAfter, scaledTimeout, testTimeout } from './timeframes.ts';
 
 const binary = process.env.UNFOLD_OPENCODE_BINARY;
 const skip = binary ? false : 'set UNFOLD_OPENCODE_BINARY to an OpenCode binary, or run `mise run opencode-contract`';
@@ -52,7 +53,7 @@ async function opencode(t: TestContext, permission: Record<string, string>) {
   writeFileSync(join(directory, 'README.md'), 'Run the unit tests with pnpm test.\n');
   execFileSync('git', ['init', '-q'], { cwd: directory });
   execFileSync('git', ['-c', 'user.email=contract@unfold.invalid', '-c', 'user.name=contract', 'commit', '-q', '--allow-empty', '-m', 'base'], { cwd: directory });
-  const config = { models: [{ id: 'coding', name: 'Coding', providerId: 'litellm', modelId: 'coding' }], litellm: { baseUrl: `http://127.0.0.1:${modelPort}/v1` }, runtime: { timeoutMs: 60_000 } } as AppConfig;
+  const config = { models: [{ id: 'coding', name: 'Coding', providerId: 'litellm', modelId: 'coding' }], litellm: { baseUrl: `http://127.0.0.1:${modelPort}/v1` }, runtime: { timeoutMs: scaledTimeout(60_000) } } as AppConfig;
   const managed = { ...managedConfig(config), permission };
   writeFileSync(join(root, 'opencode.json'), JSON.stringify(managed));
   const server = createServer();
@@ -66,10 +67,10 @@ async function opencode(t: TestContext, permission: Record<string, string>) {
   t.after(() => { child.kill('SIGKILL'); model.server.close(); rmSync(root, { recursive: true, force: true }); });
   const endpoint = `http://127.0.0.1:${port}`;
   const authorization = 'Basic ' + Buffer.from(`opencode:${password}`).toString('base64');
-  const deadline = Date.now() + 30_000;
+  const deadline = deadlineAfter(30_000);
   let healthy = false;
   while (!healthy && Date.now() < deadline) {
-    healthy = await fetch(`${endpoint}/global/health`, { headers: { authorization }, signal: AbortSignal.timeout(2000) }).then(response => response.ok, () => false);
+    healthy = await fetch(`${endpoint}/global/health`, { headers: { authorization }, signal: AbortSignal.timeout(scaledTimeout(2000)) }).then(response => response.ok, () => false);
     if (!healthy) await new Promise(done => setTimeout(done, 200));
   }
   assert.ok(healthy, `OpenCode never answered /global/health:\n${output}`);
@@ -84,7 +85,7 @@ function turn(workspace: Workspace, events: RuntimeEvent[]) {
   return context;
 }
 
-test('the managed OpenCode configuration lets a supervised writer grep without asking', { skip, timeout: 120_000 }, async t => {
+test('the managed OpenCode configuration lets a supervised writer grep without asking', { skip, timeout: testTimeout(120_000) }, async t => {
   const { runtime, workspace, model, output } = await opencode(t, managedConfig({ models: [], runtime: { timeoutMs: 1 } } as unknown as AppConfig).permission as Record<string, string>);
   const events: RuntimeEvent[] = [];
   const result = await runtime.execute(turn(workspace, events));
@@ -93,7 +94,7 @@ test('the managed OpenCode configuration lets a supervised writer grep without a
   assert.ok(model.requests.some(request => request.toolResults > 0), 'the grep tool ran and its result reached the model');
 });
 
-test('a permission OpenCode raises reaches Unfold, its answer reaches OpenCode, and the turn completes', { skip, timeout: 120_000 }, async t => {
+test('a permission OpenCode raises reaches Unfold, its answer reaches OpenCode, and the turn completes', { skip, timeout: testTimeout(120_000) }, async t => {
   const { runtime, workspace, model, output } = await opencode(t, { '*': 'ask', external_directory: 'deny' });
   const events: RuntimeEvent[] = [];
   const context = turn(workspace, events);

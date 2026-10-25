@@ -13,7 +13,7 @@ import { workspaceName } from '../src/runtime/kubernetes.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
-import { testTimeout } from './timeframes.ts';
+import { scaledTimeout, testTimeout } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['npm', 'test'] } as Repository;
 const session = { id: 'docker-session', branch: 'unfold/docker-session', ownerId: 'alice', placement: 'docker' } as Session;
@@ -23,7 +23,7 @@ function configuration(dataDir: string, socketPath: string): AppConfig {
   return {
     mode: 'live', dataDir, repositories: [repository], models: [{ id: 'code', name: 'Coding', providerId: 'gateway', modelId: 'coding' }],
     runtime: { kind: 'opencode', backend: 'docker', backends: ['docker', 'local'], timeoutMs: 20_000, agentEnvironment: ['FORGE_READ_TOKEN', 'ABSENT_VALUE'] },
-    docker: { image: 'registry.example/agent:1.18.30', socketPath, cpus: 1, memoryMb: 512, pidsLimit: 64, provisionTimeoutMs: 8000 },
+    docker: { image: 'registry.example/agent:1.18.30', socketPath, cpus: 1, memoryMb: 512, pidsLimit: 64, provisionTimeoutMs: scaledTimeout(8000) },
     litellm: { baseUrl: 'https://gateway.example/v1', adminUrl: 'https://gateway.example', masterKey: 'MASTER-NEVER-AGENT', models: ['coding'], ttl: '4h' },
   } as AppConfig;
 }

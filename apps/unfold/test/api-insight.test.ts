@@ -5,6 +5,7 @@ import { once } from 'node:events';
 import { application, login, request } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
 import { defaultTenant, maxEventsPerMinute } from '../src/insight.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 async function collector(): Promise<{ url: string; received: () => Record<string, any>[]; close: () => Promise<void> }> {
   const bodies: Record<string, any>[] = [];
@@ -54,7 +55,7 @@ test('POST /api/insight/events stores the catalogue\u2019s events and forwards a
   assert.notEqual(rows[0].actor, user.id);
   assert.deepEqual(JSON.parse(String(rows[0].props)), { command: 'approve', path: 'A', suggested: true, batch_size: 3 }, 'an unlisted property never travels');
 
-  const deadline = Date.now() + 5000;
+  const deadline = deadlineAfter(5000);
   while (!sink.received().length && Date.now() < deadline) await new Promise(done => setTimeout(done, 20));
   const body = sink.received()[0];
   assert(body, 'the collector received a payload');

@@ -13,9 +13,9 @@ import { limitRequestBodies } from '../src/http.ts';
 import { OpenCodeRuntime, type RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import { executionFixture } from './runtime-fixture.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
-import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
+import { deadlineAfter, scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
-test('a cancellation that arrives while no poll is waiting is handed to the next poll at once', { timeout: 20_000 }, async t => {
+test('a cancellation that arrives while no poll is waiting is handed to the next poll at once', { timeout: testTimeout(20_000) }, async t => {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const relayPort = await listen(relayServer);
@@ -322,7 +322,7 @@ test('a request body that has not arrived by the deadline is cut off, and an aut
   t.after(() => clearInterval(ticks));
   const reader = (await pending).body!.getReader();
   let received = '';
-  const until = Date.now() + 1200;
+  const until = deadlineAfter(1200);
   while (Date.now() < until) received += new TextDecoder().decode((await reader.read()).value);
   assert.ok(received.split('data:').length > 8, 'the relayed stream kept flowing past four deadlines');
 });

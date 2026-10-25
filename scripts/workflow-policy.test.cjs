@@ -7,7 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { parse } = require('yaml');
+const { parse, parseAllDocuments } = require('yaml');
 
 const root = path.resolve(__dirname, '..');
 const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'));
@@ -83,6 +83,7 @@ test('unfold-mcp\'s end-to-end suite runs every night and on command against an 
   assert.equal(job.env.UNFOLD_E2E_AUTHENTIK_TOKEN, authentik.env.AUTHENTIK_BOOTSTRAP_TOKEN);
   const compose = fs.readFileSync(path.join(root, 'apps/unfold/test/e2e/authentik.compose.yaml'), 'utf8');
   assert.ok(compose.includes(authentik.image.replace('harbor.webgrip.dev/ghcr/', 'ghcr.io/')), 'CI and the local compose file run the same Authentik');
+  assert.ok(compose.includes(`:-${postgresql.image.replace('harbor.webgrip.dev/dockerhub/library/', '')}}`), 'CI and the local compose file run the same Postgres');
   assert.ok(!Object.values(workflows['on_source_change.yml'].jobs).some(other => [other.needs ?? []].flat().includes('mcp-e2e')), 'it reports; it gates no release');
 });
 
@@ -649,4 +650,49 @@ test('the weekly schedule fails loudly when Forgejo loses imported release notes
   assert.equal(verify.env.UNFOLD_REQUIRE_IMPORT_NOTES, 'true');
   assert.equal(verify['continue-on-error'], undefined);
   assert.doesNotMatch(JSON.stringify(job), /git push|secrets\./);
+});
+
+const renovateConfig = () => JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
+const homelabAllowedLockfileRefresh = /^corepack pnpm install --lockfile-only --ignore-scripts --ignore-pnpmfile$/;
+const pnpmProjects = () => fs.readdirSync(path.join(root, 'apps'))
+  .map(app => path.join('apps', app))
+  .filter(directory => fs.existsSync(path.join(root, directory, 'pnpm-lock.yaml')));
+
+test('every pnpm lockfile records the pnpm its package.json names, which a frozen install requires', () => {
+  assert.ok(pnpmProjects().length > 0, 'the site is a pnpm project');
+  for (const directory of pnpmProjects()) {
+    const wanted = JSON.parse(fs.readFileSync(path.join(root, directory, 'package.json'), 'utf8')).packageManager;
+    assert.match(wanted, /^pnpm@\d+\.\d+\.\d+$/, `${directory} pins one pnpm release`);
+    const [environment] = parseAllDocuments(fs.readFileSync(path.join(root, directory, 'pnpm-lock.yaml'), 'utf8')).map(document => document.toJS());
+    const recorded = environment.importers['.'].packageManagerDependencies.pnpm;
+    assert.deepEqual([recorded.specifier, recorded.version], [wanted.slice('pnpm@'.length), wanted.slice('pnpm@'.length)], `${directory}/pnpm-lock.yaml records pnpm ${recorded.version}, package.json names ${wanted}: run corepack pnpm install --lockfile-only in ${directory}`);
+  }
+});
+
+test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, through a command the homelab allows', () => {
+  const rules = renovateConfig().packageRules.filter(rule => rule.postUpgradeTasks && (rule.matchDepNames ?? []).includes('pnpm'));
+  assert.equal(rules.length, 1);
+  const [rule] = rules;
+  assert.deepEqual([rule.matchManagers, rule.matchDepTypes], [['npm'], ['packageManager']], 'only a move of packageManager changes the record');
+  assert.equal(rule.postUpgradeTasks.workingDirTemplate, '{{{packageFileDir}}}', 'the command runs where the moved package.json lives');
+  assert.equal(rule.postUpgradeTasks.executionMode, 'update');
+  assert.deepEqual(rule.postUpgradeTasks.fileFilters, ['**/pnpm-lock.yaml']);
+  assert.equal(rule.postUpgradeTasks.commands.length, 1);
+  assert.match(rule.postUpgradeTasks.commands[0], homelabAllowedLockfileRefresh, 'the self-hosted Renovate runs only commands its allowedCommands list');
+});
+
+test('Renovate reads every image of the local MCP compose file under the nightly job\'s name for it, so one update moves both pins', () => {
+  const composeFile = 'apps/unfold/test/e2e/authentik.compose.yaml';
+  const compose = fs.readFileSync(path.join(root, composeFile), 'utf8');
+  const { authentik, postgresql } = workflows['on_nightly.yml'].jobs['mcp-e2e'].services;
+  const config = renovateConfig();
+  const hiding = config.ignorePaths.filter(pattern => path.matchesGlob(composeFile, pattern));
+  assert.deepEqual(hiding, [], 'Renovate reads no file that ignorePaths matches');
+  const readers = config.customManagers.filter(manager => manager.managerFilePatterns.some(pattern => new RegExp(pattern.slice(1, -1)).test(composeFile)));
+  const pins = readers.flatMap(manager => manager.matchStrings.flatMap(expression => [...compose.matchAll(new RegExp(expression, 'g'))]
+    .map(match => `${manager.depNameTemplate}:${match.groups.currentValue}@${match.groups.currentDigest}`)));
+  const images = new Set([...compose.matchAll(/^\s*image: (.+)$/gm)].map(match => match[1]));
+  assert.equal(pins.length, images.size, 'every image the compose file names is pinned under a Renovate manager');
+  assert.deepEqual(pins.sort(), [authentik.image, postgresql.image].sort());
+  assert.ok(readers.every(manager => manager.datasourceTemplate === 'docker' && manager.versioningTemplate === 'docker'), 'the workflow manager looks images up as docker with docker versioning');
 });

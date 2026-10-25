@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { AppConfig, User } from '../src/types.ts';
 import { Store } from '../src/store.ts';
 import { InsightService, dailyDomain, defaultTenant, eventDomain, faroPayload, maxEventsPerMinute, otlpPayload, parseInsightEvents, type ExportedRow } from '../src/insight.ts';
+import { deadlineAfter } from './timeframes.ts';
 
 const admin: User = { id: 'user-1', name: 'Admin', role: 'admin' };
 const now = () => new Date('2026-10-05T12:00:00.000Z');
@@ -54,7 +55,7 @@ function service(t: test.TestContext, store: Store, insight: AppConfig['insight'
 }
 
 async function until(condition: () => boolean): Promise<void> {
-  const deadline = Date.now() + 5000;
+  const deadline = deadlineAfter(5000);
   while (!condition() && Date.now() < deadline) await new Promise(done => setTimeout(done, 20));
 }
 

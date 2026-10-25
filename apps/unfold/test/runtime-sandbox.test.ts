@@ -7,7 +7,7 @@ import { WorkerRelay } from '../src/runtime/relay.ts';
 import { workspaceName } from '../src/runtime/kubernetes.ts';
 import { RuntimeFailure } from '../src/failures.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
-import { settle, testTimeout } from './timeframes.ts';
+import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['npm', 'test'] } as Repository;
 const session = { id: 'sandbox-session', branch: 'unfold/sandbox-session', ownerId: 'alice', placement: 'kubernetes', runs: [] } as unknown as Session;
@@ -18,7 +18,7 @@ function configuration(relayUrl: string, warmPool?: string): AppConfig {
     mode: 'live', dataDir: '/data', repositories: [repository], models: [{ id: 'code', name: 'Coding', providerId: 'gateway', modelId: 'coding' }],
     runtime: { kind: 'opencode', backend: 'kubernetes', backends: ['kubernetes'], timeoutMs: 20_000 },
     litellm: { baseUrl: 'https://gateway.example/v1', adminUrl: 'https://gateway.example', masterKey: 'MASTER-NEVER-AGENT', models: ['coding'], ttl: '4h' },
-    kubernetes: { namespace: 'workspaces', image: 'harbor.example/unfold-agent:1.0.0', storageSize: '4Gi', cpu: '1', memory: '2Gi', transport: 'pull', relayUrl, provisioner: 'sandbox', sandbox: { runtimeClassName: 'kata', warmPool, poolTokenEnv: 'TEST_POOL_TOKEN' }, provisionTimeoutMs: 15_000 },
+    kubernetes: { namespace: 'workspaces', image: 'harbor.example/unfold-agent:1.0.0', storageSize: '4Gi', cpu: '1', memory: '2Gi', transport: 'pull', relayUrl, provisioner: 'sandbox', sandbox: { runtimeClassName: 'kata', warmPool, poolTokenEnv: 'TEST_POOL_TOKEN' }, provisionTimeoutMs: scaledTimeout(15_000) },
   } as AppConfig;
 }
 
@@ -143,7 +143,7 @@ test('a cold sandbox with no valid candidate base fails provisioning and cleans 
 });
 
 test('CRD readiness and a connected relay do not make an unhealthy sandbox ready', { timeout: testTimeout(20_000) }, async t => {
-  const { manager, relay, objects, worker } = await coldSandbox(t, { healthStatus: 503, timeoutMs: 1500 });
+  const { manager, relay, objects, worker } = await coldSandbox(t, { healthStatus: 503, timeoutMs: scaledTimeout(1500) });
   await assert.rejects(manager.prepare(session, repository, credential, new AbortController().signal), error => error instanceof RuntimeFailure && error.category === 'timeout' && Boolean(error.detail?.includes('did not answer /global/health')));
   assert.ok(worker().state.requests.some(line => line.startsWith('GET /global/health')));
   assert.equal(objects.size, 0);
