@@ -1,7 +1,7 @@
 name: unfold-e2e-authentik
 
 x-authentik: &authentik
-  image: ${UNFOLD_E2E_AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581}
+  image: ${UNFOLD_E2E_AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.8.5@sha256:602227a86455d6772e3d16b7d852713c4f864f40df5df894abd1285bb53979a5}
   depends_on:
     postgresql:
       condition: service_healthy
