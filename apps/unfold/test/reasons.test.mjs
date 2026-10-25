@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { approvedToMerge, closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, withdrawnReason } from '../public/core/reasons.js';
+import { approvedToMerge, closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, sessionDriven, withdrawnReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { waitingGroup } from '../public/core/reasons.js';
 
@@ -310,6 +310,28 @@ test('a reason code this Unfold does not know is named as unrecognised, never hi
   assert.equal(reason.sentence, 'Ploeg recorded the reason code “operator_teleported”, which this version of Unfold does not recognise.');
   assert.equal(reason.glyph, 'help-circle');
   assert.equal(listReason(item('operator abort')).code, 'unknown', 'free text stays a recorded sentence');
+});
+
+test('a Work Item an Unfold session drives never offers a restart in its tracker, whatever its Shift says', () => {
+  const sessionShift = extra => ({ ...shift(''), branch: 'operator/2c9a3315', ...extra });
+  const open = listReason(item('', { latestShift: sessionShift({ closedAt: null }) }));
+  assert.deepEqual([open.code, open.chip, open.requeue, open.action], ['operator_stopped', 'Session stopped', '', open.fix]);
+  assert.match(open.fix, /linked session/);
+  assert.equal(open.glyph, 'sessions');
+  assert.equal(listReason(item('', { latestShift: sessionShift({ closeReason: 'Illustrative free text.' }) })).code, 'operator_stopped');
+  assert.equal(listReason(item('', { latestShift: sessionShift({ closeReason: 'operator_failed' }) })).code, 'operator_failed', 'a session code keeps its own words');
+  assert.equal(listReason({ id: '245', state: 'needs_human', closeReason: null, latestShift: { round: 0, branch: 'operator/2c9a3315', closeReason: '', budgetUsd: 1, spentUsd: 0, reservedUsd: 0.25, closedAt: null } }).requeue, '', 'a Now row offers no Try again');
+  assert.equal(listReason(item('', { latestShift: { ...shift(''), closedAt: null } })).code, 'unknown', 'an agent Shift still reads as stopped');
+  assert.equal(sessionDriven(item('', { latestShift: sessionShift({}) })), true);
+  assert.equal(sessionDriven(item('')), false);
+  assert.equal(sessionDriven({ latestShift: null }), false);
+});
+
+test('an open session Shift reads as the session code Ploeg recorded in the detail', () => {
+  const open = { ...shift(''), branch: 'operator/2c9a3315', closedAt: null };
+  const detail = code => detailReason({ item: item('', { latestShift: open }), shifts: [open], runs: [], events: [{ id: '5', action: 'work_item.needs_human', detail: { reason: code } }] });
+  assert.deepEqual([detail('operator_expired').code, detail('operator_expired').chip, detail('operator_expired').requeue], ['operator_expired', 'Session lost contact', '']);
+  assert.equal(detail('plan_exhausted').code, 'operator_stopped', 'a non-session code cannot make a session item restartable');
 });
 
 test('an open Shift whose needs-human event carries an operator code reads as that code in the detail', () => {
