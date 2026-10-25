@@ -4,7 +4,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 globalThis.location ??= new URL('https://unfold.test/#now');
-const { buffers, clearBuffers, consoleLimit, rememberConsole, rememberRequest, rememberRoute, requestLimit, trailLimit } = await import('../public/core/report-capture.js');
+const { buffers, clearBuffers, consoleLimit, inlineSvgPaint, privateRegions, rememberConsole, rememberRequest, rememberRoute, requestLimit, trailLimit } = await import('../public/core/report-capture.js');
 const { arrowHead, markAround, markFrom, spanned, targetAt } = await import('../public/core/annotate.js');
 
 const publicDir = new URL('../public/', import.meta.url);
@@ -34,6 +34,42 @@ test('every component that renders code, logs, diffs or tracker and pull-request
     for (const match of text.matchAll(/<(?:div|details) class="diff-(?:view|file)"[^>]*>/g)) if (!match[0].includes('data-private')) missing.push(`${path}: ${match[0]}`);
   }
   assert.deepEqual(missing, []);
+});
+
+function fakeStyle(initial = {}) {
+  const values = new Map(Object.entries(initial).map(([name, value]) => [name, [value, '']]));
+  return {
+    values,
+    getPropertyValue: name => values.get(name)?.[0] ?? '',
+    getPropertyPriority: name => values.get(name)?.[1] ?? '',
+    setProperty: (name, value, priority = '') => values.set(name, [value, priority]),
+    removeProperty: name => values.delete(name),
+  };
+}
+
+test('a shape inside an svg carries its stylesheet paint into the copy, and every inline style is put back afterwards', () => {
+  const ring = { style: fakeStyle({ stroke: 'red' }), painted: { fill: 'none', stroke: 'rgb(0, 128, 0)', 'stroke-width': '12px' } };
+  const label = { style: fakeStyle({ fill: 'rgb(1, 2, 3)' }), painted: { fill: 'rgb(1, 2, 3)' } };
+  const root = { querySelectorAll: selector => (assert.equal(selector, 'svg *'), [ring, label]) };
+  const restore = inlineSvgPaint(root, element => fakeStyle(element.painted));
+  assert.deepEqual(Object.fromEntries(ring.style.values), { stroke: ['rgb(0, 128, 0)', 'important'], fill: ['none', 'important'], 'stroke-width': ['12px', 'important'] });
+  assert.deepEqual(Object.fromEntries(label.style.values), { fill: ['rgb(1, 2, 3)', ''] });
+  restore();
+  assert.deepEqual(Object.fromEntries(ring.style.values), { stroke: ['red', ''] });
+  assert.deepEqual(Object.fromEntries(label.style.values), { fill: ['rgb(1, 2, 3)', ''] });
+});
+
+test('a private region the person cannot see, such as one inside a closed fold, is not marked as hidden on the screenshot', () => {
+  const box = (top, height = 20) => ({ left: 10, top, width: 100, height, bottom: top + height });
+  const region = (rect, { visible = true, nested = false } = {}) => ({ getBoundingClientRect: () => rect, checkVisibility: () => visible, parentElement: { closest: () => (nested ? {} : null) } });
+  const shown = region(box(40));
+  const folded = region(box(80), { visible: false });
+  const inside = region(box(45, 5), { nested: true });
+  const below = region(box(900));
+  const dialog = region(box(60));
+  const legacy = { ...region(box(120)), checkVisibility: undefined };
+  const root = { querySelectorAll: () => [shown, folded, inside, below, dialog, legacy] };
+  assert.deepEqual(privateRegions(root, { exclude: { contains: element => element === dialog }, height: 800 }), [{ x: 10, y: 40, w: 100, h: 20 }, { x: 10, y: 120, w: 100, h: 20 }]);
 });
 
 test('every request is kept without its query string, header or body, and only the last fifty stay', () => {

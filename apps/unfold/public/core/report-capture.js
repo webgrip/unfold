@@ -187,7 +187,58 @@ export function scrollShifts(document, exclude) {
 }
 
 /**
- * Takes the screenshot: the visible part of the page rasterised by html-to-image from Unfold's own origin, with every
+ * The outermost `[data-private]` regions the person can see now, as viewport rectangles. A region inside a closed
+ * `<details>` or another hidden subtree keeps a stale box, so it is left out by `checkVisibility`, not by its size.
+ * @param {ParentNode} root
+ * @param {{ exclude?: Element | null, height: number }} options
+ * @returns {{ x: number, y: number, w: number, h: number }[]}
+ */
+export function privateRegions(root, { exclude = null, height }) {
+  return [...root.querySelectorAll('[data-private]')]
+    .filter(element => !exclude?.contains(element) && !element.parentElement?.closest('[data-private]') && element.checkVisibility?.() !== false)
+    .map(element => element.getBoundingClientRect())
+    .filter(box => box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < height)
+    .map(box => ({ x: box.left, y: box.top, w: box.width, h: box.height }));
+}
+
+export const svgPaintProperties = Object.freeze([
+  'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset',
+  'stroke-linecap', 'stroke-linejoin', 'paint-order', 'opacity', 'color', 'display', 'visibility', 'stop-color', 'stop-opacity',
+  'font-family', 'font-size', 'font-weight', 'letter-spacing', 'text-anchor', 'dominant-baseline', 'transform', 'transform-origin', 'transform-box',
+]);
+
+/**
+ * Writes the computed paint of every element inside an `<svg>` onto its inline style for the moment of the copy.
+ * html-to-image clones an `<svg>` whole and styles only its root, so a shape painted by a stylesheet rule would
+ * otherwise fall back to SVG's defaults: a black fill and no stroke. Returns the function that puts every inline
+ * style back as it was.
+ * @param {ParentNode} root
+ * @param {(element: Element) => CSSStyleDeclaration} computed
+ * @returns {() => void}
+ */
+export function inlineSvgPaint(root, computed = element => getComputedStyle(element)) {
+  const previous = [];
+  for (const element of root.querySelectorAll('svg *')) {
+    const style = element.style;
+    if (!style) continue;
+    const from = computed(element);
+    for (const name of svgPaintProperties) {
+      const value = from.getPropertyValue(name);
+      if (!value || style.getPropertyValue(name) === value) continue;
+      previous.push([style, name, style.getPropertyValue(name), style.getPropertyPriority(name)]);
+      style.setProperty(name, value, 'important');
+    }
+  }
+  return () => {
+    for (const [style, name, value, priority] of previous.reverse()) {
+      if (value) style.setProperty(name, value, priority);
+      else style.removeProperty(name);
+    }
+  };
+}
+
+/**
+ * Takes the screenshot:the visible part of the page rasterised by html-to-image from Unfold's own origin, with every
  * `[data-private]` region blurred in the copy, and `exclude` (the report dialog) left out. Other open dialogs stay in,
  * because the problem may be in one. Scrolled content is shifted back for the moment of the copy (see scrollShifts). The blur rule lives in a
  * constructed stylesheet for the moment of the copy only, which the CSP allows. Its rules switch transitions off: with
@@ -212,6 +263,7 @@ export async function captureScreen({ exclude = null } = {}) {
   const width = document.documentElement.clientWidth;
   const height = document.documentElement.clientHeight;
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  const restoreSvgPaint = inlineSvgPaint(document.body);
   try {
     return await toCanvas(document.body, {
       fontEmbedCSS, pixelRatio: Math.min(2, window.devicePixelRatio || 1), width, height, canvasWidth: width, canvasHeight: height, cacheBust: false,
@@ -219,6 +271,7 @@ export async function captureScreen({ exclude = null } = {}) {
       filter: node => node !== exclude && !(node instanceof Element && node.hasAttribute?.('data-report-skip')),
     });
   } finally {
+    restoreSvgPaint();
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter(entry => entry !== sheet);
     for (const element of shifts.marked) delete element.dataset.reportShift;
   }
