@@ -1,7 +1,9 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
-import { SandboxWorkspaces, sandboxClaimManifest, sandboxManifests } from '../src/runtime/sandbox.ts';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { SandboxWorkspaces, sandboxClaimManifest, sandboxManifests, tokenReviewVerifier } from '../src/runtime/sandbox.ts';
 import { WorkspaceManager, managedConfig } from '../src/runtime/workspace.ts';
 import { WorkerRelay } from '../src/runtime/relay.ts';
 import { workspaceName } from '../src/runtime/kubernetes.ts';
@@ -18,7 +20,7 @@ function configuration(relayUrl: string, warmPool?: string): AppConfig {
     mode: 'live', dataDir: '/data', repositories: [repository], models: [{ id: 'code', name: 'Coding', providerId: 'gateway', modelId: 'coding' }],
     runtime: { kind: 'opencode', backend: 'kubernetes', backends: ['kubernetes'], timeoutMs: 20_000 },
     litellm: { baseUrl: 'https://gateway.example/v1', adminUrl: 'https://gateway.example', masterKey: 'MASTER-NEVER-AGENT', models: ['coding'], ttl: '4h' },
-    kubernetes: { namespace: 'workspaces', image: 'harbor.example/unfold-agent:1.0.0', storageSize: '4Gi', cpu: '1', memory: '2Gi', transport: 'pull', relayUrl, provisioner: 'sandbox', sandbox: { runtimeClassName: 'kata', warmPool, poolTokenEnv: 'TEST_POOL_TOKEN' }, provisionTimeoutMs: scaledTimeout(15_000) },
+    kubernetes: { namespace: 'workspaces', image: 'harbor.example/unfold-agent:1.0.0', storageSize: '4Gi', cpu: '1', memory: '2Gi', transport: 'pull', relayUrl, provisioner: 'sandbox', sandbox: { runtimeClassName: 'kata', warmPool }, provisionTimeoutMs: scaledTimeout(15_000) },
   } as AppConfig;
 }
 
@@ -159,8 +161,6 @@ test('cancelling while a sandbox answers its health probe never returns a worksp
 });
 
 test('a warm-pool claim hands the bound pod its session over the relay, clones through exec and starts the harness', { timeout: testTimeout(20_000) }, async t => {
-  process.env.TEST_POOL_TOKEN = 'pool-token-for-test';
-  t.after(() => { delete process.env.TEST_POOL_TOKEN; });
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const port = await listen(relayServer);
@@ -168,10 +168,18 @@ test('a warm-pool claim hands the bound pod its session over the relay, clones t
   const relayBase = `http://127.0.0.1:${port}/api/relay`;
   const config = configuration(`http://127.0.0.1:${port}`, 'unfold-warm');
   config.kubernetes!.gitRewrites = [{ url: 'http://forge-http.forge.svc.cluster.local:3000/', insteadOf: 'https://forge.example/' }];
-  const worker = fakeWorker(relayBase, { pool: { token: 'pool-token-for-test', pod: 'unfold-warm-abc12' } });
+  const worker = fakeWorker(relayBase, { pool: { token: 'projected-token-of-abc12', pod: 'unfold-warm-abc12' } });
   t.after(() => worker.stop());
   const objects = new Map<string, any>();
+  const pod = '/api/v1/namespaces/workspaces/pods/unfold-warm-abc12';
+  const reviewed: string[] = [];
   const fake = { async request(path: string, method = 'GET', body?: any) {
+    if (path === '/apis/authentication.k8s.io/v1/tokenreviews') {
+      reviewed.push(body.spec.token);
+      const known = body.spec.token === 'projected-token-of-abc12' && body.spec.audiences[0] === 'unfold-relay';
+      return { status: known ? { authenticated: true, audiences: ['unfold-relay'], user: { username: 'system:serviceaccount:workspaces:default', extra: { 'authentication.kubernetes.io/pod-name': ['unfold-warm-abc12'], 'authentication.kubernetes.io/pod-uid': ['uid-abc12'] } } } : { authenticated: false } };
+    }
+    if (method === 'GET' && path === pod) return { metadata: { name: 'unfold-warm-abc12', uid: 'uid-abc12' } };
     if (method === 'GET') return objects.get(path);
     if (method === 'DELETE') { objects.delete(path); return {}; }
     const object = structuredClone(body); object.metadata.resourceVersion = '1';
@@ -181,6 +189,7 @@ test('a warm-pool claim hands the bound pod its session over the relay, clones t
   const manager = new WorkspaceManager(config, { relay, kubernetes: new SandboxWorkspaces(config, fake as any, relay) });
   const workspace = await manager.prepare(session, repository, credential, new AbortController().signal);
   assert.equal(workspace.metadata?.pod, 'unfold-warm-abc12');
+  assert.ok(reviewed.length > 0 && reviewed.every(token => token === 'projected-token-of-abc12'), 'the claim was verified by TokenReview');
   assert.equal(workspace.metadata?.baseSha, 'b'.repeat(40));
   assert.equal(worker.state.env.LITELLM_API_KEY, 'sk-session');
   assert.equal(worker.state.env.REPOSITORY_URL, repository.url);
@@ -194,4 +203,27 @@ test('a warm-pool claim hands the bound pod its session over the relay, clones t
   assert.equal([...objects.keys()][0].includes('/sandboxclaims/'), true);
   await manager.dispose(workspace);
   assert.equal(objects.size, 0);
+});
+
+test('a TokenReview proves a warm pod only for the relay audience, the workspace namespace and a pod-bound token', async () => {
+  const answer = (status: any) => tokenReviewVerifier({ request: async () => ({ status }) } as any, 'workspaces')('token');
+  const user = (namespace: string, extra: Record<string, string[]>) => ({ username: `system:serviceaccount:${namespace}:default`, extra });
+  const bound = { 'authentication.kubernetes.io/pod-name': ['warm-1'], 'authentication.kubernetes.io/pod-uid': ['uid-1'] };
+  assert.deepEqual(await answer({ authenticated: true, audiences: ['unfold-relay'], user: user('workspaces', bound) }), { name: 'warm-1', uid: 'uid-1' });
+  assert.equal(await answer({ authenticated: false }), undefined);
+  assert.equal(await answer({ authenticated: true, audiences: ['https://kubernetes.default.svc'], user: user('workspaces', bound) }), undefined, 'a token for the API server is not a pool claim');
+  assert.equal(await answer({ authenticated: true, audiences: ['unfold-relay'], user: user('unfold', bound) }), undefined, 'a pod outside the workspace namespace claims nothing');
+  assert.equal(await answer({ authenticated: true, audiences: ['unfold-relay'], user: user('workspaces', {}) }), undefined, 'a token not bound to a pod claims nothing');
+});
+
+test('the chart lets the workbench review pod tokens only when it runs a warm pool', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
+  const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
+  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
+  const warm = render('workspaceProvisioner=sandbox', 'workspaceWarmPool=unfold-warm');
+  assert.equal(warm.status, 0, warm.stderr);
+  assert.match(warm.stdout, /resources: \[tokenreviews\]\n\s+verbs: \[create\]/);
+  assert.doesNotMatch(warm.stdout, /UNFOLD_POOL_TOKEN|poolTokenEnv/);
+  const pod = render();
+  assert.equal(pod.status, 0, pod.stderr);
+  assert.doesNotMatch(pod.stdout, /tokenreviews/);
 });

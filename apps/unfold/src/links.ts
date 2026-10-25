@@ -81,6 +81,8 @@ export class Links {
     url.searchParams.set('client_id', clientId!);
     url.searchParams.set('redirect_uri', this.redirectUri(provider));
     url.searchParams.set('state', state);
+    url.searchParams.set('code_challenge', base64url(createHash('sha256').update(verifier).digest()));
+    url.searchParams.set('code_challenge_method', 'S256');
     return url.toString();
   }
 
@@ -100,7 +102,7 @@ export class Links {
     } else {
       const { clientId, clientSecret, apiUrl, appUrl } = this.clickup()!;
       const url = new URL(`${apiUrl}/api/v2/oauth/token`);
-      const body = JSON.stringify({ client_id: clientId!, client_secret: clientSecret!, code });
+      const body = JSON.stringify({ client_id: clientId!, client_secret: clientSecret!, code, code_verifier: pending.verifier });
       let response: Response;
       try { response = await this.fetchImpl(url, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(10_000), redirect: 'error' }); }
       catch { throw new RuntimeFailure('connectivity', 'workspace', 'not_submitted', undefined, 'ClickUp could not be reached to exchange the link code.'); }
@@ -131,17 +133,32 @@ export class Links {
     return this.describe(userId, provider);
   }
 
+  /**
+   * Forgets a person's link and revokes its tokens upstream where the provider allows it. A token the provider keeps
+   * valid, because the person pasted it or the provider has no revocation endpoint, and a revocation that fails are
+   * logged without the token, so an operator can tell the person to remove it at the provider.
+   */
   async revoke(provider: LinkProvider, userId: string): Promise<void> {
     const record = this.record(provider, userId);
     this.store.deleteSecret(this.key(provider, userId));
-    if (!record || provider !== 'gitlab' || record.method === 'token' || !this.gitlab()?.clientId) return;
+    if (!record) return;
+    const log = (level: 'info' | 'warn', event: string, fields: Record<string, unknown>, message: string) => console.error(JSON.stringify({ level, event, provider, userId, method: record.method ?? 'oauth', ...fields, message }));
+    if (record.method === 'token') { log('info', 'link.revoke_skipped', {}, 'The person pasted this token; it stays valid at the provider until they revoke it there.'); return; }
+    if (provider === 'clickup' || !this.gitlab()?.clientId) { log('info', 'link.revoke_unsupported', {}, `${provider === 'clickup' ? 'ClickUp has no token revocation endpoint' : 'GitLab has no OAuth application configured'}; the token stays valid until the person removes the app at the provider.`); return; }
     const { baseUrl, clientId } = this.gitlab()!;
-    for (const token of [record.accessToken, record.refreshToken]) {
+    for (const [kind, token] of [['access', record.accessToken], ['refresh', record.refreshToken]] as const) {
       if (!token) continue;
-      await this.fetchImpl(`${baseUrl}/oauth/revoke`, {
-        method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ client_id: clientId, token }), signal: AbortSignal.timeout(10_000), redirect: 'error',
-      }).catch(() => undefined);
+      let status: number | undefined;
+      let reason: string | undefined;
+      try {
+        const response = await this.fetchImpl(`${baseUrl}/oauth/revoke`, {
+          method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ client_id: clientId, token }), signal: AbortSignal.timeout(10_000), redirect: 'error',
+        });
+        await response.body?.cancel().catch(() => {});
+        if (!response.ok) status = response.status;
+      } catch (error) { reason = (error as { cause?: { code?: string } })?.cause?.code ?? (error as Error)?.name ?? 'error'; }
+      if (status !== undefined || reason !== undefined) log('warn', 'link.revoke_failed', { token: kind, ...(status !== undefined ? { status } : { reason }) }, `GitLab did not confirm revoking the ${kind} token; it may stay valid until it expires.`);
     }
   }
 

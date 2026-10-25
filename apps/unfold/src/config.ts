@@ -395,8 +395,8 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (raw.kubernetes.provisioner === 'sandbox') {
       if (raw.kubernetes.transport !== 'pull') throw new Error('kubernetes.provisioner sandbox requires kubernetes.transport pull');
       const sandbox = raw.kubernetes.sandbox ?? {};
-      for (const key of ['runtimeClassName', 'warmPool', 'poolTokenEnv']) if (sandbox[key] !== undefined && (typeof sandbox[key] !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(sandbox[key]))) throw new Error(`kubernetes.sandbox.${key} must be a name`);
-      raw.kubernetes.sandbox = { runtimeClassName: sandbox.runtimeClassName ?? 'kata', warmPool: sandbox.warmPool, poolTokenEnv: sandbox.poolTokenEnv ?? 'UNFOLD_POOL_TOKEN' };
+      for (const key of ['runtimeClassName', 'warmPool']) if (sandbox[key] !== undefined && (typeof sandbox[key] !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(sandbox[key]))) throw new Error(`kubernetes.sandbox.${key} must be a name`);
+      raw.kubernetes.sandbox = { runtimeClassName: sandbox.runtimeClassName ?? 'kata', warmPool: sandbox.warmPool };
     }
   }
   if (raw.kubernetes?.agentSecrets !== undefined && (!Array.isArray(raw.kubernetes.agentSecrets) || raw.kubernetes.agentSecrets.some((name: unknown) => typeof name !== 'string' || !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(name)))) throw new Error('kubernetes.agentSecrets must list Kubernetes Secret names');

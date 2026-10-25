@@ -2,8 +2,8 @@
 type: reference
 audience: [owner, operator, contributor]
 owner: unfold
-last_verified: 2026-10-20
-verified_by: "Written with the implementation on branch feat/sqlite-hygiene: src/store.ts constructor, optimize and quickCheck, src/store-upkeep.ts and the upkeep hook in src/insight.ts; test/store-upkeep.test.ts passed. Durability trade-off from the 2026-10-20 research on single-replica restarts (section 3); the owner accepted it."
+last_verified: 2026-10-25
+verified_by: "The store key section written with the implementation on branch feat/no-shared-sandbox-credentials (src/store.ts, test/store-key.test.ts). Written with the implementation on branch feat/sqlite-hygiene: src/store.ts constructor, optimize and quickCheck, src/store-upkeep.ts and the upkeep hook in src/insight.ts; test/store-upkeep.test.ts passed. Durability trade-off from the 2026-10-20 research on single-replica restarts (section 3); the owner accepted it."
 ---
 
 # Storage
@@ -35,9 +35,27 @@ A passing check logs `store.quick_check` with `ok: true` and how long it took. A
 2. sends a `fatal` error report tagged `feature: store`, `check: quick_check` through the configured error reporting ([error reports](live.md#error-reports)),
 3. checks again the next day and reports again while the problem remains.
 
+## The store key
+
+Unfold encrypts its stored secrets (people's links, relay credentials, sign-in grants) with AES-256-GCM under one 32-byte key. Where that key lives:
+
+- **`UNFOLD_STORE_KEY` set.** The key comes from the environment, as base64 or 64 hex characters. In the chart, `storeKey.existingSecret` and `storeKey.secretKey` name the Secret, which an External Secret fills from OpenBao; a `UNFOLD_STORE_KEY` entry in `credentialsSecret` works too. The key then never touches the data volume, so a copy of the volume or a backup alone does not open the secrets.
+- **Unset.** The workbench creates `unfold.sqlite.key` next to the database on first start and reads it from there. This is the default for a local or demo workbench.
+
+A malformed `UNFOLD_STORE_KEY` stops the start rather than falling back to a file.
+
+### Moving the key off the volume
+
+1. Copy the existing key into OpenBao: `base64 -w0 /data/workbench/unfold.sqlite.key` in the workbench pod gives the value. Using the same bytes means older backups still open with the key in OpenBao.
+2. Point `storeKey.existingSecret` at the Secret that carries it and roll the workbench.
+3. On start the workbench opens every stored secret with `UNFOLD_STORE_KEY`. A row only the key file opens is sealed again under `UNFOLD_STORE_KEY`, so a new key works too. Then the database is checkpointed, the key file is deleted and `store.key_adopted` is logged with the number of resealed rows.
+4. If neither key opens a row, the start stops with `UNFOLD_STORE_KEY does not open the stored internal state` and nothing changes: the key file stays where it was.
+
+With a new key rather than the file's bytes, a backup taken before the move needs the old key file, so keep it with those backups until they age out.
+
 ## When the check fails
 
 1. Stop the workbench, so nothing writes to the damaged file.
-2. Copy `unfold.sqlite`, `unfold.sqlite-wal` and `unfold.sqlite.key` aside for analysis.
-3. Restore the last backup taken before the first failing check, with its key, and start the workbench.
+2. Copy `unfold.sqlite` and `unfold.sqlite-wal` aside for analysis, with `unfold.sqlite.key` if the workbench still keeps its [key](#the-store-key) in a file.
+3. Restore the last backup taken before the first failing check, with the key it was written under, and start the workbench.
 4. Run the check against the restored copy before relying on it: `sqlite3 unfold.sqlite 'PRAGMA quick_check'` prints `ok` for an intact database.

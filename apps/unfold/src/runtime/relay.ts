@@ -37,13 +37,19 @@ export function storedCredentials(store: { getSecret<T>(id: string): T | undefin
 
 const digestOf = (token: string): Buffer => createHash('sha256').update(token).digest();
 
-type Assignment = { sessionId: string; token: string; env: Record<string, string> };
+type Assignment = { sessionId: string; token: string; env: Record<string, string>; podUid?: string };
+
+/** The pod a warm worker proved it runs in. */
+export type PodIdentity = { name: string; uid: string };
+
+/** Verifies a warm pod's projected service account token and returns the pod it was issued to, or `undefined` when it proves nothing. */
+export type PodTokenVerifier = (token: string) => Promise<PodIdentity | undefined>;
 
 export class WorkerRelay {
   private readonly registrations = new Map<string, Registration>();
   private readonly assignments = new Map<string, Assignment>();
   private readonly poolWaiters = new Map<string, Set<() => void>>();
-  private poolToken?: Buffer;
+  private poolVerifier?: PodTokenVerifier;
   private readonly credentials: WorkerCredentials;
   private readonly uploads = new WeakSet<IncomingMessage>();
   private closed = false;
@@ -53,7 +59,8 @@ export class WorkerRelay {
 
   constructor(credentials: WorkerCredentials = memoryCredentials(), uploadIdleMs = 60_000) { this.credentials = credentials; this.uploadIdleMs = uploadIdleMs; }
 
-  configurePool(token: string | undefined): void { this.poolToken = token ? Buffer.from(token) : undefined; }
+  /** Lets warm pods claim their assignment with a token that `verifier` binds to one pod; without a verifier every claim is refused. */
+  configurePool(verifier: PodTokenVerifier | undefined): void { this.poolVerifier = verifier; }
 
   assign(podName: string, assignment: Assignment): void {
     this.assignments.set(podName, assignment);
@@ -188,12 +195,10 @@ export class WorkerRelay {
     };
   }
 
-  private poolAuthorized(req: IncomingMessage): boolean {
-    if (!this.poolToken) return false;
+  private async poolIdentity(req: IncomingMessage): Promise<PodIdentity | 'unavailable' | undefined> {
     const header = req.headers.authorization ?? '';
-    if (!header.startsWith('Bearer ')) return false;
-    const presented = Buffer.from(header.slice(7));
-    return presented.length === this.poolToken.length && timingSafeEqual(presented, this.poolToken);
+    if (!this.poolVerifier || !header.startsWith('Bearer ') || header.length > 16_384) return undefined;
+    try { return await this.poolVerifier(header.slice(7)); } catch { return 'unavailable'; }
   }
 
   async handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
@@ -201,9 +206,12 @@ export class WorkerRelay {
     const json = (status: number, value: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
     if (this.closed) { res.writeHead(503, { 'content-type': 'application/json', 'cache-control': 'no-store', connection: 'close' }); res.end(JSON.stringify({ error: { code: 'stopping', message: 'The workbench is stopping.' } })); return true; }
     if (url.pathname === `${this.basePath}pool/claim` && req.method === 'GET') {
-      if (!this.poolAuthorized(req)) { json(401, { error: { code: 'unauthorized', message: 'Pool token rejected.' } }); return true; }
-      const pod = url.searchParams.get('pod') ?? '';
-      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(pod) || pod.length > 253) { json(400, { error: { code: 'pod', message: 'pod must be a DNS label.' } }); return true; }
+      const identity = await this.poolIdentity(req);
+      if (identity === 'unavailable') { json(503, { error: { code: 'verifier_unavailable', message: 'The pod token could not be verified right now.' } }); return true; }
+      if (!identity) { json(401, { error: { code: 'unauthorized', message: 'Pod token rejected.' } }); return true; }
+      const pod = identity.name;
+      const named = url.searchParams.get('pod');
+      if (named !== null && named !== pod) { json(403, { error: { code: 'pod', message: 'A pod can only claim its own assignment.' } }); return true; }
       const wait = Math.min(maxPollMs, Math.max(0, Number(url.searchParams.get('wait') ?? maxPollMs) || 0));
       if (!this.assignments.has(pod) && wait > 0) {
         await new Promise<void>(done => {
@@ -218,6 +226,7 @@ export class WorkerRelay {
       if (req.destroyed) return true;
       const assignment = this.assignments.get(pod);
       if (!assignment) { json(200, { assignment: null }); return true; }
+      if (assignment.podUid && assignment.podUid !== identity.uid) { json(403, { error: { code: 'pod', message: 'This assignment belongs to an earlier pod with the same name.' } }); return true; }
       this.assignments.delete(pod);
       json(200, { assignment: { sessionId: assignment.sessionId, token: assignment.token, env: assignment.env } });
       return true;

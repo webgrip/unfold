@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync, chmodSync, existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { mkdirSync, chmodSync, existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
@@ -37,18 +37,57 @@ function eventFromRow(row: Record<string, unknown>): Event {
   return { id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) };
 }
 
+/**
+ * The store key from `UNFOLD_STORE_KEY`: 32 bytes as base64, base64url or 64 hex characters, or `undefined` when unset.
+ * A value that is set but malformed throws, so a workbench never silently falls back to a key file on its volume.
+ */
+export function storeKeyFromEnvironment(env: Record<string, string | undefined> = process.env): Buffer | undefined {
+  const value = env.UNFOLD_STORE_KEY?.trim();
+  if (!value) return undefined;
+  const key = /^[0-9a-fA-F]{64}$/.test(value) ? Buffer.from(value, 'hex') : /^[A-Za-z0-9+/_-]{43}=?$/.test(value) ? Buffer.from(value.replace(/=$/, ''), 'base64url') : undefined;
+  if (key?.length !== 32) throw new Error('UNFOLD_STORE_KEY must be 32 bytes as base64 or 64 hex characters');
+  return key;
+}
+
+function seal(key: Buffer, id: string, plaintext: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(Buffer.from(id));
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64');
+}
+
+function open(key: Buffer, id: string, ciphertext: string): string {
+  const bytes = Buffer.from(ciphertext, 'base64');
+  const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12));
+  decipher.setAAD(Buffer.from(id));
+  decipher.setAuthTag(bytes.subarray(12, 28));
+  return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8');
+}
+
+function opens(key: Buffer, id: string, ciphertext: string): string | undefined {
+  try { return open(key, id, ciphertext); } catch { return undefined; }
+}
+
+/** How a store gets the key that encrypts its internal state; without `key` it keeps one in a file next to the database. */
+export type StoreOptions = { key?: Buffer };
+
 export class Store {
   db: DatabaseSync;
   private encryptionKey: Buffer;
 
-  constructor(path: string) {
+  constructor(path: string, options: StoreOptions = {}) {
+    const keyPath = `${path}.key`;
+    let fileKey: Buffer | undefined;
     if (path !== ':memory:') {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-      const keyPath = `${path}.key`;
-      if (!existsSync(keyPath)) writeFileSync(keyPath, randomBytes(32), { mode: 0o600, flag: 'wx' });
-      this.encryptionKey = readFileSync(keyPath);
-      chmodSync(keyPath, 0o600);
-    } else this.encryptionKey = randomBytes(32);
+      if (options.key) fileKey = existsSync(keyPath) ? readFileSync(keyPath) : undefined;
+      else {
+        if (!existsSync(keyPath)) writeFileSync(keyPath, randomBytes(32), { mode: 0o600, flag: 'wx' });
+        chmodSync(keyPath, 0o600);
+      }
+    }
+    this.encryptionKey = options.key ?? (path === ':memory:' ? randomBytes(32) : readFileSync(keyPath));
     if (this.encryptionKey.length !== 32) throw new Error('Invalid internal state encryption key');
     this.db = new DatabaseSync(path);
     if (path !== ':memory:') chmodSync(path, 0o600);
@@ -105,6 +144,28 @@ export class Store {
       CREATE TABLE IF NOT EXISTS flag_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, flag_key TEXT NOT NULL, action TEXT NOT NULL, variant TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL);
     `);
     this.db.exec('PRAGMA optimize=0x10002');
+    if (options.key && path !== ':memory:') this.adoptKey(keyPath, fileKey);
+  }
+
+  private adoptKey(keyPath: string, fileKey: Buffer | undefined): void {
+    const rows = this.db.prepare('SELECT id, ciphertext FROM internal_state').all() as { id: string; ciphertext: string }[];
+    const update = this.db.prepare('UPDATE internal_state SET ciphertext=? WHERE id=?');
+    let resealed = 0;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const row of rows) {
+        if (opens(this.encryptionKey, row.id, row.ciphertext) !== undefined) continue;
+        const plaintext = fileKey && fileKey.length === 32 ? opens(fileKey, row.id, row.ciphertext) : undefined;
+        if (plaintext === undefined) throw new Error(`UNFOLD_STORE_KEY does not open the stored internal state${fileKey ? ', and neither does the key file' : ''}; start with the key this database was written with`);
+        update.run(seal(this.encryptionKey, row.id, plaintext), row.id);
+        resealed++;
+      }
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    if (!fileKey) return;
+    this.db.exec('PRAGMA wal_checkpoint(FULL)');
+    unlinkSync(keyPath);
+    console.error(JSON.stringify({ level: 'info', event: 'store.key_adopted', resealed, message: `Internal state is now sealed with UNFOLD_STORE_KEY; removed the key file next to the database after resealing ${resealed} of ${rows.length} rows.` }));
   }
 
   close(): void { this.db.close(); }
@@ -470,22 +531,14 @@ export class Store {
   }
 
   setSecret(id: string, value: unknown): void {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    cipher.setAAD(Buffer.from(id));
-    const encrypted = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
-    const ciphertext = Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64');
+    const ciphertext = seal(this.encryptionKey, id, JSON.stringify(value));
     this.db.prepare('INSERT INTO internal_state(id,ciphertext) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET ciphertext=excluded.ciphertext').run(id, ciphertext);
   }
 
   getSecret<T>(id: string): T | undefined {
     const row = this.db.prepare('SELECT ciphertext FROM internal_state WHERE id=?').get(id) as { ciphertext: string } | undefined;
     if (!row) return undefined;
-    const bytes = Buffer.from(row.ciphertext, 'base64');
-    const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, bytes.subarray(0, 12));
-    decipher.setAAD(Buffer.from(id));
-    decipher.setAuthTag(bytes.subarray(12, 28));
-    return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8'));
+    return JSON.parse(open(this.encryptionKey, id, row.ciphertext));
   }
 
   deleteSecret(id: string): void { this.db.prepare('DELETE FROM internal_state WHERE id=?').run(id); }
