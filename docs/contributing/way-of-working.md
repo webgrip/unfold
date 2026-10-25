@@ -26,7 +26,7 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 
 ## Branch rules
 
-Since 2026-10-11, `development` is protected in Forgejo: a pull request merges only when `[Workflow] On Pull Request / checks`, `release-policy` and `ploeg-pin` (all `(pull_request)`) passed, with no required approvals. `warnings` is left out on purpose, because it is sometimes never scheduled when two runs overlap. Pushing stays enabled, because the `release` job pushes its release commit straight to the branch; a direct push does not run through the checks, so only CI pushes there. `main`, which receives only promotion pull requests and the site's release commit, gets the same rule.
+Since 2026-10-11, `development` is protected in Forgejo: a pull request merges only when `[Workflow] On Pull Request / checks`, `release-policy` and `ploeg-pin` (all `(pull_request)`) passed, with no required approvals. `warnings` is left out on purpose, because it is sometimes never scheduled when two runs overlap. Pushing stays enabled. Until 2026-10-25 the `release` job pushed its release commit straight to the branch; releases now push only a tag, so no CI job needs to push to `development` any more. A direct push does not run through the checks, so nobody pushes there. `main`, which receives only promotion pull requests, gets the same rule.
 
 ## Where things are written down
 

@@ -95,7 +95,7 @@ The [release jobs](../../.forgejo/workflows/on_release_train.yml) run in the hou
 
 One release job versions both applications under a `unfold-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Unfold's and Ploeg's artifacts; Ploeg's final distribution waits for Unfold's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
 
-Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit after manifest preparation. That release commit differs from the tested source tip. The version must be a zero-major release candidate, and prereleases must not move `latest`.
+Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit. A release commits nothing, so the tag resolves to the tip the train's checks passed. The version must be a zero-major release candidate, and prereleases must not move `latest`.
 
 Do not open the gate if the preparation table remains incomplete. Publishing into real registries is the first irreversible distribution step; the procedure below recovers partial publication without deleting or recycling a version.
 

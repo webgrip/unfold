@@ -8,16 +8,17 @@ const { pathToFileURL } = require('node:url');
 const { execFileSync, spawnSync } = require('node:child_process');
 const os = require('node:os');
 const vm = require('node:vm');
-const { parse } = require('yaml');
+const { readYaml } = require('./yaml-documents.cjs');
 
 process.env.SEMANTIC_RELEASE_GITEA = 'true';
-const { makeConfig } = require('@webgrip/semantic-release-config');
+const { makeConfig, COMMIT_ANALYZER_PLUGIN, RELEASE_NOTES_PLUGIN, TAGS_ONLY_PLUGIN } = require('@webgrip/semantic-release-config');
 const root = path.resolve(__dirname, '..');
 const config = require(path.join(root, 'apps/.releaserc.cjs'));
 const policy = require('./release-policy.cjs');
 const semanticReleaseRoot = path.dirname(require.resolve('semantic-release'));
-const shared = makeConfig({});
+const afterInitialDevelopment = makeConfig({ monorepo: { name: 'unfold' }, initialDevelopment: false });
 const pluginOptions = (source, name) => source.plugins.find((entry) => Array.isArray(entry) && entry[0] === name)[1];
+const pluginNames = (source) => source.plugins.map((entry) => (Array.isArray(entry) ? entry[0] : entry));
 const logger = { log() {}, success() {}, warn() {}, error() {}, scope() { return this; } };
 const historicalCommit = fs.readFileSync(path.join(__dirname, 'fixtures/release-breaking-commit.txt'), 'utf8');
 const baseline = { version: '0.3.0', gitTag: 'unfold-v0.3.0', channels: [null] };
@@ -30,10 +31,24 @@ const context = (version = '0.4.0-rc.1') => ({
   nextRelease: { version, gitTag: `unfold-v${version}`, channel: 'development' },
 });
 const loadCore = (name) => import(pathToFileURL(path.join(semanticReleaseRoot, 'lib', name)).href);
-const analyze = async (options, message = historicalCommit) => {
-  const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
-  return analyzeCommits(options, { commits: [{ hash: '9028cf0718c65acbfc4f8bfd1be71f32417221ce', message }], logger, cwd: root });
+const gitIdentity = (home) => ({ ...process.env, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Release test', GIT_AUTHOR_EMAIL: 'release-test@example.invalid', GIT_COMMITTER_NAME: 'Release test', GIT_COMMITTER_EMAIL: 'release-test@example.invalid' });
+const withApplicationCommit = async (message, use) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-commit-'));
+  const env = gitIdentity(directory);
+  const git = (args, input) => execFileSync('git', args, { cwd: directory, env, input, encoding: 'utf8' }).trim();
+  try {
+    git(['-c', 'init.defaultBranch=development', 'init', '--quiet']);
+    fs.mkdirSync(path.join(directory, 'apps/unfold'), { recursive: true });
+    fs.writeFileSync(path.join(directory, 'apps/unfold/change.txt'), message);
+    git(['add', 'apps/unfold/change.txt']);
+    git(['commit', '--quiet', '--file=-'], message);
+    return await use({ cwd: path.join(directory, 'apps'), env, commit: { hash: git(['rev-parse', 'HEAD']), message } });
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 };
+const analyze = (options, message = historicalCommit, lastRelease = baseline) => withApplicationCommit(message, ({ cwd, env, commit }) =>
+  require(COMMIT_ANALYZER_PLUGIN).analyzeCommits(options, { commits: [commit], lastRelease, logger, cwd, env }));
 const nextVersion = async (tags, type) => {
   const { default: getLastRelease } = await loadCore('get-last-release.js');
   const { default: getNextVersion } = await loadCore('get-next-version.js');
@@ -41,9 +56,8 @@ const nextVersion = async (tags, type) => {
   const lastRelease = getLastRelease({ branch: candidate, options: config });
   return getNextVersion({ branch: candidate, lastRelease, nextRelease: { type, channel: branch.channel }, logger });
 };
-const publisher = () => parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
+const publisher = () => readYaml(path.join(root, '.forgejo/workflows/on_release_published.yml'));
 const floors = require('./release-floors.cjs');
-const gitIdentity = (home) => ({ ...process.env, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Release test', GIT_AUTHOR_EMAIL: 'release-test@example.invalid', GIT_COMMITTER_NAME: 'Release test', GIT_COMMITTER_EMAIL: 'release-test@example.invalid' });
 const repositoryWithOrphanedTags = (tags) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-tags-'));
   const run = (...args) => execFileSync('git', args, { cwd: directory, env: gitIdentity(directory), encoding: 'utf8' });
@@ -56,19 +70,22 @@ const repositoryWithOrphanedTags = (tags) => {
 };
 
 test('the installed release toolchain is the one exercised by this suite', () => {
-  for (const name of ['semantic-release', '@semantic-release/commit-analyzer', '@webgrip/semantic-release-config']) {
+  const versions = Object.fromEntries(['semantic-release', '@semantic-release/commit-analyzer', '@webgrip/semantic-release-config'].map((name) => {
     const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve(name)), 'package.json'), 'utf8'));
     console.log(`${name}: ${manifest.version}`);
-  }
+    return [name, manifest.version];
+  }));
+  assert.match(versions['@webgrip/semantic-release-config'], /^2\./, 'the tags-only configuration');
 });
 
-test('the actual historical breaking commit reproduces major before the policy and minor after it', async () => {
-  assert.equal(await analyze(pluginOptions(shared, '@semantic-release/commit-analyzer')), 'major');
-  assert.equal(await analyze(pluginOptions(config, '@semantic-release/commit-analyzer')), 'minor');
+test('the actual historical breaking commit is major once initial development ends, and minor for Unfold', async () => {
+  assert.equal(await analyze(pluginOptions(afterInitialDevelopment, COMMIT_ANALYZER_PLUGIN)), 'major');
+  assert.equal(await analyze(pluginOptions(config, COMMIT_ANALYZER_PLUGIN)), 'minor');
+  assert.equal(pluginOptions(config, COMMIT_ANALYZER_PLUGIN).initialDevelopment, true);
 });
 
 test('the baseline started Unfold at 0.4.0-rc.1, a version now below the release floor', async () => {
-  const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'));
+  const type = await analyze(pluginOptions(config, COMMIT_ANALYZER_PLUGIN));
   const version = await nextVersion([baseline], type);
   assert.equal(version, '0.4.0-rc.1');
   assert.throws(() => policy.verifyRelease({}, context(version), { tags: [] }), /at or below its release floor 0\.4\.0-rc\.34/);
@@ -78,7 +95,7 @@ test('the baseline started Unfold at 0.4.0-rc.1, a version now below the release
 
 test('later candidates advance the release candidate number above the floor, even for a breaking change', async () => {
   const floor = { version: '0.4.0-rc.34', gitTag: 'unfold-v0.4.0-rc.34', channels: ['development'] };
-  const type = await analyze(pluginOptions(config, '@semantic-release/commit-analyzer'), 'feat!: change API');
+  const type = await analyze(pluginOptions(config, COMMIT_ANALYZER_PLUGIN), 'feat!: change API', floor);
   const version = await nextVersion([baseline, floor], type);
   assert.equal(version, '0.4.0-rc.35');
   policy.verifyRelease({}, context(version), { tags: [floor.gitTag] });
@@ -116,23 +133,33 @@ test('a mistaken 1.x tag is rejected instead of producing another 1.x release', 
 });
 
 test('breaking headers and footers remain minor while ordinary commit behavior is preserved', async () => {
-  const options = pluginOptions(config, '@semantic-release/commit-analyzer');
+  const options = pluginOptions(config, COMMIT_ANALYZER_PLUGIN);
   for (const message of ['feat!: change API', 'fix(api)!: change API', 'docs: migration\n\nBREAKING CHANGE: required upgrade']) {
-    assert.equal(await analyze(options, message), 'minor');
+    assert.equal(await analyze(options, message), 'minor', message);
+    assert.equal(await analyze(options, message, { version: '1.2.0', gitTag: 'unfold-v1.2.0' }), 'minor', `${message} after 0.x`);
   }
   assert.equal(await analyze(options, 'fix: correct behavior'), 'patch');
   assert.equal(await analyze(options, 'feat: add behavior'), 'minor');
+  assert.equal(await analyze(options, 'chore(deps): update a dependency'), 'patch');
   assert.equal(await analyze(options, 'docs: explain behavior'), null);
 });
 
+test('a commit scoped site releases nothing on the Unfold train, breaking or not, because the veto is the last rule and no rule ends the analysis at major', async () => {
+  const options = pluginOptions(config, COMMIT_ANALYZER_PLUGIN);
+  assert.deepEqual(options.releaseRules.at(-1), { scope: 'site', release: false });
+  assert.deepEqual(options.releaseRules.filter((rule) => rule.release === 'major'), []);
+  for (const message of ['feat(site): add a page', 'fix(site): correct a link', 'feat(site)!: move the site to a new domain', 'fix(site): move\n\nBREAKING CHANGE: new domain']) {
+    assert.equal(await analyze(options, message), null, message);
+  }
+});
+
 test('the actual release notes retain a breaking-change compatibility warning', async () => {
-  const { generateNotes } = await import(pathToFileURL(require.resolve('@semantic-release/release-notes-generator')).href);
-  const notes = await generateNotes(pluginOptions(config, '@semantic-release/release-notes-generator'), {
-    commits: [{ hash: '9028cf0718c65acbfc4f8bfd1be71f32417221ce', message: historicalCommit }],
+  const notes = await withApplicationCommit(historicalCommit, ({ cwd, commit }) => require(RELEASE_NOTES_PLUGIN).generateNotes(pluginOptions(config, RELEASE_NOTES_PLUGIN), {
+    commits: [commit],
     lastRelease: { version: '0.3.0', gitTag: 'unfold-v0.3.0' },
     nextRelease: { version: '0.4.0-rc.1', gitTag: 'unfold-v0.4.0-rc.1' },
-    options: { repositoryUrl: 'https://forgejo.webgrip.dev/webgrip/glide.git' }, cwd: root, env: {}, logger,
-  });
+    options: { repositoryUrl: 'https://forgejo.webgrip.dev/webgrip/unfold.git' }, cwd, env: {}, logger,
+  }));
   assert.match(notes, /BREAKING CHANGES/);
   assert.match(notes, /managed worker authentication is now the default/);
   assert.match(notes, /explicit legacy authentication/);
@@ -161,7 +188,7 @@ test('condition verification blocks stable promotion even before a next version 
 
 test('the installed plugin pipeline loads and enforces both local release gates', async () => {
   const { default: loadPlugins } = await loadCore('plugins/index.js');
-  const options = { ...config, plugins: [config.plugins[0], ['@semantic-release/commit-analyzer', pluginOptions(config, '@semantic-release/commit-analyzer')]] };
+  const options = { ...config, plugins: [config.plugins[0], [COMMIT_ANALYZER_PLUGIN, pluginOptions(config, COMMIT_ANALYZER_PLUGIN)]] };
   const input = { cwd: root, env: {}, options, logger, stdout: process.stdout, stderr: process.stderr };
   const pipeline = await loadPlugins(input, {});
   const repository = repositoryWithOrphanedTags(['unfold-v0.4.0-rc.40']);
@@ -178,7 +205,7 @@ test('the installed plugin pipeline loads and enforces both local release gates'
   }
 });
 
-test('the installed release engine checks conditions before promotion and verifies versions before preparation', () => {
+test('the installed release engine checks conditions before promotion and verifies versions before tagging', () => {
   const engine = fs.readFileSync(path.join(semanticReleaseRoot, 'index.js'), 'utf8');
   const positions = ['await plugins.verifyConditions(context)', 'getReleaseToAdd(context)', 'await plugins.verifyRelease(context)', 'await plugins.prepare(context)', 'await tag(nextRelease.gitTag', 'await plugins.publish(context)'].map((step) => {
     const index = engine.indexOf(step);
@@ -188,34 +215,31 @@ test('the installed release engine checks conditions before promotion and verifi
   assert.deepEqual([...positions].sort((a, b) => a - b), positions);
 });
 
-test('one release prepares and commits Unfold at the Unfold version and never touches the pinned Ploeg', () => {
-  const exec = pluginOptions(config, '@semantic-release/exec');
-  assert.equal(exec.prepareCmd, 'node ../scripts/release-prepare.mjs ${nextRelease.version}');
-  const assets = pluginOptions(config, '@semantic-release/git').assets;
-  for (const asset of ['CHANGELOG.md', 'unfold/ops/helm/unfold/Chart.yaml', 'unfold/package.json', 'unfold/extensions/vscode/package.json', 'unfold/ops/cluster/agent-sandbox/warm-pool.yaml', 'unfold/ops/local/config.live.example.json']) {
-    assert.ok(assets.includes(asset), asset);
-    if (asset !== 'CHANGELOG.md') assert.ok(fs.existsSync(path.join(root, 'apps', asset)), asset);
-  }
-  assert.deepEqual(assets.filter(asset => asset.startsWith('ploeg')), []);
-  const prepare = fs.readFileSync(path.join(root, 'scripts/release-prepare.mjs'), 'utf8');
-  assert.ok(prepare.includes('apps/unfold/scripts/release-prepare.mjs'));
-  assert.match(fs.readFileSync(path.join(root, 'apps/unfold/scripts/release-prepare.mjs'), 'utf8'), /^stampVersion\(version\);$/m);
+test('a release is the tag alone: nothing is prepared or committed, and the guard refuses a plugin that commits', () => {
+  assert.equal(pluginOptions(config, '@semantic-release/exec').prepareCmd, undefined, 'publication stamps versions from the tag; the release writes no file');
+  assert.match(pluginOptions(config, '@semantic-release/exec').successCmd, /version=\$\{nextRelease\.version\}.*GITHUB_OUTPUT/);
+  assert.ok(pluginNames(config).includes(TAGS_ONLY_PLUGIN));
+  assert.deepEqual(pluginNames(config).filter((name) => /@semantic-release\/(git|changelog|npm)$/.test(name)), []);
+  const guard = require(TAGS_ONLY_PLUGIN);
+  guard.verifyConditions({}, { options: config });
+  assert.throws(() => guard.verifyConditions({}, { options: { ...config, plugins: [...config.plugins, ['@semantic-release/git', { assets: ['CHANGELOG.md'] }]] } }), (error) => error.code === 'ERELEASECOMMIT');
+  for (const retired of ['scripts/release-prepare.mjs', 'apps/unfold/scripts/release-prepare.mjs']) assert.ok(!fs.existsSync(path.join(root, retired)), retired);
   assert.ok(fs.readFileSync(path.join(root, 'apps/unfold/scripts/stamp-version.mjs'), 'utf8').includes("'ops/helm/unfold/Chart.yaml'"));
-  assert.doesNotMatch(prepare, /apps\/ploeg/);
 });
 
 test('effective configuration uses unfold-v tags and CI tests it before invoking release', () => {
   assert.equal(config.tagFormat, 'unfold-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
-  const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_train.yml'), 'utf8'));
+  const workflow = readYaml(path.join(root, '.forgejo/workflows/on_release_train.yml'));
   const steps = workflow.jobs.release.steps;
   const policy = steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
   assert.ok(policy >= 0 && policy < steps.findIndex(step => step.id === 'release'));
-  const action = parse(fs.readFileSync(path.join(root, '.forgejo/actions/release-policy/action.yml'), 'utf8'));
+  const action = readYaml(path.join(root, '.forgejo/actions/release-policy/action.yml'));
   const gate = action.runs.steps.find(step => step.run?.includes('node --test scripts/release-policy.test.cjs'));
   assert.equal(gate['working-directory'], undefined);
   assert.match(gate.run, /NODE_PATH="\$\{SEMREL_PREBAKED:\?/);
 });
+
 
 test('the actual artifact-publisher shell rejects application, major and stable tags before emitting outputs', () => {
   const parseStep = publisher().jobs['parse-release-tag'].steps.find(step => step.id === 'parse');
@@ -273,12 +297,11 @@ test('the actual Git history calculates the next Unfold candidate above every fl
   const { default: getCommits } = await loadCore('get-commits.js');
   const { default: getNextVersion } = await loadCore('get-next-version.js');
   const env = { ...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'safe.directory', GIT_CONFIG_VALUE_0: root };
-  const input = { cwd: root, env, logger, options: config };
+  const input = { cwd: path.join(root, 'apps'), env, logger, options: config };
   const [actualBranch] = await getTags(input, [{ ...branch, tags: [] }]);
   const lastRelease = getLastRelease({ ...input, branch: actualBranch });
   const commits = await getCommits({ ...input, lastRelease });
-  const { analyzeCommits } = await import(pathToFileURL(require.resolve('@semantic-release/commit-analyzer')).href);
-  const type = await analyzeCommits(pluginOptions(config, '@semantic-release/commit-analyzer'), { ...input, commits });
+  const type = await require(COMMIT_ANALYZER_PLUGIN).analyzeCommits(pluginOptions(config, COMMIT_ANALYZER_PLUGIN), { ...input, commits, lastRelease });
   assert.match(lastRelease.gitTag, /^unfold-v/);
   if (!type) {
     console.log(JSON.stringify({ lastRelease: lastRelease.gitTag, analyzedCommits: commits.length, type, nextRelease: null, publication: false }));

@@ -85,7 +85,7 @@ jobs:
     needs: [pending, checks, ploeg-pin]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6@sha256:58ce8639627ac522ceaee35b08803ec6846fd4fa138d4a3c3453a0afe75a0311
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.2@sha256:1fd0856cbfe52386712060bda1d84b9efa3de3d903d1754914d8cf6486d6fd37
     permissions:
       contents: write
     steps:
@@ -102,24 +102,18 @@ jobs:
       - name: Semantic Release
         id: release
         if: steps.head.outputs.current == 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.3
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.0.0
         with:
           package-path: apps
           package-name: unfold
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-      - name: Create the release Forgejo lost to the tag race
-        if: failure() && steps.release.outcome == 'failure'
-        env:
-          RELEASE_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
-          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-        run: node scripts/release-repair.mjs unfold-v
 
   site-release:
     if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [pending, release]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6@sha256:58ce8639627ac522ceaee35b08803ec6846fd4fa138d4a3c3453a0afe75a0311
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.2@sha256:1fd0856cbfe52386712060bda1d84b9efa3de3d903d1754914d8cf6486d6fd37
     permissions:
       contents: write
     steps:
@@ -135,14 +129,8 @@ jobs:
       - name: Semantic Release
         id: release
         if: steps.head.outputs.current == 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.3
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.0.0
         with:
           package-path: apps/site
           package-name: unfold-site
           token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-      - name: Create the release Forgejo lost to the tag race
-        if: failure() && steps.release.outcome == 'failure'
-        env:
-          RELEASE_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
-          GITEA_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-        run: node scripts/release-repair.mjs unfold-site-v

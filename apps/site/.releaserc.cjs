@@ -2,7 +2,4 @@
 
 const { makeConfig } = require('@webgrip/semantic-release-config');
 
-const config = makeConfig({ monorepo: true });
-config.tagFormat = 'unfold-site-v${version}';
-
-module.exports = config;
+module.exports = makeConfig({ monorepo: { name: 'unfold-site' } });

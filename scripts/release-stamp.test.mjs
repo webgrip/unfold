@@ -102,10 +102,3 @@ test('a chart without appVersion fails the stamp and leaves every other source u
   assert.match(result.stderr, /Chart\.yaml must declare version and appVersion/);
   assert.deepEqual(snapshot(root), before);
 });
-
-test('the release prepare step stamps through the same script', () => {
-  const prepare = readFileSync(join(application, 'scripts/release-prepare.mjs'), 'utf8');
-  assert.match(prepare, /from '\.\/stamp-version\.mjs'/);
-  assert.match(prepare, /^stampVersion\(version\);$/m);
-  assert.doesNotMatch(prepare, /\.version = version/);
-});

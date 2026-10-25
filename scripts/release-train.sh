@@ -1,8 +1,6 @@
 #!/usr/bin/env sh
 set -eu
 
-release_commit='^chore(release): '
-
 newest_tag() {
   git describe --tags --abbrev=0 --first-parent --match "$1[0-9]*" HEAD 2>/dev/null || true
 }
@@ -10,7 +8,7 @@ newest_tag() {
 unreleased_commits() {
   tag=$(newest_tag "$1")
   shift
-  git rev-list --count --invert-grep --grep="$release_commit" "${tag:+$tag..}HEAD" -- "$@"
+  git rev-list --count "${tag:+$tag..}HEAD" -- "$@"
 }
 
 emit() {
@@ -21,15 +19,14 @@ emit() {
 pending() {
   application=$(unreleased_commits unfold-v apps ':(exclude)apps/site')
   site=$(unreleased_commits unfold-site-v apps/site)
-  echo "Commits since the last release: $application for Unfold, $site for the site."
+  echo "Commits since the last release tag: $application for Unfold, $site for the site."
   emit sha "$(git rev-parse HEAD)"
   if [ "$application" -gt 0 ] || [ "$site" -gt 0 ]; then emit unreleased true; else emit unreleased false; fi
 }
 
 current() {
   checked=${1:?usage: scripts/release-train.sh current <the commit the checks passed>}
-  if git merge-base --is-ancestor "$checked" HEAD \
-    && [ "$(git rev-list --count --invert-grep --grep="$release_commit" "$checked..HEAD")" -eq 0 ]; then
+  if [ "$(git rev-parse --verify --quiet "$checked^{commit}" || true)" = "$(git rev-parse HEAD)" ]; then
     emit current true
   else
     echo "development moved past $checked, the commit the checks passed. The next release train releases the newer head."

@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
-const { parse } = require('yaml');
+const { readYaml } = require('./yaml-documents.cjs');
 
 process.env.SEMANTIC_RELEASE_GITEA = 'true';
 const root = path.resolve(__dirname, '..');
@@ -103,7 +103,7 @@ test('the publisher shell rejects application tags and mismatched manual refs be
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-publisher-'));
   const output = path.join(directory, 'output');
   try {
-    const workflow = parse(fs.readFileSync(path.join(root, '.forgejo/workflows/on_release_published.yml'), 'utf8'));
+    const workflow = readYaml(path.join(root, '.forgejo/workflows/on_release_published.yml'));
     const shell = workflow.jobs['parse-release-tag'].steps.find(step => step.id === 'parse').run;
     const valid = 'unfold-v0.4.0-rc.5';
     for (const [tag, ref, accepted] of [
@@ -158,7 +158,7 @@ test('the site train selects only site commits and cuts unfold-site-v tags', asy
     const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
     const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/unfold.git' });
     assert.equal(options.tagFormat, 'unfold-site-v${version}');
-    assert.equal(options.tagFormat, `${site.name}-v\${version}`, 'semantic-release-monorepo names release notes after the package');
+    assert.equal(options.tagFormat, `${site.name}-v\${version}`, 'the site train is named after its package');
     assert.ok(!options.plugins.some(plugin => (Array.isArray(plugin) ? plugin[0] : plugin).includes('release-policy')), 'the Unfold zero-major policy is not the site policy');
     const expected = { site: 'minor', 'site-fix': 'patch', unfold: null, ploeg: null, docs: null };
     for (const commit of commits) {
