@@ -5,6 +5,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scaledTimeout } from './timeframes.ts';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 
@@ -36,7 +37,7 @@ test('importing the entry module loads the application without starting it', asy
   const cwd = await mkdtemp(join(tmpdir(), 'unfold-import-'));
   try {
     const imported = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify(join(appRoot, 'src/main.ts'))}); console.log('imported')`], {
-      cwd, encoding: 'utf8', timeout: 60_000,
+      cwd, encoding: 'utf8', timeout: scaledTimeout(60_000),
       env: { PATH: process.env.PATH, HOME: cwd, NODE_COMPILE_CACHE: cache, UNFOLD_DATA_DIR: join(cwd, 'data'), UNFOLD_PORT: '0' },
     });
     assert.equal(imported.status, 0, imported.stderr);

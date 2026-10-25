@@ -10,7 +10,7 @@ import { RuntimeFailure } from '../src/failures.ts';
 import type { RuntimeWorkspaces } from '../src/runtime/opencode.ts';
 import type { AppConfig, RuntimeEvent } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
-import { deadlineAfter } from './timeframes.ts';
+import { deadlineAfter, testTimeout } from './timeframes.ts';
 
 const timeLimitMs = 3000;
 
@@ -139,7 +139,7 @@ async function gone(pid: number): Promise<boolean> {
   return false;
 }
 
-test('a supervisor killed before it can stop its bridge still settles the turn and leaves no bridge behind', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+test('a supervisor killed before it can stop its bridge still settles the turn and leaves no bridge behind', { skip: process.platform === 'win32', timeout: testTimeout(20_000) }, async () => {
   const f = await fixture("import {writeFileSync} from 'node:fs';writeFileSync('runner.pid',String(process.pid));setInterval(()=>{},1000)");
   const pending = f.runtime.execute(f.context);
   const settled = pending.then(() => 'resolved', () => 'rejected');
@@ -156,7 +156,7 @@ test('a supervisor killed before it can stop its bridge still settles the turn a
   }
 });
 
-test('a supervisor killed before any of its messages reach the runtime still leaves no bridge behind', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+test('a supervisor killed before any of its messages reach the runtime still leaves no bridge behind', { skip: process.platform === 'win32', timeout: testTimeout(20_000) }, async () => {
   const f = await fixture("import {writeFileSync} from 'node:fs';writeFileSync('runner.pid',String(process.pid));setInterval(()=>{},1000)");
   const pending = f.runtime.execute(f.context);
   const supervisor = (f.runtime as unknown as { active: Map<string, { child: { pid: number; removeAllListeners: (event: string) => void } }> }).active.get(f.context.workspace.id)!.child;
@@ -174,7 +174,7 @@ test('a supervisor killed before any of its messages reach the runtime still lea
   }
 });
 
-test('a result is kept when the bridge leaves a background child holding its output open', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+test('a result is kept when the bridge leaves a background child holding its output open', { skip: process.platform === 'win32', timeout: testTimeout(20_000) }, async () => {
   const f = await fixture(`import {spawn} from 'node:child_process';import {writeFileSync} from 'node:fs';
 const lingering=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','inherit','inherit']});
 writeFileSync('lingering.pid',String(lingering.pid));

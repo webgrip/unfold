@@ -14,7 +14,7 @@ import { KubernetesWorkspaces } from '../src/runtime/kubernetes.ts';
 import { relayEndpoint, storedCredentials, type WorkerRelay } from '../src/runtime/relay.ts';
 import type { AgentRuntime, AppConfig, RuntimeKind, Session, User } from '../src/types.ts';
 import { configuration, createInput } from './api-support.ts';
-import { testTimeout, waitFor } from './timeframes.ts';
+import { scaledTimeout, testTimeout, waitFor } from './timeframes.ts';
 
 const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
 const owner: User = { id: 'owner', name: 'Owner', role: 'operator' };
@@ -129,7 +129,7 @@ async function workbench(t: TestContext, options: { graceMs?: number; worker?: R
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-restart-'));
   const config: AppConfig = configuration(dataDir, 'live');
   config.runtime = { kind: 'opencode', backend: 'kubernetes', backends: ['kubernetes'], timeoutMs: 120_000, briefCheck: false, reconnectGraceMs: options.graceMs ?? 20_000 };
-  config.kubernetes = { namespace: 'workspaces', image: 'registry.example/agent:1', storageSize: '1Gi', cpu: '1', memory: '1Gi', transport: 'pull', relayUrl: 'http://127.0.0.1:0', provisionTimeoutMs: 20_000 };
+  config.kubernetes = { namespace: 'workspaces', image: 'registry.example/agent:1', storageSize: '1Gi', cpu: '1', memory: '1Gi', transport: 'pull', relayUrl: 'http://127.0.0.1:0', provisionTimeoutMs: scaledTimeout(20_000) };
   config.ploeg = { url: ploegUrl, tokenEnv, teams: ['delivery'], userTeams: { owner: ['delivery'] } };
   config.execution = { team: 'delivery', heartbeatMs: 1000 };
   const runtimes = (relay: WorkerRelay) => new Map<RuntimeKind, AgentRuntime>([['opencode', new OpenCodeRuntime(config, new WorkspaceManager(config, { relay, kubernetes: new KubernetesWorkspaces(config, cluster.client as any, relay) }))]]);
