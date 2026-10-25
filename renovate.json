@@ -11,7 +11,7 @@
     "**/vendor/**",
     "**/examples/**",
     "**/__tests__/**",
-    "**/test/**",
+    "**/test/fixtures/**",
     "**/tests/**",
     "**/__fixtures__/**",
     "apps/*/.forgejo/**",
@@ -52,6 +52,32 @@
       "matchStrings": [
         "\"(?<depName>docker\\.io/[^:\"\\s]+):(?<currentValue>[^@\"\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
       ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The local MCP end-to-end compose file runs the Authentik that the nightly mcp-e2e job runs through Harbor's ghcr proxy. Naming the dependency after the workflow's image puts both pins in one update, so one pull request moves both; the proxy serves the upstream digest.",
+      "managerFilePatterns": [
+        "/^apps/unfold/test/e2e/authentik\\.compose\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ghcr\\.io/goauthentik/server:(?<currentValue>[^@\\s}]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "depNameTemplate": "harbor.webgrip.dev/ghcr/goauthentik/server",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "See the Authentik manager above: the compose file's Postgres moves with the nightly job's Postgres from Harbor's Docker Hub proxy.",
+      "managerFilePatterns": [
+        "/^apps/unfold/test/e2e/authentik\\.compose\\.yaml$/"
+      ],
+      "matchStrings": [
+        "UNFOLD_E2E_POSTGRES_IMAGE:-postgres:(?<currentValue>[^@\\s}]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "depNameTemplate": "harbor.webgrip.dev/dockerhub/library/postgres",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"
     },

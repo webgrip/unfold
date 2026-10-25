@@ -83,6 +83,7 @@ test('unfold-mcp\'s end-to-end suite runs every night and on command against an 
   assert.equal(job.env.UNFOLD_E2E_AUTHENTIK_TOKEN, authentik.env.AUTHENTIK_BOOTSTRAP_TOKEN);
   const compose = fs.readFileSync(path.join(root, 'apps/unfold/test/e2e/authentik.compose.yaml'), 'utf8');
   assert.ok(compose.includes(authentik.image.replace('harbor.webgrip.dev/ghcr/', 'ghcr.io/')), 'CI and the local compose file run the same Authentik');
+  assert.ok(compose.includes(`:-${postgresql.image.replace('harbor.webgrip.dev/dockerhub/library/', '')}}`), 'CI and the local compose file run the same Postgres');
   assert.ok(!Object.values(workflows['on_source_change.yml'].jobs).some(other => [other.needs ?? []].flat().includes('mcp-e2e')), 'it reports; it gates no release');
 });
 
@@ -678,4 +679,20 @@ test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, 
   assert.deepEqual(rule.postUpgradeTasks.fileFilters, ['**/pnpm-lock.yaml']);
   assert.equal(rule.postUpgradeTasks.commands.length, 1);
   assert.match(rule.postUpgradeTasks.commands[0], homelabAllowedLockfileRefresh, 'the self-hosted Renovate runs only commands its allowedCommands list');
+});
+
+test('Renovate reads every image of the local MCP compose file under the nightly job\'s name for it, so one update moves both pins', () => {
+  const composeFile = 'apps/unfold/test/e2e/authentik.compose.yaml';
+  const compose = fs.readFileSync(path.join(root, composeFile), 'utf8');
+  const { authentik, postgresql } = workflows['on_nightly.yml'].jobs['mcp-e2e'].services;
+  const config = renovateConfig();
+  const hiding = config.ignorePaths.filter(pattern => path.matchesGlob(composeFile, pattern));
+  assert.deepEqual(hiding, [], 'Renovate reads no file that ignorePaths matches');
+  const readers = config.customManagers.filter(manager => manager.managerFilePatterns.some(pattern => new RegExp(pattern.slice(1, -1)).test(composeFile)));
+  const pins = readers.flatMap(manager => manager.matchStrings.flatMap(expression => [...compose.matchAll(new RegExp(expression, 'g'))]
+    .map(match => `${manager.depNameTemplate}:${match.groups.currentValue}@${match.groups.currentDigest}`)));
+  const images = new Set([...compose.matchAll(/^\s*image: (.+)$/gm)].map(match => match[1]));
+  assert.equal(pins.length, images.size, 'every image the compose file names is pinned under a Renovate manager');
+  assert.deepEqual(pins.sort(), [authentik.image, postgresql.image].sort());
+  assert.ok(readers.every(manager => manager.datasourceTemplate === 'docker' && manager.versioningTemplate === 'docker'), 'the workflow manager looks images up as docker with docker versioning');
 });
