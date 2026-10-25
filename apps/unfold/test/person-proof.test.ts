@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { Store } from '../src/store.ts';
 import { PersonProof, personProof, personTokenHeader, tokenExpiry, type SignInTokens } from '../src/person-proof.ts';
 import { actionContext } from '../src/action-records.ts';
+import { mcpToolbox } from '../src/chat/tools.ts';
 import { validatePloeg } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { application, configuration, request } from './api-support.ts';
@@ -179,7 +180,7 @@ test('without a refresh token an expired sign-in falls back to the asserted head
   assert.equal(proof.status('oidc-person', other).gap, 'no_grant', 'a login without kept tokens proves nobody');
 });
 
-test('the token goes only with a change made by the person it proves, never for someone acting for another or through unfold-mcp over HTTP', async t => {
+test('the token goes only with a change made by the person it proves, never for someone acting for another or a delegated credential without proof', async t => {
   const store = scratchStore(t);
   const idp = await exchangeServer(t);
   const env = secretEnv(t);
@@ -190,10 +191,85 @@ test('the token goes only with a change made by the person it proves, never for 
   await proof.send('oidc-person', 'oidc-admin', ploeg.call);
   await proof.send('unfold-cards', undefined, ploeg.call);
   await actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp' }, () => proof.send('oidc-person', undefined, ploeg.call));
-  assert.deepEqual(ploeg.calls, [{}, {}, {}]);
+  await actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp', proof: { source: 'sign_in', userId: 'oidc-admin' } }, () => proof.send('oidc-person', undefined, ploeg.call));
+  await actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp', proof: { source: 'request', userId: 'oidc-admin', accessToken: 'admin-access', subject: 'admin-sub', expiresAt: Date.now() + 300_000 } }, () => proof.send('oidc-person', undefined, ploeg.call));
+  assert.deepEqual(ploeg.calls, [{}, {}, {}, {}, {}]);
   assert.equal(idp.seen.length, 0);
   await actionContext.run({ via: 'browser', confirmation: null, scope: 'browser', signIn }, () => proof.send('oidc-person', undefined, ploeg.call));
-  assert.ok(ploeg.calls[3][personTokenHeader]);
+  assert.ok(ploeg.calls[5][personTokenHeader]);
+});
+
+test('unfold-mcp over HTTP exchanges the access token of that request, once per request, and never the kept sign-in', async t => {
+  const store = scratchStore(t);
+  const idp = await exchangeServer(t);
+  const env = secretEnv(t);
+  const proof = new PersonProof({ tokenUrl: idp.url, clientId: 'unfold-exchange', clientSecretEnv: env, audience: 'ploeg-for-unfold' }, store);
+  proof.remember(login(store), 'oidc-person', 'person-sub', { accessToken: 'kept-browser-access', expiresInSeconds: 3600 });
+  const ploeg = recordingPloeg();
+  const carried = { source: 'request' as const, userId: 'oidc-person', accessToken: 'mcp-access', subject: 'person-sub', expiresAt: Date.now() + 300_000 };
+  await actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp', proof: carried }, async () => {
+    await proof.send('oidc-person', 'oidc-person', ploeg.call);
+    await proof.send('oidc-person', undefined, ploeg.call);
+  });
+  assert.deepEqual(idp.seen.map(form => [form.subject_token, form.subject_token_type, form.audience, form.client_id]), [['mcp-access', 'urn:ietf:params:oauth:token-type:access_token', 'ploeg-for-unfold', 'unfold-exchange']]);
+  assert.ok(ploeg.calls[0][personTokenHeader]);
+  assert.equal(ploeg.calls[1][personTokenHeader], ploeg.calls[0][personTokenHeader], 'two changes in one request share one exchange');
+  const next = { ...carried, accessToken: 'next-mcp-access' };
+  await actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp', proof: next }, () => proof.send('oidc-person', undefined, ploeg.call));
+  assert.equal(idp.seen.at(-1)!.subject_token, 'next-mcp-access', 'the next request exchanges its own token; nothing outlives a request');
+  assert.equal(idp.seen.length, 2);
+});
+
+test('an unfold-mcp token that expired, is refused, proves someone else or that Ploeg rejects falls back to the asserted headers', async t => {
+  const store = scratchStore(t);
+  const env = secretEnv(t);
+  const settings = { clientId: 'unfold-exchange', clientSecretEnv: env, audience: 'ploeg-for-unfold' };
+  const carried = (extra: Record<string, unknown> = {}) => ({ source: 'request' as const, userId: 'oidc-person', accessToken: 'mcp-access', subject: 'person-sub', expiresAt: Date.now() + 300_000, ...extra });
+  const viaMcp = (proof: PersonProof, delegated: ReturnType<typeof carried>, call: (headers: Record<string, string>) => Promise<Response>) => actionContext.run({ via: 'mcp:claude-code', confirmation: null, scope: 'mcp', proof: delegated }, () => proof.send('oidc-person', undefined, call));
+
+  const idp = await exchangeServer(t);
+  const healthy = new PersonProof({ ...settings, tokenUrl: idp.url }, store);
+  const ploeg = recordingPloeg();
+  const expired = await captured(() => viaMcp(healthy, carried({ expiresAt: Date.now() - 1 }), ploeg.call));
+  assert.equal(idp.seen.length, 0, 'an expired token is never sent to the provider');
+  assert.match(expired.lines.join(' '), /"gap":"expired"/);
+
+  const refusing = await exchangeServer(t, { status: () => 400 });
+  await captured(() => viaMcp(new PersonProof({ ...settings, tokenUrl: refusing.url }, store), carried(), ploeg.call));
+  assert.equal(refusing.seen.length, 1, 'a refused token is not retried: there is no refresh token behind it');
+
+  const stranger = await exchangeServer(t, { subject: 'someone-else' });
+  await captured(() => viaMcp(new PersonProof({ ...settings, tokenUrl: stranger.url }, store), carried(), ploeg.call));
+  assert.deepEqual(ploeg.calls, [{}, {}, {}]);
+
+  const answers = [401, 200];
+  const rejecting = recordingPloeg(() => answers.shift() ?? 200);
+  const { value, lines } = await captured(() => viaMcp(healthy, carried(), rejecting.call));
+  assert.equal(value.status, 200);
+  assert.ok(rejecting.calls[0][personTokenHeader]);
+  assert.deepEqual(rejecting.calls[1], {});
+  for (const line of [...expired.lines, ...lines]) assert.ok(!line.includes('mcp-access') && !line.includes(rejecting.calls[0][personTokenHeader]), 'neither token reaches a log');
+});
+
+test('the Agents-window chat\'s delegated tools prove the person with their kept sign-in', async t => {
+  const store = scratchStore(t);
+  const idp = await exchangeServer(t);
+  const env = secretEnv(t);
+  const proof = new PersonProof({ tokenUrl: idp.url, clientId: 'unfold-exchange', clientSecretEnv: env, audience: 'ploeg-for-unfold' }, store);
+  proof.remember(login(store), 'oidc-person', 'person-sub', { accessToken: 'kept-browser-access', expiresInSeconds: 3600 });
+  const ploeg = recordingPloeg();
+  await actionContext.run({ via: 'mcp:unfold-chat', confirmation: null, scope: 'mcp', proof: { source: 'sign_in', userId: 'oidc-person' } }, () => proof.send('oidc-person', undefined, ploeg.call));
+  assert.equal(idp.seen[0].subject_token, 'kept-browser-access');
+  assert.ok(ploeg.calls[0][personTokenHeader]);
+});
+
+test('the chat toolbox delegates each tool call with the person\'s kept sign-in as its proof', async t => {
+  const proofs: unknown[] = [];
+  const api = await listen(t, () => ({ status: 200, body: [] }));
+  const toolbox = mcpToolbox({ delegate: (_user, _ttlMs, proof) => { proofs.push(proof); return { token: `vlm_${'x'.repeat(43)}`, revoke() {} }; }, apiUrl: () => api, linkUrl: api, version: 'test' });
+  const answer = await toolbox.run({ id: 'oidc-person', name: 'person@example.com', role: 'operator' }, 'unfold_sessions', {});
+  assert.equal(answer.ok, true, answer.text);
+  assert.deepEqual(proofs, [{ source: 'sign_in', userId: 'oidc-person' }]);
 });
 
 test('a token for another subject is never sent, and a person token Ploeg refuses is retried once without it', async t => {

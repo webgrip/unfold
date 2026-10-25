@@ -50,3 +50,20 @@ test('a delegated credential acts at the lower of its role and the stored role, 
   assert.equal(auth.user(request(orphan.token, 'GET', '/api/sessions')), undefined, 'an account that no longer exists');
   assert.equal(store.getUser('oidc-gone'), undefined);
 });
+
+test('a delegated credential hands over the proof it carries only while it and the carried token are live, and only for its own person', async t => {
+  const { auth, request } = await setup(t);
+  const person = { id: 'oidc-person', name: 'person@example.com', role: 'operator' as const };
+  const carried = { source: 'request' as const, userId: 'oidc-person', accessToken: 'mcp-access', subject: 'person-sub', expiresAt: Date.now() + 60_000 };
+  const live = auth.delegate(person, 60_000, carried);
+  assert.equal(auth.delegatedProof(request(live.token, 'POST', '/api/ploeg/work-items/184/approve')), carried);
+  live.revoke();
+  assert.equal(auth.delegatedProof(request(live.token, 'POST', '/api/ploeg/work-items/184/approve')), undefined, 'revoked with its credential');
+  const lapsed = auth.delegate(person, 60_000, { ...carried, expiresAt: Date.now() - 1 });
+  assert.equal(auth.delegatedProof(request(lapsed.token, 'POST', '/api/ploeg/work-items/184/approve')), undefined, 'never past the carried token\'s exp');
+  const foreign = auth.delegate(person, 60_000, { ...carried, userId: 'oidc-someone-else' });
+  assert.equal(auth.delegatedProof(request(foreign.token, 'POST', '/api/ploeg/work-items/184/approve')), undefined, 'a proof for someone else is never attached');
+  const chat = auth.delegate(person, 60_000, { source: 'sign_in', userId: 'oidc-person' });
+  assert.deepEqual(auth.delegatedProof(request(chat.token, 'POST', '/api/ploeg/work-items/184/approve')), { source: 'sign_in', userId: 'oidc-person' });
+  assert.equal(auth.delegatedProof(request('editor-or-browser', 'POST', '/api/ploeg/work-items/184/approve')), undefined);
+});

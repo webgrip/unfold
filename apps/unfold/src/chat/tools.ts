@@ -1,3 +1,4 @@
+import type { DelegatedProof } from '../person-proof.ts';
 import type { User } from '../types.ts';
 import { confirmationLedger, createMcpServer, mcpModernProtocolVersions } from '../mcp.ts';
 import type { ChatTool, ChatToolbox, ToolAnswer, ToolPlan } from './service.ts';
@@ -6,7 +7,7 @@ type Json = Record<string, any>;
 
 /** What the chat's toolbox needs from the Unfold server: a short-lived credential for the person, where its own API answers, and where links point. */
 export type McpToolboxOptions = {
-  delegate(user: User, ttlMs: number): { token: string; revoke(): void };
+  delegate(user: User, ttlMs: number, proof: DelegatedProof): { token: string; revoke(): void };
   apiUrl(): string;
   linkUrl: string;
   version: string;
@@ -29,7 +30,7 @@ export function mcpToolbox(options: McpToolboxOptions): ChatToolbox {
   let listed: Promise<ChatTool[]> | undefined;
 
   async function call(user: User, name: string, args: Json, modern: Json | undefined): Promise<Json> {
-    const delegated = options.delegate(user, delegationMs);
+    const delegated = options.delegate(user, delegationMs, { source: 'sign_in', userId: user.id });
     try {
       const answer = await server(user, delegated.token).handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args, ...(modern ?? {}) } });
       if (!answer || answer.error) throw new Error(String(answer?.error?.message ?? 'The tool did not answer.'));

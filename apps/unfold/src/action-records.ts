@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { DelegatedProof } from './person-proof.ts';
 
 /** One state-changing call a person made, whatever channel it came through (system ADR-0037). */
 export type ActionRecord = {
@@ -22,10 +23,10 @@ export type ActionTarget = { kind: 'work-item' | 'session' | 'task'; id: string 
 
 /**
  * The channel and confirmation of the request being served, which the Ploeg client forwards as `X-Ploeg-Via` and
- * `X-Ploeg-Confirmation`, the credential kind that authenticated it, and for a browser session the hash of its login,
- * whose kept sign-in tokens prove the person to Ploeg.
+ * `X-Ploeg-Confirmation`, the credential kind that authenticated it, for a browser session the hash of its login,
+ * whose kept sign-in tokens prove the person to Ploeg, and for a delegated credential the proof it carries.
  */
-export type ActionContext = { via: string; confirmation: string | null; scope?: 'browser' | 'editor' | 'mcp'; signIn?: string };
+export type ActionContext = { via: string; confirmation: string | null; scope?: 'browser' | 'editor' | 'mcp'; signIn?: string; proof?: DelegatedProof };
 
 /** Holds the {@link ActionContext} of the request being served. */
 export const actionContext = new AsyncLocalStorage<ActionContext>();

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccessTokenVerifier, KeysUnavailable, TokenRefused, challenge, metadataPath, resourceMetadata, type AccessToken, type McpHttpSettings } from './mcp-auth.ts';
 import { confirmationLedger, createMcpServer, mcpModernProtocolVersions, mcpProtocolVersions } from './mcp.ts';
 import { lowerRole, subjectUserId } from './oidc.ts';
+import type { DelegatedProof } from './person-proof.ts';
 import type { User, UserRole } from './types.ts';
 
 /** What the MCP endpoint inside the Unfold server needs from the rest of it. */
@@ -12,7 +13,8 @@ export type McpHttpOptions = {
   findUser(id: string): User | undefined;
   /** The role verified claims entitle, by the same rule as browser sign-in; undefined when they entitle none. */
   entitle(claims: Record<string, unknown>): UserRole | undefined;
-  delegate(user: User, ttlMs: number): { token: string; revoke(): void };
+  /** A credential acting as `user` for one request, carrying `proof` for the Ploeg changes it makes. */
+  delegate(user: User, ttlMs: number, proof: DelegatedProof): { token: string; revoke(): void };
   /** Where this process's own API answers, such as its loopback address. */
   apiUrl(): string;
   /** Where links in tool results point: the Unfold people open in a browser. */
@@ -64,7 +66,8 @@ async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
 /**
  * Serves `unfold-mcp` as stateless Streamable HTTP with JSON responses, behind an OAuth 2.1 resource-server check.
  * Each request's access token is verified, its subject is mapped to an Unfold account, and the tools then call
- * Unfold's API as that account with a short-lived credential of this process. The caller's token goes no further.
+ * Unfold's API as that account with a short-lived credential of this process. The caller's token goes no further
+ * than that credential: a Ploeg change made with it exchanges the token for a person token and never forwards it.
  */
 export function createMcpHttp(options: McpHttpOptions) {
   const { settings } = options;
@@ -121,7 +124,7 @@ export function createMcpHttp(options: McpHttpOptions) {
         if (name === undefined || decodeHeader(name) !== params?.name) return rpcError(res, 400, id, -32020, 'Header mismatch: Mcp-Name is missing or does not match the tool name.');
       }
     }
-    const delegated = options.delegate(user, delegationMs);
+    const delegated = options.delegate(user, delegationMs, { source: 'request', userId: user.id, accessToken: authorization[1], subject: token.subject, expiresAt: token.expiresAt });
     let answer: any;
     try {
       const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations });

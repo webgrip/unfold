@@ -243,7 +243,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     finish: (user, team, chatId) => ploeg.finishChat(user, team, chatId),
     allowance: (user, team) => ploeg.chatAllowance(user, team),
   } : undefined;
-  const chatTools = mcpToolbox({ delegate: (user, ttlMs) => auth.delegate(user, ttlMs), apiUrl: () => loopbackUrl(server.address() as AddressInfo), linkUrl: config.baseUrl ?? '', version: applicationVersion });
+  const chatTools = mcpToolbox({ delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof), apiUrl: () => loopbackUrl(server.address() as AddressInfo), linkUrl: config.baseUrl ?? '', version: applicationVersion });
   agentHost?.useChat(new ChatService(chatAuthority, chatTools, { demo: config.mode === 'demo', gatewayUrl: config.litellm?.baseUrl, secrets }));
   const flags = new FeatureFlags({ registry: loadRegistry(), settings: config.flags ?? { document: {}, unknown: [] }, store });
   flags.watch();
@@ -306,7 +306,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
     findUser: id => account(store.getUser(id)),
     entitle: claims => entitledRole(config.auth.oidc!, claims),
-    delegate: (user, ttlMs) => auth.delegate(user, ttlMs),
+    delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
     apiUrl: () => loopbackUrl(server.address() as AddressInfo),
     linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
     version: applicationVersion,
@@ -1073,7 +1073,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       try { store.recordAction({ at: new Date().toISOString(), userId: user.id, userName: user.name, role: user.role, channel, action, method, target, inputs: recordedInputs({ ...(parsedBodies.get(req) ?? {}), ...(requested.search ? { query: Object.fromEntries(requested.searchParams) } : {}) }) as Record<string, unknown>, confirmation, status: res.statusCode, outcome: outcomeOf(res.statusCode) }); }
       catch (error) { console.error(JSON.stringify({ level: 'error', event: 'action_record.failed', action, message: String((error as Error).message).slice(0, 300) })); }
     });
-    void actionContext.run({ via: channel, confirmation, ...(scope ? { scope } : {}), ...(scope === 'browser' && signIn ? { signIn } : {}) }, () => handle(req, res));
+    const proof = scope === 'mcp' ? auth.delegatedProof(req) : undefined;
+    void actionContext.run({ via: channel, confirmation, ...(scope ? { scope } : {}), ...(scope === 'browser' && signIn ? { signIn } : {}), ...(proof ? { proof } : {}) }, () => handle(req, res));
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;

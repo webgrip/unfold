@@ -365,7 +365,7 @@ Without this, Unfold calls Ploeg with its consumer token and names the person in
 | Key | Meaning |
 | --- | --- |
 | `tokenUrl` | The identity provider's token endpoint. Authentik serves one for all applications at `/application/o/token/` |
-| `clientId` | A confidential client allowed only the token exchange grant, which federates the provider people sign in to Unfold with |
+| `clientId` | A confidential client allowed only the token exchange grant, which federates the providers people sign in to Unfold with: the browser's and the one `UNFOLD_MCP_ISSUER` names for `unfold-mcp` over HTTP |
 | `clientSecretEnv` | The environment variable holding that client's secret. At the estate it comes from OpenBao `authentik/unfold-exchange-oidc`, key `client_secret`, through the credentials Secret |
 | `audience` | The exchange's target: the provider whose tokens Ploeg accepts for Unfold, such as `ploeg-for-unfold` |
 
@@ -375,7 +375,8 @@ What Unfold does with it:
 
 * At sign-in it keeps the person's access token, and the refresh token when the provider returns one, encrypted in its store and bound to that browser login. Signing out deletes them; store upkeep deletes them once the login expires. The browser never sees them.
 * Before each change it makes in Ploeg for a person, it exchanges the access token (`grant_type` `urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type` access token, `audience` as configured) and sends the result as `X-Ploeg-Person-Token` beside the usual headers. It reuses the result until 30 seconds before it expires. Reads carry no person token.
-* When it cannot get a token, the change goes out as before, with the person named by Unfold, and the Status page tells that person in plain words. An expired access token is refreshed first when a refresh token is kept. An administrator acting for someone else's session and `unfold-mcp` over HTTP never send one.
+* A change through `unfold-mcp` over HTTP exchanges the access token of that request instead, once per request; Unfold neither keeps nor refreshes it. The Agents-window chat's tools use the person's kept sign-in.
+* When it cannot get a token, the change goes out as before, with the person named by Unfold, and the Status page tells that person in plain words. An expired access token is refreshed first when a refresh token is kept. An administrator acting for someone else's session never sends one.
 
 What the identity provider and Ploeg need:
 

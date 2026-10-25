@@ -478,3 +478,62 @@ test('an action through unfold-mcp over HTTPS asks with input_required, acts onc
   assert.equal(decided.length, 1, 'a sealed confirmation acts at most once');
   assert.equal(records().length, 1);
 });
+
+test('an action through unfold-mcp over HTTPS proves the person to Ploeg with a token exchanged from that request\'s access token', async t => {
+  const rsa = rsaSigner();
+  const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
+  t.after(() => idp.close());
+  const ploegEnv = `UNFOLD_MCP_PLOEG_${randomBytes(6).toString('hex').toUpperCase()}`;
+  const exchangeEnv = `UNFOLD_MCP_EXCHANGE_${randomBytes(6).toString('hex').toUpperCase()}`;
+  process.env[ploegEnv] = randomBytes(24).toString('hex');
+  process.env[exchangeEnv] = randomBytes(24).toString('hex');
+  t.after(() => { delete process.env[ploegEnv]; delete process.env[exchangeEnv]; });
+  const exchanged: Record<string, string>[] = [];
+  const issuedFor = (sub: string) => { const now = Math.floor(Date.now() / 1000); return jwt(rsa.signer, { iss: 'https://sso.example.test/', sub, aud: 'ploeg-for-unfold', azp: 'ploeg-for-unfold', iat: now, exp: now + 300 }); };
+  const exchange = createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    exchanged.push(Object.fromEntries(new URLSearchParams(body)));
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ access_token: issuedFor('person-sub'), token_type: 'Bearer', expires_in: 300 }));
+  });
+  exchange.listen(0, '127.0.0.1');
+  await once(exchange, 'listening');
+  t.after(() => new Promise<void>(done => exchange.close(() => done())));
+  const posted: { method: string; personToken: unknown }[] = [];
+  const ploeg = createServer((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    const send = (status: number, payload: object) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...payload }));
+    posted.push({ method: req.method!, personToken: req.headers['x-ploeg-person-token'] });
+    if (url.pathname.endsWith('/teams')) return send(200, { teams: ploegDemo.teams });
+    if (req.method === 'POST' && url.pathname.endsWith('/work-items/106/approve')) return send(200, { decision: { workItemId: '106', team: 'delivery', state: 'queued' } });
+    const detail = ploegDemo.details[url.pathname.split('/').at(-1)!];
+    return detail ? send(200, detail) : send(404, { error: { code: 'not_found', message: 'no' } });
+  });
+  ploeg.listen(0, '127.0.0.1');
+  await once(ploeg, 'listening');
+  t.after(() => new Promise<void>(done => ploeg.close(() => done())));
+  const personId = subjectUserId(browserIssuer, 'person-sub');
+  const unfold = await application('live', config => {
+    config.baseUrl = undefined;
+    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } };
+    config.mcp = settingsFor(idp.issuer);
+    config.ploeg = { url: `http://127.0.0.1:${(ploeg.address() as { port: number }).port}`, tokenEnv: ploegEnv, userTeams: { [personId]: ['delivery'] }, personTokens: { tokenUrl: `http://127.0.0.1:${(exchange.address() as { port: number }).port}/application/o/token/`, clientId: 'unfold-exchange', clientSecretEnv: exchangeEnv, audience: 'ploeg-for-unfold' } };
+  });
+  t.after(() => unfold.close());
+  unfold.app.store.addUser({ id: personId, name: 'person@example.com', role: 'operator', passwordHash: '' });
+  const clientMeta = { ...meta({ elicitation: {} }), 'io.modelcontextprotocol/clientInfo': { name: 'Claude Code', version: '2.1.296' } };
+  const access = jwt(rsa.signer, claimsFor(idp.issuer));
+  const approve = (id: number, extra: Record<string, unknown> = {}) => post(unfold.url, { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_approve_work', arguments: { id: '106' }, _meta: clientMeta, ...extra } }, { token: access });
+  const pending = await approve(1);
+  assert.equal(pending.json.result.resultType, 'input_required', pending.text);
+  assert.equal(exchanged.length, 0, 'asking to confirm changes nothing and exchanges nothing');
+  const done = await approve(2, { inputResponses: { confirm_action: { action: 'accept', content: { confirm: true } } }, requestState: pending.json.result.requestState });
+  assert.equal(done.json.result.structuredContent.done, true, done.text);
+  assert.deepEqual(exchanged.map(form => ({ subject_token: form.subject_token, client_id: form.client_id, audience: form.audience })), [{ subject_token: access, client_id: 'unfold-exchange', audience: 'ploeg-for-unfold' }]);
+  const [change] = posted.filter(call => call.method === 'POST');
+  assert.ok(typeof change.personToken === 'string' && change.personToken.split('.').length === 3, 'the approval carries the exchanged person token');
+  assert.notEqual(change.personToken, access, 'the caller\'s own token is never forwarded');
+  assert.ok(posted.filter(call => call.method === 'GET').every(call => call.personToken === undefined), 'reads carry no person token');
+  for (const text of [pending.text, done.text]) assert.ok(!text.includes(String(change.personToken)), 'the person token never reaches the MCP client');
+  assert.equal(unfold.app.store.personGrantLogins(personId).length, 0, 'nothing of the request is kept');
+});
