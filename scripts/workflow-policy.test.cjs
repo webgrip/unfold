@@ -360,6 +360,30 @@ test('the chart is published only after every image of the release, and defaults
   assert.ok(publisher.jobs['unfold-release-distribute'].needs.includes('unfold-release-publish-chart'), 'the mirrors copy the chart only after it is published');
 });
 
+test('every publish job stamps the version from the release tag into the tagged tree before it packages or builds', () => {
+  const version = '${{ needs.parse-release-tag.outputs.version }}';
+  const stampAt = (steps, sources) => steps.findIndex(step => step.run === `node apps/unfold/scripts/stamp-version.mjs "$VERSION"${sources}` && step.env?.VERSION === version);
+  const chart = publisher.jobs['unfold-release-publish-chart'].steps;
+  const chartStamp = stampAt(chart, ' chart');
+  assert.ok(chartStamp > chart.findIndex(step => step.uses?.startsWith('actions/checkout@')), 'the chart job stamps its checkout of the tag');
+  assert.ok(chartStamp < chart.findIndex(step => step.run?.includes('python3 scripts/publish_chart.py unfold')), 'the chart job stamps before it packages');
+  const extension = publisher.jobs['unfold-release-publish-extension'].steps;
+  const extensionStamp = stampAt(extension, '');
+  assert.ok(extensionStamp > extension.findIndex(step => step.uses?.includes('/mise-action@')), 'the extension job installs Node before it stamps');
+  assert.ok(extensionStamp < extension.findIndex(step => step.run?.includes('run package --')), 'the extension job stamps before it packages the VSIX');
+  const build = publisher.jobs['unfold-release-distribute-harbor'].steps.find(step => step.id === 'build');
+  assert.match(build.uses, /\/docker-build-push-registry-fast@/);
+  assert.ok(build.with['docker-build-args'].split('\n').includes(`IMAGE_VERSION=${version}`), 'the composite checks the tag out again, so the image build stamps from its IMAGE_VERSION argument');
+  const dockerfile = fs.readFileSync(path.join(root, 'apps/unfold/Dockerfile'), 'utf8');
+  const stage = dockerfile.slice(dockerfile.indexOf(' AS stage\n'), dockerfile.indexOf(' AS git\n'));
+  const stamp = stage.indexOf('RUN if [ "${IMAGE_VERSION}" != dev ]; then node scripts/stamp-version.mjs "${IMAGE_VERSION}" app; fi\n');
+  assert.ok(stamp > stage.indexOf('COPY scripts ./scripts\n') && stage.indexOf('COPY scripts ./scripts\n') > stage.indexOf('COPY package.json package-lock.json ./\n'), 'the stage stamps the manifests the runtime reads after copying the stamp script');
+  assert.ok(stage.indexOf('ARG IMAGE_VERSION=dev\n') < stamp);
+  const publishChart = fs.readFileSync(path.join(root, 'scripts/publish_chart.py'), 'utf8');
+  assert.match(publishChart, /'helm', 'package', str\(staged\), '--destination', str\(destination\), '--version', version, '--app-version', version/);
+  assert.doesNotMatch(publishChart, /Chart metadata does not match the release version/);
+});
+
 test('the chart job signs the chart it publishes with the image signing identity, so a consumer can verify it before following a candidate', () => {
   const chart = publisher.jobs['unfold-release-publish-chart'];
   assert.equal(chart['enable-openid-connect'], true);
@@ -695,4 +719,30 @@ test('Renovate reads every image of the local MCP compose file under the nightly
   assert.equal(pins.length, images.size, 'every image the compose file names is pinned under a Renovate manager');
   assert.deepEqual(pins.sort(), [authentik.image, postgresql.image].sort());
   assert.ok(readers.every(manager => manager.datasourceTemplate === 'docker' && manager.versioningTemplate === 'docker'), 'the workflow manager looks images up as docker with docker versioning');
+});
+
+test('Renovate moves the committed unfold-agent references to the newest Unfold candidate on Harbor without cutting a release', () => {
+  const config = renovateConfig();
+  const files = ['apps/unfold/ops/cluster/agent-sandbox/warm-pool.yaml', 'apps/unfold/ops/local/config.live.example.json'];
+  const committed = JSON.parse(fs.readFileSync(path.join(root, 'apps/unfold/package.json'), 'utf8')).version;
+  for (const file of files) {
+    assert.deepEqual(config.ignorePaths.filter(pattern => path.matchesGlob(file, pattern)), [], `Renovate reads ${file}`);
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    const readers = config.customManagers.filter(manager => manager.managerFilePatterns.some(pattern => new RegExp(pattern.slice(1, -1)).test(file)));
+    assert.equal(readers.length, 1, `one manager owns ${file}`);
+    const [manager] = readers;
+    const dependencies = manager.matchStrings.flatMap(expression => [...text.matchAll(new RegExp(expression, 'g'))].map(match => match.groups));
+    assert.equal(dependencies.length, [...text.matchAll(/harbor\.webgrip\.dev\/webgrip\/unfold-agent:/g)].length, `every unfold-agent reference in ${file} is extracted`);
+    assert.ok(dependencies.length > 0, file);
+    for (const dependency of dependencies) assert.deepEqual({ ...dependency }, { depName: 'harbor.webgrip.dev/webgrip/unfold-agent', currentValue: committed });
+    assert.deepEqual([manager.datasourceTemplate, manager.versioningTemplate], ['docker', 'semver']);
+  }
+  const rules = config.packageRules.filter(rule => (rule.matchPackageNames ?? []).includes('harbor.webgrip.dev/webgrip/unfold-agent'));
+  assert.equal(rules.length, 1);
+  const [rule] = rules;
+  assert.equal(rule.ignoreUnstable, false, 'every Unfold release is an rc candidate, which Renovate otherwise skips');
+  assert.equal(rule.rollbackPrs, false, 'a reference ahead of Harbor is a release still publishing');
+  assert.equal(rule.semanticCommitType, 'chore');
+  assert.notEqual(rule.semanticCommitScope, 'deps', 'chore(deps) releases Unfold, and that release would offer its image again');
+  for (const candidate of ['0.4.0-rc.115', '0.4.0', '0.5.0-rc.1']) assert.match(`harbor.webgrip.dev/webgrip/unfold-agent:${candidate}`, new RegExp(`^${config.customManagers.find(manager => manager.managerFilePatterns.some(pattern => pattern.includes('warm-pool'))).matchStrings[0]}$`));
 });

@@ -97,6 +97,19 @@
     },
     {
       "customType": "regex",
+      "description": "The agent sandbox warm pool and the live local example run the released unfold-agent image. Renovate moves them to the newest candidate the release pushed to Harbor, so they do not depend on a release commit to follow the release.",
+      "managerFilePatterns": [
+        "/^apps/unfold/ops/cluster/agent-sandbox/warm-pool\\.yaml$/",
+        "/^apps/unfold/ops/local/config\\.live\\.example\\.json$/"
+      ],
+      "matchStrings": [
+        "(?<depName>harbor\\.webgrip\\.dev/webgrip/unfold-agent):(?<currentValue>\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "The landscape build loads Mermaid and Marked from jsDelivr inside Playwright.",
       "managerFilePatterns": [
         "/^apps/unfold/scripts/build-landscape\\.mjs$/"
@@ -156,6 +169,19 @@
       "groupName": "opencode",
       "semanticCommitType": "fix",
       "semanticCommitScope": "agent"
+    },
+    {
+      "description": "Every Unfold release is a candidate X.Y.Z-rc.N, so the released unfold-agent image is offered as one. Moving the references releases nothing: a releasing commit type would cut a candidate whose image Renovate then offers again. A reference ahead of Harbor is a release still publishing, not one to roll back.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "harbor.webgrip.dev/webgrip/unfold-agent"
+      ],
+      "ignoreUnstable": false,
+      "rollbackPrs": false,
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "agent-image"
     },
     {
       "description": "engines ranges are compatibility floors, not dependencies. Pinning or bumping engines.vscode narrows which VS Code builds the extension installs on, and engines.node is the deliberate Node 24 line. Both move by hand.",

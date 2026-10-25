@@ -1,27 +1,15 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { applicationRoot as root, releaseVersion, stampVersion } from './stamp-version.mjs';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
 const version = process.argv[2];
-if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+if (!releaseVersion.test(version ?? '')) {
   console.error('usage: release-prepare.mjs <bare-semver>');
   process.exit(2);
 }
 
-function setVersion(file, transform) {
-  const path = resolve(root, file);
-  const manifest = JSON.parse(readFileSync(path, 'utf8'));
-  transform(manifest);
-  writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
-}
-
-for (const file of ['package.json', 'extensions/vscode/package.json']) setVersion(file, manifest => { manifest.version = version; });
-for (const file of ['package-lock.json', 'extensions/vscode/package-lock.json']) setVersion(file, lock => {
-  lock.version = version;
-  if (lock.packages && lock.packages['']) lock.packages[''].version = version;
-});
+stampVersion(version);
 
 const releasedAgentImage = /(harbor\.webgrip\.dev\/webgrip\/unfold-agent:)\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?/g;
 for (const file of ['ops/cluster/agent-sandbox/warm-pool.yaml', 'ops/local/config.live.example.json']) {
