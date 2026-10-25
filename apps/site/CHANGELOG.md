@@ -1,3 +1,23 @@
+## [unfold-site-v1.0.0-rc.10](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.9...unfold-site-v1.0.0-rc.10) (2026-10-25)
+
+### Added
+
+* **deps:** update all non-major dependencies ([427a162](https://forgejo.webgrip.dev/webgrip/unfold/commit/427a1621bc955fbb6ad484fbdbe99d6732e6fc98))
+* **deps:** update all non-major dependencies ([0720254](https://forgejo.webgrip.dev/webgrip/unfold/commit/0720254f1237dc0f063bac1f2d1db57722485fa3))
+
+### Fixed
+
+* **site:** keep Prettier off the AGENTS.md that APM generates ([a2ae2f0](https://forgejo.webgrip.dev/webgrip/unfold/commit/a2ae2f04b2126cde263f430d5c33c184c15ddfb0)), references [#587](https://forgejo.webgrip.dev/webgrip/unfold/issues/587)
+* **site:** record pnpm 12.15.0 in the site lockfile ([377fe86](https://forgejo.webgrip.dev/webgrip/unfold/commit/377fe86f3904d8314c410626c3d314281c255e71)), references [#593](https://forgejo.webgrip.dev/webgrip/unfold/issues/593)
+
+### CI
+
+* **release:** release Unfold from an hourly train that checks the development head ([7cb23e7](https://forgejo.webgrip.dev/webgrip/unfold/commit/7cb23e7e20cfc9549d040ff1b9642761050cab0d))
+
+### Internal
+
+* **agents:** source every agent rule, skill and command in .apm (agent standard v0.2.0) ([d03f654](https://forgejo.webgrip.dev/webgrip/unfold/commit/d03f6547c038bde6286392264f7404cb666801ec))
+
 ## [unfold-site-v1.0.0-rc.9](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.8...unfold-site-v1.0.0-rc.9) (2026-10-14)
 
 ### Added
