@@ -220,6 +220,18 @@
       "matchCurrentVersion": "<1.0.0",
       "matchUpdateTypes": ["minor"],
       "automerge": false
+    },
+    {
+      "description": "pnpm 11 and later keep the pnpm that packageManager names in the lockfile's first document (packageManagerDependencies), and a frozen install refuses a lockfile whose record disagrees. The self-hosted Renovate image runs its own global pnpm, which switches to the packageManager version with package-manager management turned off, so that record keeps the old version (#593, fixed by hand in #596). Corepack runs exactly the pnpm packageManager names, as CI does, and that pnpm rewrites the record. The homelab's allowedCommands must list this command; docs/operations/ci-troubleshooting.md has the entry.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["packageManager"],
+      "matchDepNames": ["pnpm"],
+      "postUpgradeTasks": {
+        "commands": ["corepack pnpm install --lockfile-only --ignore-scripts --ignore-pnpmfile"],
+        "workingDirTemplate": "{{{packageFileDir}}}",
+        "fileFilters": ["**/pnpm-lock.yaml"],
+        "executionMode": "update"
+      }
     }
   ],
   "helm-values": {

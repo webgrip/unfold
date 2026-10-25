@@ -7,7 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { parse } = require('yaml');
+const { parse, parseAllDocuments } = require('yaml');
 
 const root = path.resolve(__dirname, '..');
 const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'));
@@ -649,4 +649,33 @@ test('the weekly schedule fails loudly when Forgejo loses imported release notes
   assert.equal(verify.env.UNFOLD_REQUIRE_IMPORT_NOTES, 'true');
   assert.equal(verify['continue-on-error'], undefined);
   assert.doesNotMatch(JSON.stringify(job), /git push|secrets\./);
+});
+
+const renovateConfig = () => JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
+const homelabAllowedLockfileRefresh = /^corepack pnpm install --lockfile-only --ignore-scripts --ignore-pnpmfile$/;
+const pnpmProjects = () => fs.readdirSync(path.join(root, 'apps'))
+  .map(app => path.join('apps', app))
+  .filter(directory => fs.existsSync(path.join(root, directory, 'pnpm-lock.yaml')));
+
+test('every pnpm lockfile records the pnpm its package.json names, which a frozen install requires', () => {
+  assert.ok(pnpmProjects().length > 0, 'the site is a pnpm project');
+  for (const directory of pnpmProjects()) {
+    const wanted = JSON.parse(fs.readFileSync(path.join(root, directory, 'package.json'), 'utf8')).packageManager;
+    assert.match(wanted, /^pnpm@\d+\.\d+\.\d+$/, `${directory} pins one pnpm release`);
+    const [environment] = parseAllDocuments(fs.readFileSync(path.join(root, directory, 'pnpm-lock.yaml'), 'utf8')).map(document => document.toJS());
+    const recorded = environment.importers['.'].packageManagerDependencies.pnpm;
+    assert.deepEqual([recorded.specifier, recorded.version], [wanted.slice('pnpm@'.length), wanted.slice('pnpm@'.length)], `${directory}/pnpm-lock.yaml records pnpm ${recorded.version}, package.json names ${wanted}: run corepack pnpm install --lockfile-only in ${directory}`);
+  }
+});
+
+test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, through a command the homelab allows', () => {
+  const rules = renovateConfig().packageRules.filter(rule => rule.postUpgradeTasks && (rule.matchDepNames ?? []).includes('pnpm'));
+  assert.equal(rules.length, 1);
+  const [rule] = rules;
+  assert.deepEqual([rule.matchManagers, rule.matchDepTypes], [['npm'], ['packageManager']], 'only a move of packageManager changes the record');
+  assert.equal(rule.postUpgradeTasks.workingDirTemplate, '{{{packageFileDir}}}', 'the command runs where the moved package.json lives');
+  assert.equal(rule.postUpgradeTasks.executionMode, 'update');
+  assert.deepEqual(rule.postUpgradeTasks.fileFilters, ['**/pnpm-lock.yaml']);
+  assert.equal(rule.postUpgradeTasks.commands.length, 1);
+  assert.match(rule.postUpgradeTasks.commands[0], homelabAllowedLockfileRefresh, 'the self-hosted Renovate runs only commands its allowedCommands list');
 });
