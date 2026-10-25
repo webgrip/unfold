@@ -11,6 +11,7 @@ const captured = [
   '\x1b[1mnpm\x1b[22m \x1b[33mwarn\x1b[39m \x1b[94mdeprecated\x1b[39m prebuild-install@7.1.3: No longer maintained.',
   ' WARN  deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported',
   'warning: `VIRTUAL_ENV=/x/.venv` does not match the project environment path `.venv` and will be ignored',
+  'warning: You appear to have cloned an empty repository.',
   '(node:2492591) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///a.ts is not specified',
   '(node:2492592) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///a.ts is not specified',
   '(node:2500503) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time',
@@ -28,7 +29,7 @@ const ignored = [
 
 test('each tool warning is found once, with its repeat count, and test output that mentions warnings is not', () => {
   const warnings = findWarnings(`${captured}\n${ignored}`);
-  assert.deepEqual(warnings.map(warning => warning.tool), ['mise', 'npm', 'pnpm', 'uv', 'node', 'node', 'python', 'actions', 'build']);
+  assert.deepEqual(warnings.map(warning => warning.tool), ['mise', 'npm', 'pnpm', 'git or uv', 'git or uv', 'node', 'node', 'python', 'actions', 'build']);
   assert.equal(warnings[0].line, 'mise WARN  missing: npm:@fission-ai/openspec@1.13.2');
   assert.equal(warnings.find(warning => warning.line.includes('MODULE_TYPELESS')).count, 2);
 });
@@ -37,7 +38,7 @@ test('an allowlisted warning is accepted and every other warning still reports',
   const allowed = [{ pattern: '^\\(node\\) ExperimentalWarning: stripTypeScriptTypes', reason: 'deliberate' }];
   const warnings = findWarnings(captured, allowed);
   assert.ok(!warnings.some(warning => warning.line.includes('stripTypeScriptTypes')));
-  assert.equal(warnings.length, 8);
+  assert.equal(warnings.length, 9);
 });
 
 test('the report is empty without warnings and counts repeats', () => {

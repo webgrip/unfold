@@ -66,7 +66,8 @@ async function repository(t: TestContext) {
   await mkdir(origin, { recursive: true });
   git(origin, 'init', '-q', '--bare');
   const seed = join(dir, 'seed');
-  git(dir, 'clone', '-q', origin, seed);
+  git(dir, 'init', '-q', seed);
+  git(seed, 'remote', 'add', 'origin', origin);
   await writeFile(join(seed, 'README.md'), 'hello\n');
   git(seed, 'add', 'README.md');
   git(seed, 'commit', '-q', '-m', 'init');
