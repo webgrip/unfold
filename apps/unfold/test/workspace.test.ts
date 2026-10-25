@@ -83,6 +83,31 @@ test('Kubernetes lifecycle provisions real API resource shapes and retains PVC o
   assert.ok(calls.some(call => call.startsWith('POST /apis/networking.k8s.io/')));
 });
 
+test('a linked forge token reaches only the clone container and leaves the workspace Secret once the clone finished', async () => {
+  const config = configuration();
+  const linked = { ...repository, access: { username: 'oauth2', password: 'link-token-never-agent' } };
+  const manifests = workspaceManifests(config, session, linked, credential, { username: 'opencode', password: 'basic-private' }, managedConfig(config));
+  const pod = manifests.find(item => item.kind === 'Pod')!;
+  assert.deepEqual(pod.spec.initContainers[0].env.filter((e: any) => e.valueFrom?.secretKeyRef?.key?.startsWith('git-')).map((e: any) => e.name), ['GIT_USERNAME', 'GIT_PASSWORD']);
+  assert.equal(JSON.stringify(pod.spec.containers).includes('git-password'), false, 'the agent container never references the forge token');
+  const objects = new Map<string, any>();
+  const fake = { async request(path: string, method = 'GET', body?: any) {
+    if (method === 'GET') return objects.get(path);
+    if (method === 'DELETE') { objects.delete(path); return {}; }
+    const object = structuredClone(body);
+    object.metadata.resourceVersion = '1';
+    if (object.kind === 'Pod') object.status = { phase: 'Running', conditions: [{ type: 'Ready', status: 'True' }] };
+    objects.set(method === 'POST' ? path + '/' + object.metadata.name : path, object); return object;
+  } };
+  const manager = new KubernetesWorkspaces(config, fake as any);
+  const workspace = await manager.prepare(session, linked, credential, new AbortController().signal, managedConfig(config));
+  const secret = [...objects.values()].find(item => item.kind === 'Secret');
+  assert.equal(JSON.stringify(secret).includes('link-token-never-agent'), false);
+  assert.ok(secret.stringData.OPENCODE_SERVER_PASSWORD, 'a restarted workbench can still read the workspace credentials back');
+  assert.ok(secret.stringData.askpass, 'the mounted askpass helper stays');
+  await manager.dispose(workspace);
+});
+
 function pendingPodClient(status: Record<string, unknown>) {
   const objects = new Map<string, any>();
   return { async request(path: string, method = 'GET', body?: any) {

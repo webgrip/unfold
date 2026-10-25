@@ -28,11 +28,8 @@ spec:
           env:
             - name: UNFOLD_POOL_URL
               value: http://unfold.unfold.svc:4080/api/relay/pool
-            - name: UNFOLD_POOL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: unfold-pool
-                  key: UNFOLD_POOL_TOKEN
+            - name: UNFOLD_POOL_TOKEN_FILE
+              value: /var/run/secrets/unfold-relay/token
             - name: UNFOLD_POD_NAME
               valueFrom:
                 fieldRef:
@@ -68,10 +65,20 @@ spec:
               mountPath: /workspace
             - name: tmp
               mountPath: /tmp
+            - name: unfold-relay-token
+              mountPath: /var/run/secrets/unfold-relay
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        - name: unfold-relay-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: unfold-relay
+                  expirationSeconds: 600
+                  path: token
   volumeClaimTemplates:
     - metadata:
         name: workspace

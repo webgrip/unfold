@@ -1,7 +1,7 @@
 import { defaultWorkspaceRetentionDays } from './runtime/retention.ts';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Store, adoptRenamedDatabase } from './store.ts';
+import { Store, adoptRenamedDatabase, storeKeyFromEnvironment } from './store.ts';
 import { Engine } from './engine.ts';
 import { DemoRuntime } from './runtime/demo.ts';
 import { OpenCodeRuntime } from './runtime/opencode.ts';
@@ -25,7 +25,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const databasePath = join(config.dataDir, 'unfold.sqlite');
   const adopted = adoptRenamedDatabase(databasePath);
   if (adopted) console.error(JSON.stringify({ level: 'info', event: 'store.renamed', message: `Moved the database from ${adopted} to ${databasePath}.` }));
-  const store = new Store(databasePath);
+  const store = new Store(databasePath, { key: storeKeyFromEnvironment() });
   const relay = new WorkerRelay(storedCredentials(store));
   const runtimes = typeof options.runtimes === 'function' ? options.runtimes(relay) : options.runtimes || new Map<RuntimeKind, AgentRuntime>();
   if (!options.runtimes) {

@@ -294,6 +294,20 @@ export async function captureInPlace(relay: WorkerRelay, config: AppConfig, sess
   finally { await control('/__unfold/stop-child', undefined, 30_000).catch(() => {}); }
 }
 
+const cloneCredentialKeys = ['git-username', 'git-password'];
+
+/**
+ * Removes the clone credentials from a workspace's Secret once its clone container has finished, so the person's
+ * forge token outlives the clone only in the workbench, never in the cluster.
+ */
+export async function removeCloneCredentials(client: Pick<KubernetesClient, 'request'>, path: string): Promise<boolean> {
+  const secret = await client.request(path, 'GET', undefined, true);
+  if (!secret || !cloneCredentialKeys.some(key => secret.data?.[key] !== undefined || secret.stringData?.[key] !== undefined)) return false;
+  for (const field of ['data', 'stringData']) if (secret[field]) for (const key of cloneCredentialKeys) delete secret[field][key];
+  await client.request(path, 'PUT', secret);
+  return true;
+}
+
 function secretCredentials(secret: KubernetesObject | undefined): BasicCredentials | undefined {
   const read = (key: string) => typeof secret?.data?.[key] === 'string' ? Buffer.from(secret.data[key], 'base64').toString('utf8') : undefined;
   const username = read('OPENCODE_SERVER_USERNAME');
@@ -381,6 +395,7 @@ export class KubernetesWorkspaces {
         const pod = await this.client.request(this.path('Pod', name));
         if (pod.status?.phase === 'Failed' || pod.status?.phase === 'Succeeded') throw new Error('Workspace agent exited before readiness');
         if (pod.status?.conditions?.some((item: any) => item.type === 'Ready' && item.status === 'True')) {
+          if (repository.access) await removeCloneCredentials(this.client, this.path('Secret', name));
           if (relay && !this.relay.connected(session.id, 5000)) { enter({ phase: 'connecting' }); await new Promise(done => setTimeout(done, 500)); continue; }
           this.passwords.set(session.id, basic);
           let baseSha = session.workspace?.metadata?.baseSha;

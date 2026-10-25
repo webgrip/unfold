@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { unavailableCandidate, type Candidate } from '../candidates.ts';
 import { RuntimeFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
-import { KubernetesClient, captureInPlace, cloneProgram, workspaceManifests, workspaceName } from './kubernetes.ts';
-import { WorkerRelay, relayEndpoint } from './relay.ts';
+import { KubernetesClient, captureInPlace, cloneProgram, removeCloneCredentials, workspaceManifests, workspaceName } from './kubernetes.ts';
+import { WorkerRelay, relayEndpoint, type PodTokenVerifier } from './relay.ts';
 import { agentEnvironment, relayServeCommand } from './docker.ts';
 import { gitRewriteVariables } from './git-access.ts';
 
@@ -34,6 +34,25 @@ export function sandboxClaimManifest(config: AppConfig, session: Session): Kuber
   } };
 }
 
+/** The audience a warm pod's projected service account token must carry to claim its assignment. */
+export const poolTokenAudience = 'unfold-relay';
+
+/**
+ * Verifies a warm pod's projected service account token with a TokenReview and returns the pod the API server bound it
+ * to. A token for another audience, another namespace or no pod proves nothing.
+ */
+export function tokenReviewVerifier(client: Pick<KubernetesClient, 'request'>, namespace: string, audience = poolTokenAudience): PodTokenVerifier {
+  return async token => {
+    const review = await client.request('/apis/authentication.k8s.io/v1/tokenreviews', 'POST', { apiVersion: 'authentication.k8s.io/v1', kind: 'TokenReview', spec: { token, audiences: [audience] } });
+    const status = review?.status;
+    if (status?.authenticated !== true || !Array.isArray(status.audiences) || !status.audiences.includes(audience)) return undefined;
+    if (typeof status.user?.username !== 'string' || !status.user.username.startsWith(`system:serviceaccount:${namespace}:`)) return undefined;
+    const name = status.user.extra?.['authentication.kubernetes.io/pod-name']?.[0];
+    const uid = status.user.extra?.['authentication.kubernetes.io/pod-uid']?.[0];
+    return typeof name === 'string' && name && typeof uid === 'string' && uid ? { name, uid } : undefined;
+  };
+}
+
 export class SandboxWorkspaces {
   readonly config: AppConfig;
   readonly client: KubernetesClient;
@@ -47,11 +66,7 @@ export class SandboxWorkspaces {
     if (config.kubernetes.transport !== 'pull' || !config.kubernetes.relayUrl) throw new Error('The sandbox provisioner requires kubernetes.transport pull and kubernetes.relayUrl');
     this.config = config; this.relay = relay;
     this.client = client ?? new KubernetesClient(config.kubernetes);
-    const poolToken = process.env[config.kubernetes.sandbox.poolTokenEnv ?? 'UNFOLD_POOL_TOKEN'];
-    if (config.kubernetes.sandbox.warmPool) {
-      if (!poolToken) throw new Error(`kubernetes.sandbox.warmPool requires the pool token in ${config.kubernetes.sandbox.poolTokenEnv ?? 'UNFOLD_POOL_TOKEN'}`);
-      relay.configurePool(poolToken);
-    }
+    if (config.kubernetes.sandbox.warmPool) relay.configurePool(tokenReviewVerifier(this.client, config.kubernetes.namespace));
   }
 
   credentials(workspace: Workspace): BasicCredentials | undefined { return this.passwords.get(workspace.id); }
@@ -96,8 +111,9 @@ export class SandboxWorkspaces {
         }
         if (!pod) throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `No warm sandbox was bound to ${name} in time`);
         this.pods.set(session.id, pod);
+        const podUid = (await this.client.request(`/api/v1/namespaces/${k.namespace}/pods/${pod}`, 'GET', undefined, true))?.metadata?.uid;
         const env = Object.fromEntries(agentEnvironment(this.config, credential, basic, managed, process.env).map(entry => entry.split(/=(.*)/s).slice(0, 2)));
-        this.relay.assign(pod, { sessionId: session.id, token: relay.token, env: { ...env, ...Object.fromEntries(gitRewriteVariables(k.gitRewrites).map(({ name, value }) => [name, value])), REPOSITORY_URL: repository.url, BASE_BRANCH: repository.baseBranch, WORK_BRANCH: session.branch, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:4096' } });
+        this.relay.assign(pod, { sessionId: session.id, token: relay.token, env: { ...env, ...Object.fromEntries(gitRewriteVariables(k.gitRewrites).map(({ name, value }) => [name, value])), REPOSITORY_URL: repository.url, BASE_BRANCH: repository.baseBranch, WORK_BRANCH: session.branch, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:4096' }, ...(typeof podUid === 'string' && podUid ? { podUid } : {}) });
         await this.relay.waitForWorker(session.id, signal, Math.max(1000, deadline - Date.now()));
         const transport = this.relay.fetcher(session.id);
         const control = async (path: string, body: unknown, timeoutMs: number) => { const response = await transport(`http://workspace${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) }); if (!response.ok) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Warm sandbox control ${path} returned HTTP ${response.status}`); return response.json() as Promise<any>; };
@@ -114,6 +130,7 @@ export class SandboxWorkspaces {
           const ready = sandbox.status?.conditions?.some((item: any) => item.type === 'Ready' && item.status === 'True');
           const finished = sandbox.status?.conditions?.some((item: any) => item.type === 'Finished' && item.status === 'True');
           if (finished) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Sandbox ${name} finished before it became ready`);
+          if (ready && repository.access) await removeCloneCredentials(this.client, this.path('Secret', name));
           if (ready && this.relay.connected(session.id, 5000)) break;
           await new Promise(done => setTimeout(done, 500));
         }

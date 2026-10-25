@@ -71,7 +71,7 @@ async function stopGroup(group, graceMs = stopGraceMs) {
 }
 
 function startChild(argv, extraEnv = {}) {
-  const started = spawn(argv[0], argv.slice(1), { detached: true, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, ...extraEnv, UNFOLD_RELAY_TOKEN: '', UNFOLD_POOL_TOKEN: '' } });
+  const started = spawn(argv[0], argv.slice(1), { detached: true, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, ...extraEnv, UNFOLD_RELAY_TOKEN: '' } });
   if (started.pid) childGroups.add(started.pid);
   started.on('error', error => log(`child could not start: ${error.message}`));
   started.on('exit', code => { if (child === started) { log(`child exited with ${code ?? 'signal'}`); if (!stopping && !process.env.UNFOLD_RELAY_KEEP_ALIVE) process.exit(code ?? 1); child = undefined; } });
@@ -87,7 +87,7 @@ async function stopChild() {
 function execute(spec, signal) {
   return new Promise(resolve => {
     let stdout = ''; let stderr = ''; let finished = false; let timer;
-    const run = spawn(spec.argv[0], spec.argv.slice(1), { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...sessionEnv, ...(spec.env ?? {}), UNFOLD_RELAY_TOKEN: '', UNFOLD_POOL_TOKEN: '' }, cwd: spec.cwd ?? process.cwd() });
+    const run = spawn(spec.argv[0], spec.argv.slice(1), { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...sessionEnv, ...(spec.env ?? {}), UNFOLD_RELAY_TOKEN: '' }, cwd: spec.cwd ?? process.cwd() });
     const group = run.pid;
     if (group) execGroups.add(group);
     const finish = async (result, graceMs) => {
@@ -198,15 +198,16 @@ async function poll() {
 
 async function bootstrap() {
   const poolUrl = process.env.UNFOLD_POOL_URL;
-  const poolToken = process.env.UNFOLD_POOL_TOKEN;
+  const tokenFile = process.env.UNFOLD_POOL_TOKEN_FILE ?? '/var/run/secrets/unfold-relay/token';
   const pod = process.env.UNFOLD_POD_NAME ?? hostname();
-  if (!poolUrl || !poolToken) { log('UNFOLD_RELAY_URL and UNFOLD_RELAY_TOKEN, or UNFOLD_POOL_URL and UNFOLD_POOL_TOKEN, are required'); process.exit(64); }
+  if (!poolUrl) { log('UNFOLD_RELAY_URL and UNFOLD_RELAY_TOKEN, or UNFOLD_POOL_URL and a projected pod token, are required'); process.exit(64); }
   log(`warm worker ${pod} waiting for an assignment from ${new URL(poolUrl).origin}`);
   let failures = 0;
   while (!stopping) {
     try {
-      const response = await fetch(`${poolUrl}/claim?pod=${encodeURIComponent(pod)}&wait=25000`, { headers: { authorization: `Bearer ${poolToken}` }, signal: AbortSignal.timeout(40_000) });
-      if (response.status === 401) { log('pool token rejected; stopping'); process.exit(65); }
+      const podToken = readFileSync(tokenFile, 'utf8').trim();
+      const response = await fetch(`${poolUrl}/claim?pod=${encodeURIComponent(pod)}&wait=25000`, { headers: { authorization: `Bearer ${podToken}` }, signal: AbortSignal.timeout(40_000) });
+      if (response.status === 401 || response.status === 403) { log(`pod token rejected (HTTP ${response.status}); stopping`); process.exit(65); }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const { assignment } = await response.json();
       failures = 0;

@@ -57,6 +57,13 @@ decider:
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials
+# The key that encrypts the workbench's stored secrets (links, relay credentials, sign-in grants):
+# 32 bytes as base64 or hex in UNFOLD_STORE_KEY, from existingSecret/secretKey, or, with existingSecret
+# empty, from credentialsSecret when it holds UNFOLD_STORE_KEY. Without either the key is a file on the
+# data volume next to the database. See apps/unfold/docs/operations/storage.md#the-store-key.
+storeKey:
+  existingSecret: ""
+  secretKey: key
 workspaceNamespace: unfold-workspaces
 createWorkspaceNamespace: true
 workspaceImage: ""

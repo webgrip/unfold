@@ -134,6 +134,13 @@ spec:
                   name: {{ .Values.decider.existingSecret }}
                   key: {{ .Values.decider.secretKey }}
             {{- end }}
+            {{- if .Values.storeKey.existingSecret }}
+            - name: UNFOLD_STORE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.storeKey.existingSecret }}
+                  key: {{ .Values.storeKey.secretKey }}
+            {{- end }}
             {{- if .Values.featureFlags }}
             - name: UNFOLD_FLAGS_FILE
               value: /etc/unfold-flags/flags.json

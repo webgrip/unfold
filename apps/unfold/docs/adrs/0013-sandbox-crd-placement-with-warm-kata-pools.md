@@ -8,7 +8,7 @@ The hand-rolled pod provisioner creates a Secret, a claim, a Service, a network 
 
 ## Decision
 
-Add a `sandbox` provisioner for the Kubernetes backend, available only with the pull transport. Cold mode creates a `Sandbox` whose pod template is the existing hardened agent pod with `runtimeClassName` set, a volume claim template for the workspace and no Service. Warm mode creates a `SandboxClaim` against an administrator-managed `SandboxWarmPool`, reads the bound pod's name, and assigns the session to that pod through the relay's pool endpoint: the pod's worker receives the repository, branch, environment and relay token, clones, starts OpenCode on loopback and relays. Candidates are captured in place through the relay's control channel. The pool token is a cluster-level secret shared by the workbench and the template.
+Add a `sandbox` provisioner for the Kubernetes backend, available only with the pull transport. Cold mode creates a `Sandbox` whose pod template is the existing hardened agent pod with `runtimeClassName` set, a volume claim template for the workspace and no Service. Warm mode creates a `SandboxClaim` against an administrator-managed `SandboxWarmPool`, reads the bound pod's name, and assigns the session to that pod through the relay's pool endpoint: the pod's worker receives the repository, branch, environment and relay token, clones, starts OpenCode on loopback and relays. Candidates are captured in place through the relay's control channel. Each warm pod proves which pod it is with a projected service account token that the workbench verifies (amended 2026-10-25; see History).
 
 The warm template lives with the cluster, as an example under [ops/cluster/agent-sandbox](../../ops/cluster/agent-sandbox/README.md), because it names the image, the RuntimeClass and the egress policy of one cluster.
 
@@ -17,3 +17,7 @@ The warm template lives with the cluster, as an example under [ops/cluster/agent
 A session on a warm pool starts in the time it takes to clone rather than the time it takes to schedule a VM, and the per-session Secret disappears from the cluster: the session key exists in the workbench's memory and in the pod's process environment only. The controller's RBAC is broad; it is installed once per cluster and the workbench's own role only touches `sandboxes` and `sandboxclaims` in its workspace namespace.
 
 Kata on Talos is still the 3.x Go runtime with Cloud Hypervisor; VM snapshots as evidence need the hypervisor's snapshot daemon and a newer extension, so that part of the research shortlist stays open. Reconsider the cold path when the warm path is qualified, and reconsider the whole provisioner if the CRDs change shape before a stable API.
+
+## History
+
+- 2026-10-25 — The shared pool token is gone ([VIK-2393](https://vikunja.webgrip.dev/tasks/2393), [RFC-0011 section 7](../../../../docs/design/rfc-0011-every-agent-action-names-its-person.md#7-unfolds-own-sandboxes)). A warm pod claims its assignment with a projected service account token for the audience `unfold-relay`; the workbench verifies it by TokenReview and hands over only the assignment of the pod named in the token, matched by name and UID. Any pod holding the old shared token could take any pod's assignment, including its session key.

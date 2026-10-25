@@ -4,7 +4,7 @@ import { createServer, request as httpRequest, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkerRelay, memoryCredentials, type WorkerCredentials } from '../src/runtime/relay.ts';
@@ -117,23 +117,35 @@ test('the relay rejects foreign tokens and fails pending requests when a workspa
   assert.equal(relay.connected('ws-2'), false);
 });
 
-test('a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request', { timeout: testTimeout(30_000) }, async t => {
+test('a warm worker claims only its own pod\'s assignment, with the pod token it reads from its projected volume', { timeout: testTimeout(30_000) }, async t => {
   const relay = new WorkerRelay();
-  relay.configurePool('pool-secret-token');
+  const pods: Record<string, { name: string; uid: string }> = { 'token-of-warm-1': { name: 'warm-1', uid: 'uid-1' }, 'token-of-warm-2': { name: 'warm-2', uid: 'uid-2' } };
+  relay.configurePool(async token => pods[token]);
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const relayPort = await listen(relayServer);
   t.after(() => relayServer.close());
   const base = `http://127.0.0.1:${relayPort}/api/relay`;
-  const rejected = await fetch(`${base}/pool/claim?pod=warm-1&wait=0`, { headers: { authorization: 'Bearer wrong' } });
-  assert.equal(rejected.status, 401);
-  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_POOL_URL: `${base}/pool`, UNFOLD_POOL_TOKEN: 'pool-secret-token', UNFOLD_POD_NAME: 'warm-1', UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_KEEP_ALIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  const claim = (token: string, pod?: string) => fetch(`${base}/pool/claim?${pod ? `pod=${pod}&` : ''}wait=0`, { headers: { authorization: `Bearer ${token}` } });
+  assert.equal((await claim('wrong', 'warm-1')).status, 401);
+  const decoy = relay.register('ws-decoy');
+  relay.assign('warm-1', { sessionId: 'ws-decoy', token: decoy, env: { LITELLM_API_KEY: 'sk-decoy' } });
+  const borrowed = await claim('token-of-warm-2', 'warm-1');
+  assert.equal(borrowed.status, 403, 'a pod cannot name another pod to take its assignment');
+  assert.deepEqual(await (await claim('token-of-warm-2')).json(), { assignment: null }, 'without a name a pod sees only its own assignment');
+  relay.unassign('warm-1');
+  relay.unregister('ws-decoy');
+  const directory = mkdtempSync(join(tmpdir(), 'unfold-pool-token-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const tokenFile = join(directory, 'token');
+  writeFileSync(tokenFile, 'token-of-warm-1\n');
+  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_POOL_URL: `${base}/pool`, UNFOLD_POOL_TOKEN_FILE: tokenFile, UNFOLD_POD_NAME: 'warm-1', UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_KEEP_ALIVE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] });
   t.after(() => worker.kill('SIGKILL'));
   let logs = '';
   worker.stderr!.on('data', chunk => { logs += chunk; });
   await settle(300);
   assert.equal(relay.connected('ws-warm'), false, 'an unassigned warm worker relays nothing');
   const token = relay.register('ws-warm');
-  relay.assign('warm-1', { sessionId: 'ws-warm', token, env: { REPOSITORY_URL: 'https://forge.example/repo.git', SESSION_MARKER: 'from-assignment' } });
+  relay.assign('warm-1', { sessionId: 'ws-warm', token, podUid: 'uid-1', env: { REPOSITORY_URL: 'https://forge.example/repo.git', SESSION_MARKER: 'from-assignment' } });
   await relay.waitForWorker('ws-warm', new AbortController().signal, scaledTimeout(10_000));
   const fetcher = relay.fetcher('ws-warm');
   const status = await fetcher('http://workspace/__unfold/status');
@@ -147,7 +159,26 @@ test('a warm worker waits for a pool assignment, receives its session environmen
   assert.deepEqual(await stopped.json(), { stopped: true });
   assert.equal((await (await fetcher('http://workspace/__unfold/status')).json()).child, false);
   assert.match(logs, /assigned session ws-warm/);
-  assert.equal(logs.includes('pool-secret-token'), false);
+  assert.equal(logs.includes('token-of-warm-1'), false);
+});
+
+test('a pool claim from a pod that replaced the assigned one under the same name is refused, and an unverifiable token is a retryable 503', async t => {
+  const relay = new WorkerRelay();
+  let verifierDown = false;
+  relay.configurePool(async token => { if (verifierDown) throw new Error('TokenReview unavailable'); return token === 'token-of-new-pod' ? { name: 'warm-1', uid: 'uid-new' } : undefined; });
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const relayPort = await listen(relayServer);
+  t.after(() => relayServer.close());
+  const claim = () => fetch(`http://127.0.0.1:${relayPort}/api/relay/pool/claim?pod=warm-1&wait=0`, { headers: { authorization: 'Bearer token-of-new-pod' } });
+  relay.assign('warm-1', { sessionId: 'ws-old', token: relay.register('ws-old'), podUid: 'uid-old', env: {} });
+  assert.equal((await claim()).status, 403);
+  verifierDown = true;
+  assert.equal((await claim()).status, 503);
+  const unconfigured = new WorkerRelay();
+  const other = createServer(async (req, res) => { await unconfigured.handle(req, res, new URL(req.url ?? '/', 'http://localhost')); });
+  const otherPort = await listen(other);
+  t.after(() => other.close());
+  assert.equal((await fetch(`http://127.0.0.1:${otherPort}/api/relay/pool/claim?wait=0`, { headers: { authorization: 'Bearer token-of-new-pod' } })).status, 401, 'without a verifier no claim succeeds');
 });
 
 const writerProgram = (file: string, label: string) => `const { appendFileSync } = require('node:fs'); appendFileSync(${JSON.stringify(file)}, '${label} ' + process.pid + '\\n'); setInterval(() => appendFileSync(${JSON.stringify(file)}, '${label}\\n'), 20);`;
