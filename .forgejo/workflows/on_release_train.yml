@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   merge-pin:
-    if: github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     runs-on: docker
     timeout-minutes: 5
     outputs:
@@ -32,7 +32,7 @@ jobs:
 
   pending:
     needs: [merge-pin]
-    if: always() && needs.merge-pin.result != 'cancelled' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    if: always() && needs.merge-pin.result != 'cancelled' && github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     runs-on: docker
     timeout-minutes: 5
     outputs:
@@ -81,7 +81,7 @@ jobs:
         run: mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published
 
   release:
-    if: github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [pending, checks, ploeg-pin]
     runs-on: docker
     container:
@@ -115,7 +115,7 @@ jobs:
         run: node scripts/release-repair.mjs unfold-v
 
   site-release:
-    if: github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [pending, release]
     runs-on: docker
     container:
