@@ -14,6 +14,17 @@ export type SignInTokens = { accessToken: string; refreshToken?: string; expires
 /** Refreshes a person's access token at the sign-in provider. */
 export type RefreshTokens = (refreshToken: string) => Promise<SignInTokens>;
 
+/**
+ * What a credential delegated for one request carries to prove its person, for as long as that credential lives:
+ * `request`, the access token `unfold-mcp` over HTTP verified for that request and its facts; `sign_in`, the person's
+ * kept sign-in, for the Agents-window chat's tools.
+ */
+export type DelegatedProof =
+  | { source: 'request'; userId: string; accessToken: string; subject: string; expiresAt: number }
+  | { source: 'sign_in'; userId: string };
+
+type RequestProof = Extract<DelegatedProof, { source: 'request' }>;
+
 /** Why a person's actions reach Ploeg as asserted instead of proven. */
 export type ProofGap = 'no_grant' | 'expired' | 'refused' | 'unreachable' | 'unconfigured' | 'rejected' | 'mismatch';
 
@@ -75,6 +86,7 @@ export class PersonProof {
   private readonly cache = new Map<string, { token: string; until: number }>();
   private readonly inflight = new Map<string, Promise<string | undefined>>();
   private readonly gaps = new Map<string, { gap: ProofGap; at: number }>();
+  private readonly carriedTokens = new WeakMap<RequestProof, Promise<string | undefined>>();
 
   constructor(settings: PersonTokenSettings, store: Store, options: { refresh?: RefreshTokens; fetch?: typeof fetch; now?: () => number } = {}) {
     this.settings = settings;
@@ -102,19 +114,32 @@ export class PersonProof {
 
   /**
    * Sends a Ploeg operator change for `person`: with their person token when one can be had and `actingUser` is the
-   * same person, otherwise as before. A change Ploeg refuses for the person token alone (HTTP 401) is sent once more
-   * without it; Ploeg refuses such a request before acting on it, so the retry never repeats work.
+   * same person, otherwise as before. A request through a delegated credential uses only the proof that credential
+   * carries for that same person: `unfold-mcp` over HTTP exchanges the access token of that request, the chat uses the
+   * person's kept sign-in. A change Ploeg refuses for the person token alone (HTTP 401) is sent once more without it;
+   * Ploeg refuses such a request before acting on it, so the retry never repeats work.
    */
   async send(person: string, actingUser: string | undefined, call: (headers: Record<string, string>) => Promise<Response>): Promise<Response> {
     if (actingUser !== undefined && actingUser !== person) return call({});
-    const signIn = this.loginFor(person);
-    const token = signIn ? await this.token(signIn) : undefined;
-    if (!signIn || !token) return call({});
-    const response = await call({ [personTokenHeader]: token });
+    const context = actionContext.getStore();
+    if (context?.scope === 'mcp') {
+      const carried = context.proof;
+      if (carried?.userId !== person) return call({});
+      if (carried.source === 'request') return this.sendWith(`mcp:${person}`, () => this.carried(carried), () => this.carriedTokens.delete(carried), call);
+    }
+    const signIn = this.loginFor(person, context?.signIn);
+    if (!signIn) return call({});
+    return this.sendWith(signIn, () => this.token(signIn), () => this.cache.delete(signIn), call);
+  }
+
+  private async sendWith(key: string, token: () => Promise<string | undefined>, drop: () => void, call: (headers: Record<string, string>) => Promise<Response>): Promise<Response> {
+    const value = await token();
+    if (!value) return call({});
+    const response = await call({ [personTokenHeader]: value });
     if (response.status !== 401) return response;
     await response.body?.cancel().catch(() => undefined);
-    this.cache.delete(signIn);
-    this.note(signIn, 'rejected');
+    drop();
+    this.note(key, 'rejected');
     return call({});
   }
 
@@ -132,14 +157,34 @@ export class PersonProof {
     return { state: 'proven', summary: 'Ploeg records what you do here as proven by your sign-in.' };
   }
 
-  private loginFor(person: string): string | undefined {
-    const context = actionContext.getStore();
-    if (context?.scope === 'mcp') return undefined;
-    if (context?.signIn) {
-      const own = this.store.personGrant(context.signIn);
-      if (own?.userId === person) return context.signIn;
+  private loginFor(person: string, requestSignIn: string | undefined): string | undefined {
+    if (requestSignIn) {
+      const own = this.store.personGrant(requestSignIn);
+      if (own?.userId === person) return requestSignIn;
     }
     return this.store.personGrantLogins(person)[0];
+  }
+
+  private carried(proof: RequestProof): Promise<string | undefined> {
+    let work = this.carriedTokens.get(proof);
+    if (!work) {
+      work = this.exchangeCarried(proof);
+      this.carriedTokens.set(proof, work);
+    }
+    return work;
+  }
+
+  private async exchangeCarried(proof: RequestProof): Promise<string | undefined> {
+    const key = `mcp:${proof.userId}`;
+    try {
+      if (proof.expiresAt <= this.now()) throw new ExchangeFailure('expired');
+      const issued = await this.exchange(proof);
+      this.gaps.delete(key);
+      return issued.token;
+    } catch (error) {
+      this.note(key, error instanceof ExchangeFailure ? error.gap : 'unreachable');
+      return undefined;
+    }
   }
 
   private async token(signIn: string): Promise<string | undefined> {
@@ -189,7 +234,7 @@ export class PersonProof {
     return renewed;
   }
 
-  private async exchange(grant: PersonGrant): Promise<{ token: string; until: number }> {
+  private async exchange(grant: { accessToken: string; subject: string }): Promise<{ token: string; until: number }> {
     const secret = process.env[this.settings.clientSecretEnv];
     if (!secret) throw new ExchangeFailure('unconfigured');
     const body = new URLSearchParams({ grant_type: exchangeGrant, client_id: this.settings.clientId, client_secret: secret, subject_token: grant.accessToken, subject_token_type: accessTokenType, audience: this.settings.audience });

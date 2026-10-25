@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, User, UserRole } from './types.ts';
 import { lowerRole } from './oidc.ts';
 import type { EditorCredential, Store } from './store.ts';
+import type { DelegatedProof } from './person-proof.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
 export type EditorRequestView = { userCode: string; label: string; createdAt: string; expiresAt: string; status: 'waiting' | 'approved' | 'denied' };
@@ -147,21 +148,32 @@ export class Auth {
     const user = this.store.getUser(login.userId);
     return user ? { id: user.id, name: user.name, role: user.role } : undefined;
   }
-  private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number }>();
+  private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number; proof?: DelegatedProof }>();
 
   /**
    * Mints a credential that acts as `user` on this process's own API for at most `ttlMs`, reaching only
    * `delegatedRoutes` and never more than `user.role` or the account's stored role, whichever is lower. It lives
    * only in memory and is revoked by `revoke`. `unfold-mcp` over HTTP calls the API with it, so a caller's access
-   * token never travels further than the MCP endpoint.
+   * token never travels further than the MCP endpoint. `proof` is what Ploeg changes made with it prove the person
+   * with, and goes with the credential.
    */
-  delegate(user: User, ttlMs: number): { token: string; revoke(): void } {
+  delegate(user: User, ttlMs: number, proof?: DelegatedProof): { token: string; revoke(): void } {
     const now = Date.now();
     for (const [hash, entry] of this.delegated) if (entry.expiresAt <= now) this.delegated.delete(hash);
     const token = `vlm_${randomBytes(32).toString('base64url')}`;
     const hash = digest(token);
-    this.delegated.set(hash, { userId: user.id, role: user.role, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs) });
+    this.delegated.set(hash, { userId: user.id, role: user.role, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs), ...(proof && proof.userId === user.id ? { proof } : {}) });
     return { token, revoke: () => { this.delegated.delete(hash); } };
+  }
+
+  /** The proof the delegated credential that authenticated a request carries, while both are still live. */
+  delegatedProof(req: IncomingMessage): DelegatedProof | undefined {
+    const bearer = this.bearer(req);
+    if (!bearer || !delegatedTokenPattern.test(bearer)) return undefined;
+    const entry = this.delegated.get(digest(bearer));
+    const now = Date.now();
+    if (!entry?.proof || entry.expiresAt <= now) return undefined;
+    return entry.proof.source === 'request' && entry.proof.expiresAt <= now ? undefined : entry.proof;
   }
 
   private editorUser(req: IncomingMessage): User | undefined {
