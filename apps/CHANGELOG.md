@@ -1,3 +1,57 @@
+## [unfold-v0.4.0-rc.112](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.111...unfold-v0.4.0-rc.112) (2026-10-25)
+
+### Added
+
+* **deps:** update all non-major dependencies ([427a162](https://forgejo.webgrip.dev/webgrip/unfold/commit/427a1621bc955fbb6ad484fbdbe99d6732e6fc98))
+* **deps:** update all non-major dependencies ([0720254](https://forgejo.webgrip.dev/webgrip/unfold/commit/0720254f1237dc0f063bac1f2d1db57722485fa3))
+* **unfold:** fold quiet hours out of Ploeg and people and share a time cursor with the flight ([4e880c5](https://forgejo.webgrip.dev/webgrip/unfold/commit/4e880c5ca7b9a3ed1667218ca2420d1ca00bb4cd))
+* **unfold:** lay out the session page's Start a Work Item and Messages forms ([16c2867](https://forgejo.webgrip.dev/webgrip/unfold/commit/16c286799c31ba0eb74794e94dc39bc113aa95bc))
+* **unfold:** let a consumer move the workspace image and keep the released digest ([91104c2](https://forgejo.webgrip.dev/webgrip/unfold/commit/91104c2b4d72515708e001e9b3cd3bd0b26eb31f))
+* **unfold:** prove the person to Ploeg with a token exchanged from their sign-in ([64931ec](https://forgejo.webgrip.dev/webgrip/unfold/commit/64931ecd0dcf59b45ab2e2a407dd7acb3377c6fe))
+* **unfold:** put what the owner acts on beside a session's reference cards ([1c9dc4a](https://forgejo.webgrip.dev/webgrip/unfold/commit/1c9dc4a83edbaa628d7911cf9d9f50df7a3fe531))
+* **unfold:** refuse a Ploeg that does not serve the contract majors Unfold requires ([8155950](https://forgejo.webgrip.dev/webgrip/unfold/commit/81559504dc7ca31eb4796dd73a6b2ff08c54b81d))
+* **unfold:** stay ready on a Ploeg contract mismatch and pause calls behind a banner ([6f7135a](https://forgejo.webgrip.dev/webgrip/unfold/commit/6f7135a9d64df5e6cc07f505a4ed870cc5994602))
+* **unfold:** take control of a running Run and hand it back ([be74b84](https://forgejo.webgrip.dev/webgrip/unfold/commit/be74b849d2b8976de8824ad64e0d80370a0a9ce1))
+
+### Fixed
+
+* **e2e:** run the local Authentik at the version CI and the homelab run ([9779817](https://forgejo.webgrip.dev/webgrip/unfold/commit/9779817d8a564ad77c7c3ea8aac202328cc6ff13)), references [#593](https://forgejo.webgrip.dev/webgrip/unfold/issues/593)
+* **ploeg:** update Ploeg to 0.2.0-rc.53 ([60b0f7b](https://forgejo.webgrip.dev/webgrip/unfold/commit/60b0f7b115d630f1b94e718b8c3a26037bf97268))
+* **ploeg:** update Ploeg to 0.2.0-rc.55 ([755242c](https://forgejo.webgrip.dev/webgrip/unfold/commit/755242ccd9b5022c5de538c1715f9cf3cf35dc2b))
+* **ploeg:** update Ploeg to 0.2.0-rc.57 ([3d96bc5](https://forgejo.webgrip.dev/webgrip/unfold/commit/3d96bc5f056e5343d8d1e38907b7a3b7972f0093))
+* **ploeg:** update Ploeg to 0.2.0-rc.58 ([9d52bc2](https://forgejo.webgrip.dev/webgrip/unfold/commit/9d52bc2087a6cc42d824ba65ed0fefd7562df924))
+* **ploeg:** update Ploeg to 0.2.0-rc.61 ([10907f6](https://forgejo.webgrip.dev/webgrip/unfold/commit/10907f654d057d56188b060255b3277b362024a3))
+* **ploeg:** update Ploeg to 0.2.0-rc.62 ([0cc22d2](https://forgejo.webgrip.dev/webgrip/unfold/commit/0cc22d24940bd8cb92ca79659a6143c4f824108a))
+* **ploeg:** update Ploeg to 0.2.0-rc.63 ([378c6eb](https://forgejo.webgrip.dev/webgrip/unfold/commit/378c6eb04a86b729a037dcb51d5dff8f8d1352cf))
+* **ploeg:** update Ploeg to 0.2.0-rc.64 ([3c59719](https://forgejo.webgrip.dev/webgrip/unfold/commit/3c597190b68f295c8cc5f986ac513ca347b8c7de))
+* **ploeg:** update Ploeg to 0.2.0-rc.66 ([6ca981d](https://forgejo.webgrip.dev/webgrip/unfold/commit/6ca981dd1e5d3214cfd94e553437254008d62676))
+* **ploeg:** update Ploeg to 0.2.0-rc.67 ([151d77f](https://forgejo.webgrip.dev/webgrip/unfold/commit/151d77f1c8905b15a9925759b97c70e0a73d1c8b))
+* **ploeg:** update Ploeg to 0.2.0-rc.68 ([b3cb58d](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3cb58dd69387892298ea6684e60d05d7cb4e684))
+* **site:** keep Prettier off the AGENTS.md that APM generates ([a2ae2f0](https://forgejo.webgrip.dev/webgrip/unfold/commit/a2ae2f04b2126cde263f430d5c33c184c15ddfb0)), references [#587](https://forgejo.webgrip.dev/webgrip/unfold/issues/587)
+* **site:** record pnpm 12.15.0 in the site lockfile ([377fe86](https://forgejo.webgrip.dev/webgrip/unfold/commit/377fe86f3904d8314c410626c3d314281c255e71)), references [#593](https://forgejo.webgrip.dev/webgrip/unfold/issues/593)
+* **unfold:** annotate a workspace volume before the retention sweep deletes it ([a66e0dc](https://forgejo.webgrip.dev/webgrip/unfold/commit/a66e0dc05e1e0a75533d4b9ae7e2a7f89bfe8c2a))
+* **unfold:** stop idle sessions colliding and name sessions in the collision warning ([ef3795c](https://forgejo.webgrip.dev/webgrip/unfold/commit/ef3795cdbeab827b8119a0bf191ffaf110702cc1))
+* **unfold:** word Ploeg's review.rework_refused and review.rework_capped audit actions ([bed972f](https://forgejo.webgrip.dev/webgrip/unfold/commit/bed972fe95cd4619cd4e9c9da8f584b093124eb5)), references [#571](https://forgejo.webgrip.dev/webgrip/unfold/issues/571)
+
+### Docs
+
+* **adr:** cite Ploeg ADR 0147 for the contract-version decision ([1ac413e](https://forgejo.webgrip.dev/webgrip/unfold/commit/1ac413eeff20b125bbe78b005920d2de549f4c8a))
+* run agent code under Kata or gVisor, and encrypt a self-hosted cluster ([54d71c0](https://forgejo.webgrip.dev/webgrip/unfold/commit/54d71c0dbf8fb689e135dbad3cfd4eaa1099f9c5))
+
+### Tests
+
+* **extension:** stamp the header test's task when the test runs ([ff43257](https://forgejo.webgrip.dev/webgrip/unfold/commit/ff43257a5c3d758e71138f6cc3dba1e65df73782))
+* **unfold:** scale the ACP proxy and notes-push deadlines with the runner's load ([ebbafea](https://forgejo.webgrip.dev/webgrip/unfold/commit/ebbafea661095a59a560b17ae68c7a4763d597db))
+* **unfold:** stamp the task header's update time when the header test runs ([d1d355d](https://forgejo.webgrip.dev/webgrip/unfold/commit/d1d355dac2b3457d03f572be9b9f3e6e32612c3b))
+
+### CI
+
+* **release:** release Unfold from an hourly train that checks the development head ([7cb23e7](https://forgejo.webgrip.dev/webgrip/unfold/commit/7cb23e7e20cfc9549d040ff1b9642761050cab0d))
+
+### Internal
+
+* **agents:** source every agent rule, skill and command in .apm (agent standard v0.2.0) ([d03f654](https://forgejo.webgrip.dev/webgrip/unfold/commit/d03f6547c038bde6286392264f7404cb666801ec))
+
 ## [unfold-v0.4.0-rc.111](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.110...unfold-v0.4.0-rc.111) (2026-10-24)
 
 ### Added
