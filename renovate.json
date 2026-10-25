@@ -38,7 +38,7 @@
         "/^scripts/docs-site\\.sh$/"
       ],
       "matchStrings": [
-        "(?<depName>harbor\\.webgrip\\.dev/webgrip/(?:semantic-release-monorepo|techdocs-builder)):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s"
+        "(?<depName>harbor\\.webgrip\\.dev/webgrip/(?:semantic-release|techdocs-builder)):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s"
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"

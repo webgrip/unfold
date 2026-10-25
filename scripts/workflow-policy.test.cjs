@@ -7,10 +7,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { parse, parseAllDocuments } = require('yaml');
+const { readYaml, readFirstYamlDocument } = require('./yaml-documents.cjs');
 
 const root = path.resolve(__dirname, '..');
-const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'));
+const read = relative => readYaml(path.join(root, relative));
 const workflows = Object.fromEntries(fs.readdirSync(path.join(root, '.forgejo/workflows')).map(file => [file, read(`.forgejo/workflows/${file}`)]));
 const source = workflows['on_source_change.yml'];
 const train = workflows['on_release_train.yml'];
@@ -253,26 +253,30 @@ test('the release train releases only the commit its checks passed, and only whe
   try {
     git('init', '--quiet', '--initial-branch=development');
     commit('apps/unfold/app.txt', 'feat(unfold): first');
-    commit('apps/CHANGELOG.md', 'chore(release): unfold-v0.4.0-rc.1 [skip ci]');
     git('tag', 'unfold-v0.4.0-rc.1');
-    commit('apps/site/CHANGELOG.md', 'chore(release): unfold-site-v1.0.0-rc.1 [skip ci]');
+    commit('apps/site/page.txt', 'feat(site): a first page');
     git('tag', 'unfold-site-v1.0.0-rc.1');
-    assert.deepEqual(run('pending'), { sha: git('rev-parse', 'HEAD'), unreleased: 'false' }, 'a site release commit after the Unfold tag releases nothing');
+    assert.deepEqual(run('pending'), { sha: git('rev-parse', 'HEAD'), unreleased: 'false' }, 'each release tag sits on the commit it released, so nothing after it is pending');
     commit('docs/guide.md', 'docs: a guide');
     assert.equal(run('pending').unreleased, 'false', 'a docs-only change releases nothing');
     const site = commit('apps/site/page.txt', 'feat(site): a page');
     assert.equal(run('pending').unreleased, 'true', 'a site change waits for a site release');
-    commit('apps/site/CHANGELOG.md', 'chore(release): unfold-site-v1.0.0-rc.2 [skip ci]');
     git('tag', 'unfold-site-v1.0.0-rc.2');
     assert.equal(run('pending').unreleased, 'false');
     const checked = commit('apps/unfold/app.txt', 'fix(ploeg): update Ploeg');
     assert.deepEqual(run('pending'), { sha: checked, unreleased: 'true' });
     assert.deepEqual(run('current', checked), { current: 'true' });
-    commit('apps/CHANGELOG.md', 'chore(release): unfold-v0.4.0-rc.2 [skip ci]');
-    assert.deepEqual(run('current', checked), { current: 'true' }, 'the site release follows the Unfold release commit of the same train');
+    git('tag', 'unfold-v0.4.0-rc.2');
+    assert.deepEqual(run('current', checked), { current: 'true' }, 'the Unfold release adds a tag and no commit, so the site release still finds the checked head');
+    assert.equal(run('pending').unreleased, 'false');
     assert.deepEqual(run('current', site), { current: 'false' }, 'commits nobody checked landed after it');
+    const lookalike = commit('apps/unfold/app.txt', 'chore(release): unfold-v0.4.0-rc.3 [skip ci]');
+    assert.equal(run('pending').unreleased, 'true', 'no release writes a commit any more, so a release-commit subject is an ordinary unreleased commit');
+    assert.deepEqual(run('current', checked), { current: 'false' }, 'a commit after the checked head is never released, whatever its subject');
+    assert.deepEqual(run('current', lookalike), { current: 'true' });
     commit('apps/unfold/app.txt', 'feat(unfold): merged during the checks');
-    assert.deepEqual(run('current', checked), { current: 'false' });
+    assert.deepEqual(run('current', lookalike), { current: 'false' });
+    assert.deepEqual(run('current', 'not-a-commit'), { current: 'false' }, 'an unknown commit is never current');
     git('checkout', '--quiet', '-b', 'elsewhere', site);
     const sideways = commit('apps/unfold/app.txt', 'feat(unfold): not on development');
     git('checkout', '--quiet', 'development');
@@ -301,15 +305,33 @@ test('warnings from setup and verification turn their own job red without gating
   for (const [name, other] of Object.entries(source.jobs)) assert.ok(!(other.needs || []).includes('warnings'), `${name} must not wait for warnings`);
 });
 
-test('a release that Forgejo lost to the tag race is created by the job that cut it', () => {
-  for (const [workflow, name, prefix] of [[train, 'release', 'unfold-v'], [train, 'site-release', 'unfold-site-v'], [source, 'site-release', 'unfold-site-v']]) {
-    const steps = workflow.jobs[name].steps;
-    const release = steps.findIndex(step => step.id === 'release');
-    const repair = steps[release + 1];
-    assert.equal(repair.if, "failure() && steps.release.outcome == 'failure'", name);
-    assert.equal(repair.run, `node scripts/release-repair.mjs ${prefix}`, name);
-    assert.equal(repair.env.GITEA_TOKEN, steps[release].with.token, name);
+const releaseJobs = () => Object.entries(workflows).flatMap(([file, workflow]) => Object.entries(workflow.jobs)
+  .filter(([, job]) => job.steps?.some(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@')))
+  .map(([name, job]) => ({ file, name, job })));
+
+test('every release job runs the tags-only toolchain: one 2.x image pinned by digest and the composite major that accepts it', () => {
+  const jobs = releaseJobs();
+  assert.deepEqual(jobs.map(({ file, name }) => `${file} ${name}`).sort(), ['on_release_preview.yml preview', 'on_release_train.yml release', 'on_release_train.yml site-release', 'on_source_change.yml site-release']);
+  const image = train.jobs.release.container.image;
+  assert.match(image, /^harbor\.webgrip\.dev\/webgrip\/semantic-release:2\.\d+\.\d+@sha256:[a-f0-9]{64}$/);
+  const composite = train.jobs.release.steps.find(step => step.id === 'release').uses;
+  assert.match(composite, /\/composite-actions\/semantic-release-monorepo@v3\.\d+\.\d+$/);
+  for (const { file, name, job } of jobs) {
+    assert.equal(job.container.image, image, `${file} ${name}`);
+    assert.equal(job.steps.find(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@')).uses, composite, `${file} ${name}`);
   }
+  assert.equal(workflows['on_pull_request.yml'].jobs['release-policy'].container.image, image, 'a pull request tests the release policy in the image that releases');
+  const tag = image.slice(0, image.indexOf('@'));
+  assert.ok(fs.readFileSync(path.join(root, 'mise.toml'), 'utf8').includes(` ${tag} -c 'node --test scripts/release-policy.test.cjs`), 'mise run release-check runs in the same image');
+});
+
+test('a release job publishes through the semantic-release step alone, which adopts a release Forgejo already filed for the tag', () => {
+  for (const { file, name, job } of releaseJobs()) {
+    const release = job.steps.findIndex(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@'));
+    assert.equal(release, job.steps.length - 1, `${file} ${name}: nothing runs after semantic release`);
+  }
+  assert.doesNotMatch(JSON.stringify(workflows), /release-repair|release-prepare/);
+  assert.ok(!fs.existsSync(path.join(root, 'scripts/release-repair.mjs')));
 });
 
 test('the CI verify gate requires the imported release notes', () => {
@@ -336,7 +358,7 @@ test('every published image passes its application CVE budget before signing', (
   assert.ok(unfoldGate > unfold.findIndex(step => step.id === 'digest'));
   assert.ok(unfoldGate < unfold.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
   assert.equal(unfold[unfoldGate].with['budgets-file'], 'apps/unfold/ops/security/cve-budgets.yaml');
-  const budgets = parse(fs.readFileSync(path.join(root, 'apps/unfold/ops/security/cve-budgets.yaml'), 'utf8'));
+  const budgets = read('apps/unfold/ops/security/cve-budgets.yaml');
   assert.equal(budgets.images['unfold'].mode, 'enforce');
   assert.ok(fs.statSync(path.join(root, 'apps/unfold/ops/vex/statements')).isDirectory());
 });
@@ -687,7 +709,7 @@ test('every pnpm lockfile records the pnpm its package.json names, which a froze
   for (const directory of pnpmProjects()) {
     const wanted = JSON.parse(fs.readFileSync(path.join(root, directory, 'package.json'), 'utf8')).packageManager;
     assert.match(wanted, /^pnpm@\d+\.\d+\.\d+$/, `${directory} pins one pnpm release`);
-    const [environment] = parseAllDocuments(fs.readFileSync(path.join(root, directory, 'pnpm-lock.yaml'), 'utf8')).map(document => document.toJS());
+    const environment = readFirstYamlDocument(path.join(root, directory, 'pnpm-lock.yaml'));
     const recorded = environment.importers['.'].packageManagerDependencies.pnpm;
     assert.deepEqual([recorded.specifier, recorded.version], [wanted.slice('pnpm@'.length), wanted.slice('pnpm@'.length)], `${directory}/pnpm-lock.yaml records pnpm ${recorded.version}, package.json names ${wanted}: run corepack pnpm install --lockfile-only in ${directory}`);
   }
@@ -724,7 +746,6 @@ test('Renovate reads every image of the local MCP compose file under the nightly
 test('Renovate moves the committed unfold-agent references to the newest Unfold candidate on Harbor without cutting a release', () => {
   const config = renovateConfig();
   const files = ['apps/unfold/ops/cluster/agent-sandbox/warm-pool.yaml', 'apps/unfold/ops/local/config.live.example.json'];
-  const committed = JSON.parse(fs.readFileSync(path.join(root, 'apps/unfold/package.json'), 'utf8')).version;
   for (const file of files) {
     assert.deepEqual(config.ignorePaths.filter(pattern => path.matchesGlob(file, pattern)), [], `Renovate reads ${file}`);
     const text = fs.readFileSync(path.join(root, file), 'utf8');
@@ -734,7 +755,10 @@ test('Renovate moves the committed unfold-agent references to the newest Unfold 
     const dependencies = manager.matchStrings.flatMap(expression => [...text.matchAll(new RegExp(expression, 'g'))].map(match => match.groups));
     assert.equal(dependencies.length, [...text.matchAll(/harbor\.webgrip\.dev\/webgrip\/unfold-agent:/g)].length, `every unfold-agent reference in ${file} is extracted`);
     assert.ok(dependencies.length > 0, file);
-    for (const dependency of dependencies) assert.deepEqual({ ...dependency }, { depName: 'harbor.webgrip.dev/webgrip/unfold-agent', currentValue: committed });
+    for (const dependency of dependencies) {
+      assert.equal(dependency.depName, 'harbor.webgrip.dev/webgrip/unfold-agent');
+      assert.match(dependency.currentValue, /^0\.\d+\.\d+-rc\.\d+$/, 'a reference names an Unfold candidate, which Renovate moves on from the committed one');
+    }
     assert.deepEqual([manager.datasourceTemplate, manager.versioningTemplate], ['docker', 'semver']);
   }
   const rules = config.packageRules.filter(rule => (rule.matchPackageNames ?? []).includes('harbor.webgrip.dev/webgrip/unfold-agent'));
