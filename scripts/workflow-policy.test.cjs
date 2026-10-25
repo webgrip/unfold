@@ -158,11 +158,11 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
   const pending = train.jobs.pending;
   assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'the train reads the branch head when it starts, not the commit it was queued for');
   assert.equal(pending.steps.at(-1).run, 'sh scripts/release-train.sh pending');
-  for (const event_name of ['schedule', 'workflow_dispatch']) {
-    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
+  for (const [event_name, ref, ref_name] of [['schedule', 'development', 'development'], ['schedule', 'main', 'main'], ['workflow_dispatch', 'refs/heads/development', 'development'], ['workflow_dispatch', 'refs/heads/main', 'main'], ['workflow_dispatch', 'refs/heads/topic', 'topic']]) {
+    {
       for (const gate of ['', 'false', 'true']) {
-        const context = { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
-        const expected = ref === 'refs/heads/development' && gate === 'true';
+        const context = { github: { event_name, ref, ref_name }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
+        const expected = ref_name === 'development' && gate === 'true';
         assert.equal(evaluate(pending.if, { ...context, needs: { 'merge-pin': { result: 'success' } } }), expected, `pending ${event_name} ${ref} ${gate}`);
         assert.equal(evaluate(train.jobs.release.if, context), expected, `release ${event_name} ${ref} ${gate}`);
         assert.equal(evaluate(train.jobs['site-release'].if, context), expected, `site-release ${event_name} ${ref} ${gate}`);
@@ -200,13 +200,13 @@ test('the release train merges the newest green Ploeg pin first, so its checks a
   const pending = train.jobs.pending;
   assert.equal(merge.needs, undefined, 'merging the pin is the first job of the train');
   assert.deepEqual(pending.needs, ['merge-pin']);
-  for (const ref of ['refs/heads/development', 'refs/heads/main']) {
+  for (const ref of ['development', 'main']) {
     for (const gate of ['', 'true']) {
-      const context = { github: { event_name: 'schedule', ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
-      assert.equal(evaluate(merge.if, context), ref === 'refs/heads/development' && gate === 'true', `merge-pin ${ref} ${gate}`);
+      const context = { github: { event_name: 'schedule', ref, ref_name: ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
+      assert.equal(evaluate(merge.if, context), ref === 'development' && gate === 'true', `merge-pin ${ref} ${gate}`);
     }
   }
-  const released = { github: { event_name: 'schedule', ref: 'refs/heads/development' }, vars: { UNFOLD_RELEASES_ENABLED: 'true' } };
+  const released = { github: { event_name: 'schedule', ref: 'development', ref_name: 'development' }, vars: { UNFOLD_RELEASES_ENABLED: 'true' } };
   for (const result of ['success', 'failure', 'skipped']) assert.equal(evaluate(pending.if, { ...released, needs: { 'merge-pin': { result } } }), true, `a pin merge that ended ${result} leaves the train unchanged`);
   assert.equal(evaluate(pending.if, { ...released, needs: { 'merge-pin': { result: 'cancelled' } } }), false, 'a cancelled train stops');
   assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'pending reads the head after the pin merged, not the commit the train was queued for');
