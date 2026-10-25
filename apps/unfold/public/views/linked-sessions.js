@@ -9,6 +9,7 @@ import { linkedInboxCard } from '../core/linked-inbox.js';
 import { conversationCard, conversationList, mergedConversation } from '../core/linked-conversation.js';
 import { permissionsCard, permissionsChangedEvent } from '../core/linked-permissions.js';
 import { shell } from '../shell.js';
+import { enabled, exposed } from '../core/flags.js';
 import { briefCheck, digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
@@ -53,14 +54,21 @@ function settingsContent() {
 function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
-  const options = { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes };
+  const split = enabled('linked.split-page');
+  if (split) exposed('linked.split-page', { screen: 'linked-session' });
+  const options = { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes, split };
   const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError, draft: view.draft.message });
   if (!view.session.mine) return linkedSessionPage(view.session, { ...options, act: inboxCard });
   const talk = conversationCard(view.session, view.conversation);
-  const handOff = handOffMarkup(view.session, view.readiness);
+  const waiting = permissionsCard(view.session, view.permissions);
+  const handOff = handOffMarkup(view.session, view.readiness, split ? { label: 'Let Ploeg finish' } : {});
+  if (!split) {
+    const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', icon: 'work', body: startWorkItemForm(view.session, view.options, view.draft) });
+    return `${waiting}${linkedSessionPage(view.session, { ...options, act: `${talk}${inboxCard}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}` })}`;
+  }
   const start = `<div class="linked-hand-start"><p class="field-label">${handOff ? 'Or start a new Work Item' : 'Start a new Work Item'}</p>${startWorkItemForm(view.session, view.options, view.draft)}</div>`;
   const handCard = card({ id: 'linked-session-start', title: 'Hand to Ploeg', subtitle: 'Ploeg runs it with the Team’s budget, and this session stays linked to it.', icon: 'work', body: `${handOff}${start}` });
-  return linkedSessionPage(view.session, { ...options, act: `${talk}${permissionsCard(view.session, view.permissions)}${inboxCard}${handCard}` });
+  return linkedSessionPage(view.session, { ...options, act: `${talk}${waiting}${inboxCard}${handCard}` });
 }
 
 function conversationScroll() {
