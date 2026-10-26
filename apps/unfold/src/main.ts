@@ -12,6 +12,7 @@ import { AgentHost } from './ahp/host.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { Links } from './links.ts';
 import { Oidc } from './oidc.ts';
+import { localLoginEnabled } from './auth.ts';
 import { applicationVersion, buildServer } from './http.ts';
 import { PloegClient } from './ploeg.ts';
 import { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
@@ -98,7 +99,7 @@ async function main() {
   requirePloegExecution(config);
   if (config.mode === 'live' && !config.repositories.length) throw new Error('Configure at least one repository with --config config/live.example.json. For the credential-free demonstration, run npm run demo.');
   const app = await createApplication(config);
-  if (config.mode === 'live' && !app.store.getUserByName(config.auth.bootstrapName)) {
+  if (config.mode === 'live' && localLoginEnabled(config) && !app.store.getUserByName(config.auth.bootstrapName)) {
     await app.close();
     throw new Error('Set UNFOLD_ADMIN_PASSWORD to a password of at least 12 characters for the first launch, or create an account with npm run user:add.');
   }

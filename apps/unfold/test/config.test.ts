@@ -168,3 +168,19 @@ test('a kubernetes workspace reservation is a Kubernetes quantity and is kept ap
   assert.deepEqual([config.kubernetes?.cpu, config.kubernetes?.cpuRequest, config.kubernetes?.memory, config.kubernetes?.memoryRequest], ['1', '500m', '2Gi', '1Gi']);
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes: { ...kubernetes, memoryRequest: 'a lot' } }), /kubernetes\.memoryRequest must be a Kubernetes quantity/);
 });
+
+test('local password sign-in is on by default and turned off by auth.localLogin or UNFOLD_LOCAL_LOGIN, never without single sign-on', async t => {
+  const previous = process.env.UNFOLD_LOCAL_LOGIN;
+  t.after(() => { if (previous === undefined) delete process.env.UNFOLD_LOCAL_LOGIN; else process.env.UNFOLD_LOCAL_LOGIN = previous; });
+  delete process.env.UNFOLD_LOCAL_LOGIN;
+  const oidc = { issuer: 'https://auth.example/application/o/unfold/', clientId: 'unfold' };
+  assert.equal((await load(t, {})).auth.localLogin, true);
+  assert.equal((await load(t, { auth: { oidc, localLogin: false } })).auth.localLogin, false);
+  await assert.rejects(load(t, { auth: { localLogin: false } }), /Local password sign-in is turned off .* auth\.oidc is not configured, so nobody could sign in/);
+  await assert.rejects(load(t, { auth: { oidc, localLogin: 'no' } }), /auth.localLogin must be true or false/);
+  process.env.UNFOLD_LOCAL_LOGIN = 'false';
+  assert.equal((await load(t, { auth: { oidc, localLogin: true } })).auth.localLogin, false);
+  await assert.rejects(load(t, {}), /nobody could sign in/);
+  process.env.UNFOLD_LOCAL_LOGIN = 'off';
+  await assert.rejects(load(t, { auth: { oidc } }), /UNFOLD_LOCAL_LOGIN must be true or false/);
+});

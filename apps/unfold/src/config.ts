@@ -299,6 +299,17 @@ export function mcpServerSettings(): AppConfig['mcpServers'] {
   return { ploeg: { url, clientId } };
 }
 
+/** Whether people may sign in with a local name and password: `UNFOLD_LOCAL_LOGIN` (`true` or `false`), else `auth.localLogin`, else on. */
+export function localLoginSetting(configured: unknown): boolean {
+  const variable = process.env.UNFOLD_LOCAL_LOGIN;
+  if (variable !== undefined && variable !== '') {
+    if (variable !== 'true' && variable !== 'false') throw new Error('UNFOLD_LOCAL_LOGIN must be true or false');
+    return variable === 'true';
+  }
+  if (configured !== undefined && typeof configured !== 'boolean') throw new Error('auth.localLogin must be true or false');
+  return configured ?? true;
+}
+
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
 export function productEventsSetting(): boolean {
   const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
@@ -500,6 +511,8 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
     config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), ...(oidc.subjectNamespace !== undefined ? { subjectNamespace: oidc.subjectNamespace.replace(/\/$/, '') } : {}), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'unfold_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
   } else delete (config.auth as { oidc?: unknown }).oidc;
+  config.auth.localLogin = localLoginSetting(raw.auth?.localLogin);
+  if (!config.auth.localLogin && !config.auth.oidc) throw new Error('Local password sign-in is turned off (auth.localLogin or UNFOLD_LOCAL_LOGIN is false) and auth.oidc is not configured, so nobody could sign in. Configure auth.oidc, or turn local sign-in back on.');
   const exchange = config.ploeg?.personTokens;
   if (exchange) {
     if (!config.auth.oidc) throw new Error('ploeg.personTokens needs auth.oidc: Unfold exchanges the token a person signed in with');

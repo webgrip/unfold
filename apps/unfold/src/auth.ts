@@ -82,7 +82,13 @@ function digest(token: string): string { return createHash('sha256').update(toke
 
 function failure(status: number, code: string, message: string): Error { return Object.assign(new Error(message), { status, code }); }
 
+/** The answer to a password sign-in while local sign-in is turned off. */
+export const localLoginOff = () => failure(404, 'local_login_off', 'Sign-in with a name and password is turned off here. Use single sign-on.');
+
 const unknownEditor = () => failure(404, 'editor_login_unknown', 'This editor sign-in is unknown or has expired. Start it again from your editor.');
+
+/** Whether local name-and-password sign-in is on. It is on unless the configuration turns it off. */
+export function localLoginEnabled(config: AppConfig): boolean { return config.auth.localLogin !== false; }
 
 export class Auth {
   store: Store;
@@ -93,7 +99,7 @@ export class Auth {
     this.store = store;
     this.config = config;
     this.cookieName = config.auth.secureCookies ? '__Host-unfold' : 'unfold';
-    if (config.mode === 'live' && config.auth.bootstrapPassword && !store.getUserByName(config.auth.bootstrapName)) {
+    if (config.mode === 'live' && localLoginEnabled(config) && config.auth.bootstrapPassword && !store.getUserByName(config.auth.bootstrapName)) {
       store.addUser({ id: randomBytes(12).toString('hex'), name: config.auth.bootstrapName, role: 'admin', passwordHash: hashPassword(config.auth.bootstrapPassword) });
     }
   }
@@ -145,8 +151,12 @@ export class Auth {
     if (!token || token.length > 200) return undefined;
     const login = this.store.getLogin(digest(token));
     if (!login || Date.parse(login.expiresAt) <= Date.now()) return undefined;
-    const user = this.store.getUser(login.userId);
+    const user = this.account(login.userId);
     return user ? { id: user.id, name: user.name, role: user.role } : undefined;
+  }
+  private account(id: string) {
+    const user = this.store.getUser(id);
+    return user && (user.passwordHash === '' || localLoginEnabled(this.config)) ? user : undefined;
   }
   private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number; proof?: DelegatedProof }>();
 
@@ -180,18 +190,19 @@ export class Auth {
     const bearer = this.bearer(req);
     if (bearer && delegatedTokenPattern.test(bearer)) {
       const entry = this.delegated.get(digest(bearer));
-      const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.store.getUser(entry.userId) : undefined;
+      const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.account(entry.userId) : undefined;
       return user && entry ? { id: user.id, name: user.name, role: lowerRole(user.role, entry.role) } : undefined;
     }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));
-    const user = credential && this.store.getUser(credential.userId);
+    const user = credential && this.account(credential.userId);
     if (!credential || !user) return undefined;
     const now = Date.now();
     if (!credential.lastUsedAt || now - Date.parse(credential.lastUsedAt) >= 60_000) this.store.touchEditorCredential(credential.id, new Date(now).toISOString());
     return { id: user.id, name: user.name, role: user.role };
   }
   login(name: string, password: string, address: string): { user: User; cookie: string } {
+    if (!localLoginEnabled(this.config)) throw localLoginOff();
     const now = Date.now();
     const attempts = this.attempts.get(address);
     if (attempts && now - attempts.since < 300000 && attempts.count >= 10) throw Object.assign(new Error('Too many login attempts. Try again in five minutes.'), { status: 429, code: 'rate_limited' });
@@ -272,7 +283,7 @@ export class Auth {
     }
     if (item.decision !== 'approved' || !item.signedInBy) return { status: 'pending' };
     this.editors.delete(code);
-    const record = this.store.getUser(item.signedInBy);
+    const record = this.account(item.signedInBy);
     if (!record) throw unknownEditor();
     const user = { id: record.id, name: record.name, role: record.role };
     const token = `${editorTokenPrefix}${randomBytes(32).toString('base64url')}`;
