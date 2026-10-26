@@ -13,6 +13,13 @@
       "required": ["repository", "tag", "pullPolicy"]
     },
     "mode": { "enum": ["demo", "live"] },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Local name-and-password sign-in. localLogin false offers only single sign-on (config.auth.oidc required), refuses POST /api/login, creates no bootstrap administrator and rejects sessions of local accounts.",
+      "properties": { "localLogin": { "type": "boolean" } },
+      "required": ["localLogin"]
+    },
     "decider": {
       "type": "object",
       "additionalProperties": false,

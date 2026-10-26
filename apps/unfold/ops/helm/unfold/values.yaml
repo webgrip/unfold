@@ -54,6 +54,9 @@ decider:
   requestsPerMinute: 8
   existingSecret: ""
   secretKey: key
+# Local name-and-password sign-in; false needs config.auth.oidc (apps/unfold/docs/operations/live.md#local-sign-in).
+auth:
+  localLogin: true
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

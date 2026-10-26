@@ -2,6 +2,11 @@
 {{- $_ := set $cfg "mode" .Values.mode -}}
 {{- $_ := set $cfg "dataDir" "/data/workbench" -}}
 {{- $_ := set $cfg "publicDir" "/app/public" -}}
+{{- if hasKey (default (dict) .Values.config.auth) "localLogin" -}}{{- fail "Set local password sign-in through auth.localLogin, not config.auth.localLogin" -}}{{- end -}}
+{{- if and (not .Values.auth.localLogin) (not (hasKey (default (dict) .Values.config.auth) "oidc")) -}}{{- fail "auth.localLogin false needs config.auth.oidc: without local sign-in, single sign-on is the only way in" -}}{{- end -}}
+{{- $auth := deepCopy (default (dict) .Values.config.auth) -}}
+{{- $_ := set $auth "localLogin" .Values.auth.localLogin -}}
+{{- $_ := set $cfg "auth" $auth -}}
 {{- if .Values.baseUrl -}}{{- $_ := set $cfg "baseUrl" .Values.baseUrl -}}{{- end -}}
 {{- $_ := set $cfg "runtime" (dict "kind" (ternary "demo" "opencode" (eq .Values.mode "demo")) "backend" "kubernetes" "backends" (list "kubernetes") "timeoutMs" 3600000) -}}
 {{- $peer := dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" .Release.Namespace)) "podSelector" (dict "matchLabels" (dict "app.kubernetes.io/name" "unfold" "app.kubernetes.io/instance" .Release.Name)) -}}

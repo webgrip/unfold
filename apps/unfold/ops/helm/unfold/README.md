@@ -95,6 +95,12 @@ Live mode reaches services the chart cannot guess, and none of them has a defaul
 
 Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold live](../../../docs/operations/live.md#kubernetes) explains each setting and the credentials Secret.
 
+## Sign-in
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `auth.localLogin` | `true` | `config.auth.localLogin`. `false` turns local name-and-password sign-in off: only single sign-on is offered, `POST /api/login` answers 404, `UNFOLD_ADMIN_PASSWORD` creates no administrator and sessions of local accounts stop working. It needs `config.auth.oidc`; the chart refuses to render without it, and refuses `config.auth.localLogin` so the switch has one place. [Live operation](../../../docs/operations/live.md#local-sign-in) describes the switch |
+
 ## Workspace size
 
 Each agent workspace is one pod. `workspaceCpu` and `workspaceMemory` are its limits. `workspaceCpuRequest` and `workspaceMemoryRequest` are what it reserves on a node; left empty, it reserves its limits, so a workspace starts only on a node with the full limits free. Reserving less lets workspaces fit on a busier cluster and burst up to their limits while the node has room. A workspace that no node has room for waits, then fails with "No machine had room to start the workspace", and the Status page shows it.

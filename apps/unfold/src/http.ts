@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
-import { Auth, editorCredentialDays, editorLabel, type EditorRequestView } from './auth.ts';
+import { Auth, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
@@ -338,12 +338,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
       if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect && !ofrep) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
+        if (!localLoginEnabled(config)) throw localLoginOff();
         const data = await body(req);
         const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
         res.setHeader('Set-Cookie', result.cookie);
         return json(res, 200, { user: result.user });
       }
-      if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: true, oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
+      if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: localLoginEnabled(config), oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
         const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
         const started = auth.beginEditor(req.socket.remoteAddress || 'unknown', editorLabel(requested.client, requested.host));

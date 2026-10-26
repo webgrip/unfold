@@ -43,17 +43,20 @@ function brandPanel() {
   return `<section class="signin-brand">${lockup}<div class="signin-brand-copy"><p class="signin-tagline">A place to direct the work.</p><p class="signin-pitch">Agents do the work. You review it, steer it and decide what ships.</p>${glimpse()}</div><span class="signin-floor" aria-hidden="true"></span><ul class="signin-trust">${trust.map(([glyph, text]) => `<li>${icon(glyph)}<span>${escape(text)}</span></li>`).join('')}</ul></section>`;
 }
 
-function formPanel(error) {
+/** The sign-in card for the methods in `state.authMethods`: single sign-on first when configured, the password form only while local sign-in is on. */
+export function formPanel(error) {
   const oidc = state.authMethods.oidc;
+  const local = state.authMethods.local !== false || !oidc;
   const expired = state.sessionExpired && !error ? callout({ tone: 'attention', icon: 'clock', title: 'Your session expired', body: '<p>Sign in again to continue where you were.</p>' }) : '';
-  const sso = oidc ? `${act('data-action="sso"', { label: `Continue with ${oidc.name}`, href: '/api/auth/oidc', variant: 'primary', size: 'lg', icon: 'user' })}<p class="signin-sso-note">Your organisation account. Your role follows your groups.</p><div class="signin-divider"><span>or use a local account</span></div>` : '';
+  const sso = oidc ? `${act('data-action="sso"', { label: `Continue with ${oidc.name}`, href: '/api/auth/oidc', variant: 'primary', size: 'lg', icon: 'user' })}<p class="signin-sso-note">Your organisation account. Your role follows your groups.</p>${local ? '<div class="signin-divider"><span>or use a local account</span></div>' : ''}` : '';
   const alert = error ? `<div id="login-error" role="alert">${callout({ tone: 'danger', body: `<p>${escape(error)}</p>` })}</div>` : '';
   const flagged = invalid && error ? ' aria-invalid="true" aria-describedby="login-error"' : '';
   const described = invalid && error ? ' aria-describedby="login-error"' : '';
   const reveal = act('data-action="login-reveal"', { icon: 'eye', ariaLabel: 'Show password', title: 'Show password', variant: 'ghost', size: 'sm', id: 'login-reveal' }).replace('<button ', '<button aria-pressed="false" ');
   const fields = `<div class="field"><label class="field-label" for="login-name">Account name</label><input id="login-name" name="name" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${escape(accountName)}"${described}></div><div class="field"><label class="field-label" for="login-password">Password</label><div class="signin-password"><input id="login-password" name="password" type="password" autocomplete="current-password" required${flagged}>${reveal}</div><p class="field-hint signin-caps" id="login-caps" hidden>${icon('alert')}Caps Lock is on.</p></div>`;
   const submit = button({ type: 'submit', label: 'Sign in', variant: oidc ? 'secondary' : 'primary', size: 'lg' });
-  return `<section class="signin-panel"><div class="signin-card"><header class="signin-header"><h1 class="signin-title">Welcome back.</h1><p class="signin-subtitle">Sign in to your team’s workbench.</p></header>${expired}${sso}<form data-form="login" class="signin-form">${alert}${fields}${submit}</form><p class="signin-help">No account yet? An administrator creates workbench accounts.</p></div></section>`;
+  const form = local ? `<form data-form="login" class="signin-form">${alert}${fields}${submit}</form><p class="signin-help">No account yet? An administrator creates workbench accounts.</p>` : `${alert}<p class="signin-help">No access yet? Ask an administrator to add you to an unfold group.</p>`;
+  return `<section class="signin-panel"><div class="signin-card"><header class="signin-header"><h1 class="signin-title">Welcome back.</h1><p class="signin-subtitle">Sign in to your team’s workbench.</p></header>${expired}${sso}${form}</div></section>`;
 }
 
 /** Draws the sign-in page, with single sign-on first when configured, `error` when a sign-in failed and a note when the session expired. */
