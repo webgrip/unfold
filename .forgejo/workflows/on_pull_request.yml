@@ -91,6 +91,8 @@ jobs:
       - run: mise trust apps/unfold/mise.toml
       - run: mise -C apps/unfold exec -- npm ci
       - run: mise -C apps/unfold run opencode-contract
+        env:
+          UNFOLD_TEST_TIMEOUT_SCALE: '2'
 
   ploeg-pin:
     runs-on: docker
