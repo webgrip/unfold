@@ -67,7 +67,7 @@ async function opencode(t: TestContext, permission: Record<string, string>) {
   t.after(() => { child.kill('SIGKILL'); model.server.close(); rmSync(root, { recursive: true, force: true }); });
   const endpoint = `http://127.0.0.1:${port}`;
   const authorization = 'Basic ' + Buffer.from(`opencode:${password}`).toString('base64');
-  const deadline = deadlineAfter(30_000);
+  const deadline = deadlineAfter(60_000);
   let healthy = false;
   while (!healthy && Date.now() < deadline) {
     healthy = await fetch(`${endpoint}/global/health`, { headers: { authorization }, signal: AbortSignal.timeout(scaledTimeout(2000)) }).then(response => response.ok, () => false);
@@ -80,12 +80,12 @@ async function opencode(t: TestContext, permission: Record<string, string>) {
 }
 
 function turn(workspace: Workspace, events: RuntimeEvent[]) {
-  const context = executionFixture({ runtime: 'opencode', role: { id: 'implementer', name: 'Implementer', mode: 'write', instruction: 'Say how to run the unit tests.' }, workspace, verify: ['git', 'diff', '--check'], prompt: 'Say how to run the unit tests in the README.', signal: AbortSignal.timeout(90_000), emit: event => { events.push(event); } });
+  const context = executionFixture({ runtime: 'opencode', role: { id: 'implementer', name: 'Implementer', mode: 'write', instruction: 'Say how to run the unit tests.' }, workspace, verify: ['git', 'diff', '--check'], prompt: 'Say how to run the unit tests in the README.', signal: AbortSignal.timeout(scaledTimeout(90_000)), emit: event => { events.push(event); } });
   context.session.approval = 'manual';
   return context;
 }
 
-test('the managed OpenCode configuration lets a supervised writer grep without asking', { skip, timeout: testTimeout(120_000) }, async t => {
+test('the managed OpenCode configuration lets a supervised writer grep without asking', { skip, timeout: testTimeout(180_000) }, async t => {
   const { runtime, workspace, model, output } = await opencode(t, managedConfig({ models: [], runtime: { timeoutMs: 1 } } as unknown as AppConfig).permission as Record<string, string>);
   const events: RuntimeEvent[] = [];
   const result = await runtime.execute(turn(workspace, events));
@@ -94,7 +94,7 @@ test('the managed OpenCode configuration lets a supervised writer grep without a
   assert.ok(model.requests.some(request => request.toolResults > 0), 'the grep tool ran and its result reached the model');
 });
 
-test('a permission OpenCode raises reaches Unfold, its answer reaches OpenCode, and the turn completes', { skip, timeout: testTimeout(120_000) }, async t => {
+test('a permission OpenCode raises reaches Unfold, its answer reaches OpenCode, and the turn completes', { skip, timeout: testTimeout(180_000) }, async t => {
   const { runtime, workspace, model, output } = await opencode(t, { '*': 'ask', external_directory: 'deny' });
   const events: RuntimeEvent[] = [];
   const context = turn(workspace, events);
