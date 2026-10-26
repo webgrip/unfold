@@ -2,3 +2,6 @@ link_base = "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/"
 
 [skills]
 ignore = ["openspec-*", "source-command-*"]
+
+[hooks]
+allow = ['python3 "${CLAUDE_PROJECT_DIR}"/scripts/stage-explicit-paths.py']
