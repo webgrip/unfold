@@ -71,7 +71,7 @@ jobs:
           ref: ${{ needs.pending.outputs.sha }}
       - uses: https://github.com/jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
         with:
-          version: 2026.10.18
+          version: 2026.10.19
           install_args: uv
           cache: false
           github_token: ''
@@ -85,7 +85,7 @@ jobs:
     needs: [pending, checks, ploeg-pin]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.2@sha256:1fd0856cbfe52386712060bda1d84b9efa3de3d903d1754914d8cf6486d6fd37
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.5@sha256:66395957f9b8e38cb276a80dbc5399ad1fe988a58b51b2774c372b373d6b69ea
     permissions:
       contents: write
     steps:
@@ -113,7 +113,7 @@ jobs:
     needs: [pending, release]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.2@sha256:1fd0856cbfe52386712060bda1d84b9efa3de3d903d1754914d8cf6486d6fd37
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.1.5@sha256:66395957f9b8e38cb276a80dbc5399ad1fe988a58b51b2774c372b373d6b69ea
     permissions:
       contents: write
     steps:
