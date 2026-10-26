@@ -111,6 +111,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0138](../../apps/ploeg/docs/adrs/0138-a-harness-runs-in-its-own-container-and-no-credential-enters-it.md) | A harness runs in its own container, and no credential enters it | 2026-10-24 | — |
 | Ploeg | [0140](../../apps/ploeg/docs/adrs/0140-documentation-is-cc-by-4-0-and-code-and-api-specifications-stay-apache-2-0.md) | Documentation is CC-BY-4.0, and code and API specifications stay Apache-2.0 | 2026-10-24 | — |
 | Ploeg | [0141](../../apps/ploeg/docs/adrs/0141-the-claude-runner-image-carries-no-claude-code-and-installs-anthropics-signed-release-at-start.md) | The claude-runner image carries no Claude Code and installs Anthropic's signed release at start | 2026-10-25 | — |
+| Ploeg | [0158](../../apps/ploeg/docs/adrs/0158-a-stable-release-is-a-soaked-candidate-promoted-by-fast-forwarding-main.md) | A stable release is a soaked candidate, promoted by fast-forwarding main | 2026-10-26 | — |
 | Unfold | [0001](../../apps/unfold/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Unfold | [0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Unfold | [0003](../../apps/unfold/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
