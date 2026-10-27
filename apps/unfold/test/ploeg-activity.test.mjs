@@ -285,7 +285,8 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /aria-valuetext="US\$\s0,42 observed so far of US\$\s1,50 authorized"/);
   assert.doesNotMatch(html.match(/<tr data-run-id="64"[\s\S]*?<\/tr>/)[0], /settled of/);
   assert.doesNotMatch(html, /class="meter-end"/);
-  assert.match(html, /title="Agent review: changes requested\. Agent review is evidence, not a human review\.">Agent asked for changes</, 'the short verdict, with the full one in its title');
+  assert.match(html, /<span class="runs-badge"><span class="badge" data-tone="attention" title="Agent review: changes requested\. Agent review is evidence, not a human review\."><svg[^]*?<\/svg>Agent asked for changes<\/span><\/span><\/td>/, 'a reviewer that changed nothing leads with its short verdict, the full one in its title, and no "No change needed"');
+  assert.doesNotMatch(html.match(/<tr data-run-id="63"[\s\S]*?<\/tr>/)[0], /No change needed/);
   assert.match(html, /The worker stopped responding/);
   assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span>/);
   assert.doesNotMatch(html, /title="[^"]*retries automatically/);
@@ -449,4 +450,24 @@ test('a Runs filter with since lists only the Runs that finished after it and sa
   const none = runsMarkup({ runs: [runs[1]], nextBefore: '62', filter, demo: false }, [], helpers, now);
   assert.match(none, /No Run finished since \d\d:\d\d/);
   assert.match(none, /id="ploeg-runs-older"/, 'an empty since window can still look further back');
+});
+
+test('an Insights tile caption never contradicts its number: Runs on stopped work and a window with nothing finished', () => {
+  const data = summary('24h');
+  const totals = { ...data.totals, runs: { ...data.totals.runs, finished: 0, failed: 0, stuck: 0, running: 1, pending: 0 }, workItems: { ...data.totals.workItems, leased: 0 } };
+  const html = overviewMarkup({ window: '24h', data: { ...data, totals }, loading: false, error: null }, helpers, now);
+  assert.match(html, /Running<\/span><strong class="stat-value">0<\/strong><span class="stat-detail">1 Run still marked running on stopped work<\/span>/);
+  assert.match(html, /Failed<\/span><strong class="stat-value">0<\/strong><span class="stat-detail">No Run finished in the last 24 hours<\/span>/);
+  const moving = overviewMarkup({ window: '24h', data: { ...data, totals: { ...totals, workItems: { ...totals.workItems, leased: 1 } } }, loading: false, error: null }, helpers, now);
+  assert.match(moving, /Running<\/span><strong class="stat-value">1<\/strong><span class="stat-detail">1 Run working<\/span>/);
+});
+
+test('a running Run whose Work Item Ploeg stopped says it is left over and holds budget', () => {
+  const runs = [run({ id: '395', workItemId: '245', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.01, durationSeconds: null, finishedAt: null, usage: null }), run({ id: '396', workItemId: '300', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.2, durationSeconds: null, finishedAt: null, usage: null })];
+  const html = runsMarkup({ runs, filter: {}, demo: false, stopped: new Set(['245']) }, [], helpers, now);
+  const row = id => html.match(new RegExp(`<tr data-run-id="${id}"[\\s\\S]*?</tr>`))[0];
+  assert.match(row('395'), /<span class="runs-note" data-tone="severe">Its Work Item stopped<\/span><span class="runs-next">Ploeg did not close this Run when it stopped the Work Item, so it holds budget without working\. Open the Work Item: run it again or cancel it\.<\/span>/);
+  assert.doesNotMatch(row('396'), /Its Work Item stopped/);
+  assert.match(html, /<li class="runs-card" data-run-id="395"[\s\S]*?Its Work Item stopped/, 'the phone card says it too');
+  assert.doesNotMatch(runsMarkup({ runs, filter: {}, demo: false }, [], helpers, now), /Its Work Item stopped/, 'without the stopped Work Items nothing is called left over');
 });

@@ -1068,6 +1068,25 @@
   line-height: var(--leading-sm);
 }
 
+.work-list-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.work-list-note > svg.icon {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin-block-start: 0.125rem;
+}
+
 .work-note > svg.icon {
   flex: none;
   width: var(--icon-sm);

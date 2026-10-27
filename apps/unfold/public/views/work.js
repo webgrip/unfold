@@ -8,6 +8,7 @@ import { prefs } from '../core/prefs.js';
 import { money, plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
+import { onCountsChange } from '../core/counts.js';
 import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
@@ -39,7 +40,7 @@ const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequ
 
 onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null }));
 
-const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
+const laneOfState = { needs_human: 'needs_human', stale: 'stale', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
 const retiredLanes = { all: 'open' };
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
@@ -51,6 +52,8 @@ function knownItem(id) {
   return null;
 }
 const visible = () => Boolean(state.bootstrap) && state.view === 'work';
+let shownRefused = null;
+onCountsChange(() => { if (state.counts?.refused === shownRefused) return; shownRefused = state.counts?.refused ?? null; if (visible() && activePloegLane(state) === 'needs_human' && !isTyping(document.activeElement)) renderWork(); });
 const signature = value => JSON.stringify(value ?? null, (key, entry) => key === 'fetchedAt' ? undefined : entry);
 
 function listHash() {
@@ -62,6 +65,7 @@ function model() {
   return {
     data: state.ploeg,
     lane: activePloegLane(state),
+    refused: state.counts?.refused,
     lanePending: Boolean(work.pickLane) && work.pickLane === work.detailId,
     team: work.team,
     teams: work.teams,

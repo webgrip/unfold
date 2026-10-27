@@ -328,6 +328,16 @@ export function sessionStatus(session) {
   return stateMeta(`session:${session?.status}`);
 }
 
+/**
+ * The ids of the Work Items in a `GET /api/ploeg/now` response that Ploeg stopped (`needs_human`), so a Run still
+ * marked running on one of them can be told apart from work that moves. Empty when the waiting group failed to load.
+ * @returns {Set<string>}
+ */
+export function stoppedWorkIds(data) {
+  if (data?.errors?.waiting || !Array.isArray(data?.waiting)) return new Set();
+  return new Set(data.waiting.filter(entry => entry?.state === 'needs_human').map(entry => String(entry.id)));
+}
+
 /** Whether a session waits on a person: it needs input, failed without its Work Item being closed, was interrupted, or completed without a recorded review. */
 export function sessionNeedsYou(session) {
   if (session?.status === 'failed' && session.workItemClosedAt) return false;
@@ -561,15 +571,17 @@ export function unreportedOutcome(run) {
 
 /**
  * The detail lines of the Work Item and Run stat tiles, shared by Now and Insights so a tile says the same thing on
- * both pages. `running` and `pending` are Run counts.
+ * both pages. `running` and `pending` are Run counts; `leased`, the running Work Items where the tile counts those,
+ * tells Runs on stopped work apart: with no Work Item running, a running Run works on nothing.
  */
 export const tileDetail = Object.freeze({
   review: () => 'Pull requests to read',
   needsYou: () => 'Stopped until a person acts',
   proposed: () => 'Waiting for approval',
   queued: queued => queued === 0 ? 'Nothing waits to start' : 'Waiting for a worker',
-  running: ({ running, pending }) => {
-    const working = isAmount(running) && running > 0 ? `${plural(running, 'Run')} working` : '';
+  running: ({ running, pending, leased }) => {
+    const leftover = isAmount(leased) && leased === 0;
+    const working = isAmount(running) && running > 0 ? `${plural(running, 'Run')} ${leftover ? 'still marked running on stopped work' : 'working'}` : '';
     const waiting = isAmount(pending) && pending > 0 ? `${pending} waiting for a worker` : '';
     return [working, waiting].filter(Boolean).join(' · ') || 'Nothing is working';
   },

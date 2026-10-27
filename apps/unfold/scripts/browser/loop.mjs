@@ -19,7 +19,7 @@ export async function run({ app, page, assert, screenshot }) {
   const titles = await loop.locator('.loop-lanes > section h2').allTextContents();
   assert.deepEqual(titles.map(title => title.replace(/\d+$/, '')), ['Decide', 'Unstick', 'Up next'], `the lanes are out of order: ${titles.join(', ')}`);
   const day = await loop.locator('.loop-day').textContent();
-  assert.match(day, /things need you: \d+ to decide, \d+ stuck, \d+ could not start/);
+  assert.match(day, /things need you: \d+ to decide, \d+ to unstick, \d+ could not start/);
   assert.match(day, /no spend in the demo/);
   const counted = Number(day.match(/(\d+) things need you/)[1]);
   const listed = Number((await loop.locator('#loop-decide-title .count').textContent()) || 0) + Number((await loop.locator('#loop-unstick-title .count').textContent()) || 0);

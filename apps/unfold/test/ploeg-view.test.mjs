@@ -39,7 +39,7 @@ function overview(team, items, cursor = null) {
 }
 
 test('the Ready for review lane is the default only while it holds work, and an explicit choice wins', () => {
-  assert.deepEqual(ploegLanes.map(lane => [lane.id, lane.label]), [['awaiting_review', 'Ready for review'], ['needs_human', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['open', 'Open'], ['closed', 'Closed']]);
+  assert.deepEqual(ploegLanes.map(lane => [lane.id, lane.label]), [['awaiting_review', 'Ready for review'], ['needs_human', 'Needs you'], ['stale', 'Stopped retrying'], ['leased', 'Running'], ['queued', 'Queued'], ['open', 'Open'], ['closed', 'Closed']]);
   const lanes = items => ({ awaiting_review: { items, nextCursor: null }, needs_human: { items: [{ id: '1' }], nextCursor: null } });
   assert.equal(activePloegLane({ ploegLane: null, ploeg: { lanes: lanes([{ id: '2' }]) } }), 'awaiting_review');
   assert.equal(activePloegLane({ ploegLane: null, ploeg: { lanes: lanes([]) } }), 'needs_human');
@@ -51,7 +51,7 @@ test('the Work list has one lane control with counts and rows that link to the W
   const items = ploegDemo.items.filter(item => item.team === 'delivery');
   const data = teamOverview(overview('delivery', items));
   const html = workMarkup(model({ data, lane: 'awaiting_review', team: 'delivery' }));
-  assert.equal((html.match(/data-action="ploeg-lane"/g) || []).length, 6, 'one lane control, six lanes');
+  assert.equal((html.match(/data-action="ploeg-lane"/g) || []).length, 7, 'one lane control, seven lanes');
   assert.match(html, /data-action="ploeg-lane" data-id="awaiting_review" aria-pressed="true">Ready for review<span class="count">1<\/span>/);
   assert.match(html, /data-action="ploeg-lane" data-id="needs_human" aria-pressed="false">Needs you<span class="count">4<\/span>/);
   assert.match(html, /<a class="list-row" href="#work\/105\?lane=awaiting_review&amp;team=delivery"[^>]*data-work-row data-id="105"/);
@@ -888,4 +888,15 @@ test('the Run row badge reads Health: and its word to a screen reader', async ()
   const { runHealthBadge } = await import('../public/ploeg.js');
   const badge = runHealthBadge({ state: 'running' }, { data: { health: 'unknown', reason: 'Ploeg did not report this Run\'s limits', signals: [] } });
   assert.match(badge, /<span class="sr-only">Health: <\/span>Not known<\/span>/);
+});
+
+test('the Needs you lane says Now also counts the tasks Ploeg could not start, and Stopped retrying is a lane', () => {
+  const items = ploegDemo.items.filter(item => item.team === 'delivery');
+  const data = teamOverview(overview('delivery', items));
+  const two = workMarkup(model({ data, lane: 'needs_human', refused: 2 }));
+  assert.match(two, /<p class="work-list-note">[^]*?<span>Now also counts 2 tracker tasks Ploeg could not start\. They are not a Work Item yet, so they show on <a href="#now">Now<\/a> only\.<\/span><\/p>/);
+  assert.match(workMarkup(model({ data, lane: 'needs_human', refused: 1 })), /Now also counts 1 tracker task Ploeg could not start\. It is not a Work Item yet, so it shows on/);
+  assert.doesNotMatch(workMarkup(model({ data, lane: 'needs_human', refused: 0 })), /work-list-note/);
+  assert.doesNotMatch(workMarkup(model({ data, lane: 'queued', refused: 2 })), /work-list-note/, 'only the Needs you lane explains the gap');
+  assert.match(workMarkup(model({ data, lane: 'stale' })), /data-action="ploeg-lane" data-id="stale"[^>]*>[^]*?Stopped retrying/);
 });

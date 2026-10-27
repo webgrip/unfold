@@ -1,26 +1,28 @@
 import { state } from './state.js';
 import { api } from './api.js';
 import { live } from './live.js';
-import { sessionNeedsYou } from './states.js';
+import { sessionNeedsYou, stoppedWorkIds } from './states.js';
 import { waitingGroup } from './reasons.js';
 
 const listeners = new Set();
 
 /** Counts that are not known: every value is null, never zero. */
-export const unknownCounts = Object.freeze({ waiting: null, review: null, needsYou: null, proposed: null, running: null, sessions: null });
+export const unknownCounts = Object.freeze({ waiting: null, review: null, needsYou: null, proposed: null, refused: null, running: null, sessions: null });
 
 /**
  * Derives the navigation counts from a `GET /api/ploeg/now` response: what waits on you in total and per state,
- * and the Runs running now. A pull request whose CI did not pass counts as needing you, not as ready for review. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
+ * the tracker tasks Ploeg could not start (`refused`, part of `waiting` but not Work Items), and the Runs running now. A pull request whose CI did not pass counts as needing you, not as ready for review. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
  */
 export function countsFromNow(data) {
   const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
   const inGroup = (name, states) => waiting ? waiting.filter(entry => states.includes(entry.state) && waitingGroup(entry) === name).length : null;
+  const refused = !data?.errors?.refused && Array.isArray(data?.refused) ? data.refused.length : null;
   return {
-    waiting: waiting ? waiting.length + (!data?.errors?.refused && Array.isArray(data?.refused) ? data.refused.length : 0) : null,
+    waiting: waiting ? waiting.length + (refused ?? 0) : null,
     review: inGroup('review', ['awaiting_review']),
     needsYou: inGroup('needs', ['awaiting_review', 'needs_human']),
     proposed: inGroup('proposed', ['proposed']),
+    refused,
     running: !data?.errors?.running && Array.isArray(data?.running) ? data.running.length : null,
   };
 }
@@ -46,9 +48,13 @@ export function ploegStatusFrom(data, error = null) {
  */
 export function onCountsChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 
-/** Stores the counts and Ploeg status from a Now response (or its error) in `state.counts` and `state.ploegStatus`. */
+/**
+ * Stores the counts and Ploeg status from a Now response (or its error) in `state.counts` and `state.ploegStatus`,
+ * and the stopped Work Items in `state.stoppedWork`; an error keeps the last known stopped Work Items.
+ */
 export function applyNowCounts(data, error = null) {
   state.counts = { ...(data ? countsFromNow(data) : unknownCounts), sessions: sessionsNeedingYou(state.sessions) };
+  if (data) state.stoppedWork = stoppedWorkIds(data);
   state.ploegStatus = ploegStatusFrom(data, error);
   for (const listener of listeners) { try { listener(data, error); } catch {} }
 }
