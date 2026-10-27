@@ -13,3 +13,7 @@ dependencies:
     - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
       path: packages/board
       ref: v0.5.1
+
+compilation:
+  exclude:
+    - "apps/*/*/**"
