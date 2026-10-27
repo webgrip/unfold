@@ -33,6 +33,7 @@ ARG IMAGE_REVISION=unknown
 RUN sed -i '/dl-cdn.alpinelinux.org/d' /etc/apk/repositories \
  && apk upgrade --no-cache --available \
  && apk add --no-cache bash git ca-certificates ripgrep \
+ && apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/v3.24/main 'libcurl>=8.23.0-r0' \
  && rm /usr/libexec/git-core/git-http-push \
  && install -d -o node -g node -m 0755 /workspace /etc/opencode
 COPY --from=fetch /opencode /usr/local/bin/opencode
@@ -40,7 +41,6 @@ RUN install -d -m 0755 /usr/local/lib/unfold
 COPY relay-worker.mjs /usr/local/lib/unfold/relay-worker.mjs
 RUN chmod 0644 /usr/local/lib/unfold/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/unfold/relay-worker.mjs'
 RUN opencode --version | grep -F "${OPENCODE_VERSION}"
-RUN --mount=type=bind,source=check-expat-users.mjs,target=/tmp/check-expat-users.mjs node /tmp/check-expat-users.mjs
 RUN --mount=type=bind,from=fetch,source=/npm-patches,target=/tmp/npm-patches \
     --mount=type=bind,source=patch-bundled-npm.mjs,target=/tmp/patch-bundled-npm.mjs \
     node /tmp/patch-bundled-npm.mjs /tmp/npm-patches
