@@ -1,4 +1,4 @@
-/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
+/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line (at most two facts), every Unstick button labelled, j and k still moving between rows and Cancel in the demo disabled, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
 export async function run({ app, page, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -26,6 +26,30 @@ export async function run({ app, page, assert, screenshot }) {
   assert.equal(counted, listed, 'the day line and the lane counts disagree');
   const badge = Number(await page.locator('[data-count-for="waiting"]').first().textContent());
   assert.equal(badge, counted, 'the Now badge and the day line disagree');
+  const facts = await loop.locator('.loop-day-facts').textContent();
+  assert.ok(facts.split(' · ').length <= 2, `the day line carries more than two facts: ${facts}`);
+  assert.doesNotMatch(facts, /finished in 24 h|stopped retrying|moving/);
+  const unstickButtons = loop.locator('.loop-unstick .now-item-actions .button');
+  assert.ok(await unstickButtons.count() > 0, 'Unstick rows offer no button');
+  for (const label of await unstickButtons.evaluateAll(buttons => buttons.map(button => ({ text: button.querySelector('.button-label')?.textContent.trim() || '', iconOnly: button.classList.contains('icon-only'), externals: button.querySelectorAll('.icon').length })))) {
+    assert.ok(label.text && !label.iconOnly, 'an Unstick button has no visible label');
+    assert.ok(label.externals <= 2, `"${label.text}" carries more than a lead and an external icon`);
+  }
+  const firstRow = loop.locator('.loop-unstick [data-now-row]').first();
+  await firstRow.focus();
+  await page.keyboard.press('j');
+  assert.notEqual(await page.evaluate(() => document.activeElement?.id), await firstRow.getAttribute('id'), 'j does not move past an Unstick row and its buttons');
+  await page.keyboard.press('k');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), await firstRow.getAttribute('id'), 'k does not come back to the Unstick row');
+  const cancel = loop.locator('[data-action="now-cancel"]').first();
+  if (await cancel.count()) {
+    await cancel.click();
+    const dialog = page.locator('dialog[open] form.work-cancel-form');
+    await dialog.waitFor();
+    await dialog.getByText('Not available in the demo').waitFor();
+    assert.equal(await dialog.getByRole('button', { name: 'Cancel Work Item' }).isDisabled(), true, 'the demo cancels from Now');
+    await dialog.getByRole('button', { name: 'Keep it' }).click();
+  }
   const startRow = loop.locator('[data-action="start-open"]').first();
   await startRow.waitFor();
   await screenshot('loop');

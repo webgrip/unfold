@@ -1,4 +1,5 @@
 import { nowMarkup, loopMarkup, nextBaseline, shownIds, visibleNow, offersRetry, digestSection } from '../now.js';
+import { cancelDialogMarkup, cancelSummary } from '../ploeg.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, announce, notify } from '../core/dom.js';
@@ -102,6 +103,7 @@ function loopShown() {
 }
 
 const canStart = () => state.bootstrap?.user?.role !== 'viewer';
+const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
 const startSources = () => taskSources().filter(source => source.executionOwner === 'ploeg' || source.provider === 'demo');
 
 function rememberedTeam(sourceId) {
@@ -126,7 +128,7 @@ function loopContent() {
   const standings = taskStandings(view.data);
   const pending = pendingHandoffs(start.handed, standings);
   start.handed = pending;
-  return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart() });
+  return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart(), canCancel: canCancel(), sessions: state.sessions });
 }
 
 function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions, { permissions: view.linked?.permissions }) : ''; }
@@ -139,7 +141,7 @@ function renderNow() {
   const content = fleet && view.data
     ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, linked: view.linked?.sessions, permissions: view.linked?.permissions, at: Date.now() }))
     : loop ? loopContent()
-    : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
+    : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver, canCancel: canCancel(), sessions: state.sessions });
   const subtitle = fleet ? 'Every Team you can read, from the gate to landed.' : loop ? 'Decide, unstick, then start: in that order.' : 'What waits on you, what runs and what finished, across your Teams.';
   const keep = focusedTarget();
   renderHtml(shell(content, { title: 'Now', subtitle, actions: `${modeSwitch(fleet)}${refreshButton()}` }));
@@ -452,6 +454,46 @@ async function retry(data) {
   }
 }
 
+const cancelling = new Set();
+
+async function openCancel(element) {
+  const id = element.dataset.id;
+  const entry = (view.data?.waiting || []).find(item => String(item.id) === id);
+  const dialog = sheetDialog();
+  if (!entry || !dialog || dialog.open || !canCancel() || cancelling.has(id)) return;
+  cancelling.add(id);
+  element.setAttribute('aria-busy', 'true');
+  let detail;
+  try { detail = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}?refresh=1`); }
+  catch (error) { notify(error.message || 'Ploeg did not answer.', true); return; }
+  finally { cancelling.delete(id); element.removeAttribute('aria-busy'); }
+  if (dialog.open || !onNow()) return;
+  const demo = Boolean(detail.demo || view.data?.demo || state.bootstrap?.mode === 'demo');
+  const previousClass = dialog.className;
+  dialog.className = 'dialog work-cancel-dialog';
+  dialog.innerHTML = cancelDialogMarkup(detail, { demo });
+  dialog.returnValue = '';
+  dialog.addEventListener('close', () => {
+    dialog.className = previousClass;
+    if (dialog.returnValue === 'cancel' && !demo) void submitCancel(entry);
+    else document.getElementById(element.id)?.focus({ preventScroll: true });
+  }, { once: true });
+  dialog.showModal();
+}
+
+async function submitCancel(entry) {
+  try {
+    const result = await api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}/cancel`, { method: 'POST', body: '{}' });
+    track('now.cancel');
+    const summary = cancelSummary(result);
+    notify(`“${entry.title || `Work Item ${entry.id}`}”: ${summary.title}`);
+    announce(summary.title);
+  } catch (error) {
+    notify(error.message || 'Ploeg did not cancel this Work Item.', true);
+  }
+  await loadNow('manual');
+}
+
 function startKeys(event) {
   const key = typeof event.key === 'string' ? event.key : '';
   const dialog = sheetDialog();
@@ -493,6 +535,7 @@ export default {
     'start-sheet-retry': () => { if (start.sheet) { start.sheet.status = null; renderSheet(); loadSheet(); } },
     'start-take-back': takeBack,
     'loop-retry': openRetry,
+    'now-cancel': openCancel,
     'start-board': chooseBoard,
   },
   forms: { 'start-handoff': handOff, 'loop-retry': retry },

@@ -134,8 +134,8 @@ test('the loop puts Decide, Unstick and Start in order and hides a queued row th
   assert.ok(order.every(at => at > 0));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.match(html, /2 things need you<span class="loop-day-split">: 1 to decide, 1 to unstick<\/span>/);
-  assert.match(html, /nothing moving · US\$\s1,50 spent/);
-  assert.match(html, /data-tone="attention"/);
+  assert.match(html, /<p class="loop-day-facts">nothing running · US\$\s1,50 spent<\/p>/);
+  assert.match(html, /class="loop-day" data-tone="attention"/, 'amber: both waiting items are newer than the last visit');
   assert.doesNotMatch(html, /Just handed<\/span>/, 'the queued row of a hand-off shown above is not listed twice');
   assert.match(html, /Just handed over/);
   assert.doesNotMatch(html, /assign the task to the Team again/, 'Unstick does not send you back to the tracker');
@@ -167,12 +167,13 @@ test('the loop takes every count from one place, folds empty lanes and groups en
   };
   const input = { data, error: null, since: '2026-10-18T09:00:00Z', summary: { data: { demo: false, totals: { workItems: { stale: 1 }, runs: { finished: 4, failed: 4 }, spend: { settledUsd: 6.53, reservedUsd: 0 } } }, error: null } };
   const view = { ...input, data: { ...data } };
-  assert.deepEqual({ ...loopCounts(view) }, { decide: 0, stuck: 1, refused: 1, stale: 1, moving: 0, needYou: 2 });
+  assert.deepEqual({ ...loopCounts(view) }, { decide: 0, stuck: 1, refused: 1, stale: 1, running: 0, needYou: 2 });
   assert.equal(countsFromNow(data).waiting, 2, 'the Now badge counts the same things the day line does');
   const html = loopMarkup(input, {}, Date.parse('2026-10-18T12:00:00Z'));
-  assert.match(html, /2 things need you<span class="loop-day-split">: 1 to unstick, 1 could not start[\s\S]*1 Work Item stopped retrying · nothing moving/);
-  assert.match(html, /4 Runs finished in 24 h, 4 failed/);
-  assert.match(html, /class="loop-lane loop-clear loop-decide"[\s\S]*Nothing waits for your review or approval/, 'an empty Decide folds to one line');
+  assert.match(html, /2 things need you<span class="loop-day-split">: 1 to unstick, 1 could not start<\/span><span class="loop-day-quiet"> · nothing to decide<\/span><\/h2><p class="loop-day-facts">nothing running · US\$\s6,53 spent<\/p>/, 'at most two facts: what runs and what was spent');
+  assert.doesNotMatch(html, /Runs finished in 24 h|stopped retrying ·/, 'the Unstick lane, not the day line, says what stopped retrying');
+  assert.match(html, /class="loop-day" data-tone="neutral"/, 'nothing got worse since the last visit, so the line stays calm');
+  assert.doesNotMatch(html, /loop-decide|Nothing waits for your review or approval/, 'an empty Decide folds into the day line');
   assert.match(html, /id="loop-unstick-title">Unstick<span class="count"[^>]*>2</);
   assert.doesNotMatch(html, /id="now-group-needs"/, 'Unstick has no second Needs you header');
   assert.match(html, /Last Run: [^<]+ \(builder, Round 1\) · 2 failed Runs lately/);
@@ -197,7 +198,8 @@ test('a Run Ploeg left running on a stopped Work Item stays out of In flight and
   const html = loopMarkup(input, {}, at);
   assert.doesNotMatch(html, /id="now-row-r-395"/, 'the leftover Run is not in flight');
   assert.match(html, /In flight<\/h2><p class="loop-clear-text">Nothing runs or waits for a worker/);
-  assert.match(html, /nothing moving/, 'the day line does not count it as moving');
+  assert.match(html, /nothing running/, 'the day line does not count it as running');
+  assert.match(html, /class="loop-day" data-tone="attention"/, 'held money on stopped work turns the line amber');
   assert.match(html, /id="now-row-w-245"[\s\S]*class="now-why now-leftover-run"[\s\S]*Run 395 \(operator, started <time[^>]*>5 d ago<\/time>\) is still marked running: Ploeg did not close it when it stopped this Work Item\. It holds US\$\s0,25 of this Work Item’s budget until the Work Item runs again or is cancelled\./);
   const both = loopMarkup({ ...input, data: { ...data, running: [leftover, working], active: [{ id: '300', team: 'unfold', state: 'leased', title: 'Moving one', latestShift: { round: 1, reservedUsd: 0.5, closedAt: null } }] } }, {}, at);
   assert.match(both, /id="now-row-r-400"/, 'a Run on moving work stays in flight');
@@ -215,4 +217,67 @@ test('a finished reviewer that changed nothing leads with its verdict in Recentl
   assert.match(row, /data-tone="success"/);
   assert.match(row, />Agent approved</);
   assert.doesNotMatch(row, /No change needed/);
+});
+
+test('every Unstick row offers the buttons its reason names, and an infrastructure failure leads with Check Status', () => {
+  const at = Date.parse('2026-10-27T08:00:00Z');
+  const item = (id, extra = {}) => ({ id, team: 'bronze', state: 'needs_human', title: `Item ${id}`, url: `https://tracker.test/tasks/${id}`, createdAt: '2026-10-27T06:00:00Z', updatedAt: '2026-10-27T06:30:00Z', provider: 'vikunja', externalId: id, pullRequestUrl: '', latestShift: { round: 1, branch: `unfold/${id}`, closeReason: 'plan_exhausted', closedAt: '2026-10-27T06:30:00Z' }, ...extra });
+  const failed = (id, workItemId, failureReason, stuckReason) => ({ id, workItemId, workItemTitle: `Item ${workItemId}`, team: 'bronze', role: 'builder', round: 1, state: 'finished', startedAt: '2026-10-27T06:00:00Z', finishedAt: `2026-10-27T06:2${id.at(-1)}:00Z`, outcome: 'failed', failureReason, stuckReason, verdict: '' });
+  const data = {
+    demo: false, teams: ['bronze'], fetchedAt: '2026-10-27T08:00:00Z', errors: {}, running: [], active: [], refused: [],
+    waiting: [
+      item('60'),
+      item('61', { latestShift: { round: 1, branch: 'unfold/61', closeReason: '', closedAt: null, reservedUsd: 0.4 } }),
+      item('62', { pullRequestUrl: 'https://forge.test/pulls/62', pullRequestState: 'closed', latestShift: { round: 2, branch: 'unfold/62', closeReason: 'review_approved', closedAt: '2026-10-27T06:30:00Z' } }),
+      item('63', { latestShift: { round: 0, branch: 'operator/s-1', closeReason: 'operator_interrupted', closedAt: '2026-10-27T06:30:00Z' } }),
+    ],
+    recent: [failed('72', '60', 'infra_node', 'pod evicted: the node ran out of memory. Kubelet said more.\nstack'), failed('71', '60', 'lease_lost', ''), failed('73', '61', 'agent_error', 'exit status 1')],
+  };
+  const input = { data, error: null, since: '2026-10-27T07:00:00Z', summary: { data: null, error: null } };
+  const sessions = [{ id: 's-1', createdAt: '2026-10-27T06:00:00Z', execution: { workItemId: '63' } }];
+  const html = loopMarkup(input, { canCancel: true, sessions }, at);
+  const row = id => html.slice(html.indexOf(`id="now-row-w-${id}"`), html.indexOf('</li>', html.indexOf(`id="now-row-w-${id}"`)));
+  const primary = id => row(id).match(/<span class="now-action-primary"[^>]*>([\s\S]*?)<\/span><span class="now-action-links"/)[1];
+  const links = id => row(id).match(/<span class="now-action-links"[^>]*>([\s\S]*?)<\/span><\/div>$/)[1];
+
+  assert.match(row('60'), /Last Run: The machine running the Run failed \(builder, Round 1\) · 2 failed Runs lately/);
+  assert.match(row('60'), /<span class="now-why now-wrap now-fail-why" data-private>pod evicted: the node ran out of memory\.<\/span>/, 'one sentence of why it failed, wrapped');
+  assert.match(primary('60'), /href="#status"[\s\S]*Check Status/, 'infrastructure failures lead with Status');
+  assert.match(links('60'), /class="button ghost sm"[^>]*data-action="loop-retry" data-id="60"/, 'Try again stays, as a secondary button');
+  assert.match(row('60'), /Trying again is likely to fail the same way until the cluster is healthy/);
+
+  assert.match(row('61'), /now-fail-why" data-private>exit status 1</);
+  assert.match(primary('61'), /data-action="loop-retry" data-id="61"[\s\S]*Try again/, 'an agent failure leads with Try again');
+  assert.doesNotMatch(row('61'), /now-infra-note|href="#status"/);
+  assert.match(links('61'), /data-action="now-cancel" data-id="61"[\s\S]*?>Cancel</, 'an open attempt can be cancelled');
+  assert.doesNotMatch(row('60'), /now-cancel/, 'no Cancel where Ploeg has nothing left to withdraw');
+
+  assert.match(primary('62'), /Try again/);
+  assert.match(links('62'), /href="https:\/\/forge\.test\/pulls\/62"[\s\S]*?Open pull request/);
+  assert.match(links('62'), /href="https:\/\/tracker\.test\/tasks\/62"[^>]*aria-label="Close “Item 62” in Vikunja: Ploeg withdraws a stopped Work Item once its task is closed \(opens in a new tab\)">[\s\S]*?Close in Vikunja/, 'a closed pull request can close the Work Item through its task');
+  assert.doesNotMatch(row('62'), /now-cancel|>Open in Vikunja</);
+  const open = loopMarkup({ ...input, data: { ...data, waiting: [{ ...data.waiting[2], closeReason: 'review_approved', latestShift: { ...data.waiting[2].latestShift, closedAt: null } }] } }, { canCancel: true }, at);
+  assert.match(open, /data-action="now-cancel" data-id="62"[\s\S]*?Close Work Item/, 'with its attempt still open, Close Work Item cancels it in Ploeg');
+
+  assert.match(primary('63'), /href="#session\/s-1"[\s\S]*Open session/, 'a session-driven Work Item opens its session');
+  assert.doesNotMatch(row('63'), /loop-retry|now-cancel/, 'its session, not Now, retries or cancels it');
+  assert.match(loopMarkup(input, { canCancel: true, sessions: [] }, at), /id="now-session-63" aria-label="Open Sessions[^"]*">[\s\S]*?Open Sessions</, 'without the session it opens Sessions');
+
+  const viewer = loopMarkup(input, { retryHere: false }, at);
+  assert.doesNotMatch(viewer, /data-action="now-cancel"|data-action="loop-retry"/, 'a viewer cannot cancel or retry');
+  assert.match(viewer, /id="now-status-60"/, 'a viewer still gets Check Status');
+});
+
+test('the day line turns amber only when what waits got worse since the last visit', () => {
+  const at = Date.parse('2026-10-27T08:00:00Z');
+  const stuck = { id: '7', team: 'bronze', state: 'needs_human', title: 'Stuck one', url: '', createdAt: '2026-10-27T05:00:00Z', updatedAt: '2026-10-27T05:30:00Z', provider: 'vikunja', externalId: '7', latestShift: null, pullRequestUrl: '' };
+  const data = { demo: false, teams: ['bronze'], fetchedAt: '2026-10-27T08:00:00Z', errors: {}, waiting: [stuck], refused: [], running: [], active: [], recent: [] };
+  const tone = (extra, since = '2026-10-27T07:00:00Z') => loopMarkup({ data: { ...data, ...extra }, error: null, since, summary: { data: null, error: null } }, {}, at).match(/class="loop-day" data-tone="(\w+)"/)[1];
+  assert.equal(tone({}), 'neutral', 'an old stuck item alone keeps it calm');
+  assert.equal(tone({}, null), 'neutral', 'a first visit has nothing to compare with');
+  assert.equal(tone({ waiting: [{ ...stuck, updatedAt: '2026-10-27T07:30:00Z' }] }), 'attention', 'a needs-you item newer than the last visit');
+  assert.equal(tone({ refused: [{ provider: 'vikunja', externalId: '9', team: 'bronze', title: 'Refused', code: 'label_missing', refusedAt: '2026-10-27T07:45:00Z', url: '', link: 'none' }] }), 'attention', 'a refusal newer than the last visit');
+  assert.equal(tone({ waiting: [] }), 'success');
+  const demo = loopMarkup({ data: { ...data, demo: true }, error: null, since: null, summary: { data: null, error: null } }, {}, at);
+  assert.match(demo, /<p class="loop-day-facts">nothing running · no spend in the demo<\/p>/);
 });
