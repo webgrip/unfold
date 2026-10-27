@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { live } from './live.js';
 import { sessionNeedsYou, stoppedWorkIds } from './states.js';
 import { waitingGroup } from './reasons.js';
+import { loadSnoozes, sortOut } from './snoozes.js';
 
 const listeners = new Set();
 
@@ -12,8 +13,11 @@ export const unknownCounts = Object.freeze({ waiting: null, review: null, needsY
 /**
  * Derives the navigation counts from a `GET /api/ploeg/now` response: what waits on you in total and per state,
  * the tracker tasks Ploeg could not start (`refused`, part of `waiting` but not Work Items), and the Runs running now. A pull request whose CI did not pass counts as needing you, not as ready for review. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
+ * What the person snoozed or dismissed (`snoozes`, by default `state.nowSnoozes`) and refusals older than a week leave
+ * the counts, as they leave the Now page (`sortOut`).
  */
-export function countsFromNow(data) {
+export function countsFromNow(input, snoozes = state.nowSnoozes, now = Date.now()) {
+  const data = sortOut(input, snoozes, now).data;
   const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
   const inGroup = (name, states) => waiting ? waiting.filter(entry => states.includes(entry.state) && waitingGroup(entry) === name).length : null;
   const refused = !data?.errors?.refused && Array.isArray(data?.refused) ? data.refused.length : null;
@@ -69,7 +73,10 @@ export async function refreshCounts() {
   if (state.view === 'now' && globalThis.document?.visibilityState === 'visible') return;
   const epoch = state.epoch;
   const current = () => Boolean(state.bootstrap) && state.epoch === epoch;
-  try { const data = await api('/api/ploeg/now'); if (current()) applyNowCounts(data); }
+  try {
+    const [data] = await Promise.all([api('/api/ploeg/now'), state.nowSnoozes === undefined ? loadSnoozes() : null]);
+    if (current()) applyNowCounts(data);
+  }
   catch (error) { if (current()) applyNowCounts(null, error); throw error; }
 }
 

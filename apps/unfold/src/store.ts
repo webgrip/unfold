@@ -11,6 +11,7 @@ import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
 import type { RolloutSpec, Segment } from './flag-rollouts.ts';
 import { editorIdleDays } from './auth.ts';
+import type { NowSnooze } from './now-snoozes.ts';
 
 export type StoredUser = User & { passwordHash: string };
 /** One change to an administrator flag override. */
@@ -138,6 +139,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS report_follow (report_id TEXT PRIMARY KEY REFERENCES reports(id), state TEXT, checked_at TEXT NOT NULL, seen_at TEXT);
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
       CREATE TABLE IF NOT EXISTS flag_choices (user_id TEXT NOT NULL, flag_key TEXT NOT NULL, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, flag_key));
+      CREATE TABLE IF NOT EXISTS now_snoozes (user_id TEXT NOT NULL, key TEXT NOT NULL, fingerprint TEXT NOT NULL, kind TEXT NOT NULL, until_at TEXT, created_at TEXT NOT NULL, PRIMARY KEY (user_id, key));
       CREATE TABLE IF NOT EXISTS flag_overrides (flag_key TEXT PRIMARY KEY, variant TEXT NOT NULL, reason TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS flag_rollouts (flag_key TEXT PRIMARY KEY, spec TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS flag_segments (name TEXT PRIMARY KEY, spec TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
@@ -554,6 +556,25 @@ export class Store {
     if (enabled === null) this.db.prepare('DELETE FROM flag_choices WHERE user_id=? AND flag_key=?').run(userId, flagKey);
     else this.db.prepare('INSERT INTO flag_choices(user_id,flag_key,enabled,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,flag_key) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at').run(userId, flagKey, enabled ? 1 : 0, at);
   }
+
+  /** A person's Now snoozes still in force at `at`, oldest first; it first removes their ended ones and those set before `retainedFrom`. */
+  nowSnoozes(userId: string, at: string, retainedFrom: string): NowSnooze[] {
+    this.db.prepare('DELETE FROM now_snoozes WHERE user_id=? AND ((until_at IS NOT NULL AND until_at<=?) OR created_at<?)').run(userId, at, retainedFrom);
+    const rows = this.db.prepare('SELECT key, fingerprint, kind, until_at, created_at FROM now_snoozes WHERE user_id=? ORDER BY created_at, key').all(userId) as { key: string; fingerprint: string; kind: string; until_at: string | null; created_at: string }[];
+    return rows.map(row => ({ key: row.key, fingerprint: row.fingerprint, kind: row.kind === 'dismiss' ? 'dismiss' : 'snooze', untilAt: row.until_at, createdAt: row.created_at }));
+  }
+
+  /** Keeps or replaces one of a person's Now snoozes, then drops their oldest beyond `limit`. */
+  setNowSnooze(userId: string, snooze: NowSnooze, limit: number): void {
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO now_snoozes(user_id,key,fingerprint,kind,until_at,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,key) DO UPDATE SET fingerprint=excluded.fingerprint, kind=excluded.kind, until_at=excluded.until_at, created_at=excluded.created_at')
+        .run(userId, snooze.key, snooze.fingerprint, snooze.kind, snooze.untilAt, snooze.createdAt);
+      this.db.prepare('DELETE FROM now_snoozes WHERE user_id=? AND key NOT IN (SELECT key FROM now_snoozes WHERE user_id=? ORDER BY created_at DESC, key DESC LIMIT ?)').run(userId, userId, limit);
+    });
+  }
+
+  /** Removes one of a person's Now snoozes; another person's snooze with the same key is untouched. */
+  clearNowSnooze(userId: string, key: string): void { this.db.prepare('DELETE FROM now_snoozes WHERE user_id=? AND key=?').run(userId, key); }
 
   /** Every administrator flag override, by flag key. */
   flagOverrides(): Record<string, FlagOverride> {

@@ -1,6 +1,6 @@
 import { nowMarkup, loopMarkup, nextBaseline, shownIds, visibleNow, offersRetry, digestSection } from '../now.js';
 import { cancelDialogMarkup, cancelSummary } from '../ploeg.js';
-import { state } from '../core/state.js';
+import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { $, renderHtml, announce, notify } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -10,6 +10,7 @@ import { singleKeyAllowed, singleKeysEnabled } from '../core/keys.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
 import { applyNowCounts } from '../core/counts.js';
+import { loadSnoozes, snooze, snoozeKey, unsnooze } from '../core/snoozes.js';
 import { repoName, taskSources } from '../core/lookup.js';
 import { enabled, exposed, track } from '../core/flags.js';
 import { segmented } from '../core/ui.js';
@@ -20,7 +21,9 @@ import { taskStandings } from '../handoff.js';
 import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
 const baselineKey = 'unfold.nowSince';
-const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null });
+const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null, snoozeOpen: null, showSnoozed: false, showOlder: false });
+
+onForget(() => Object.assign(view, { snoozeOpen: null, showSnoozed: false, showOlder: false }));
 
 function readBaseline() {
   try { const saved = JSON.parse(globalThis.sessionStorage?.getItem(baselineKey) ?? 'null'); return saved && typeof saved === 'object' && 'since' in saved ? saved.since : undefined; } catch { return undefined; }
@@ -124,11 +127,15 @@ function startLane(standings) {
   return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard() });
 }
 
+function snoozeOptions() {
+  return { snoozes: state.nowSnoozes ?? [], snoozeOpen: view.snoozeOpen, showSnoozed: view.showSnoozed, showOlder: view.showOlder };
+}
+
 function loopContent() {
   const standings = taskStandings(view.data);
   const pending = pendingHandoffs(start.handed, standings);
   start.handed = pending;
-  return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart(), canCancel: canCancel(), sessions: state.sessions });
+  return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart(), canCancel: canCancel(), sessions: state.sessions, ...snoozeOptions() });
 }
 
 function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions, { permissions: view.linked?.permissions }) : ''; }
@@ -141,7 +148,7 @@ function renderNow() {
   const content = fleet && view.data
     ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, linked: view.linked?.sessions, permissions: view.linked?.permissions, at: Date.now() }))
     : loop ? loopContent()
-    : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver, canCancel: canCancel(), sessions: state.sessions });
+    : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver, canCancel: canCancel(), sessions: state.sessions, ...snoozeOptions() });
   const subtitle = fleet ? 'Every Team you can read, from the gate to landed.' : loop ? 'Decide, unstick, then start: in that order.' : 'What waits on you, what runs and what finished, across your Teams.';
   const keep = focusedTarget();
   renderHtml(shell(content, { title: 'Now', subtitle, actions: `${modeSwitch(fleet)}${refreshButton()}` }));
@@ -198,7 +205,7 @@ async function loadNow(mode = 'open') {
   loadAsks();
   loadLinked();
   try {
-    const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`);
+    const [data] = await Promise.all([api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`), loadSnoozes()]);
     if (request !== view.request) return;
     const first = !view.data;
     view.data = data;
@@ -494,6 +501,74 @@ async function submitCancel(entry) {
   await loadNow('manual');
 }
 
+function snoozeTarget(element) {
+  const kind = element.dataset.target === 'task' ? 'task' : 'work';
+  const list = kind === 'task' ? view.data?.refused : view.data?.waiting;
+  const entry = (Array.isArray(list) ? list : []).find(item => snoozeKey(item, kind) === element.dataset.key);
+  return entry ? { entry, kind, title: kind === 'task' ? entry.title || `Task ${entry.externalId}` : entry.title || `Work Item ${entry.id}` } : null;
+}
+
+function focusAfterSnooze(key) {
+  const rows = [...document.querySelectorAll('[data-action="now-snooze-menu"]')];
+  const next = rows.find(row => row.dataset.key !== key);
+  (next || document.getElementById('now-snoozed-toggle') || document.getElementById('page-title'))?.focus({ preventScroll: true });
+}
+
+function toggleSnoozeMenu(element) {
+  const key = element.dataset.key;
+  view.snoozeOpen = view.snoozeOpen === key ? null : key;
+  renderNow();
+  const target = view.snoozeOpen ? document.querySelector(`[data-action="now-snooze"][data-key="${CSS.escape(key)}"]`) : document.querySelector(`[data-action="now-snooze-menu"][data-key="${CSS.escape(key)}"]`);
+  target?.focus({ preventScroll: true });
+}
+
+const untilText = { '1d': 'for a day', '1w': 'for a week', change: 'until it changes' };
+
+async function setAside(element, kind) {
+  const found = snoozeTarget(element);
+  if (!found) return;
+  const until = kind === 'dismiss' ? 'change' : element.dataset.until;
+  try {
+    const answer = await snooze(found.entry, found.kind, until, kind);
+    view.snoozeOpen = null;
+    applyNowCounts(view.data);
+    renderNow();
+    track(kind === 'dismiss' ? 'now.dismiss' : 'now.snooze');
+    const done = kind === 'dismiss' ? `Dismissed “${found.title}” until it changes.` : `Snoozed “${found.title}” ${untilText[until] || ''}; it comes back sooner if it changes.`;
+    announce(`${done} Only your Now changed.${answer.demo ? ' This is the demo: nothing was written outside Unfold.' : ''}`);
+    focusAfterSnooze(element.dataset.key);
+  } catch (error) { notify(error.message || 'Unfold could not snooze this.', true); }
+}
+
+async function endSnooze(element) {
+  const key = element.dataset.key;
+  try {
+    await unsnooze(key);
+    applyNowCounts(view.data);
+    if (!(state.nowSnoozes || []).length) view.showSnoozed = false;
+    renderNow();
+    track('now.unsnooze');
+    announce('Unsnoozed. It shows on your Now again.');
+    (document.querySelector('[data-action="now-unsnooze"]') || document.querySelector(`[data-action="now-snooze-menu"][data-key="${CSS.escape(key)}"]`) || document.getElementById('page-title'))?.focus({ preventScroll: true });
+  } catch (error) { notify(error.message || 'Unfold could not unsnooze this.', true); }
+}
+
+function toggleQuiet(element, field) {
+  view[field] = !view[field];
+  renderNow();
+  document.getElementById(element.id)?.focus({ preventScroll: true });
+}
+
+function snoozeKeys(event) {
+  if (state.view !== 'now' || event.key !== 'Escape' || !view.snoozeOpen) return false;
+  const key = view.snoozeOpen;
+  event.preventDefault();
+  view.snoozeOpen = null;
+  renderNow();
+  document.querySelector(`[data-action="now-snooze-menu"][data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+  return true;
+}
+
 function startKeys(event) {
   const key = typeof event.key === 'string' ? event.key : '';
   const dialog = sheetDialog();
@@ -537,8 +612,14 @@ export default {
     'loop-retry': openRetry,
     'now-cancel': openCancel,
     'start-board': chooseBoard,
+    'now-snooze-menu': toggleSnoozeMenu,
+    'now-snooze': element => setAside(element, 'snooze'),
+    'now-dismiss': element => setAside(element, 'dismiss'),
+    'now-unsnooze': endSnooze,
+    'now-snoozed-toggle': element => toggleQuiet(element, 'showSnoozed'),
+    'now-older-toggle': element => toggleQuiet(element, 'showOlder'),
   },
   forms: { 'start-handoff': handOff, 'loop-retry': retry },
   changes: { '[data-form="start-handoff"]': chooseTeam },
-  keys: [nowKeys, startKeys],
+  keys: [snoozeKeys, nowKeys, startKeys],
 };

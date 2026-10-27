@@ -756,3 +756,86 @@
   margin: 0;
   padding: var(--space-2) var(--space-4);
 }
+
+.now-snooze-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.now-snooze-hint {
+  flex-basis: 100%;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.now-quiet-lines {
+  display: grid;
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.now-quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  width: 100%;
+  min-height: var(--control-sm);
+  margin: 0;
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.now-quiet:hover {
+  color: var(--text);
+}
+
+.now-quiet:focus-visible {
+  outline-offset: var(--focus-ring-inset);
+}
+
+.now-quiet > svg.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.now-quiet-fold[aria-expanded="true"] > svg.icon {
+  transform: rotate(180deg);
+}
+
+.now-snoozed-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-2);
+  list-style: none;
+}
+
+.now-snoozed-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.now-snoozed-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.now-snoozed-until {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}

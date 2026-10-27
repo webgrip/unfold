@@ -168,7 +168,7 @@ test('the loop takes every count from one place, folds empty lanes and groups en
   const input = { data, error: null, since: '2026-10-18T09:00:00Z', summary: { data: { demo: false, totals: { workItems: { stale: 1 }, runs: { finished: 4, failed: 4 }, spend: { settledUsd: 6.53, reservedUsd: 0 } } }, error: null } };
   const view = { ...input, data: { ...data } };
   assert.deepEqual({ ...loopCounts(view) }, { decide: 0, stuck: 1, refused: 1, stale: 1, running: 0, needYou: 2 });
-  assert.equal(countsFromNow(data).waiting, 2, 'the Now badge counts the same things the day line does');
+  assert.equal(countsFromNow(data, [], Date.parse('2026-10-18T12:00:00Z')).waiting, 2, 'the Now badge counts the same things the day line does');
   const html = loopMarkup(input, {}, Date.parse('2026-10-18T12:00:00Z'));
   assert.match(html, /2 things need you<span class="loop-day-split">: 1 to unstick, 1 could not start<\/span><span class="loop-day-quiet"> · nothing to decide<\/span><\/h2><p class="loop-day-facts">nothing running · US\$\s6,53 spent<\/p>/, 'at most two facts: what runs and what was spent');
   assert.doesNotMatch(html, /Runs finished in 24 h|stopped retrying ·/, 'the Unstick lane, not the day line, says what stopped retrying');

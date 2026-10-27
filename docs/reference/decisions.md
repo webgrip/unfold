@@ -272,6 +272,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0053](../../apps/unfold/docs/adrs/0053-a-work-item-and-the-session-that-started-it-are-one-page.md) | A Work Item and the session that started it are one page | 2026-10-18 | unknown | — |
 | Unfold | [0054](../../apps/unfold/docs/adrs/0054-a-work-item-shows-its-walkthrough-and-approve-only-nudges-when-steps-are-unticked.md) | A Work Item shows its Walkthrough, and Approve only nudges when steps are unticked | 2026-10-18 | unknown | — |
 | Unfold | [0055](../../apps/unfold/docs/adrs/0055-unfold-proves-the-person-to-ploeg-with-a-token-exchanged-from-their-sign-in.md) | Unfold proves the person to Ploeg with a token exchanged from their sign-in | 2026-10-24 | unknown | — |
+| Unfold | [0056](../../apps/unfold/docs/adrs/0056-a-person-snoozes-rows-on-their-own-now-and-nothing-shared-changes.md) | A person snoozes rows on their own Now, and nothing shared changes | 2026-10-27 | unknown | — |
 
 ## Other statuses
 
