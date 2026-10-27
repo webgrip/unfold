@@ -19,7 +19,7 @@ An external ticket is optional today, but a registered repository and Team are r
 - **Leadership:** read this page and [what changes the bottleneck](bottlenecks.md). The decision is whether the expected improvement justifies operating and maintaining the system.
 - **Developers:** read [what each component means](components.md), the [shared vocabulary](../domain/glossary.md), and the ticket sequence in the [C4 views](c4.md).
 - **CTO and platform engineers:** read the current container, component, and deployment views in the [C4 views](c4.md), then the [implementation evidence](../../apps/unfold/docs/research/2026-09-11-ecosystem-implementation.md).
-- **Build versus adopt:** read the [alternatives and their evidence](../../apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md). A product mentioned in a survey has not necessarily been tested. The most recent product survey is the [Hermes Agent fit record](../research/2026-10-14-hermes-agent-fit.md) of 14 October 2026.
+- **Build versus adopt:** read the [alternatives and their evidence](../../apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md). A product mentioned in a survey has not necessarily been tested. The most recent product survey is the [Hive fit record](../research/2026-10-27-hive-fit.md) of 27 October 2026; the one before it is the [Hermes Agent fit record](../research/2026-10-14-hermes-agent-fit.md) of 14 October.
 - **Decisions we still need to make together:** read the [open questions](questions.md). Their answers should change this explanation before they cause more implementation.
 
 ## How to read the evidence
