@@ -3,7 +3,7 @@
     "vikunja": {
       "type": "remote",
       "enabled": true,
-      "url": "https://litellm.webgrip.dev/mcp/",
+      "url": "https://litellm.webgrip.dev/mcp/vikunja",
       "headers": {
         "Authorization": "Bearer {env:LITELLM_MCP_KEY}"
       }
