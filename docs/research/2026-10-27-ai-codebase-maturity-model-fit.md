@@ -17,7 +17,7 @@ The two verdict axes, stated separately:
 
 **Absences.** The paper names neither Unfold nor Ploeg, nor Forgejo, Vikunja, KEDA, Kata, MCP, A2A, multi-tenancy, client billing or a spend cap; it reports no money at all. Hive has since added Forgejo and Gitea adapters (merge only partly), OpenCode, Goose and LiteLLM backends, a weekly token budget and an ADR listing Kata as an option, which makes it the nearest open-source neighbour to Ploeg in this landscape (added to the [market landscape](../../apps/unfold/docs/research/market-landscape.md#411-hive-commons-acmm-levels-as-code-added-27-october-2026)).
 
-Summary:
+Summary (section 8 adds our own extension past Level 6):
 
 1. **Where Unfold stands.** The product reaches Level 5 by design and has Level 6 parts (roles, a claim ledger, caps, a runbook), but its Level 3 is a proposal: [the KPIs](../reference/kpis.md) say "Nothing on this page is measured yet". By ACMM's rule that makes it a Level 2 system with advanced parts. This repository is the same: strong Level 2, no coverage, no acceptance tracking, a nightly browser suite that failed every night from 14 October ([section 3](#3-component-by-component-fit)).
 2. **Level 5 is the ceiling, on purpose.** The paper's Level 6 is "merges PRs, rolls back failures" without a person. Unfold's agencies own merging ([who Unfold is for](../concepts/who-unfold-is-for.md)). The evidence since the paper supports the ceiling: agents game tests ([ImpossibleBench](https://arxiv.org/abs/2510.20270)), and Console logged 14 "Main branch broken" issues in the 30 days to 27 October ([section 4](#4-the-one-honest-scenario)).
@@ -110,6 +110,24 @@ Any one of these reopens this record:
 * K5 for some kind of work stays above 80 % for a quarter, the KPI page's own trigger for lighter review.
 * A standard repository-readiness format appears that two or more agent vendors read (for example an OpenSSF Scorecard check; [ossf/scorecard#5021](https://github.com/ossf/scorecard/issues/5021) is the current proposal).
 
-## 8. Tickets
+## 8. Beyond Level 6: our extension
+
+The paper stops at Level 6 and nobody found in this sweep defines a level above it. What follows is our own extension, not the paper's, written down so the reasoning is not repeated. ADR-0047 does not adopt it.
+
+The paper's rule decides what a higher level can be: each level adds a feedback loop the next one depends on. Removing the last person removes a loop, so "the human leaves", Shapiro's dark factory, is not a level on this model. At each level one more piece of human judgement becomes a loop the system runs, and the person's role moves up: executor, rule-writer, analyst, governor, operator, strategist at Level 6.
+
+| Level | Name | Loop added | Person's role | Where Unfold already has a piece of it |
+| --- | --- | --- | --- | --- |
+| 7 | Outcome-directed | Each change is tied to what happened after it shipped: reverted or not, the defect back or not, used or not, cost against what it delivered. That record decides what is proposed next | Goal-setter | A [Reversal](../reference/glossary.md#reversal) refunds the Delivery Fee when a change is reverted for a defect within 14 days; [Acceptance](../reference/glossary.md#acceptance) is a recorded event; cost per merged Work Item was [measured once](2026-10-11-cost-per-merged-work-item.md) |
+| 8 | Self-governing | The delivery system proposes changes to its own instructions, review depth, risk paths and budgets from evidence across many repositories; each is tested against a baseline and a person approves it | Auditor | Knowledge scoped per Tenant ([ADR-0034](../adr/adr-0034-agent-knowledge-is-scoped-to-tenant-client-repository-and-work-item-in-two-graphs-per-tenant.md)); learnings are proposals a person reviews ([Ploeg ADR-0066](../../apps/ploeg/docs/adrs/0066-a-runs-learnings-are-proposals-a-person-reviews-before-any-run-sees-them.md)) |
+| 9 | Accountable | People affected by the system who are not its owner (clients, end users, auditors) get a recorded way to contest its decisions and have them changed | Many people, outside the system | Clients approve scope and price ([ADR-0007](../adr/adr-0007-clients-approve-ready-work.md)); a Dispute with ten working days' notice ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); bug reports into the Tenant's own tracker ([ADR-0024](../adr/adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md)); every pull request names the agent and its reviewer ([who Unfold is for](../concepts/who-unfold-is-for.md)) |
+
+Level 7 matters because Levels 3 to 6 all measure stand-ins for value (checks passing, merge rate, time to fix), and the paper's own Level 4 anti-pattern is drifting from user value while optimising one. Level 7 is the loop that catches that drift.
+
+The ladder ends at Level 9. A further step in the same pattern would have the system measure and tune its own values, and a metric that judges whether the metrics are right can only grade itself. Level 9 therefore points outward, to more people who can push back, not fewer. By Levels 7 to 9 the unit is no longer a codebase, which is the paper's unit, but the organisation and the people around it.
+
+For Unfold the useful climb is not Level 6 but Level 7 while people still merge, with Level 3 measurement first, because every loop above it reads what Level 3 measures.
+
+## 9. Tickets
 
 None filed yet. The proposed tickets are the numbered steps 2 to 5 above; they are filed when the owner accepts or amends ADR-0047.
