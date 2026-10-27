@@ -40,7 +40,7 @@ jobs:
       - name: Record candidate revision
         run: git rev-parse HEAD
       - name: Preview version and release notes
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.0.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.2.1
         with:
           package-path: apps
           package-name: unfold
