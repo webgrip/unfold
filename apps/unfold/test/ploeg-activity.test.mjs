@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
 import { modelName, tokens } from '../public/core/format.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
 import { auditActor } from '../public/core/states.js';
@@ -182,7 +182,7 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   const data = summary('30d');
   const html = overviewMarkup({ window: '30d', data, loading: false, error: null }, helpers, now);
   for (const label of ['Runs finished', 'Failed', 'Stuck', 'Settled spend', 'Ready for review', 'Needs you', 'Running', 'Queued', 'Proposed']) assert.match(html, new RegExp(`<span class="stat-label"><i data-icon="[a-z-]+"></i>${label}</span>`), label);
-  assert.equal((html.match(/<span class="stat-go" aria-hidden="true"><i data-icon="chevron"><\/i><\/span>/g) || []).length, 8, 'linked tiles show where they go, drawn through helpers.icon');
+  assert.equal((html.match(/<span class="stat-go" aria-hidden="true"><i data-icon="chevron"><\/i><\/span>/g) || []).length, 9, 'linked tiles show where they go, drawn through helpers.icon');
   for (const href of ['#runs?state=finished"', '#runs?state=finished&amp;outcome=failed"', '#work?lane=awaiting_review"', '#work?lane=needs_human"', '#work?lane=leased"', '#work?lane=queued"', '#proposed"']) assert(html.includes(`href="${href}`), href);
   assert.match(html, /<strong class="stat-value">33<\/strong><span class="stat-detail">Failed and stuck Runs included/);
   assert.match(html, /48% of finished Runs/);
@@ -190,7 +190,7 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(html, /<th scope="row">research<\/th>/);
   assert.match(html, /<th scope="col" class="num">Stopped retrying<\/th>/);
   assert.match(html, /<p class="section-description">Last 30 days · 2 Teams<\/p>/);
-  assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\.<\/p>/);
+  assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\. Cost per merged stays empty because Ploeg counts Done Work Items for all time, not per window, so the window’s spend cannot be divided by them\.<\/p>/);
   assert.doesNotMatch(html, /role="region"|tabindex="0"/);
   assert.match(html, /<dt>Held<\/dt>/);
   assert.doesNotMatch(html, /<dt>Held now<\/dt>/);
@@ -208,11 +208,41 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(unknown, /<strong class="stat-value is-text">Not reported<\/strong><span class="stat-detail">Holds not reported<\/span>/);
   const loading = overviewMarkup({ window: '7d', data: null, loading: true, error: null }, helpers, now);
   assert.doesNotMatch(loading, /<svg|<canvas|polyline/);
-  assert.match(loading, /Runs and spend[\s\S]*Last 7 days[\s\S]*Work Items/);
-  assert.equal(loading.match(/insights-tile-skeleton/g).length, 9);
+  assert.match(loading, /Outcomes[\s\S]*Runs and spend[\s\S]*Last 7 days[\s\S]*Work Items/);
+  assert.equal(loading.match(/insights-tile-skeleton/g).length, 11);
   const noTeams = overviewMarkup({ window: '7d', data: { ...summary('7d'), teams: [], totals: summaryTotals([]) }, loading: false, error: null }, helpers, now);
   assert.match(noTeams, /No Teams are visible to your account/);
   assert.doesNotMatch(noTeams, /class="stat"|Teams your account|insights-window/);
+});
+
+test('Insights leads with the merge rate over all time and says why cost per merged Work Item has no figure', () => {
+  assert.equal(insightsWindow, '7d', 'Insights opens on 7 days, where a quiet day still shows what landed');
+  assert.equal(state.ploegSummary.window, insightsWindow, 'a first visit starts on the default window');
+  const tileOf = (html, label) => html.match(new RegExp(`<(?:a|div) class="stat"[^>]*><span class="stat-label"><i data-icon="[a-z-]+"></i>${label}</span>[\\s\\S]*?</(?:a|div)>`))?.[0] || '';
+  const live = (teams, extra = {}) => overviewMarkup({ window: '7d', data: { ...summary('7d'), teams, totals: summaryTotals(teams), ...extra }, loading: false, error: null }, helpers, now);
+  const team = (name, done, withdrawn) => ({ ...summary('7d').teams[0], team: name, workItems: { ...summary('7d').teams[0].workItems, done, withdrawn } });
+  const html = live([team('bronze', 18, 23), team('silver', 0, 0)]);
+  assert.match(html, /<h2 class="section-title" id="insights-outcomes-title">Outcomes<\/h2>[\s\S]*data-action="ploeg-window"[\s\S]*<h2 class="section-title" id="insights-runs-title">/, 'the outcomes lead and carry the window switch');
+  assert.match(tileOf(html, 'Merge rate'), /^<a class="stat" href="#work\?lane=closed">[\s\S]*<strong class="stat-value">44%<\/strong><span class="stat-detail">18 Done of 41 closed · all time<\/span>/);
+  assert.match(tileOf(html, 'Cost per merged Work Item'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Ploeg counts Done Work Items for all time, not per window<\/span>/);
+  assert.doesNotMatch(tileOf(html, 'Cost per merged Work Item'), /US\$/, 'no windowed spend is divided by an all-time count');
+  assert.match(html, /<th scope="col" class="num">Merge rate<\/th>/);
+  assert.match(html, /<th scope="col" class="num">Cost per merged<\/th>/);
+  assert.match(html, /<th scope="row">bronze<\/th>(?:<td[^>]*>[^]*?<\/td>){8}<td class="num">44%<\/td>/, 'bronze’s Work Item row ends in its merge rate');
+  assert.match(html, /<th scope="row">silver<\/th>(?:<td[^>]*>[^]*?<\/td>){8}<td class="num"><span class="subtle">—<\/span><\/td>/, 'a Team with nothing closed shows a dash, never 0%');
+  assert.match(html, /<dt>Merge rate · all time<\/dt><dd>44%<\/dd>/, 'phone cards carry the merge rate');
+  assert.match(html, /<dt>Cost per merged<\/dt><dd><span class="subtle" title="Ploeg counts Done Work Items for all time, not per window">—<\/span><\/dd>/);
+  assert.match(html, /insights-footnote">[^<]*Cost per merged stays empty because Ploeg counts Done Work Items for all time, not per window/);
+  const none = live([team('silver', 0, 0)]);
+  assert.match(tileOf(none, 'Merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">No Work Item is Done or Withdrawn yet<\/span>/);
+  const allDone = live([team('bronze', 3, 0)]);
+  assert.match(tileOf(allDone, 'Merge rate'), /<strong class="stat-value">100%<\/strong><span class="stat-detail">3 Done of 3 closed · all time<\/span>/);
+  const missing = overviewMarkup({ window: '7d', data: { ...summary('7d'), totals: { ...summary('7d').totals, workItems: { ...summary('7d').totals.workItems, done: null } } }, loading: false, error: null }, helpers, now);
+  assert.match(tileOf(missing, 'Merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Done and Withdrawn not reported<\/span>/);
+  const demo = overviewMarkup({ window: '7d', data: summary('7d', true), loading: false, error: null }, helpers, now);
+  assert.match(tileOf(demo, 'Cost per merged Work Item'), /<strong class="stat-value is-text">No model calls<\/strong><span class="stat-detail">Demo<\/span>/);
+  assert.match(tileOf(demo, 'Merge rate'), /<strong class="stat-value">95%<\/strong><span class="stat-detail">21 Done of 22 closed · all time<\/span>/);
+  assert.doesNotMatch(demo, /title="Ploeg counts Done/, 'the demo never explains a figure it does not have');
 });
 
 test('the demo summary counts window-bound Runs and keeps spend at zero', () => {
