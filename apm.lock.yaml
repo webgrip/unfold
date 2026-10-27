@@ -4,8 +4,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-baseline
   host: forgejo.webgrip.dev
-  resolved_commit: 60ac23acc9a73212768b8b5d02815ec9439667c4
-  resolved_ref: v0.3.0
+  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
+  resolved_ref: v0.5.1
   version: 0.0.0
   virtual_path: packages/baseline
   is_virtual: true
@@ -14,24 +14,24 @@ dependencies:
   - .claude/rules/baseline.md
   - .claude/rules/forgejo-ci.md
   deployed_file_hashes:
-    .claude/rules/baseline.md: sha256:c6644318fe8544b9ad009e3e8a6626310666906270ca42ae3f1b621657e67801
+    .claude/rules/baseline.md: sha256:d0ca779fc6b749333676b2bbc68adaaf1277ec8344c37a340cdd38f6c9d423dd
     .claude/rules/forgejo-ci.md: sha256:18ac65e57d86f5d0c46da55d53582fbfb94ba74d87605e7394a39858fdac3011
-  content_hash: sha256:2930efa4f18a116b92d688e7cc6111f2337e217a111287a96af8e93b1a3ac21b
+  content_hash: sha256:2cb528fec450d156eb89c1a429d00a2058257b3c5a813772e850f46335044438
 - repo_url: webgrip/agent-standards
   name: webgrip-board
   host: forgejo.webgrip.dev
-  resolved_commit: 60ac23acc9a73212768b8b5d02815ec9439667c4
-  resolved_ref: v0.3.0
+  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
+  resolved_ref: v0.5.1
   version: 0.0.0
   virtual_path: packages/board
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:54b3a601cfcb793cc87cb1c0c38fffd01dbb0aa21cbc39f52a9257c417ca61ed
+  content_hash: sha256:3a7b63c2d84878cd7df9c2fec7b50150100ae289914c70ffced7b3c3002bd06b
 - repo_url: webgrip/agent-standards
   name: webgrip-secrets
   host: forgejo.webgrip.dev
-  resolved_commit: 60ac23acc9a73212768b8b5d02815ec9439667c4
-  resolved_ref: v0.3.0
+  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
+  resolved_ref: v0.5.1
   version: 0.0.0
   virtual_path: packages/secrets
   is_virtual: true
@@ -350,7 +350,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
   active_owner: forgejo.webgrip.dev/webgrip/agent-standards/packages/baseline
-  content_hash: sha256:c6644318fe8544b9ad009e3e8a6626310666906270ca42ae3f1b621657e67801
+  content_hash: sha256:d0ca779fc6b749333676b2bbc68adaaf1277ec8344c37a340cdd38f6c9d423dd
 - kind: project-relative
   target: claude
   value: .claude/rules/forgejo-ci.md
@@ -1529,7 +1529,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:865a90e728d36623f19d60893c6d03f4f9e76311ed8977af22bd80b131e170ad
+  content_hash: sha256:594adfc00d1307b37953581435a5068fbeac76309490d73dbd10060b7edb1f5e
 - kind: uri
   target: mcp
   value: vikunja
@@ -1538,7 +1538,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:fef50d041ddc649854a010f40acc63b9d98675ca759190a85f1bd88002186505
+  content_hash: sha256:1a7ded466578b3392b790b7ecb7054acbd593cbb0db394f3340c158b39c83c53
 - kind: uri
   target: mcp
   value: vikunja
@@ -1566,7 +1566,7 @@ mcp_configs:
     registry: false
     headers:
       Authorization: Bearer ${LITELLM_MCP_KEY}
-    url: https://litellm.webgrip.dev/mcp/
+    url: https://litellm.webgrip.dev/mcp/vikunja
 mcp_target_servers:
   claude:
   - vikunja
