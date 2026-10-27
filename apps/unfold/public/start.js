@@ -1,12 +1,12 @@
 import { escape } from './core/dom.js';
 import { icon } from './core/icons.js';
-import { count as formatCount, money, plural } from './core/format.js';
+import { count as formatCount, money, namedDate, plural } from './core/format.js';
 import { badge, button, callout, count, demoNote, emptyState, kbd, listRow, skeleton } from './core/ui.js';
 
 /** How many agent pull requests may wait for your review before the Start lane says to decide first. */
 export const reviewRoom = 4;
 
-/** How many tasks the Start lane lists as up next before it points to Tasks. */
+/** How many tasks the Start lane lists before Show all. */
 export const startLimit = 5;
 
 const readyLabels = ['ready', 'agent-ready', 'do-next'];
@@ -51,23 +51,101 @@ export function readiness(task) {
   return { state: 'check', label: 'Not marked ready', tone: 'neutral', facts };
 }
 
+const vikunjaPriority = ['', 'low', 'medium', 'high', 'urgent', 'do now'];
+const clickupPriority = ['', 'urgent', 'high', 'normal', 'low'];
+const capital = text => text.charAt(0).toUpperCase() + text.slice(1);
+const sentence = text => String(text ?? '').trim().replace(/[.\s]+$/, '');
+
+/**
+ * A task's priority in its tracker's own word, and its rank (higher goes first). Vikunja counts 1 low to 5 do now;
+ * ClickUp counts 1 urgent to 4 low. Null when the tracker set none.
+ * @param {object} task
+ * @returns {{ rank: number, name: string } | null}
+ */
+export function priorityOf(task) {
+  const value = task?.priority;
+  if (!Number.isSafeInteger(value) || value < 1) return null;
+  if (task.provider === 'clickup') return value < clickupPriority.length ? { rank: clickupPriority.length - value, name: clickupPriority[value] } : null;
+  return { rank: value, name: vikunjaPriority[value] || `level ${value}` };
+}
+
+/**
+ * Whether Ploeg routes a task to a repository an agent can work in, from `GET /api/ploeg/connections`: the board
+ * that shows the connection, a Team of yours on it, the task's one `repo/` label (or the board's repository or
+ * default) and that repository's readiness. Without the connections read, a connection that names a repository routes.
+ * @param {object} task
+ * @param {{ id: string, name?: string, repositoryId?: string } | undefined} source
+ * @param {object|null} connections
+ * @returns {{ ok: true, repository: string } | { ok: false, reason: string }}
+ */
+export function routeOf(task, source, connections) {
+  if (!connections?.supported) return source?.repositoryId ? { ok: true, repository: source.repositoryId } : { ok: false, reason: 'This connection names no repository for agents to work in' };
+  const board = (connections.boards || []).find(entry => (entry.sources || []).some(item => item.id === source?.id));
+  if (!board) return { ok: false, reason: `Ploeg routes no board for ${source?.name || 'this connection'}` };
+  const where = `the ${String(board.name || '').replace(/\s+board$/i, '') || 'task'} board`;
+  if (board.sources.find(item => item.id === source.id)?.routed === false) return { ok: false, reason: `${capital(where)} does not route to this connection’s repository` };
+  if (!board.teams?.length) return { ok: false, reason: `No Team of yours takes work from ${where}` };
+  const repositories = connections.repositories || [];
+  const allowed = [board.repository, board.default, ...(board.allow || [])].filter(Boolean);
+  const hints = labelsOf(task).filter(label => label.startsWith('repo/'));
+  let key = board.repository;
+  if (!key && hints.length > 1) return { ok: false, reason: `More than one repo/ label (${hints.join(', ')}): keep exactly one` };
+  if (!key && hints.length) {
+    const known = repositories.find(repository => String(repository.key).toLowerCase() === hints[0].slice('repo/'.length));
+    if (!known) return { ok: false, reason: `${hints[0]} names no repository Ploeg knows` };
+    if (!allowed.includes(known.key)) return { ok: false, reason: `${hints[0]} is not allowed on ${where}` };
+    key = known.key;
+  }
+  key ||= board.default;
+  if (!key) return { ok: false, reason: `${capital(where)} needs a repo/ label on this task` };
+  const repository = repositories.find(entry => entry.key === key);
+  const name = repository?.label || repository?.repo || key;
+  if (repository?.readiness === 'not_ready') return { ok: false, reason: `${name} is not ready for agents: ${sentence(repository.reason) || 'Ploeg gave no reason'}` };
+  return { ok: true, repository: name };
+}
+
+/**
+ * Why a task sits where it does in Up next, in the tracker's words: its priority and due date, or, when the tracker
+ * set neither, its place in the list the tracker returned.
+ * @param {{ task: object, position: number }} entry A `startQueue` entry.
+ * @returns {string}
+ */
+export function whyHere(entry) {
+  const parts = [];
+  const priority = priorityOf(entry.task);
+  if (priority) parts.push(`Priority ${priority.name}`);
+  const due = namedDate(entry.task?.dueAt);
+  if (due) parts.push(`${parts.length ? 'due' : 'Due'} ${due}`);
+  return parts.length ? parts.join(' · ') : `Tracker order #${formatCount(entry.position + 1)}`;
+}
+
 /**
  * The tasks the Start lane offers, from every listed connection: open, not an epic, not with Ploeg in any state Now
- * reports, and not handed over from this page in the meantime. Tasks labelled ready come first, then the rest, then
- * not-ready ones; within each, by tracker priority, then the most recently updated. The tracker owns priority; this
- * only orders what it reported.
+ * reports, and not handed over from this page in the meantime. They keep the tracker's order: its priority first, then
+ * the earliest due date, then the place in the list the tracker returned. Each entry says whether an agent can take
+ * it; when not, `blocker` says why: Ploeg's own refusal, then routing (`routeOf`), then a failing `readiness` fact.
  * @param {{ sourceId: string, tasks: object[] }[]} lists
  * @param {Map<string, object>} standings `taskStandings` of the Now response.
  * @param {{ sourceId: string, taskId: string }[]} [handed]
- * @returns {{ task: object, sourceId: string, readiness: ReturnType<typeof readiness> }[]}
+ * @param {{ sources?: object[], connections?: object|null, refused?: Map<string, string> }} [routing] `refused` maps a `taskKey` to Ploeg's refusal in words.
+ * @returns {{ task: object, sourceId: string, position: number, readiness: ReturnType<typeof readiness>, blocker: string }[]}
  */
-export function startQueue(lists, standings, handed = []) {
+export function startQueue(lists, standings, handed = [], { sources = [], connections = null, refused = new Map() } = {}) {
   const away = new Set(handed.map(entry => `${entry.sourceId}:${entry.taskId}`));
-  const rank = { ready: 0, check: 1, blocked: 2 };
-  return lists.flatMap(({ sourceId, tasks }) => (Array.isArray(tasks) ? tasks : [])
-    .filter(task => task.status === 'open' && !epic(task) && !standings.has(taskKey(task)) && !away.has(`${sourceId}:${task.id}`))
-    .map(task => ({ task, sourceId, readiness: readiness(task) })))
-    .sort((a, b) => rank[a.readiness.state] - rank[b.readiness.state] || (b.task.priority ?? 0) - (a.task.priority ?? 0) || moment(b.task.updatedAt) - moment(a.task.updatedAt));
+  const byId = new Map(sources.map(source => [source.id, source]));
+  const due = task => moment(task.dueAt) || Infinity;
+  return lists.flatMap(({ sourceId, tasks }, list) => (Array.isArray(tasks) ? tasks : [])
+    .map((task, position) => ({ task, sourceId, position, list }))
+    .filter(({ task }) => task.status === 'open' && !epic(task) && !standings.has(taskKey(task)) && !away.has(`${sourceId}:${task.id}`))
+    .map(entry => {
+      const state = readiness(entry.task);
+      const route = routeOf(entry.task, byId.get(entry.sourceId) ?? { id: entry.sourceId }, connections);
+      const failed = state.facts.find(fact => fact.ok === false);
+      const blocker = refused.get(taskKey(entry.task)) || (route.ok ? '' : route.reason) || (state.state === 'blocked' ? failed?.text || state.label : '');
+      return { ...entry, readiness: state, blocker };
+    }))
+    .sort((a, b) => (priorityOf(b.task)?.rank ?? 0) - (priorityOf(a.task)?.rank ?? 0) || due(a.task) - due(b.task) || a.position - b.position || a.list - b.list)
+    .map(({ list, ...entry }) => entry);
 }
 
 /**
@@ -95,11 +173,11 @@ export function pendingHandoffs(handed, standings) {
 
 function roomMarkup(room) {
   if (!room) return '';
-  const cells = Array.from({ length: room.size }, (_, index) => `<span class="start-room-cell"${index < room.used ? ' data-used' : ''}></span>`).join('');
   const free = room.size - room.used;
-  const text = room.full ? `Review room full: ${plural(room.used, 'pull request')} ${room.used === 1 ? 'waits' : 'wait'} for you` : `Room for ${plural(free, 'more review')}`;
-  const why = `Unfold suggests at most ${room.size} agent pull requests waiting for your review at once. ${formatCount(room.used)} wait now.`;
-  return `<p class="start-room"${room.full ? ' data-full' : ''} title="${escape(why)}"><span class="start-room-cells" aria-hidden="true">${cells}</span><span>${escape(text)}</span></p>`;
+  const waits = room.used === 1 ? 'waits' : 'wait';
+  const text = room.full ? `Review room full: ${plural(room.used, 'pull request')} ${waits} for you` : `You can take ${plural(free, 'more review')}${room.used ? ` · ${formatCount(room.used)} ${waits} now` : ''}`;
+  const why = `Unfold suggests at most ${room.size} agent pull requests waiting for your review at once.`;
+  return `<p class="start-room"${room.full ? ' data-full' : ''} title="${escape(why)}">${escape(text)}</p>`;
 }
 
 function readyBadge(state) {
@@ -112,11 +190,15 @@ export function labelledTeam(task) {
   return label ? label.slice('team/'.length) : '';
 }
 
-function rowFacts(entry, sourceName) {
+function rowFacts(entry, sourceName, badges) {
   const { task } = entry;
   const labels = labelsOf(task);
   const facts = [];
-  if (entry.readiness.state !== 'check') facts.push(readyBadge(entry.readiness));
+  if (entry.blocker) facts.push(`<span class="start-why" data-blocked>${escape(entry.blocker)}</span>`);
+  else {
+    if (badges && entry.readiness.state === 'ready') facts.push(readyBadge(entry.readiness));
+    facts.push(`<span class="start-why">${escape(whyHere(entry))}</span>`);
+  }
   if (labels.includes('spike')) facts.push(badge({ label: 'Spike', tone: 'neutral', size: 'sm' }));
   facts.push(escape(task.identifier || `#${task.id}`));
   if (sourceName) facts.push(escape(sourceName));
@@ -124,14 +206,13 @@ function rowFacts(entry, sourceName) {
   if (effort) facts.push(escape(`size ${effort.slice('effort/'.length).toUpperCase()}`));
   const team = labelledTeam(task);
   if (team) facts.push(escape(`for ${team}`));
-  if ((task.priority ?? 0) >= 3) facts.push(escape(task.priority >= 4 ? 'urgent' : 'high priority'));
   return `<span class="now-facts"><span class="now-facts-list">${facts.map(fact => `<span>${fact}</span>`).join('')}</span></span>`;
 }
 
-function startRow(entry, sourceName) {
+function startRow(entry, sourceName, badges) {
   const { task, sourceId } = entry;
-  const row = listRow({ action: 'start-open', data: { source: sourceId, task: task.id, nowRow: true }, id: `start-row-${sourceId}-${task.id}`, tone: entry.readiness.state === 'blocked' ? 'attention' : 'neutral', lead: icon('tasks'), title: task.title || `Task ${task.id}`, meta: rowFacts(entry, sourceName), trail: `<span class="start-row-go" aria-hidden="true">${icon('arrow')}Hand off</span>` });
-  return `<li class="now-item start-item">${row}</li>`;
+  const row = listRow({ action: 'start-open', data: { source: sourceId, task: task.id, nowRow: true }, id: `start-row-${sourceId}-${task.id}`, tone: entry.blocker ? 'attention' : 'neutral', lead: icon(entry.blocker ? 'alert' : 'tasks'), title: task.title || `Task ${task.id}`, meta: rowFacts(entry, sourceName, badges), trail: `<span class="start-row-go" aria-hidden="true">${icon('arrow')}Hand off</span>` });
+  return `<li class="now-item start-item"${entry.blocker ? ' data-held' : ''}>${row}</li>`;
 }
 
 function handedRow(entry, standing) {
@@ -156,34 +237,49 @@ export function handedMarkup(entries, standings) {
 }
 
 function boardSwitch(sources, queue, board) {
-  if (sources.length < 2 || !queue) return '';
+  if (sources.length < 2 || !queue.length) return '';
   const counts = new Map(sources.map(source => [source.id, 0]));
   for (const entry of queue) counts.set(entry.sourceId, (counts.get(entry.sourceId) ?? 0) + 1);
   const items = [{ id: '', label: `All ${formatCount(queue.length)}` }, ...sources.filter(source => counts.get(source.id)).map(source => ({ id: source.id, label: `${source.name} ${formatCount(counts.get(source.id))}` }))];
   return `<div class="start-boards" role="group" aria-label="Board">${items.map(item => `<button type="button" class="start-board" data-action="start-board" data-board="${escape(item.id)}" aria-pressed="${item.id === board}">${escape(item.label)}</button>`).join('')}</div>`;
 }
 
+function toggle({ action, label, pressed }) {
+  return `<button type="button" class="button ghost sm" id="${escape(action)}" data-action="${escape(action)}" aria-pressed="${pressed}">${escape(label)}</button>`;
+}
+
 /**
- * The Start lane of the loop: the next tasks to hand off from every connection Ploeg runs, best first, each opening
- * the hand-off sheet, with the review room above them and a board switch when there are several boards. `board` is the
- * chosen connection id, or empty for all.
- * @param {{ queue: object[]|null, sources: object[], error?: string, room: object|null, singleKeys?: boolean, demo?: boolean, board?: string }} input
+ * The Start lane of the loop: the first `startLimit` tasks an agent can take, in the tracker's order, each saying why
+ * it is there and opening the hand-off sheet, with the review room above them. Show all lists every task with a board
+ * switch when there are several boards; Include adds the tasks agents cannot take, each with its reason. `board` is
+ * the chosen connection id, or empty for all; it applies while every task shows.
+ * @param {{ queue: object[]|null, sources: object[], error?: string, room: object|null, singleKeys?: boolean, demo?: boolean, board?: string, all?: boolean, include?: boolean }} input
  * @returns {string}
  */
-export function startCard({ queue, sources, error = '', room, singleKeys = false, demo = false, board = '' }) {
+export function startCard({ queue, sources, error = '', room, singleKeys = false, demo = false, board = '', all = false, include = false }) {
   const names = new Map(sources.map(source => [source.id, source.name]));
-  const chosen = board && queue?.some(entry => entry.sourceId === board) ? board : '';
-  const shownQueue = queue && chosen ? queue.filter(entry => entry.sourceId === chosen) : queue;
   let body;
   if (!sources.length) body = emptyState({ icon: 'tasks', compact: true, title: 'No task connection hands work to Ploeg', body: 'An administrator connects a Vikunja board with executionOwner "ploeg". Its open tasks show up here to hand off.' });
   else if (error && !queue) body = emptyState({ icon: 'x-circle', compact: true, tone: 'danger', title: 'Could not list your tasks', body: escape(error), actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-reload', id: 'start-reload' }) });
   else if (!queue) body = skeleton({ rows: 3 });
   else if (!queue.length) body = emptyState({ icon: 'check-circle', compact: true, title: 'Nothing left to start', body: 'Every open task is with Ploeg already. Make more work Ready in your tracker.', actions: button({ label: 'Open Tasks', size: 'sm', variant: 'ghost', href: '#tasks', id: 'start-tasks' }) });
   else {
-    const shown = shownQueue.slice(0, startLimit);
-    const rest = shownQueue.length - shown.length;
-    const more = rest > 0 ? `<li class="now-item now-more-item"><a class="now-more" href="#tasks">${escape(`${formatCount(rest)} more open ${rest === 1 ? 'task' : 'tasks'} in Tasks`)}${icon('chevron')}</a></li>` : '';
-    body = `${boardSwitch(sources, queue, chosen)}<ul class="list now-list start-list" aria-labelledby="loop-start-title">${shown.map(entry => startRow(entry, sources.length > 1 && !chosen ? names.get(entry.sourceId) : '')).join('')}${more}</ul>`;
+    const visible = include ? queue : queue.filter(entry => !entry.blocker);
+    const chosen = all && board && visible.some(entry => entry.sourceId === board) ? board : '';
+    const listed = chosen ? visible.filter(entry => entry.sourceId === chosen) : visible;
+    const shown = all ? listed : listed.slice(0, startLimit);
+    const takers = queue.filter(entry => !entry.blocker);
+    const held = queue.length - takers.length;
+    const marked = takers.length > 0 && takers.every(entry => entry.readiness.state === 'ready');
+    const order = `<p class="start-order">In your tracker’s order · ${escape(takers.length ? `${plural(takers.length, 'task')} agents can take${marked ? ', all marked ready' : ''}` : 'no task agents can take')}</p>`;
+    const controls = [
+      visible.length > startLimit ? toggle({ action: 'start-all', label: all ? `Show the first ${formatCount(startLimit)}` : `Show all ${formatCount(visible.length)}`, pressed: all }) : '',
+      held ? toggle({ action: 'start-include', label: `Include tasks agents cannot take (${formatCount(held)})`, pressed: include }) : '',
+    ].join('');
+    const list = shown.length
+      ? `<ul class="list now-list start-list" aria-labelledby="loop-start-title">${shown.map(entry => startRow(entry, sources.length > 1 && !chosen ? names.get(entry.sourceId) : '', !marked)).join('')}</ul>`
+      : emptyState({ icon: 'help-circle', compact: true, title: 'No task agents can take right now', body: `${plural(held, 'open task')} ${held === 1 ? 'needs' : 'need'} something first. Include ${held === 1 ? 'it' : 'them'} to see why.` });
+    body = `${order}${all ? boardSwitch(sources, visible, chosen) : ''}${list}${controls ? `<div class="start-controls">${controls}</div>` : ''}`;
   }
   const keys = singleKeys && queue?.length ? `<p class="now-keys" aria-hidden="true">${kbd('h')}<span>hand off</span></p>` : '';
   const warn = room?.full && queue?.length ? `<p class="start-decide-first">${icon('alert')}<span>Decide on what waits first. You can still hand off; the work queues behind your review.</span></p>` : '';

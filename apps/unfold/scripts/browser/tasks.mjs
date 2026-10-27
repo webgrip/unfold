@@ -23,7 +23,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('button', { name: 'Clear search', exact: true }).click();
   await page.locator('#page-title').focus();
   await page.keyboard.press('j');
-  assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-row-1', 'j does not move to the first task');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-row-2', 'j does not move from the selected task to the next one');
   await page.getByLabel('Session budget', { exact: true }).fill('3.25');
   await screenshot('tasks-preview');
   await page.setViewportSize({ width: 1280, height: 800 });

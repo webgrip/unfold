@@ -1,4 +1,4 @@
-/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line (at most two facts), every Unstick button labelled, j and k still moving between rows and Cancel in the demo disabled, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, Snooze opens its choices by keyboard and Escape closes them, a snoozed row and a dismissed refusal leave the lane, the day line and the Now badge alike, survive a reload, list under "N snoozed · Show" and come back with Unsnooze, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
+/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line (at most two facts), every Unstick button labelled, j and k still moving between rows and Cancel in the demo disabled, Up next lists the first five fixture tasks agents can take in the tracker’s order with why each is there, Show all and Include add the rest with their reasons, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, Snooze opens its choices by keyboard and Escape closes them, a snoozed row and a dismissed refusal leave the lane, the day line and the Now badge alike, survive a reload, list under "N snoozed · Show" and come back with Unsnooze, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
 export async function run({ app, page, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -52,7 +52,27 @@ export async function run({ app, page, assert, screenshot }) {
   }
   const startRow = loop.locator('[data-action="start-open"]').first();
   await startRow.waitFor();
+  const upNext = loop.locator('.loop-start');
+  const rows = upNext.locator('[data-action="start-open"]');
+  assert.equal(await rows.count(), 5, 'Up next does not stop at the first five tasks agents can take');
+  await upNext.getByText('In your tracker’s order · 6 tasks agents can take, all marked ready').waitFor();
+  await upNext.getByText(/^You can take \d+ more reviews?/).waitFor();
+  assert.equal(await upNext.getByText('Marked ready', { exact: true }).count(), 0, 'every row repeats Marked ready');
+  assert.match(await rows.first().textContent(), /Fix checkout rounding[\s\S]*Priority urgent · due /);
+  assert.equal(await upNext.getByText(/Packaging boxes|Interview five shops/i).count(), 0, 'Up next lists tasks agents cannot take by default');
   await screenshot('loop');
+  await upNext.getByRole('button', { name: 'Show all 6' }).click();
+  await upNext.getByText('Tracker order #6').waitFor();
+  assert.equal(await rows.count(), 6);
+  await upNext.getByRole('button', { name: 'Include tasks agents cannot take (2)' }).click();
+  await upNext.getByText('repo/warehouse names no repository Ploeg knows').waitFor();
+  await upNext.getByText(/^market-research is not ready for agents: example\/market-research has no AGENTS\.md/).waitFor();
+  assert.equal(await rows.count(), 8);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'start-include', 'Include loses focus when the lane redraws');
+  await screenshot('loop-up-next-all');
+  await upNext.getByRole('button', { name: 'Include tasks agents cannot take (2)' }).click();
+  await upNext.getByRole('button', { name: 'Show the first 5' }).click();
+  assert.equal(await rows.count(), 5);
 
   await startRow.focus();
   await page.keyboard.press('h');
