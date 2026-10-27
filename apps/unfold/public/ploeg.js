@@ -42,6 +42,7 @@ import { questionMarkup, disagreementsMarkup, findingAnswersMarkup, findingsMark
 export const ploegLanes = Object.freeze([
   Object.freeze({ id: 'awaiting_review', label: 'Ready for review', tone: 'review' }),
   Object.freeze({ id: 'needs_human', label: 'Needs you', tone: 'attention' }),
+  Object.freeze({ id: 'stale', label: 'Stopped retrying', tone: 'severe' }),
   Object.freeze({ id: 'leased', label: 'Running' }),
   Object.freeze({ id: 'queued', label: 'Queued' }),
   Object.freeze({ id: 'open', label: 'Open', newestFirst: true }),
@@ -55,6 +56,7 @@ const spansStates = lane => lane === 'open' || lane === 'closed';
 const laneEmpty = {
   awaiting_review: ['pull-request', 'No pull requests wait for your review', 'When the agents finish a Work Item, its pull request shows up here.', 'neutral'],
   needs_human: ['check-circle', 'Nothing needs you', 'Ploeg is handling the work. When it stops and needs a person, the Work Item shows up here first.', 'success'],
+  stale: ['check-circle', 'Nothing stopped retrying', 'When Ploeg gives up on a Work Item after repeated failures, it shows up here until a person retries or closes it.', 'success'],
   leased: ['circle-half', 'Nothing is running', 'Queued Work Items start when a worker of their Team is free.', 'neutral'],
   queued: ['circle-dashed', 'The queue is empty', 'Assign a task to a Team in your tracker and Ploeg queues it here.', 'neutral'],
   open: ['inbox', 'No open Work Items', 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', 'neutral'],
@@ -531,15 +533,22 @@ function listMarkup(model) {
   const context = { lane, team: model.team, allTeams: data.allTeams, selectedId: model.detailId, demo: data.demo, reviewFacts: model.reviewFacts };
   const label = ploegLanes.find(entry => entry.id === lane)?.label || 'Work';
   const heading = `<h2 class="sr-only" id="work-list-title">${escape(label)}${data.allTeams ? ', all teams' : data.selectedTeam ? `, team ${escape(data.selectedTeam)}` : ''}</h2>`;
+  const note = refusedNote(lane, model.refused);
   if (!page.items.length) {
     const [glyph, title, body, tone] = data.teams.length ? laneEmpty[lane] || laneEmpty.all : ['lock', 'No Teams for your account', 'Ask an administrator to give your account access to a Ploeg Team.', 'neutral'];
-    return `<section class="card work-list" aria-labelledby="work-list-title">${heading}${ui.emptyState({ icon: glyph, title, body: `<p>${escape(body)}</p>`, tone })}</section>`;
+    return `<section class="card work-list" aria-labelledby="work-list-title">${heading}${note}${ui.emptyState({ icon: glyph, title, body: `<p>${escape(body)}</p>`, tone })}</section>`;
   }
   const more = page.partial ? `<footer class="work-list-footer"><p class="meta">${data.allTeams ? 'Showing the loaded pages of each Team.' : 'Showing the loaded pages.'} Counts cover the loaded Work Items.</p><button type="button" class="button secondary sm" data-action="ploeg-more"${model.loadingMore ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.loadingMore ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load more</span></button></footer>` : '';
   const rows = lane === 'needs_human'
     ? needsMarkup(page.items, context)
     : `<ul class="list work-list-rows">${page.items.map(item => workRow(item, context)).join('')}</ul>`;
-  return `<section class="card flush work-list" aria-labelledby="work-list-title" aria-busy="${model.loading ? 'true' : 'false'}">${heading}${rows}${more}</section>`;
+  return `<section class="card flush work-list" aria-labelledby="work-list-title" aria-busy="${model.loading ? 'true' : 'false'}">${heading}${note}${rows}${more}</section>`;
+}
+
+function refusedNote(lane, refused) {
+  if (lane !== 'needs_human' || !amount(refused) || refused < 1) return '';
+  const one = refused === 1;
+  return `<p class="work-list-note">${icon('info')}<span>Now also counts ${escape(plural(refused, 'tracker task'))} Ploeg could not start. ${one ? 'It is' : 'They are'} not a Work Item yet, so ${one ? 'it shows' : 'they show'} on <a href="#now">Now</a> only.</span></p>`;
 }
 
 function partialNotice(data) {

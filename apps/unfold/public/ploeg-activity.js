@@ -272,14 +272,14 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
     : tile({ label: 'Settled spend', value: money(spend.settledUsd), detail: isNumber(spend.reservedUsd) ? `${money(spend.reservedUsd)} held by running Runs` : 'Holds not reported', glyph: 'coins', text: !isNumber(spend.settledUsd) }, helpers);
   const runTiles = [
     tile({ label: 'Runs finished', value: count(runs.finished), detail: 'Failed and stuck Runs included', href: '#runs?state=finished', glyph: 'runs' }, helpers),
-    tile({ label: 'Failed', value: count(runs.failed), detail: runs.finished ? `${percent(runs.failed / runs.finished)} of finished Runs` : 'No finished Runs', href: '#runs?state=finished&outcome=failed', tone: 'danger', glyph: 'x-circle' }, helpers),
+    tile({ label: 'Failed', value: count(runs.failed), detail: runs.finished ? `${percent(runs.failed / runs.finished)} of finished Runs` : `No Run finished in the last ${windowName}`, href: '#runs?state=finished&outcome=failed', tone: 'danger', glyph: 'x-circle' }, helpers),
     tile({ label: 'Stuck', value: count(runs.stuck), detail: 'An agent asked for a person', href: '#runs?state=finished&outcome=stuck', tone: 'attention', glyph: 'alert' }, helpers),
     settledTile,
   ].join('');
   const workTiles = [
     tile({ label: 'Ready for review', value: count(items.awaitingReview), detail: tileDetail.review(), href: '#work?lane=awaiting_review', tone: 'review', glyph: 'pull-request' }, helpers),
     tile({ label: 'Needs you', value: count(items.needsHuman), detail: tileDetail.needsYou(), href: '#work?lane=needs_human', tone: 'attention', glyph: 'alert' }, helpers),
-    tile({ label: 'Running', value: count(items.leased), detail: tileDetail.running(runs), href: '#work?lane=leased', tone: 'live', glyph: 'activity' }, helpers),
+    tile({ label: 'Running', value: count(items.leased), detail: tileDetail.running({ ...runs, leased: items.leased }), href: '#work?lane=leased', tone: 'live', glyph: 'activity' }, helpers),
     tile({ label: 'Queued', value: count(items.queued), detail: tileDetail.queued(items.queued), href: '#work?lane=queued', glyph: 'circle-dashed' }, helpers),
     tile({ label: 'Proposed', value: count(items.proposed), detail: tileDetail.proposed(), href: '#proposed', glyph: 'proposed' }, helpers),
     unsettledTile(data, helpers),
@@ -344,9 +344,12 @@ export function activityMarkup(view, teams, helpers, now = Date.now(), user = nu
   return page('activity', demoNote(view.demo), toolbar, view.error ? staleNotice(view, helpers) : '', `<div class="card flush activity-feed" id="activity-feed" tabindex="-1" aria-label="Ploeg events, newest first">${pill}${body}${footer}</div>`);
 }
 
+const reviewOnly = run => Boolean(run.verdict) && run.verdict !== 'none' && run.outcome === 'no_change_needed';
+
 function runBadge(run) {
   if (run.state === 'running') return ui.stateBadge('run:running');
   if (run.state === 'pending') { const meta = runState('pending'); return ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label }); }
+  if (reviewOnly(run)) { const meta = verdictMeta(run.verdict); return ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }); }
   const outcome = runOutcome(run.outcome);
   if (outcome) return ui.badge({ tone: outcome.tone, glyph: outcome.glyph, label: outcome.label });
   const none = unreportedOutcome(run);
@@ -355,7 +358,8 @@ function runBadge(run) {
 
 function runNotes(run, escape) {
   const notes = [];
-  if (run.verdict) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}" title="${escape(`${meta.label}. Agent review is evidence, not a human review.`)}">${escape(meta.short)}</span>`); }
+  if (run.verdict && !reviewOnly(run)) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}" title="${escape(`${meta.label}. Agent review is evidence, not a human review.`)}">${escape(meta.short)}</span>`); }
+  if (run.leftover) return { notes: `<span class="runs-note" data-tone="severe">Its Work Item stopped</span>`, next: `<span class="runs-next">${escape('Ploeg did not close this Run when it stopped the Work Item, so it holds budget without working. Open the Work Item: run it again or cancel it.')}</span>` };
   const failure = runFailure(run);
   if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}">${escape(failure.label)}</span>`);
   else if (run.failureReason) notes.push(`<span class="runs-note" data-tone="danger">${escape(capital(run.failureReason))}</span>`);
@@ -435,7 +439,8 @@ function runsSkeleton() {
 
 /**
  * Runs: Team, state and outcome filters, then the Runs with running work first. A dense table with a sticky
- * header on wide screens and a card list on narrow ones; both show every field.
+ * header on wide screens and a card list on narrow ones; both show every field. A running Run whose Work Item is in
+ * `view.stopped` (ids of Work Items Ploeg stopped) says it is left over and holds budget without working.
  */
 export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const { escape, icon } = helpers;
@@ -456,7 +461,8 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
     const zoom = ranged && !view.nextBefore ? `<button type="button" class="button secondary sm" data-action="runs-range-zoom-out">${zoomOutLabel(icon)}</button>` : '';
     return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card">${empty({ glyph: ranged ? 'clock' : 'runs', title, body: `<p>${escape(body)}</p>`, actions: `${more}${zoom}${filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : ''}` }, helpers)}</div>`);
   }
-  const runs = sortRuns(listed);
+  const stopped = view.stopped instanceof Set ? view.stopped : new Set();
+  const runs = sortRuns(listed).map(run => run.state === 'running' && stopped.has(String(run.workItemId)) ? { ...run, leftover: true } : run);
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
   const grouped = Boolean(active.length && done.length);

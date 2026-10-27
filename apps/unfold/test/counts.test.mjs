@@ -13,15 +13,16 @@ const now = (extra = {}) => ({
 });
 
 test('the navigation counts come from the Now aggregate, and a failed group counts as unknown, never zero', () => {
-  assert.deepEqual(countsFromNow(now()), { waiting: 4, review: 1, needsYou: 2, proposed: 1, running: 1 });
+  assert.deepEqual(countsFromNow(now()), { waiting: 4, review: 1, needsYou: 2, proposed: 1, refused: null, running: 1 });
+  assert.deepEqual(countsFromNow(now({ refused: [{ externalId: '25' }, { externalId: '26' }] })), { waiting: 6, review: 1, needsYou: 2, proposed: 1, refused: 2, running: 1 }, 'tasks Ploeg could not start wait on you but are no Work Items');
   const red = { id: '9', state: 'awaiting_review', ci: { state: 'error', checks: [] } };
   const green = { id: '10', state: 'awaiting_review', ci: { state: 'success', checks: [] } };
-  assert.deepEqual(countsFromNow(now({ waiting: [red, green] })), { waiting: 2, review: 1, needsYou: 1, proposed: 0, running: 1 }, 'CI that did not pass needs you, not a review');
-  assert.deepEqual(countsFromNow(now({ waiting: [], running: [] })), { waiting: 0, review: 0, needsYou: 0, proposed: 0, running: 0 });
-  assert.deepEqual(countsFromNow(now({ errors: { waiting: 'Ploeg could not be read.' } })), { waiting: null, review: null, needsYou: null, proposed: null, running: 1 });
+  assert.deepEqual(countsFromNow(now({ waiting: [red, green] })), { waiting: 2, review: 1, needsYou: 1, proposed: 0, refused: null, running: 1 }, 'CI that did not pass needs you, not a review');
+  assert.deepEqual(countsFromNow(now({ waiting: [], running: [] })), { waiting: 0, review: 0, needsYou: 0, proposed: 0, refused: null, running: 0 });
+  assert.deepEqual(countsFromNow(now({ errors: { waiting: 'Ploeg could not be read.' } })), { waiting: null, review: null, needsYou: null, proposed: null, refused: null, running: 1 });
   assert.deepEqual(countsFromNow(now({ errors: { running: 'no' } })).running, null);
-  assert.deepEqual(countsFromNow(null), { waiting: null, review: null, needsYou: null, proposed: null, running: null });
-  assert.deepEqual(Object.values(unknownCounts), [null, null, null, null, null, null]);
+  assert.deepEqual(countsFromNow(null), { waiting: null, review: null, needsYou: null, proposed: null, refused: null, running: null });
+  assert.deepEqual(Object.values(unknownCounts), [null, null, null, null, null, null, null]);
 });
 
 test('sessions that need you are the ones waiting for input, failed, interrupted or completed without a review', () => {
@@ -50,7 +51,8 @@ test('applying a Now answer stores the counts and the status and tells the liste
   try {
     state.sessions = [{ status: 'failed' }];
     applyNowCounts(now());
-    assert.deepEqual(state.counts, { waiting: 4, review: 1, needsYou: 2, proposed: 1, running: 1, sessions: 1 });
+    assert.deepEqual(state.counts, { waiting: 4, review: 1, needsYou: 2, proposed: 1, refused: null, running: 1, sessions: 1 });
+    assert.deepEqual([...state.stoppedWork], ['2', '3'], 'the Work Items Ploeg stopped, so a Run left running on one can be told apart');
     assert.equal(state.ploegStatus, 'connected');
     applyNowCounts(null, { code: 'ploeg_unavailable' });
     assert.deepEqual(state.counts, { ...unknownCounts, sessions: 1 });

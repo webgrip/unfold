@@ -7,6 +7,7 @@ import { runOutcomes, runStates } from '../core/states.js';
 import { plural } from '../core/format.js';
 import { live } from '../core/live.js';
 import { shell } from '../shell.js';
+import { onCountsChange } from '../core/counts.js';
 import { autoPages, reachesStart, runInRange, runSpan } from '../controls/range-filter.js';
 import { listRangeControl } from './time-range-control.js';
 import { editing, enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
@@ -16,7 +17,7 @@ let range = null;
 function renderRuns() {
   const view = state.ploegRuns;
   const actions = refreshButton({ busy: view.mode === 'reset' || view.mode === 'refresh', shown: Boolean(view.runs) || !view.error });
-  const shown = range ? { ...view, range: range.resolved(), rangeControl: range.markup(), rangeFilling: view.filling } : view;
+  const shown = { ...view, stopped: state.stoppedWork, ...(range ? { range: range.resolved(), rangeControl: range.markup(), rangeFilling: view.filling } : {}) };
   renderHtml(shell(runsMarkup(shown, state.ploegTeams || [], ploegHelpers()), { title: 'Runs', subtitle: 'Each Run is one Role working once on a Work Item. Running work first, then newest.', actions }));
 }
 
@@ -141,6 +142,7 @@ async function enterRuns({ query: hash = {} } = {}) {
   return loaded;
 }
 
+onCountsChange(() => { if (ploegVisible('runs') && !editing() && state.ploegRuns.runs?.some(run => run.state === 'running')) renderRuns(); });
 onPloegReload('runs', () => loadRuns(state.ploegRuns.runs ? 'refresh' : 'reset'));
 live.register('runs', { interval: 30000, refresh: liveRefresh('runs', poll, () => state.ploegRuns.error) });
 

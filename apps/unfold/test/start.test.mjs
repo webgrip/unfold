@@ -133,7 +133,7 @@ test('the loop puts Decide, Unstick and Start in order and hides a queued row th
   const order = ['loop-decide-title', 'loop-unstick-title', 'start-lane'].map(id => html.indexOf(`id="${id}"`));
   assert.ok(order.every(at => at > 0));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  assert.match(html, /2 things need you<span class="loop-day-split">: 1 to decide, 1 stuck<\/span>/);
+  assert.match(html, /2 things need you<span class="loop-day-split">: 1 to decide, 1 to unstick<\/span>/);
   assert.match(html, /nothing moving · US\$\s1,50 spent/);
   assert.match(html, /data-tone="attention"/);
   assert.doesNotMatch(html, /Just handed<\/span>/, 'the queued row of a hand-off shown above is not listed twice');
@@ -170,7 +170,7 @@ test('the loop takes every count from one place, folds empty lanes and groups en
   assert.deepEqual({ ...loopCounts(view) }, { decide: 0, stuck: 1, refused: 1, stale: 1, moving: 0, needYou: 2 });
   assert.equal(countsFromNow(data).waiting, 2, 'the Now badge counts the same things the day line does');
   const html = loopMarkup(input, {}, Date.parse('2026-10-18T12:00:00Z'));
-  assert.match(html, /2 things need you<span class="loop-day-split">: 1 stuck, 1 could not start[\s\S]*1 Work Item stopped retrying · nothing moving/);
+  assert.match(html, /2 things need you<span class="loop-day-split">: 1 to unstick, 1 could not start[\s\S]*1 Work Item stopped retrying · nothing moving/);
   assert.match(html, /4 Runs finished in 24 h, 4 failed/);
   assert.match(html, /class="loop-lane loop-clear loop-decide"[\s\S]*Nothing waits for your review or approval/, 'an empty Decide folds to one line');
   assert.match(html, /id="loop-unstick-title">Unstick<span class="count"[^>]*>2</);
@@ -185,4 +185,34 @@ test('the loop takes every count from one place, folds empty lanes and groups en
   assert.doesNotMatch(html, /class="button primary sm"[^>]*now-refused-open/, 'the tracker link is not dressed as the main action');
   const clear = loopMarkup({ ...input, data: { ...data, waiting: [], refused: [] }, summary: { data: { demo: false, totals: { runs: { finished: 0 }, spend: { settledUsd: 0 } } }, error: null } }, {}, Date.parse('2026-10-18T12:00:00Z'));
   assert.match(clear, /data-tone="success"[\s\S]*Nothing needs you/);
+});
+
+test('a Run Ploeg left running on a stopped Work Item stays out of In flight and says on its row what it holds', () => {
+  const at = Date.parse('2026-10-27T08:00:00Z');
+  const stopped = { id: '245', team: 'unfold', state: 'needs_human', title: 'README: tests need Node 24', url: '', createdAt: '2026-10-22T06:00:00Z', updatedAt: '2026-10-22T07:00:00Z', provider: 'manual', externalId: 'x', latestShift: { round: 0, branch: '', closeReason: '', budgetUsd: 1, spentUsd: 0, reservedUsd: 0.25, closedAt: null }, pullRequestUrl: '' };
+  const leftover = { id: '395', workItemId: '245', workItemTitle: 'README: tests need Node 24', team: 'unfold', role: 'operator', round: 0, state: 'running', startedAt: '2026-10-22T06:07:48Z', finishedAt: null, outcome: '', authorizedUsd: 1, observedUsd: 0.01, reservedModels: [] };
+  const working = { ...leftover, id: '400', workItemId: '300', workItemTitle: 'Moving one', role: 'builder', round: 1, startedAt: '2026-10-27T07:50:00Z' };
+  const data = { demo: false, teams: ['unfold'], fetchedAt: '2026-10-27T08:00:00Z', errors: {}, waiting: [stopped], refused: [], running: [leftover], active: [], recent: [] };
+  const input = { data, error: null, since: '2026-10-27T07:00:00Z', summary: { data: { demo: false, totals: { runs: { finished: 0 }, spend: { settledUsd: 0, reservedUsd: 0.25 } } }, error: null } };
+  const html = loopMarkup(input, {}, at);
+  assert.doesNotMatch(html, /id="now-row-r-395"/, 'the leftover Run is not in flight');
+  assert.match(html, /In flight<\/h2><p class="loop-clear-text">Nothing runs or waits for a worker/);
+  assert.match(html, /nothing moving/, 'the day line does not count it as moving');
+  assert.match(html, /id="now-row-w-245"[\s\S]*class="now-why now-leftover-run"[\s\S]*Run 395 \(operator, started <time[^>]*>5 d ago<\/time>\) is still marked running: Ploeg did not close it when it stopped this Work Item\. It holds US\$\s0,25 of this Work Item’s budget until the Work Item runs again or is cancelled\./);
+  const both = loopMarkup({ ...input, data: { ...data, running: [leftover, working], active: [{ id: '300', team: 'unfold', state: 'leased', title: 'Moving one', latestShift: { round: 1, reservedUsd: 0.5, closedAt: null } }] } }, {}, at);
+  assert.match(both, /id="now-row-r-400"/, 'a Run on moving work stays in flight');
+  assert.match(both, /US\$\s0,01<\/strong> <span class="meter-of">of US\$\s1,00 · US\$\s0,50 held<\/span>/, 'its row shows what its attempt holds');
+  const blind = loopMarkup({ ...input, data: { ...data, errors: { waiting: 'Ploeg could not be read.' } } }, {}, at);
+  assert.match(blind, /id="now-row-r-395"/, 'without the waiting group no Run is called left over');
+});
+
+test('a finished reviewer that changed nothing leads with its verdict in Recently ended', () => {
+  const at = Date.parse('2026-10-27T08:00:00Z');
+  const reviewer = { id: '457', workItemId: '50', workItemTitle: 'Merged one', team: 'bronze', role: 'reviewer', round: 4, state: 'finished', startedAt: '2026-10-26T14:45:00Z', finishedAt: '2026-10-26T14:51:00Z', outcome: 'no_change_needed', verdict: 'approve' };
+  const data = { demo: false, teams: ['bronze'], fetchedAt: '2026-10-27T08:00:00Z', errors: {}, waiting: [], refused: [], running: [], active: [], recent: [reviewer] };
+  const html = loopMarkup({ data, error: null, since: '2026-10-27T07:00:00Z', summary: { data: null, error: null } }, {}, at);
+  const row = html.match(/<li><a class="list-row" href="#work\/50"[\s\S]*?<\/li>/)[0];
+  assert.match(row, /data-tone="success"/);
+  assert.match(row, />Agent approved</);
+  assert.doesNotMatch(row, /No change needed/);
 });

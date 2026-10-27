@@ -1,7 +1,7 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
-import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
+import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome, stoppedWorkIds } from './core/states.js';
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup } from './core/reasons.js';
 import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
@@ -319,7 +319,7 @@ function waitingRow(entry, context, grouped = false) {
     tone: reason?.tone || meta.tone,
     lead: icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
-    meta: `${waitingMeta(entry, context, { reason, warning, grouped })}${lastRunLine(entry, context)}`,
+    meta: `${waitingMeta(entry, context, { reason, warning, grouped })}${lastRunLine(entry, context)}${leftoverLine(entry, context)}`,
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
     data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
@@ -335,7 +335,7 @@ function moreRow(hidden, group, capped = false) {
 function staleRow(stale) {
   if (!amount(stale) || stale < 1) return '';
   const subject = stale === 1 ? '1 Work Item stopped retrying after repeated failures.' : `${format.count(stale)} Work Items stopped retrying after repeated failures.`;
-  const row = listRow({ href: '#work?lane=open', id: 'now-stale-open', tone: 'severe', lead: icon('clock'), title: subject, trail: `<span class="now-go"><span class="now-go-text">See ${stale === 1 ? 'it' : 'them'} in Work</span>${icon('chevron')}</span>` });
+  const row = listRow({ href: '#work?lane=stale', id: 'now-stale-open', tone: 'severe', lead: icon('clock'), title: subject, trail: `<span class="now-go"><span class="now-go-text">See ${stale === 1 ? 'it' : 'them'} in Work</span>${icon('chevron')}</span>` });
   return `<li class="now-item now-stale">${row}</li>`;
 }
 
@@ -477,7 +477,9 @@ function runningRow(run, context) {
   const models = run.reservedModels?.length ? run.reservedModels : run.usage?.models || [];
   const started = moment(run.startedAt);
   const facts = joinDots([escape(run.team), run.role ? escape(run.role) : '', run.round ? `Round ${escape(run.round)}` : '', models.length ? escape(models.join(', ')) : '']);
-  const spend = meter({ settled: run.observedUsd, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm', observed: true });
+  const shift = context.shifts?.get(String(run.workItemId));
+  const reserved = shift && !shift.closedAt && amount(shift.reservedUsd) ? shift.reservedUsd : undefined;
+  const spend = meter({ settled: run.observedUsd, reserved, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm', observed: true });
   const elapsed = started === null ? '<span class="now-when">Not started</span>' : elapsedTag(started, context.now);
   return `<li><a class="list-row now-run" href="#work/${escape(run.workItemId)}" id="now-row-r-${escape(run.id)}" data-tone="live" data-now-row><span class="list-row-lead"><span class="live-dot" aria-hidden="true"></span></span><div class="list-row-main"><span class="list-row-title">${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</span><span class="list-row-meta">${facts}</span><div class="now-run-meter">${spend}</div></div><span class="list-row-trail num">${elapsed}</span></a></li>`;
 }
@@ -500,6 +502,37 @@ export function waitingToRun(data) {
   });
 }
 
+/**
+ * Splits the running Runs of a Now response into the ones that work and the leftovers: Runs Ploeg still marks running
+ * although it stopped their Work Item (`needs_human`), so they hold budget without working. A Work Item keeps its
+ * first leftover Run. With the waiting group missing every Run counts as working.
+ * @param {object} data A `GET /api/ploeg/now` response.
+ * @returns {{ working: object[], leftover: Map<string, object> }}
+ */
+export function splitRunning(data) {
+  const runs = Array.isArray(data?.running) ? data.running : [];
+  const stopped = stoppedWorkIds(data);
+  const leftover = new Map();
+  const working = [];
+  for (const run of runs) {
+    const id = String(run?.workItemId ?? '');
+    if (!stopped.has(id)) { working.push(run); continue; }
+    if (!leftover.has(id)) leftover.set(id, run);
+  }
+  return { working, leftover };
+}
+
+function leftoverLine(entry, context) {
+  const run = context.leftover?.get(String(entry.id));
+  if (!run) return '';
+  const started = moment(run.startedAt);
+  const shift = entry.latestShift;
+  const held = shift && !shift.closedAt && amount(shift.reservedUsd) && shift.reservedUsd > 0 ? shift.reservedUsd : null;
+  const who = [run.role, started === null ? '' : `started ${format.timeHtml(started, { now: context.now })}`].filter(Boolean).join(', ');
+  const hold = held === null ? 'It holds this Work Item’s budget' : `It holds ${escape(format.money(held))} of this Work Item’s budget`;
+  return `<span class="now-why now-leftover-run">${icon('alert')}<span>Run ${escape(run.id)}${who ? ` (${who})` : ''} is still marked running: Ploeg did not close it when it stopped this Work Item. ${hold} until the Work Item runs again or is cancelled.</span></span>`;
+}
+
 function queuedRow(entry, context) {
   const leased = entry.state === 'leased';
   const what = leased ? 'Between Runs' : entry.state === 'ingested' ? 'Received' : 'Waiting for a worker';
@@ -507,6 +540,10 @@ function queuedRow(entry, context) {
   const since = leased ? null : moment(entry.updatedAt) ?? moment(entry.createdAt);
   const trail = since === null ? '' : `<span class="now-when"><span class="now-when-label">Queued </span>${format.timeHtml(since, { now: context.now })}</span>`;
   return `<li>${listRow({ href: `#work/${entry.id}`, id: `now-row-q-${entry.id}`, tone: leased ? 'live' : 'neutral', lead: icon(leased ? 'circle-half' : 'circle-dashed'), title: entry.title || `Work Item ${entry.id}`, meta: facts, trail, data: { nowRow: true, flight: entry.state } })}</li>`;
+}
+
+function shiftsOf(active) {
+  return new Map((Array.isArray(active) ? active : []).filter(entry => entry?.latestShift).map(entry => [String(entry.id), entry.latestShift]));
 }
 
 function runningCard(view, context) {
@@ -537,15 +574,16 @@ function recentRow(run, context, earlier = 0) {
   const verdict = run.verdict && run.verdict !== 'none' ? verdictMeta(run.verdict) : null;
   const unread = context.dots && after(run.finishedAt, context.since);
   const none = outcome ? null : unreportedOutcome(run);
+  const reviewOnly = Boolean(verdict) && run.outcome === 'no_change_needed';
   const facts = joinDots([
-    `<span class="now-outcome" data-tone="${tone}">${escape(outcome?.label || none.label)}</span>`,
+    reviewOnly ? '' : `<span class="now-outcome" data-tone="${tone}">${escape(outcome?.label || none.label)}</span>`,
     failure ? escape(failure.label) : '',
     run.role ? escape(run.role) : '',
     run.round ? `Round ${escape(run.round)}` : '',
     earlier ? `+${escape(format.count(earlier))} earlier ${earlier === 1 ? 'Run' : 'Runs'}` : '',
   ]);
   const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.short, title: `${verdict.label}. Agent review is evidence, not a human review.`, size: 'sm' }) : '';
-  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
+  return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone: reviewOnly ? verdict.tone : tone, lead: icon(reviewOnly ? verdict.glyph : outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
 }
 
 /**
@@ -739,9 +777,10 @@ export function offersRetry(input) {
 export function nowMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
   const list = value => Array.isArray(value) ? value : [];
-  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active: list(input.data.active), recent: list(input.data.recent) } };
+  const { working, leftover } = splitRunning(input.data);
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: working, active: list(input.data.active), recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true, leftover, shifts: shiftsOf(view.data.active) };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
   return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${options.yours || ''}${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
@@ -785,7 +824,7 @@ function dayLine(view, counts) {
     : `${format.plural(counts.needYou, 'thing needs', 'things need')} you`;
   const parts = [
     counts.decide ? `${format.count(counts.decide)} to decide` : '',
-    counts.stuck ? `${format.count(counts.stuck)} stuck` : '',
+    counts.stuck ? `${format.count(counts.stuck)} to unstick` : '',
     counts.refused ? `${format.count(counts.refused)} could not start` : '',
   ].filter(Boolean);
   const day = [
@@ -855,10 +894,11 @@ export function loopMarkup(input, options = {}, now = Date.now()) {
   const list = value => Array.isArray(value) ? value : [];
   const hide = options.hideQueued || new Set();
   const active = list(input.data.active).filter(entry => !(entry.state === 'queued' && hide.has(`${entry.provider}:${entry.externalId}`)));
-  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active, recent: list(input.data.recent) } };
+  const { working, leftover } = splitRunning(input.data);
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: working, active, recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
   const runs = view.data.errors.recent ? [] : view.data.recent;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs, dots: true, retryHere: options.retryHere !== false, lastFailure: failures(runs) };
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs, dots: true, retryHere: options.retryHere !== false, lastFailure: failures(runs), leftover, shifts: shiftsOf(active) };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const error = view.data.errors.waiting;
   const rows = byWaitingSince(visible.waiting);

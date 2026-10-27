@@ -466,7 +466,7 @@ These routes are Unfold's scoped proxy for Ploeg's operator API ([`ploeg.ts`](..
 
 | Method and path | Response |
 | --- | --- |
-| `GET /api/ploeg?team=` | Overview: `{configured, available, demo, teams, selectedTeam?, lanes?, fetchedAt?, trackerUrl?, message}`. Each lane (`awaiting_review`, `needs_human`, `leased`, `queued`, `open`, `closed`) is `{items, nextCursor}`. `closed` holds done and withdrawn Work Items, `open` every other state; both list newest first, the others oldest first |
+| `GET /api/ploeg?team=` | Overview: `{configured, available, demo, teams, selectedTeam?, lanes?, fetchedAt?, trackerUrl?, message}`. Each lane (`awaiting_review`, `needs_human`, `stale`, `leased`, `queued`, `open`, `closed`) is `{items, nextCursor}`. `stale` holds the Work Items Ploeg stopped retrying after repeated failures. `closed` holds done and withdrawn Work Items, `open` every other state; both list newest first, the others oldest first |
 | `GET /api/ploeg/teams` | `{teams}`, the Team ids |
 | `GET /api/ploeg/work-items?team=&state=&cursor=` | One page of a Team's Work Items, `{items, nextCursor}`. `state` is a Ploeg state, `open`, `closed` or `all` (the default); `cursor` is the previous page's `nextCursor`. `state=active` is accepted as the newer name of `leased`, and a Work Item Ploeg sends as `active` reads `leased` until every Ploeg sends `active` |
 | `GET /api/ploeg/work-items/:id` | `{item, shifts, runs, checkpoints, events, truncated, demo, fetchedAt}`, plus `findings`, `questions`, `reviewDisagreements` and `resume` when Ploeg sends them (Ploeg ADR-0121); each is left out for an older ploegd, and an entry Unfold cannot read is dropped. A shadow reviewer's Run carries `shadow: true`. |
