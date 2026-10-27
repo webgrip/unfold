@@ -2,8 +2,8 @@
 type: explanation
 audience: [contributor, agent]
 owner: unfold
-last_verified: 2026-10-11
-verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/taskprompt/prompt.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11."
+last_verified: 2026-10-27
+verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/taskprompt/prompt.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11, and its gate from the Forgejo API on 2026-10-27."
 ---
 
 # How work on Unfold is done
@@ -26,7 +26,7 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 
 ## Branch rules
 
-Since 2026-10-11, `development` is protected in Forgejo: a pull request merges only when `[Workflow] On Pull Request / checks`, `release-policy` and `ploeg-pin` (all `(pull_request)`) passed, with no required approvals. `warnings` is left out on purpose, because it is sometimes never scheduled when two runs overlap. Pushing stays enabled. Until 2026-10-25 the `release` job pushed its release commit straight to the branch; releases now push only a tag, so no CI job needs to push to `development` any more. A direct push does not run through the checks, so nobody pushes there. `main`, which receives only promotion pull requests, gets the same rule.
+Since 2026-10-11, `development` is protected in Forgejo: a pull request merges only when [the pull request gate](../operations/ci.md#the-pull-request-gate) passed, with no required approvals. Since 2026-10-27 the branch rule requires that one context, `* / gate (pull_request)`, and the gate waits for every pull request job except the advisory `agent-trace` and `warnings`; `warnings` is advisory because it is sometimes never scheduled when two runs overlap. Pushing stays enabled. Until 2026-10-25 the `release` job pushed its release commit straight to the branch; releases now push only a tag, so no CI job needs to push to `development` any more. A direct push does not run through the checks, so nobody pushes there. `main`, which receives only promotion pull requests, gets the same rule.
 
 ## Where things are written down
 
