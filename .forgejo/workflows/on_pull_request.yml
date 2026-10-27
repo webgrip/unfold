@@ -137,3 +137,21 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.forgejo/actions/release-policy
+
+  gate:
+    needs: [checks, agents-check, opencode-contract, ploeg-pin, ploeg-docs, release-policy]
+    if: always()
+    runs-on: docker
+    timeout-minutes: 5
+    steps:
+      - name: Require every job this gate waits for to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          results=$(printf '%s' "$NEEDS" | grep -oE '"result": ?"[a-z]+"' | sed -E 's/.*"([a-z]+)"$/\1/' || true)
+          printf '%s\n' "$NEEDS"
+          if grep -vqx success <<< "$results"; then
+            echo "A job the gate waits for did not succeed, or the gate read no results."
+            exit 1
+          fi
+          echo "Every job the gate waits for succeeded."

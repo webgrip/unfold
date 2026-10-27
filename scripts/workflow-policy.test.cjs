@@ -27,7 +27,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'agents-check', 'checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'agents-check', 'checks', 'gate', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
@@ -53,6 +53,23 @@ test('the Agent Trace summary on a pull request only reads notes, never fails an
   assert.equal(job.needs, undefined);
   for (const [name, other] of Object.entries(pr.jobs)) assert.ok(![other.needs].flat().includes('agent-trace'), `${name} does not wait for the summary`);
   assert.doesNotMatch(JSON.stringify(job), /secrets\./);
+});
+
+test('the pull request gate waits for every job except the advisory ones, and passes only when each of them succeeded', () => {
+  const pr = workflows['on_pull_request.yml'];
+  const gate = pr.jobs.gate;
+  const advisory = ['agent-trace', 'warnings'];
+  assert.deepEqual([gate.needs].flat().sort(), Object.keys(pr.jobs).filter(name => name !== 'gate' && !advisory.includes(name)).sort(), 'a new pull request job joins the gate, or is named advisory here');
+  assert.equal(gate.if, 'always()', 'a failed job still reaches the gate, which then fails instead of being skipped');
+  const step = gate.steps.find(candidate => candidate.run);
+  assert.equal(step.env.NEEDS, '${{ toJSON(needs) }}');
+  const run = needs => spawnSync('bash', ['-eo', 'pipefail', '-c', step.run], { env: { ...process.env, NEEDS: JSON.stringify(needs, null, 2) }, encoding: 'utf8' }).status;
+  const result = value => ({ result: value, outputs: {} });
+  const all = value => Object.fromEntries([gate.needs].flat().map(name => [name, result(value)]));
+  assert.equal(run(all('success')), 0);
+  for (const failed of ['failure', 'cancelled', 'skipped']) assert.equal(run({ ...all('success'), checks: result(failed) }), 1, `a ${failed} job fails the gate`);
+  assert.equal(run({}), 1, 'no results fail the gate');
+  assert.equal(run({ ...all('success'), checks: { result: 'success', outputs: { warnings: '"result": "failure"' } } }), 0, 'an output that quotes a result is not a result');
 });
 
 test('the browser flows run every night and on command, never on a push, in the Playwright image of Unfold\'s playwright version', () => {
