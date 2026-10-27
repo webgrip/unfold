@@ -1,5 +1,5 @@
 import * as ui from './core/ui.js';
-import { count, dateTime, dayKey, dayLabel, duration as span, money, percent, plural, timeHtml } from './core/format.js';
+import { count, dateTime, dayKey, dayLabel, duration as span, modelName, money, percent, plural, timeHtml, tokens as tokenText, tokenUnit } from './core/format.js';
 import { auditActor, auditEvent, runFailure, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
 import { markdown } from './core/markdown.js';
 import { routingWarning } from './core/reasons.js';
@@ -356,15 +356,30 @@ function runBadge(run) {
   return ui.badge({ tone: none.tone, glyph: none.glyph, label: none.label });
 }
 
-function runNotes(run, escape) {
+function runNotes(run, escape, { grouped = false } = {}) {
   const notes = [];
   if (run.verdict && !reviewOnly(run)) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}" title="${escape(`${meta.label}. Agent review is evidence, not a human review.`)}">${escape(meta.short)}</span>`); }
   if (run.leftover) return { notes: `<span class="runs-note" data-tone="severe">Its Work Item stopped</span>`, next: `<span class="runs-next">${escape('Ploeg did not close this Run when it stopped the Work Item, so it holds budget without working. Open the Work Item: run it again or cancel it.')}</span>` };
   const failure = runFailure(run);
   if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}">${escape(failure.label)}</span>`);
   else if (run.failureReason) notes.push(`<span class="runs-note" data-tone="danger">${escape(capital(run.failureReason))}</span>`);
-  const next = failure ? `${failure.infra ? 'Not the agent’s fault. ' : ''}${failure.action}` : '';
+  const next = !failure || (failure.infra && grouped) ? '' : `${failure.infra ? 'Not the agent’s fault. ' : ''}${failure.action}`;
   return { notes: notes.join(''), next: next ? `<span class="runs-next">${escape(next)}</span>` : '' };
+}
+
+const firstLower = text => text ? text[0].toLowerCase() + text.slice(1) : '';
+const sentences = text => String(text || '').split(/(?<=\.)\s+/).filter(Boolean);
+
+function infraNote(runs) {
+  const kinds = new Map();
+  for (const run of runs) {
+    const failure = runFailure(run);
+    if (failure?.infra) kinds.set(failure.label, { failure, runs: (kinds.get(failure.label)?.runs ?? 0) + 1 });
+  }
+  if (!kinds.size) return '';
+  const steps = [...new Set([...kinds.values()].flatMap(({ failure }) => sentences(failure.action)))].join(' ');
+  if (kinds.size === 1) return `Not the agent’s fault. ${steps}`;
+  return `Not the agent’s fault: ${[...kinds.values()].map(({ failure, runs: total }) => `${firstLower(failure.label)} (${plural(total, 'Run')})`).join(', ')}. ${steps}`;
 }
 
 function runRole(run) {
@@ -399,32 +414,125 @@ function runSpendCell(run, demo, { escape }) {
   return `${meter}${note ? `<span class="runs-spend-note"${tone ? ` data-tone="${tone}"` : ''}>${escape(note)}</span>` : ''}`;
 }
 
-function runModel(run, escape) {
-  const models = run.usage?.models?.length ? run.usage.models : run.reservedModels?.length ? run.reservedModels : [];
-  const tokens = run.usage && (isNumber(run.usage.inputTokens) || isNumber(run.usage.outputTokens)) ? `${count(run.usage.inputTokens)} in · ${count(run.usage.outputTokens)} out` : '';
-  return { models: models.map(model => escape(model)), tokens };
+function modelNames(run, escape) {
+  const listed = run.usage?.models?.length ? run.usage.models : run.reservedModels?.length ? run.reservedModels : [];
+  const names = new Map();
+  for (const model of listed) { const short = modelName(model); names.set(short, [...(names.get(short) || []), model]); }
+  return [...names].map(([short, full]) => `<span class="runs-model-name" title="${escape(full.join(', '))}">${escape(short)}</span>`);
 }
 
-function runRow(run, demo, helpers, now) {
-  const { escape } = helpers;
-  const title = run.workItemTitle || `Work Item ${run.workItemId}`;
-  const { notes, next } = runNotes(run, escape);
-  const { started, took } = runTiming(run, now, escape);
-  const { models, tokens } = runModel(run, escape);
-  const model = models.length ? `<span class="runs-models">${models.map(name => `<span class="runs-model-name">${name}</span>`).join('')}</span>` : '<span class="subtle">Not reported</span>';
-  const usage = demo ? '' : `<td class="runs-spend">${runSpendCell(run, demo, helpers)}</td><td class="runs-model">${model}${tokens ? `<span class="meta num">${escape(tokens)}</span>` : ''}</td>`;
-  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><td class="runs-status"><span class="runs-badge">${runBadge(run)}</span>${notes}${next}</td><td class="runs-item"><a class="runs-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a>${dots(runRole(run), escape)}${dots([run.externalRef, run.team, `Run ${run.id}`], escape)}</td><td class="runs-started">${started}${took ? `<span class="meta num">${escape(took)}</span>` : ''}</td>${usage}</tr>`;
+function runTokens(run, escape) {
+  const input = run.usage?.inputTokens, output = run.usage?.outputTokens;
+  if (!isNumber(input) && !isNumber(output)) return '';
+  const unit = tokenUnit(Math.max(isNumber(input) ? input : 0, isNumber(output) ? output : 0));
+  const sides = [[input, 'in'], [output, 'out']].filter(([value]) => isNumber(value));
+  const exact = sides.map(([value, side]) => `${count(value)} tokens ${side}`).join(' · ');
+  return `<span class="num" title="${escape(exact)}">${escape(sides.map(([value, side]) => `${tokenText(value, tokenUnit(value) ? unit : '')} ${side}`).join(' · '))}</span>`;
 }
 
-function runCard(run, demo, helpers, now) {
+const runTitle = run => run.workItemTitle || `Work Item ${run.workItemId}`;
+
+function runRow(run, demo, helpers, now, { grouped = false, hidden = false } = {}) {
   const { escape } = helpers;
-  const title = run.workItemTitle || `Work Item ${run.workItemId}`;
-  const { notes, next } = runNotes(run, escape);
+  const { notes, next } = runNotes(run, escape, { grouped });
   const { started, took } = runTiming(run, now, escape);
-  const { models, tokens } = runModel(run, escape);
-  const model = `${models.length ? `<span class="runs-model-name">${models.join(', ')}</span>` : '<span class="subtle">Model not reported</span>'}${tokens ? ` · <span class="num">${escape(tokens)}</span>` : ''}`;
+  const models = modelNames(run, escape);
+  const tokens = runTokens(run, escape);
+  const model = models.length ? `<span class="runs-models">${models.join('')}</span>` : '<span class="subtle">Not reported</span>';
+  const usage = demo ? '' : `<td class="runs-spend">${runSpendCell(run, demo, helpers)}</td><td class="runs-model">${model}${tokens ? `<span class="meta">${tokens}</span>` : ''}</td>`;
+  const item = grouped ? dots([...runRole(run), `Run ${run.id}`], escape) : `<a class="runs-title" href="#work/${escape(run.workItemId)}">${escape(runTitle(run))}</a>${dots(runRole(run), escape)}${dots([run.externalRef, run.team, `Run ${run.id}`], escape)}`;
+  return `<tr data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"${hidden ? ' hidden' : ''}><td class="runs-status"><span class="runs-badge">${runBadge(run)}</span>${notes}${next}</td><td class="runs-item">${item}</td><td class="runs-started">${started}${took ? `<span class="meta num">${escape(took)}</span>` : ''}</td>${usage}</tr>`;
+}
+
+function runCard(run, demo, helpers, now, { grouped = false, hidden = false } = {}) {
+  const { escape } = helpers;
+  const { notes, next } = runNotes(run, escape, { grouped });
+  const { started, took } = runTiming(run, now, escape);
+  const models = modelNames(run, escape);
+  const tokens = runTokens(run, escape);
+  const model = `${models.length ? models.join(', ') : '<span class="subtle">Model not reported</span>'}${tokens ? ` · ${tokens}` : ''}`;
   const usage = demo ? '' : `<p class="meta runs-card-line">${model}</p><div class="runs-card-spend">${runSpendCell(run, demo, helpers)}</div>`;
-  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes || next ? `<div class="runs-card-notes">${notes}${next}</div>` : ''}<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(title)}</a>${dots([run.externalRef, run.team, ...runRole(run)], escape, 'runs-card-line')}<p class="meta runs-card-line">${started}${took ? ` · ${escape(took)}` : ''}</p>${usage}</li>`;
+  const item = grouped ? dots(runRole(run), escape, 'runs-card-line') : `<a class="runs-card-title" href="#work/${escape(run.workItemId)}">${escape(runTitle(run))}</a>${dots([run.externalRef, run.team, ...runRole(run)], escape, 'runs-card-line')}`;
+  return `<li class="runs-card" data-run-id="${escape(run.id)}" data-state="${escape(run.state)}"${grouped ? ' data-grouped' : ''}${hidden ? ' hidden' : ''}><div class="runs-card-head">${runBadge(run)}<span class="meta">Run ${escape(run.id)}</span></div>${notes || next ? `<div class="runs-card-notes">${notes}${next}</div>` : ''}${item}<p class="meta runs-card-line">${started}${took ? ` · ${escape(took)}` : ''}</p>${usage}</li>`;
+}
+
+const foldShown = 3;
+const foldAbove = 4;
+
+/**
+ * Finished Runs grouped by Work Item: groups ordered by their newest Run, Runs newest first inside each. Expects
+ * `runs` newest first, as `sortRuns` orders them.
+ * @returns {{ id: string, runs: object[] }[]}
+ */
+export function workGroups(runs) {
+  const groups = new Map();
+  for (const run of runs || []) {
+    const id = String(run.workItemId ?? '');
+    if (!groups.has(id)) groups.set(id, { id, runs: [] });
+    groups.get(id).runs.push(run);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * What the listed Runs of one Work Item spent: the settled sum and the observed sum of those not settled, each named,
+ * and how many reported neither. Never adds an unknown as zero.
+ */
+export function groupSpend(runs) {
+  let settled = 0, observed = 0, settledRuns = 0, observedRuns = 0, unknown = 0;
+  for (const run of runs) {
+    if (isNumber(run.settledUsd)) { settled += run.settledUsd; settledRuns++; }
+    else if (isNumber(run.observedUsd)) { observed += run.observedUsd; observedRuns++; }
+    else unknown++;
+  }
+  if (!settledRuns && !observedRuns) return 'Spend not reported';
+  const parts = [settledRuns ? `${money(settled)} settled` : '', observedRuns ? `${money(observed)} observed, not settled` : ''].filter(Boolean).join(' + ');
+  return unknown ? `${parts}, ${plural(unknown, 'Run')} not reported` : parts;
+}
+
+function roundSpan(runs) {
+  const rounds = runs.map(run => run.round).filter(round => isNumber(round) && round > 0);
+  if (!rounds.length) return '';
+  const low = Math.min(...rounds), high = Math.max(...rounds);
+  return low === high ? `Round ${low}` : `Rounds ${low}–${high}`;
+}
+
+function groupFacts(group, demo) {
+  const [newest] = group.runs;
+  return [newest.externalRef, newest.team, plural(group.runs.length, 'Run'), roundSpan(group.runs), demo ? '' : groupSpend(group.runs)];
+}
+
+function foldButton(group, open, id, { escape, icon }) {
+  const hidden = group.runs.length - foldShown;
+  const label = open ? `Hide ${plural(hidden, 'earlier Run')}` : `Show ${plural(hidden, 'earlier Run')}`;
+  return `<button type="button" class="button ghost sm runs-fold" id="${escape(id)}" data-action="runs-fold" data-work-item="${escape(group.id)}" aria-expanded="${open}">${icon(open ? 'chevron-up' : 'chevron-down')}<span class="button-label">${escape(label)}</span></button>`;
+}
+
+function groupShown(group, unfolded) {
+  const foldable = group.runs.length > foldAbove;
+  const open = foldable && unfolded.has(group.id);
+  return { foldable, open, folded: index => foldable && !open && index >= foldShown };
+}
+
+function groupRows(group, view, helpers, now, unfolded) {
+  const { escape } = helpers;
+  const columns = runColumnsFor(view.demo).length;
+  const [newest] = group.runs;
+  const note = infraNote(group.runs);
+  const { foldable, open, folded } = groupShown(group, unfolded);
+  const head = `<tr class="runs-work"><th scope="rowgroup" colspan="${columns}"><span class="runs-work-line"><a class="runs-title" href="#work/${escape(group.id)}">${escape(runTitle(newest))}</a><span class="runs-work-latest"><span class="meta">Latest</span>${runBadge(newest)}</span></span>${dots(groupFacts(group, view.demo), escape)}${note ? `<span class="runs-next">${escape(note)}</span>` : ''}</th></tr>`;
+  const fold = foldable ? `<tr class="runs-fold-row"><td colspan="${columns}">${foldButton(group, open, `runs-fold-${group.id}`, helpers)}</td></tr>` : '';
+  return `<tbody data-work-item-id="${escape(group.id)}">${head}${group.runs.map((run, index) => runRow(run, view.demo, helpers, now, { grouped: true, hidden: folded(index) })).join('')}${fold}</tbody>`;
+}
+
+function groupCards(group, view, helpers, now, unfolded) {
+  const { escape } = helpers;
+  const [newest] = group.runs;
+  const note = infraNote(group.runs);
+  const { foldable, open, folded } = groupShown(group, unfolded);
+  const head = `<li class="runs-cards-work" data-work-item-id="${escape(group.id)}"><a class="runs-card-title" href="#work/${escape(group.id)}">${escape(runTitle(newest))}</a>${dots(groupFacts(group, view.demo), escape, 'runs-card-line')}<span class="runs-work-latest"><span class="meta">Latest</span>${runBadge(newest)}</span>${note ? `<span class="runs-next">${escape(note)}</span>` : ''}</li>`;
+  const fold = foldable ? `<li class="runs-cards-fold">${foldButton(group, open, `runs-card-fold-${group.id}`, helpers)}</li>` : '';
+  return `${head}${group.runs.map((run, index) => runCard(run, view.demo, helpers, now, { grouped: true, hidden: folded(index) })).join('')}${fold}`;
 }
 
 const allRunColumns = [['status', 'Status'], ['item', 'Work Item'], ['started', 'Started'], ['spend', 'Spend'], ['model', 'Model']];
@@ -438,9 +546,11 @@ function runsSkeleton() {
 }
 
 /**
- * Runs: Team, state and outcome filters, then the Runs with running work first. A dense table with a sticky
- * header on wide screens and a card list on narrow ones; both show every field. A running Run whose Work Item is in
- * `view.stopped` (ids of Work Items Ploeg stopped) says it is left over and holds budget without working.
+ * Runs: Team, state and outcome filters, then the Runs with running work first and the finished Runs grouped by Work
+ * Item. A dense table with a sticky header on wide screens and a card list on narrow ones; both show every field. A
+ * group with more than four Runs shows its newest three until its Work Item id is in `view.unfolded`. A running Run
+ * whose Work Item is in `view.stopped` (ids of Work Items Ploeg stopped) says it is left over and holds budget
+ * without working.
  */
 export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const { escape, icon } = helpers;
@@ -466,10 +576,14 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
   const grouped = Boolean(active.length && done.length);
-  const group = (label, list) => list.length ? `<tbody>${grouped ? `<tr class="runs-group"><th scope="rowgroup" colspan="${runColumnsFor(view.demo).length}">${escape(label)} <span class="count">${count(list.length)}</span></th></tr>` : ''}${list.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
-  const table = `<div class="table-wrap runs-table"${view.demo ? ' data-demo' : ''}><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead(view.demo)}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
+  const works = workGroups(done);
+  const unfolded = view.unfolded instanceof Set ? view.unfolded : new Set();
+  const sectionHead = (label, total) => `<tr class="runs-group"><th scope="rowgroup" colspan="${runColumnsFor(view.demo).length}">${escape(label)} <span class="count">${count(total)}</span></th></tr>`;
+  const activeBody = active.length ? `<tbody>${grouped ? sectionHead('Running and waiting', active.length) : ''}${active.map(run => runRow(run, view.demo, helpers, now)).join('')}</tbody>` : '';
+  const doneBodies = done.length ? `${grouped ? `<tbody>${sectionHead('Finished', done.length)}</tbody>` : ''}${works.map(group => groupRows(group, view, helpers, now, unfolded)).join('')}` : '';
+  const table = `<div class="table-wrap runs-table"${view.demo ? ' data-demo' : ''}><table class="table"><caption class="sr-only">Runs, running first, then finished Runs by Work Item, newest first</caption>${runHead(view.demo)}${activeBody}${doneBodies}</table></div>`;
   const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
-  const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
+  const cards = `<ul class="runs-cards" aria-label="Runs, running first, then finished Runs by Work Item">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${works.map(group => groupCards(group, view, helpers, now, unfolded)).join('')}</ul>`;
   const covered = view.range && view.nextBefore && !view.rangeFilling && reachesStart(view.runs, run => runSpan(run, now).start, view.range, true);
   const older = covered ? '<span class="meta">Older Runs fall outside this time range.</span>' : view.nextBefore ? olderButton(view, helpers) : '<span class="meta">No older Runs.</span>';
   const loaded = filter.since || view.range ? `${plural(listed.length, 'Run')} of ${count(view.runs.length)} loaded${view.range && !filter.since ? ' in this time range' : ''}` : `${plural(view.runs.length, 'Run')} loaded`;

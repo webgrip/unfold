@@ -13,11 +13,12 @@ import { listRangeControl } from './time-range-control.js';
 import { editing, enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
 
 let range = null;
+const unfolded = new Set();
 
 function renderRuns() {
   const view = state.ploegRuns;
   const actions = refreshButton({ busy: view.mode === 'reset' || view.mode === 'refresh', shown: Boolean(view.runs) || !view.error });
-  const shown = { ...view, stopped: state.stoppedWork, ...(range ? { range: range.resolved(), rangeControl: range.markup(), rangeFilling: view.filling } : {}) };
+  const shown = { ...view, stopped: state.stoppedWork, unfolded, ...(range ? { range: range.resolved(), rangeControl: range.markup(), rangeFilling: view.filling } : {}) };
   renderHtml(shell(runsMarkup(shown, state.ploegTeams || [], ploegHelpers()), { title: 'Runs', subtitle: 'Each Run is one Role working once on a Work Item. Running work first, then newest.', actions }));
 }
 
@@ -89,6 +90,13 @@ async function poll() {
   if (ploegVisible('runs') && (signature(view) !== before || (running && !editing()))) renderRuns();
 }
 
+function toggleFold(button) {
+  const id = button?.dataset.workItem;
+  if (!id) return;
+  if (unfolded.has(id)) unfolded.delete(id); else unfolded.add(id);
+  renderRuns();
+}
+
 function keepInHash() {
   history.replaceState(null, '', `#${buildHash('runs', { ...state.ploegRuns.filter, ...range?.query() })}`);
 }
@@ -133,6 +141,7 @@ async function filterRuns(field, element) {
 
 async function enterRuns({ query: hash = {} } = {}) {
   enterPloegView('runs');
+  unfolded.clear();
   state.ploegRuns.filter = runFilter({ team: hash.team, state: Object.hasOwn(runStates, hash.state ?? '') ? hash.state : '', outcome: Object.hasOwn(runOutcomes, hash.outcome ?? '') ? hash.outcome : '', since: hash.since });
   range?.picker.destroy();
   range = listRangeControl('runs-range', hash, () => void changeRange());
@@ -152,7 +161,7 @@ export default {
   match: hash => hash === 'runs' ? {} : null,
   enter: enterRuns,
   render: renderRuns,
-  actions: { 'ploeg-runs-older': loadOlder, 'runs-range-zoom-out': () => range?.picker.dispatch({ type: 'zoom-out' }) },
+  actions: { 'ploeg-runs-older': loadOlder, 'runs-fold': toggleFold,'runs-range-zoom-out': () => range?.picker.dispatch({ type: 'zoom-out' }) },
   changes: {
     '#ploeg-runs-team': element => filterRuns('team', element),
     '#ploeg-runs-state': element => filterRuns('state', element),

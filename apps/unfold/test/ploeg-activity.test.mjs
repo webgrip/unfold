@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
+import { modelName, tokens } from '../public/core/format.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
 import { auditActor } from '../public/core/states.js';
 import { state } from '../public/core/state.js';
@@ -288,15 +289,16 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.match(html, /<span class="runs-badge"><span class="badge" data-tone="attention" title="Agent review: changes requested\. Agent review is evidence, not a human review\."><svg[^]*?<\/svg>Agent asked for changes<\/span><\/span><\/td>/, 'a reviewer that changed nothing leads with its short verdict, the full one in its title, and no "No change needed"');
   assert.doesNotMatch(html.match(/<tr data-run-id="63"[\s\S]*?<\/tr>/)[0], /No change needed/);
   assert.match(html, /The worker stopped responding/);
-  assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span>/);
+  assert.match(html, /<span class="runs-next">Not the agent’s fault\. It retries automatically\.<\/span><\/th><\/tr>/, 'the infrastructure step sits on its Work Item group');
+  assert.doesNotMatch(html.match(/<tr data-run-id="62"[\s\S]*?<\/tr>/)[0], /runs-next/, 'the failed row keeps its short label only');
   assert.doesNotMatch(html, /title="[^"]*retries automatically/);
   assert.match(html, /Opened a pull request/);
-  assert.match(html, /12\.345 in · 678 out/);
-  assert.match(html, /<span class="runs-models"><span class="runs-model-name">claude-sonnet<\/span><span class="runs-model-name">claude-haiku<\/span><\/span>/);
-  assert.match(html, /<p class="meta runs-card-line"><span class="runs-model-name">claude-sonnet, claude-haiku<\/span> · <span class="num">12\.345 in · 678 out<\/span><\/p>/);
+  assert.match(html, /<span class="num" title="12\.345 tokens in · 678 tokens out">12,3 k in · 678 out<\/span>/);
+  assert.match(html, /<span class="runs-models"><span class="runs-model-name" title="claude-sonnet">claude-sonnet<\/span><span class="runs-model-name" title="claude-haiku">claude-haiku<\/span><\/span>/);
+  assert.match(html, /<p class="meta runs-card-line"><span class="runs-model-name" title="claude-sonnet">claude-sonnet<\/span>, <span class="runs-model-name" title="claude-haiku">claude-haiku<\/span> · <span class="num" title="[^"]+">12,3 k in · 678 out<\/span><\/p>/);
   assert.match(html, /Took 20 min/);
   assert.match(html, /href="#work\/205"/);
-  assert.match(html, /<span class="meta dots"><span>Implementer<\/span><span>Round 1<\/span><span>writer<\/span><\/span><span class="meta dots"><span>VIK-642<\/span><span>delivery<\/span><span>Run 61<\/span><\/span>/, 'meta separators belong to the item before them, so no wrapped line starts with a dot');
+  assert.match(html, /<span class="meta dots"><span>Implementer<\/span><span>Round 1<\/span><span>writer<\/span><\/span><span class="meta dots"><span>VIK-642<\/span><span>delivery<\/span><span>Run 64<\/span><\/span>/, 'meta separators belong to the item before them, so no wrapped line starts with a dot');
   assert.match(html, /<span class="meta dots runs-card-line"><span>VIK-642<\/span><span>delivery<\/span><span>Implementer<\/span><span>Round 1<\/span><span>writer<\/span><\/span>/);
   const edges = runsMarkup({ runs: [run({ id: '70', state: 'pending', startedAt: null, settledUsd: null, authorizedUsd: null, usage: null }), run({ id: '69', settledUsd: 1.92, authorizedUsd: 1.5 }), run({ id: '68', startedAt: null, settledUsd: null, authorizedUsd: 0, usage: null, outcome: '' })], filter: {}, demo: false }, [], helpers, now);
   assert.match(edges, /<td class="runs-started"><span class="subtle">Waiting for a worker<\/span><\/td><td class="runs-spend"><span class="subtle">Not authorized yet<\/span><\/td>/);
@@ -470,4 +472,76 @@ test('a running Run whose Work Item Ploeg stopped says it is left over and holds
   assert.doesNotMatch(row('396'), /Its Work Item stopped/);
   assert.match(html, /<li class="runs-card" data-run-id="395"[\s\S]*?Its Work Item stopped/, 'the phone card says it too');
   assert.doesNotMatch(runsMarkup({ runs, filter: {}, demo: false }, [], helpers, now), /Its Work Item stopped/, 'without the stopped Work Items nothing is called left over');
+});
+
+test('a model name drops its gateway path and provider prefix, so one model reads one way', () => {
+  for (const [full, short] of [['fireworks_ai/accounts/fireworks/models/glm-5p3-flash', 'glm-5p3-flash'], ['fireworks-glm-5p3-flash', 'glm-5p3-flash'], ['anthropic/claude-haiku-5-5', 'claude-haiku-5-5'], ['claude-haiku-5-5', 'claude-haiku-5-5'], ['fireworks-deepseek-v4p1-flash', 'deepseek-v4p1-flash'], ['fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash', 'deepseek-v4p1-flash'], ['openai/gpt-5.5-mini', 'gpt-5.5-mini'], ['litellm/qwen3-coder', 'qwen3-coder'], ['gemini-3-pro', 'gemini-3-pro'], ['', '']]) assert.equal(modelName(full), short, full);
+  const html = runsMarkup({ runs: [run({ usage: { inputTokens: 1, outputTokens: 1, models: ['fireworks_ai/accounts/fireworks/models/glm-5p3-flash', 'fireworks-glm-5p3-flash', 'anthropic/claude-haiku-5-5'] } })], filter: {}, demo: false }, [], helpers, now);
+  assert.match(html, /<span class="runs-models"><span class="runs-model-name" title="fireworks_ai\/accounts\/fireworks\/models\/glm-5p3-flash, fireworks-glm-5p3-flash">glm-5p3-flash<\/span><span class="runs-model-name" title="anthropic\/claude-haiku-5-5">claude-haiku-5-5<\/span><\/span>/, 'two spellings of one model show once, every full name in the title');
+});
+
+test('token counts read short with a decimal comma and the exact count in the title', () => {
+  assert.equal(tokens(9057387), '9,06 M');
+  assert.equal(tokens(184700), '184,7 k');
+  assert.equal(tokens(999), '999');
+  assert.equal(tokens(999960), '1,00 M');
+  assert.equal(tokens(308945, 'M'), '0,31 M');
+  assert.equal(tokens(null), '—');
+  const html = runsMarkup({ runs: [run({ usage: { inputTokens: 9057387, outputTokens: 308945, models: [] } }), run({ id: '60', usage: { inputTokens: 184700, outputTokens: null, models: [] } })], filter: {}, demo: false }, [], helpers, now);
+  assert.match(html, /<span class="num" title="9\.057\.387 tokens in · 308\.945 tokens out">9,06 M in · 0,31 M out<\/span>/);
+  assert.match(html, /<span class="num" title="184\.700 tokens in">184,7 k in<\/span>/, 'a side Ploeg did not report is left out, not shown as zero');
+});
+
+test('finished Runs group by Work Item, newest group first, with its title, Team, Runs, rounds, spend and latest outcome', () => {
+  const runs = [
+    run({ id: '70', workItemId: '300', workItemTitle: 'Fix the login', externalRef: 'VIK-9', round: 2, settledUsd: 0.5 }),
+    run({ id: '69', workItemId: '205', round: 3, outcome: 'failed', failureReason: 'agent_error', settledUsd: 0.25 }),
+    run({ id: '68', workItemId: '300', workItemTitle: 'Fix the login', externalRef: 'VIK-9', round: 1, settledUsd: null, observedUsd: 0.1 }),
+    run({ id: '67', workItemId: '205', round: 1, settledUsd: 1 }),
+    run({ id: '71', workItemId: '205', state: 'running', outcome: '', settledUsd: null, observedUsd: 0.2, durationSeconds: null, finishedAt: null }),
+  ];
+  assert.deepEqual(workGroups(sortRuns(runs).filter(entry => entry.state === 'finished')).map(group => [group.id, group.runs.map(entry => entry.id)]), [['300', ['70', '68']], ['205', ['69', '67']]]);
+  const html = runsMarkup({ runs, filter: {}, demo: false }, [], helpers, now);
+  assert.deepEqual([...html.matchAll(/<tbody data-work-item-id="(\d+)">/g)].map(match => match[1]), ['300', '205'], 'groups follow their newest Run');
+  assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)"/g)].map(match => match[1]), ['71', '70', '68', '69', '67'], 'the running Run stays first, ungrouped');
+  const group = html.match(/<tbody data-work-item-id="300">[\s\S]*?<\/tbody>/)[0];
+  assert.match(group, /<tr class="runs-work"><th scope="rowgroup" colspan="5"><span class="runs-work-line"><a class="runs-title" href="#work\/300">Fix the login<\/a><span class="runs-work-latest"><span class="meta">Latest<\/span><span class="badge" data-tone="success">[\s\S]*?Opened a pull request<\/span><\/span><\/span><span class="meta dots"><span>VIK-9<\/span><span>delivery<\/span><span>2 Runs<\/span><span>Rounds 1–2<\/span><span>US\$\s0,50 settled \+ US\$\s0,10 observed, not settled<\/span><\/span><\/th><\/tr>/);
+  assert.doesNotMatch(group.match(/<tr data-run-id="70"[\s\S]*?<\/tr>/)[0], /runs-title/, 'a grouped row does not repeat its Work Item title');
+  assert.match(html.match(/<tbody data-work-item-id="205">[\s\S]*?<\/tbody>/)[0], /<span>2 Runs<\/span><span>Rounds 1–3<\/span><span>US\$\s1,25 settled<\/span>/, 'the running Run is not counted in its finished group');
+  assert.match(html.match(/<tbody data-work-item-id="205">[\s\S]*?<\/tbody>/)[0], /<span class="runs-next">Read the log tail in the Run’s stuck reason\.<\/span>/, 'a step that differs per Run stays on its row');
+  assert.match(html, /<li class="runs-cards-work" data-work-item-id="300"><a class="runs-card-title" href="#work\/300">Fix the login<\/a><span class="meta dots runs-card-line"><span>VIK-9<\/span>/, 'phone cards group the same way');
+  assert.deepEqual([...html.matchAll(/<li class="runs-card" data-run-id="(\d+)"/g)].map(match => match[1]), ['71', '70', '68', '69', '67']);
+  assert.match(html, /5 Runs loaded/);
+  assert.equal(groupSpend([run({ settledUsd: null, observedUsd: null })]), 'Spend not reported');
+  assert.equal(groupSpend([run({ settledUsd: 0.4 }), run({ settledUsd: null, observedUsd: null })]), `US$${space}0,40 settled, 1 Run not reported`);
+  const demo = runsMarkup({ runs: ploegDemo.runs, nextBefore: null, filter: {}, demo: true }, ['delivery'], helpers, now);
+  assert.doesNotMatch(demo, /settled|observed|Spend not reported/, 'the demo group header writes no spend');
+});
+
+test('a group pages in across loaded pages and folds its older Runs behind a button until unfolded', () => {
+  const first = Array.from({ length: 4 }, (_, index) => run({ id: String(90 - index), workItemId: '400', round: 4 - index }));
+  const older = Array.from({ length: 3 }, (_, index) => run({ id: String(86 - index), workItemId: '400', round: 1 }));
+  const merged = mergeRuns(first, older);
+  const html = runsMarkup({ runs: merged, nextBefore: '84', filter: {}, demo: false }, [], helpers, now);
+  assert.equal([...html.matchAll(/<tbody data-work-item-id="400">/g)].length, 1, 'Runs from two pages share one group');
+  assert.match(html, /<span>7 Runs<\/span><span>Rounds 1–4<\/span>/);
+  assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)" data-state="finished">/g)].map(match => match[1]), ['90', '89', '88'], 'the newest three show');
+  assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)" data-state="finished" hidden>/g)].map(match => match[1]), ['87', '86', '85', '84'], 'the older ones stay in the page, hidden, so a refresh never changes how many rows there are');
+  assert.deepEqual([...html.matchAll(/<li class="runs-card" data-run-id="(\d+)" data-state="finished" data-grouped hidden>/g)].map(match => match[1]), ['87', '86', '85', '84']);
+  assert.match(html, /<tr class="runs-fold-row"><td colspan="5"><button type="button" class="button ghost sm runs-fold" id="runs-fold-400" data-action="runs-fold" data-work-item="400" aria-expanded="false"><i data-icon="chevron-down"><\/i><span class="button-label">Show 4 earlier Runs<\/span><\/button><\/td><\/tr>/);
+  assert.match(html, /<li class="runs-cards-fold"><button [^>]*id="runs-card-fold-400"[^>]*aria-expanded="false">[\s\S]*?Show 4 earlier Runs/);
+  assert.match(html, /7 Runs loaded/);
+  const open = runsMarkup({ runs: merged, nextBefore: '84', filter: {}, demo: false, unfolded: new Set(['400']) }, [], helpers, now);
+  assert.deepEqual([...open.matchAll(/<tr data-run-id="(\d+)" data-state="finished">/g)].map(match => match[1]), ['90', '89', '88', '87', '86', '85', '84']);
+  assert.doesNotMatch(open, / hidden>/);
+  assert.match(open, /aria-expanded="true"><i data-icon="chevron-up"><\/i><span class="button-label">Hide 4 earlier Runs/);
+  assert.doesNotMatch(runsMarkup({ runs: first, filter: {}, demo: false }, [], helpers, now), /runs-fold/, 'four Runs never fold');
+});
+
+test('the infrastructure step is said once per Work Item, naming each failure when there are several', () => {
+  const runs = [run({ id: '40', outcome: 'failed', failureReason: 'lease_lost' }), run({ id: '39', outcome: 'failed', failureReason: 'infra_node' }), run({ id: '38', outcome: 'failed', failureReason: 'lease_lost' })];
+  const html = runsMarkup({ runs, filter: {}, demo: false }, [], helpers, now);
+  assert.equal([...html.matchAll(/Not the agent’s fault/g)].length, 2, 'once in the table and once in the cards');
+  assert.match(html, /<span class="runs-next">Not the agent’s fault: the worker stopped responding \(2 Runs\), the machine running the Run failed \(1 Run\)\. It retries automatically\. If it keeps happening, check the nodes and images\.<\/span>/);
+  assert.equal([...html.matchAll(/<span class="runs-note" data-tone="severe">The machine running the Run failed<\/span>/g)].length, 2, 'each failed row and card keeps its short label');
 });

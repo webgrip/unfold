@@ -107,6 +107,40 @@ export function compactCount(value) {
   return formatter('number', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
 
+/**
+ * The unit `tokens` uses for a count: `'M'` from a million, `'k'` from a thousand, `''` below. Pass the largest of
+ * several counts to show them in one unit.
+ */
+export function tokenUnit(value) {
+  if (!isAmount(value)) return '';
+  const size = Math.abs(value);
+  return size >= 999_950 ? 'M' : size >= 1000 ? 'k' : '';
+}
+
+/**
+ * Formats a token count short with a decimal comma: `9,06 M` (two decimals), `184,7 k` (one decimal), a plain count
+ * under 1.000. `unit` forces `'M'`, `'k'` or `''` so a pair reads in one unit; a missing count reads `—`.
+ */
+export function tokens(value, unit = tokenUnit(value)) {
+  if (!isAmount(value)) return '—';
+  if (unit === 'M') return `${formatter('number', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value / 1e6)} M`;
+  if (unit === 'k') return `${formatter('number', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value / 1e3)} k`;
+  return count(value);
+}
+
+const modelProviders = /^(?:fireworks_ai|fireworks|anthropic|openai|azure|bedrock|vertex_ai|groq|together_ai|together|openrouter|litellm|hetzner|ollama)[-_]/;
+
+/**
+ * A model name without its gateway path and provider prefix: `fireworks_ai/accounts/fireworks/models/glm-5p3-flash`
+ * and `fireworks-glm-5p3-flash` both read `glm-5p3-flash`, `anthropic/claude-haiku-5-5` reads `claude-haiku-5-5`.
+ */
+export function modelName(value) {
+  const full = String(value ?? '').trim();
+  const last = full.split('/').filter(Boolean).pop() || full;
+  const short = last.replace(modelProviders, '');
+  return short || last;
+}
+
 /** Formats a share (`0.5`) as a whole percentage (`50%` in nl-NL); a missing or non-finite share reads `—`. */
 export function percent(value) {
   if (!isAmount(value)) return '—';
