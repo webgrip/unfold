@@ -1,4 +1,4 @@
-import { overviewMarkup, ploegWindows } from '../ploeg-activity.js';
+import { insightsWindow, overviewMarkup, ploegWindows } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { announce, renderHtml } from '../core/dom.js';
@@ -57,13 +57,13 @@ async function poll() {
 }
 
 function keepWindowInHash(window) {
-  const hash = `#${buildHash('insights', { window: window === windows[0] ? '' : window })}`;
+  const hash = `#${buildHash('insights', { window: window === insightsWindow ? '' : window })}`;
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
 async function enterInsights({ query = {} } = {}) {
   enterPloegView('insights');
-  const window = windows.includes(query.window) ? query.window : state.ploegSummary.window || windows[0];
+  const window = windows.includes(query.window) ? query.window : state.ploegSummary.window || insightsWindow;
   keepWindowInHash(window);
   if (window !== state.ploegSummary.window || state.ploegSummary.data?.window !== window) state.ploegSummary.data = null;
   state.ploegSummary.window = window;
@@ -86,7 +86,7 @@ async function selectWindow(button) {
 onPloegReload('insights', () => loadSummary(true));
 live.register('insights', { interval: 60000, refresh: liveRefresh('insights', poll, () => state.ploegSummary.error) });
 
-/** Insights: Run counts and spend per Team for a 24 hour, 7 day or 30 day window, and Work Items per state right now (`#insights?window=`). Refreshes every minute. */
+/** Insights: merge rate, cost per merged Work Item, Run counts and spend per Team for a 24 hour, 7 day (the default) or 30 day window, and Work Items per state right now (`#insights?window=`). Refreshes every minute. */
 export default {
   id: 'insights',
   match: hash => hash === 'insights' ? {} : null,
