@@ -6,13 +6,13 @@ dependencies:
   apm:
     - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
       path: packages/baseline
-      ref: v0.5.1
+      ref: v0.5.2
     - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
       path: packages/secrets
-      ref: v0.5.1
+      ref: v0.5.2
     - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
       path: packages/board
-      ref: v0.5.1
+      ref: v0.5.2
 
 compilation:
   exclude:

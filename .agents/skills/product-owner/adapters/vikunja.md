@@ -11,7 +11,7 @@ instance's ops runbook — the Board contract points there.
 | | **npm surface** | **single-file surface** |
 |---|---|---|
 | Server | upstream `@aimbitgmbh/vikunja-mcp` behind `supergateway` | a single-file Python MCP server |
-| Where | the plugin `.mcp.json` default: LiteLLM's MCP gateway `litellm.webgrip.dev/mcp/` (tools named `vikunja-<tool>`) | a self-hosted HTTP deployment, or stdio on one machine |
+| Where | the plugin `.mcp.json` default: the `vikunja` server on LiteLLM's MCP gateway, `litellm.webgrip.dev/mcp/vikunja` (tools named `vikunja-<tool>`) | a self-hosted HTTP deployment, or stdio on one machine |
 | Tell-tale in `tools/list` | `relation_create`, `comment_create`, `tasks_list_all`, `label_add_to_task` | `task_relation_add`, `task_comment_add`, `whoami` |
 | Argument casing | camelCase: `projectId`, `taskId`, `otherTaskId`, `relationKind`, `labelId(s)` | snake_case: `project_id`, `task_id`, `other_task_id`, `relation_kind` |
 
