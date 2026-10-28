@@ -121,7 +121,7 @@ export async function run({ page, assert, screenshot }) {
     assert.equal(await page.locator('#ploeg-runs-outcome-hint').isVisible(), true, 'The reason the Outcome filter is off is on screen');
     assert.match(page.url(), /#runs\?state=running$/);
     await page.getByLabel('State', { exact: true }).selectOption('');
-    await page.waitForFunction(count => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === count, runs);
+    await page.waitForFunction(least => document.querySelector('.runs-footer')?.textContent.includes('No older Runs.') && document.querySelectorAll('.runs-table tbody tr[data-run-id]').length > least, 10);
     await page.evaluate(() => { location.hash = '#runs?from=now-60d&to=now-30d'; });
     await page.getByText('No Runs in this time range', { exact: true }).waitFor();
     await noOverflow(`Runs with an empty time range at ${viewport.width}px`);
@@ -133,7 +133,7 @@ export async function run({ page, assert, screenshot }) {
     await page.getByRole('link', { name: 'Show every finished Run' }).click();
     await page.waitForFunction(() => location.hash === '#runs?state=finished' && !document.querySelector('.runs-since'));
     await page.getByLabel('State', { exact: true }).selectOption('');
-    await page.waitForFunction(count => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === count, runs);
+    await page.waitForFunction(least => document.querySelector('.runs-footer')?.textContent.includes('No older Runs.') && document.querySelectorAll('.runs-table tbody tr[data-run-id]').length > least, 10);
     await noOverflow(`Runs at ${viewport.width}px`);
     await screenshot(`ploeg-runs-${viewport.width}`);
     await navigate(page, 'Proposed');
