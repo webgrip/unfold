@@ -595,3 +595,10 @@ test('Recently finished points to the rest of the Runs that finished since the l
   assert.equal(finishedSinceHref('not a moment'), '#runs?state=finished');
   assert.doesNotMatch(nowMarkup(view({ data: eight, since: null }), options, nowAt), /now-recent-since/, 'a first visit has no since to link');
 });
+
+test('an In flight row names its models short, with the full gateway names in the title', () => {
+  const data = nowData();
+  data.running = [{ ...data.running[0], reservedModels: ['fireworks_ai/accounts/fireworks/models/glm-5p3-flash', 'fireworks-glm-5p3-flash', 'anthropic/claude-haiku-5-5'] }];
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.match(html, /<span title="fireworks_ai\/accounts\/fireworks\/models\/glm-5p3-flash, fireworks-glm-5p3-flash, anthropic\/claude-haiku-5-5">glm-5p3-flash, claude-haiku-5-5<\/span>/);
+});

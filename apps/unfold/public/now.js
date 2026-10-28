@@ -568,7 +568,8 @@ function waitingCard(view, visible, held, context) {
 function runningRow(run, context) {
   const models = run.reservedModels?.length ? run.reservedModels : run.usage?.models || [];
   const started = moment(run.startedAt);
-  const facts = joinDots([escape(run.team), run.role ? escape(run.role) : '', run.round ? `Round ${escape(run.round)}` : '', models.length ? escape(models.join(', ')) : '']);
+  const names = [...new Set(models.map(format.modelName))];
+  const facts = joinDots([escape(run.team), run.role ? escape(run.role) : '', run.round ? `Round ${escape(run.round)}` : '', names.length ? `<span title="${escape(models.join(', '))}">${escape(names.join(', '))}</span>` : '']);
   const shift = context.shifts?.get(String(run.workItemId));
   const reserved = shift && !shift.closedAt && amount(shift.reservedUsd) ? shift.reservedUsd : undefined;
   const spend = meter({ settled: run.observedUsd, reserved, authorized: run.authorizedUsd, demo: context.demo, label: '', size: 'sm', observed: true });

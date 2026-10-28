@@ -81,11 +81,33 @@ export async function run({ page, assert, screenshot }) {
     await page.locator('.runs-table tbody tr[data-run-id]').first().waitFor({ state: 'attached' });
     await page.getByText('No older Runs.', { exact: true }).waitFor({ state: 'attached' });
     const runs = await page.locator('.runs-table tbody tr[data-run-id]').count();
+    const shown = await page.locator('.runs-table tbody tr[data-run-id]:not([hidden])').count();
     assert(runs > 10, `the last 7 days of Runs load page after page by themselves, got ${runs}`);
-    assert.equal(await visible('.runs-card'), phone ? runs : 0, 'Runs become cards on phones');
-    assert.equal(await visible('.runs-table tbody tr[data-run-id]'), phone ? 0 : runs);
+    assert(shown < runs, 'the older Runs of a Work Item with more than four are folded away');
+    assert.equal(await visible('.runs-card'), phone ? shown : 0, 'Runs become cards on phones');
+    assert.equal(await visible('.runs-table tbody tr[data-run-id]'), phone ? 0 : shown);
     assert.equal(await page.locator('.runs-table tbody tr[data-run-id]').first().getAttribute('data-state'), 'running', 'Running work comes first');
     assert.deepEqual(await page.locator('.runs-table thead th').allTextContents(), ['Status', 'Work Item', 'Started'], 'the demo drops the Spend and Model columns that would only hold dashes');
+    const firstFold = page.locator('[data-action="runs-fold"]:visible').first();
+    const foldId = await firstFold.getAttribute('id');
+    const foldItem = await firstFold.getAttribute('data-work-item');
+    const earlier = Number((await firstFold.innerText()).match(/^Show (\d+) earlier Runs$/)?.[1]);
+    assert(earlier > 0, 'a Work Item with more than four finished Runs folds its older ones');
+    const toggleFold = async (from, folded) => {
+      for (let tries = 0; tries < 3 && await page.locator(`#${foldId}[aria-expanded="${from}"]`).count(); tries++) {
+        const button = page.locator(`#${foldId}[aria-expanded="${from}"]`);
+        await button.evaluate(element => element.scrollIntoView({ block: 'center' })).catch(() => {});
+        await button.click({ timeout: 3000 }).catch(() => {});
+        await page.waitForFunction(([id, open]) => document.getElementById(id)?.getAttribute('aria-expanded') === open, [foldId, String(from !== 'true')], { timeout: 2000 }).catch(() => {});
+      }
+      await page.waitForFunction(([item, count]) => document.querySelectorAll(`.runs-table tbody[data-work-item-id="${item}"] tr[data-run-id][hidden]`).length === count, [foldItem, folded]).catch(async error => {
+        const seen = await page.evaluate(([id, item]) => ({ folded: document.querySelectorAll(`.runs-table tbody[data-work-item-id="${item}"] tr[data-run-id][hidden]`).length, expanded: document.getElementById(id)?.getAttribute('aria-expanded'), label: document.getElementById(id)?.textContent }), [foldId, foldItem]);
+        throw new Error(`Folding ${foldId} from ${from} at ${viewport.width}px wanted ${folded} folded Runs, saw ${JSON.stringify(seen)}`, { cause: error });
+      });
+    };
+    await toggleFold('false', 0);
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.action === 'runs-fold' && document.activeElement.getAttribute('aria-expanded')), 'true', 'focus stays on the fold button, which says it is open');
+    await toggleFold('true', earlier);
     await page.getByLabel('State', { exact: true }).selectOption('running');
     await page.waitForFunction(() => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === 1);
     const outcome = page.getByLabel('Outcome', { exact: true });
