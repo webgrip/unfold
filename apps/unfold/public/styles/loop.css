@@ -41,6 +41,11 @@
   font-weight: var(--weight-regular);
 }
 
+.loop-day-quiet {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+}
+
 .loop-day-facts {
   margin: 0;
   color: var(--text-muted);
@@ -82,6 +87,17 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--text-muted);
+}
+
+.now-why.now-wrap {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: none;
+  overflow-wrap: anywhere;
+}
+
+.now-infra-note {
+  color: var(--text);
 }
 
 .start-boards {

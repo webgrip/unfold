@@ -1,8 +1,8 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
-import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome, stoppedWorkIds } from './core/states.js';
-import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup } from './core/reasons.js';
+import { runOutcome, verdict as verdictMeta, runFailure, runFailureText, workItemState, tileDetail, unreportedOutcome, stoppedWorkIds } from './core/states.js';
+import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup, sessionDriven, sessionReason } from './core/reasons.js';
 import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
@@ -271,33 +271,81 @@ function waitingMeta(entry, context, { reason, warning, grouped }) {
   return `${verdict}${chips.join('')}${facts}${whyLine(entry, reason, warning, grouped)}`;
 }
 
-function linkIcon(id, href, glyph, label) {
-  return iconButton({ id, icon: glyph, label, href, external: true, size: 'sm' });
+const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
+const pullRequestCodes = new Set(['checks_not_passed', 'ci_not_finished', 'ci_not_passed', 'pull_request_closed', 'merged_untracked']);
+const secondary = options => button({ variant: 'ghost', size: 'sm', ...options });
+
+function drivingSession(entry, sessions) {
+  return (sessions || []).filter(session => String(session.execution?.workItemId ?? '') === String(entry.id)).sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0] || null;
+}
+
+function infraFault(entry, context, reason) {
+  if (reason && infrastructure.has(reason.code)) return { owner: 'the cluster' };
+  const last = context.lastFailure?.get(String(entry.id));
+  return last?.infra ? { owner: last.owner || 'the cluster' } : null;
 }
 
 function waitingActions(entry, context, reason) {
   const title = entry.title || `Work Item ${entry.id}`;
-  let primary = '';
-  const pr = entry.state === 'awaiting_review' || reason?.code === 'approved_to_merge' ? safeUrl(entry.pullRequestUrl) : null;
+  const stopped = waitingGroup(entry) === 'needs' && entry.state !== 'awaiting_review';
+  const pr = safeUrl(entry.pullRequestUrl);
   const failedCi = reason?.code === 'ci_failed';
-  if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
+  const session = stopped && (sessionReason(reason) || sessionDriven(entry));
+  const retry = context.retryHere && stopped && !entry.question?.text && reason?.requeue && !session;
+  const infra = stopped && !entry.question?.text ? infraFault(entry, context, reason) : null;
+  let primary = '';
+  const more = [];
+  if (pr && (entry.state === 'awaiting_review' || reason?.code === 'approved_to_merge')) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
   if (entry.state === 'needs_human' && entry.question?.text) primary = button({ id: `now-answer-${entry.id}`, label: 'Answer', icon: 'send', size: 'sm', href: `#work/${encodeURIComponent(entry.id)}`, ariaLabel: `Answer the question on “${title}”` });
   if (entry.state === 'proposed') primary = button({ id: `now-decide-${entry.id}`, label: 'Approve or reject', icon: 'arrow', size: 'sm', href: `#proposed?id=${encodeURIComponent(entry.id)}`, ariaLabel: `Approve or reject “${title}” on Proposed` });
-  if (context.retryHere && entry.state === 'needs_human' && !entry.question?.text && reason?.requeue) primary = button({ id: `now-retry-item-${entry.id}`, label: 'Try again', icon: 'refresh', size: 'sm', action: 'loop-retry', data: { id: entry.id }, ariaLabel: `Try “${title}” again` });
-  const links = [];
+  if (session && !entry.question?.text) {
+    const found = drivingSession(entry, context.sessions);
+    primary = button({ id: `now-session-${entry.id}`, label: found ? 'Open session' : 'Open Sessions', icon: 'sessions', size: 'sm', href: found ? `#session/${encodeURIComponent(found.id)}` : '#sessions', ariaLabel: found ? `Open the session that drives “${title}”` : `Open Sessions to find the session that drives “${title}”` });
+  }
+  const retryButton = variant => button({ id: `now-retry-item-${entry.id}`, label: 'Try again', icon: 'refresh', size: 'sm', variant, action: 'loop-retry', data: { id: entry.id }, ariaLabel: `Try “${title}” again` });
+  if (retry && infra) {
+    primary = button({ id: `now-status-${entry.id}`, label: 'Check Status', icon: 'monitor', size: 'sm', href: '#status', ariaLabel: `Check Status before you try “${title}” again` });
+    more.push(retryButton('ghost'));
+  } else if (retry) primary = retryButton('secondary');
+  else if (infra && !primary && !session) primary = button({ id: `now-status-${entry.id}`, label: 'Check Status', icon: 'monitor', size: 'sm', href: '#status', ariaLabel: `Check Status for “${title}”` });
+  if (stopped && pr && pullRequestCodes.has(reason?.code)) more.push(secondary({ id: `now-pr-${entry.id}`, label: 'Open pull request', icon: 'pull-request', href: pr, external: true, ariaLabel: `Open the pull request for “${title}” (opens in a new tab)` }));
+  const closing = reason?.code === 'pull_request_closed';
+  const live = Boolean(entry.latestShift && !entry.latestShift.closedAt) || Boolean(context.leftover?.has(String(entry.id)));
+  if (stopped && context.canCancel && !session && live) more.push(secondary({ id: `now-cancel-${entry.id}`, label: closing ? 'Close Work Item' : 'Cancel', icon: 'x-circle', action: 'now-cancel', data: { id: entry.id }, ariaLabel: `${closing ? 'Close' : 'Cancel'} “${title}”: withdraw it from Ploeg` }));
   const tracker = safeUrl(entry.url);
-  if (tracker) links.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
-  const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(entry.team, context.grafanaUrl) : null;
-  if (grafana) links.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
-  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${links.join('')}</span></div>`;
+  if (tracker) {
+    const name = trackerNames[entry.provider];
+    const where = name || 'the tracker';
+    more.push(stopped && closing && !live && !session
+      ? secondary({ id: `now-tracker-${entry.id}`, label: name ? `Close in ${name}` : 'Close the task', icon: 'x-circle', href: tracker, external: true, ariaLabel: `Close “${title}” in ${where}: Ploeg withdraws a stopped Work Item once its task is closed (opens in a new tab)` })
+      : secondary({ id: `now-tracker-${entry.id}`, label: name ? `Open in ${name}` : 'Open the task', href: tracker, external: true, ariaLabel: `Open “${title}” in ${where} (opens in a new tab)` }));
+  }
+  const grafana = (reason && infrastructure.has(reason.code)) || infra ? grafanaTeam(entry.team, context.grafanaUrl) : null;
+  if (grafana) more.push(secondary({ id: `now-grafana-${entry.id}`, label: 'Grafana', icon: 'activity', href: grafana, external: true, ariaLabel: `Open Grafana for the ${entry.team} Team (opens in a new tab)` }));
+  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${more.join('')}</span></div>`;
 }
+
+const firstSentence = text => {
+  const line = String(text ?? '').split('\n').map(part => part.trim()).find(Boolean) || '';
+  const end = /[.!?](?=\s|$)/.exec(line);
+  return end ? line.slice(0, end.index + 1) : line;
+};
 
 function lastRunLine(entry, context) {
   const last = context.lastFailure?.get(String(entry.id));
   if (!last || entry.question?.text) return '';
   const where = [last.role, last.round ? `Round ${last.round}` : ''].filter(Boolean).join(', ');
   const times = last.count > 1 ? ` · ${last.count} failed Runs lately` : '';
-  return `<span class="now-why now-last-run">${icon('x-circle')}<span>Last Run: ${escape(last.label)}${where ? ` (${escape(where)})` : ''}${escape(times)}</span></span>`;
+  const line = `<span class="now-why now-last-run">${icon('x-circle')}<span>Last Run: ${escape(last.label)}${where ? ` (${escape(where)})` : ''}${escape(times)}</span></span>`;
+  const why = last.text ? `<span class="now-why now-wrap now-fail-why" data-private>${escape(last.text)}</span>` : '';
+  return `${line}${why}`;
+}
+
+function infraLine(entry, context, reason) {
+  if (entry.question?.text || !context.retryHere || !reason?.requeue || waitingGroup(entry) !== 'needs') return '';
+  const infra = infraFault(entry, context, reason);
+  if (!infra) return '';
+  return `<span class="now-why now-wrap now-infra-note">${escape(`Not the Work Item’s fault. Trying again is likely to fail the same way until ${infra.owner} is healthy, so check Status first.`)}</span>`;
 }
 
 function retryHere(reason, context) {
@@ -319,7 +367,7 @@ function waitingRow(entry, context, grouped = false) {
     tone: reason?.tone || meta.tone,
     lead: icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
-    meta: `${waitingMeta(entry, context, { reason, warning, grouped })}${lastRunLine(entry, context)}${leftoverLine(entry, context)}`,
+    meta: `${waitingMeta(entry, context, { reason, warning, grouped })}${lastRunLine(entry, context)}${infraLine(entry, context, reason)}${leftoverLine(entry, context)}`,
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
     data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
@@ -382,7 +430,6 @@ function needsMarkup(rows, group, context, id) {
   return `${list}${bands}`;
 }
 
-const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
 const sentenceEnd = text => String(text ?? '').trim().replace(/[.\s]+$/, '');
 
 /**
@@ -421,7 +468,7 @@ function refusalRow(entry, context) {
   const href = safeUrl(entry.url);
   const tracker = trackerNames[entry.provider] || '';
   const label = entry.link === 'task' ? `Open in ${tracker || 'its tracker'}` : `Open ${tracker || 'the tracker'}`;
-  const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, icon: 'external', variant: 'secondary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
+  const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, variant: 'secondary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
   return `<li class="now-item">${row}<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links"></span></div></li>`;
 }
 
@@ -767,10 +814,11 @@ export function offersRetry(input) {
  * `input` is `state.now` plus `since` (the digest baseline, null on a first visit), `shown` (the ids on screen,
  * see `visibleNow`), `summary` ({ data, error } of the 24-hour summary) and `caughtUp`.
  * `options` takes `grafanaUrl`, `singleKeys` (show the j/k/o hints), `handOver` (an empty In flight card offers
- * to hand over a task) and `yours` (markup of the person's own waiting agent sessions, from `linkedWaitingCard`,
- * shown above what Ploeg waits on).
+ * to hand over a task), `yours` (markup of the person's own waiting agent sessions, from `linkedWaitingCard`,
+ * shown above what Ploeg waits on), `canCancel` (a stopped row offers Cancel) and `sessions` (Unfold's sessions, so a
+ * row an Unfold session drives opens it).
  * @param {object} input
- * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean, yours?: string }} [options]
+ * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean, yours?: string, canCancel?: boolean, sessions?: object[] }} [options]
  * @param {number} [now]
  * @returns {string}
  */
@@ -795,10 +843,10 @@ const loopGroups = {
 /**
  * The counts of the loop, from one reading of the Now response: `decide` (pull requests and proposals waiting on you),
  * `stuck` (Work Items Ploeg stopped on), `refused` (tasks Ploeg could not start), `stale` (Work Items that stopped
- * retrying, from the summary), `moving` (running Runs and Work Items waiting to run). `needYou` adds decide, stuck and
+ * retrying, from the summary), `running` (running Runs and Work Items waiting to run). `needYou` adds decide, stuck and
  * refused, the same number the Now badge shows. A group Ploeg could not list is null.
  * @param {object} view `state.now` with `data` normalised.
- * @returns {{ decide: number|null, stuck: number|null, refused: number|null, stale: number, moving: number|null, needYou: number|null }}
+ * @returns {{ decide: number|null, stuck: number|null, refused: number|null, stale: number, running: number|null, needYou: number|null }}
  */
 export function loopCounts(view) {
   const data = view.data;
@@ -807,15 +855,32 @@ export function loopCounts(view) {
   const stuck = waiting ? waiting.filter(entry => waitingGroup(entry) === 'needs').length : null;
   const stale = waiting ? staleCount(view) : 0;
   const refused = data.errors?.refused ? null : data.refused.length;
-  const moving = data.errors?.running ? null : data.running.length + (waitingToRun(data)?.length ?? 0);
+  const running = data.errors?.running ? null : data.running.length + (waitingToRun(data)?.length ?? 0);
   const needYou = decide === null || stuck === null ? null : decide + stuck + (refused ?? 0);
-  return { decide, stuck, refused, stale, moving, needYou };
+  return { decide, stuck, refused, stale, running, needYou };
 }
 
-function dayLine(view, counts) {
+/**
+ * Whether what needs you got worse since `since` (the digest baseline): a Work Item started waiting on you, Ploeg
+ * refused a task, or a stopped Work Item still holds budget through a Run Ploeg left running. Only then does the
+ * loop's day line take the attention tone.
+ * @param {object} view `state.now` with `data` normalised.
+ * @param {string|null} since
+ * @param {Map<string, object>} leftover From `splitRunning`.
+ * @returns {boolean}
+ */
+export function gettingWorse(view, since, leftover) {
+  if (leftover?.size) return true;
+  if (since === null || since === undefined) return false;
+  const fresh = digestCounts(view.data, since);
+  if ([fresh.review, fresh.needsYou, fresh.proposed].some(value => value > 0)) return true;
+  const start = moment(since);
+  return !view.data.errors?.refused && view.data.refused.some(entry => after(entry.refusedAt, start));
+}
+
+function dayLine(view, counts, { worse = false, decideFolded = false } = {}) {
   const summary = view.summary?.data;
   const demo = Boolean(view.data.demo || summary?.demo);
-  const runs = summary?.totals?.runs;
   const settled = summary?.totals?.spend?.settledUsd;
   const reserved = summary?.totals?.spend?.reservedUsd;
   const clear = counts.needYou === 0;
@@ -828,13 +893,12 @@ function dayLine(view, counts) {
     counts.refused ? `${format.count(counts.refused)} could not start` : '',
   ].filter(Boolean);
   const day = [
-    counts.stale ? `${format.plural(counts.stale, 'Work Item')} stopped retrying` : '',
-    counts.moving === null ? '' : counts.moving ? `${format.count(counts.moving)} moving` : 'nothing moving',
-    runs && amount(runs.finished) ? `${format.plural(runs.finished, 'Run')} finished in 24 h${amount(runs.failed) && runs.failed ? `, ${format.count(runs.failed)} failed` : ''}` : '',
+    counts.running === null ? '' : counts.running ? `${format.count(counts.running)} running` : 'nothing running',
     demo ? 'no spend in the demo' : amount(settled) ? `${format.money(settled)} spent${amount(reserved) && reserved > 0 ? ` + ${format.money(reserved)} held` : ''}` : '',
   ].filter(Boolean);
-  const tone = counts.needYou === null ? 'neutral' : clear ? 'success' : 'attention';
-  return `<section class="loop-day" data-tone="${tone}" aria-labelledby="loop-day-title"><span class="loop-day-icon" aria-hidden="true">${icon(clear ? 'check-circle' : 'alert')}</span><div class="loop-day-text"><h2 class="loop-day-title" id="loop-day-title">${escape(head)}${parts.length ? `<span class="loop-day-split">: ${escape(parts.join(', '))}</span>` : ''}</h2>${day.length ? `<p class="loop-day-facts">${escape(day.join(' · '))}</p>` : ''}</div></section>`;
+  const tone = counts.needYou === null ? 'neutral' : clear ? 'success' : worse ? 'attention' : 'neutral';
+  const quiet = decideFolded && !clear ? '<span class="loop-day-quiet"> · nothing to decide</span>' : '';
+  return `<section class="loop-day" data-tone="${tone}" aria-labelledby="loop-day-title"><span class="loop-day-icon" aria-hidden="true">${icon(clear ? 'check-circle' : worse ? 'alert' : 'inbox')}</span><div class="loop-day-text"><h2 class="loop-day-title" id="loop-day-title">${escape(head)}${parts.length ? `<span class="loop-day-split">: ${escape(parts.join(', '))}</span>` : ''}${quiet}</h2>${day.length ? `<p class="loop-day-facts">${escape(day.join(' · '))}</p>` : ''}</div></section>`;
 }
 
 function laneCard(id, title, total, tone, body, clearText) {
@@ -848,8 +912,9 @@ function failures(runs) {
     if (run.outcome !== 'failed' || run.shadow) continue;
     const key = String(run.workItemId);
     const known = map.get(key);
-    if (known) { known.count += 1; continue; }
-    map.set(key, { label: runFailure(run)?.label || 'Failed', role: run.role || '', round: run.round || null, count: 1 });
+    const meta = runFailure(run);
+    if (known) { known.count += 1; known.infra = known.infra && Boolean(meta?.infra); continue; }
+    map.set(key, { label: meta?.label || 'Failed', text: firstSentence(runFailureText(run).reason), infra: Boolean(meta?.infra), owner: meta?.owner || '', role: run.role || '', round: run.round || null, count: 1 });
   }
   return map;
 }
@@ -874,18 +939,21 @@ function loopRecent(view, visible, held, context, hide) {
 
 /**
  * Renders Now as the loop, under the `now.loop` Labs flag. One line says how many things need you, split into to
- * decide, stuck and could not start (`loopCounts`, the only source of those numbers), with what moved in 24 hours.
- * Then the lanes in the order a person works them: Decide (pull requests and proposals only a person can accept),
- * Unstick (what Ploeg stopped on, each with its last failed Run, then the tasks it refused) and Up next (`options.start`,
- * markup from `start.js`). A lane with nothing in it folds to one line. In flight, with the hand-offs made from here
- * (`options.handed`), and the Runs that ended, one row per Work Item and none for work already in a lane, sit beside them.
- * `options.hideQueued` names `provider:externalId` keys whose queued row the hand-off list already shows. A stopped Work
- * Item that only needs a new attempt offers Try again in its row instead of sending you to the tracker;
- * `options.retryHere` false leaves that out, as for a viewer. The digest shows only when something changed since your
- * last visit. Loading and failure match the desk.
+ * decide, stuck and could not start (`loopCounts`, the only source of those numbers), with what runs and what was spent
+ * in 24 hours. It is amber only when that got worse since your last visit (`gettingWorse`). Then the lanes in the order
+ * a person works them: Decide (pull requests and proposals only a person can accept), Unstick (what Ploeg stopped on,
+ * each with its last failed Run and why, then the tasks it refused) and Up next (`options.start`, markup from
+ * `start.js`). An empty Decide folds into the day line as "nothing to decide"; another lane with nothing in it folds to
+ * one line. In flight, with the hand-offs made from here (`options.handed`), and the Runs that ended, one row per Work
+ * Item and none for work already in a lane, sit beside them. `options.hideQueued` names `provider:externalId` keys whose
+ * queued row the hand-off list already shows. A stopped Work Item that only needs a new attempt offers Try again in its
+ * row instead of sending you to the tracker, and Check Status first when its last Runs failed on infrastructure;
+ * `options.retryHere` false leaves Try again out, as for a viewer. `options.canCancel` adds Cancel (Close Work Item
+ * after a closed pull request), and `options.sessions` lets a row driven by an Unfold session open it. The digest shows
+ * only when something changed since your last visit. Loading and failure match the desk.
  * @param {object} input `state.now`, as for `nowMarkup`.
  * `options.yours` is the person's own waiting agent sessions, as for `nowMarkup`, shown first among the lanes.
- * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, grafanaUrl?: string, singleKeys?: boolean, yours?: string }} [options]
+ * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, canCancel?: boolean, sessions?: object[], grafanaUrl?: string, singleKeys?: boolean, yours?: string }} [options]
  * @param {number} [now]
  * @returns {string}
  */
@@ -915,10 +983,11 @@ export function loopMarkup(input, options = {}, now = Date.now()) {
   const fresh = digestCounts(view.data, since);
   const news = since !== null && [fresh.review, fresh.needsYou, fresh.proposed].some(value => value > 0);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  const lanes = `${options.yours || ''}${laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, 'Nothing waits for your review or approval.')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
+  const decideFolded = !error && !decideRows.length && !held.waiting;
+  const lanes = `${options.yours || ''}${decideFolded ? '' : laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, '')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
   const hideRecent = new Set(rows.map(entry => String(entry.id)));
   const running = (view.data.errors.running ? 0 : view.data.running.length) + (waitingToRun(view.data)?.length ?? 0);
   const flight = running || view.data.errors.running ? runningCard(view, { ...context, handOver: false }) : '<section class="loop-lane loop-clear" aria-labelledby="loop-flight-title"><span class="loop-clear-icon" aria-hidden="true">' + icon('runs') + '</span><h2 class="loop-clear-title" id="loop-flight-title">In flight</h2><p class="loop-clear-text">Nothing runs or waits for a worker.</p></section>';
   const rail = `${options.handed ? `<section class="card flush now-card loop-handed" aria-labelledby="loop-handed-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-handed-title">Just handed over</h2></div></header><div class="card-body">${options.handed}</div></section>` : ''}${flight}${loopRecent(view, visible, held, context, hideRecent)}`;
-  return `<div class="now now-loop"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${dayLine(view, counts)}${news ? digestMarkup(view, since, now) : ''}<div class="now-columns"><div class="now-main loop-lanes">${lanes}</div><div class="now-rail">${rail}</div></div></div>`;
+  return `<div class="now now-loop"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${dayLine(view, counts, { worse: gettingWorse(view, since, leftover), decideFolded })}${news ? digestMarkup(view, since, now) : ''}<div class="now-columns"><div class="now-main loop-lanes">${lanes}</div><div class="now-rail">${rail}</div></div></div>`;
 }

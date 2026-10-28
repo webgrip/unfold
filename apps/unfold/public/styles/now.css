@@ -671,8 +671,7 @@
   .now-when-label,
   .now-digest-ago,
   .now-go-text,
-  .now-facts-list > :is(.now-repo, .now-round),
-  .now-action-links {
+  .now-facts-list > :is(.now-repo, .now-round) {
     display: none;
   }
 
@@ -701,8 +700,13 @@
     -webkit-line-clamp: 2;
   }
 
-  .now-item-actions:not([data-primary]) {
+  .now-item-actions:not(:has(.button)) {
     display: none;
+  }
+
+  .now-item-actions,
+  .now-action-links {
+    flex-wrap: wrap;
   }
 
   .now-item-actions {

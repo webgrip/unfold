@@ -103,9 +103,13 @@ test('each reason has its own glyph so rows do not repeat one icon', () => {
 test('row actions put the primary action first, name it fully and go where the decision is made', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"[^>]*aria-label="Open the pull request for “Round half-cent totals” \(opens in a new tab\)"/);
-  assert.match(html, /<span class="now-action-primary" data-insight="now.row.primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links" data-insight="now.row.link"><a class="button ghost sm icon-only" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
-  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
-  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
+  assert.match(html, /<span class="now-action-primary" data-insight="now.row.primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links" data-insight="now.row.link"><a class="button ghost sm" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
+  assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Open “Show VAT per line” in Vikunja \(opens in a new tab\)"><span class="button-label">Open in Vikunja<\/span>/, 'the tracker link is a labelled button');
+  assert.doesNotMatch(html, /class="button ghost sm icon-only"[^>]*id="now-(tracker|grafana)-/, 'no row link is icon-only');
+  const tracker = html.match(/<a [^>]*id="now-tracker-108"[\s\S]*?<\/a>/)[0];
+  assert.equal(tracker.split(icon('external', 'button-external')).length - 1, 1, 'one external icon, not one on each side');
+  assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"[^>]*>[\s\S]*?<span class="button-label">Grafana</, 'infrastructure trouble links the Team dashboard');
+  assert.match(html, /id="now-status-112"[^>]*>[\s\S]*?Check Status/, 'an infrastructure stop leads with Check Status');
   assert.equal(html.match(/grafana\.example\.test/g).length, 1, 'Grafana only for infrastructure reasons');
   assert.match(html, /href="#proposed\?id=107"[^>]*aria-label="Approve or reject “Clarify the research markets” on Proposed"[^>]*>[\s\S]*?Approve or reject/);
   assert.doesNotMatch(html, />Decide</);
@@ -490,6 +494,8 @@ test('Needs you lists a task Ploeg could not start first, says why in plain word
   assert.match(html, /ploeg: cap reviewer retries per Round/);
   assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/homelab-cluster, repo\/unfold\./);
   assert.match(html, /<a class="button[^"]*"[^>]*href="https:\/\/vikunja\.example\.test\/tasks\/1612"[^>]*>[\s\S]*?Open in Vikunja/, 'a primary button opens the task itself');
+  const open = html.match(/<a [^>]*id="now-refused-open-[^"]*"[\s\S]*?<\/a>/)[0];
+  assert.equal(open.split(icon('external')).length + open.split(icon('external', 'button-external')).length - 2, 1, 'one external icon, not one on each side');
   const group = html.slice(html.indexOf('Could not start'), html.indexOf('aria-labelledby="now-group-needs"'));
   assert.doesNotMatch(group, /Work Item/, 'a refused task is not called a Work Item');
 });
@@ -516,7 +522,7 @@ test('a refused task shows even when nothing else waits, and a tracker root or n
   assert.match(html, /This board needs a repo\/ label on this task\./);
   assert.match(html, /href="https:\/\/vikunja\.example\.test\/?"[^>]*>[\s\S]*?Open Vikunja/);
   const bare = nowMarkup(view({ data: { ...nowData(), refused: [refusal('label_missing', { url: '', link: 'none' })] } }), options, nowAt);
-  assert.doesNotMatch(bare, /Open in Vikunja|Open Vikunja/);
+  assert.doesNotMatch(bare, /id="now-refused-open-/);
 });
 
 test('a failed refusal read shows an inline notice with Try again and leaves every other section in place', () => {
