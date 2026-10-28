@@ -551,6 +551,22 @@ Every Work Item in the overview lanes, the work-item pages, the detail and the p
 | `pullRequest` | Passed through from Ploeg's Work Item list: `{url, number, mergeState, baseBranch, headSha, checkedAt}`, or `null` when the Work Item has no pull request. Absent when Ploeg sends no field. `mergeState` is `clean`, `conflicted`, `unknown`, or `null` when Ploeg reported none ([Ploeg ADR-0040](../../../ploeg/docs/adrs/0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md)) |
 | `sourceWorkItemId`, `sourceTitle`, `createdKind`, `ready` | Proposed rows only, when Ploeg reports them |
 
+#### Snoozes
+
+A person sets rows aside on their own Now ([ADR 0056](../adrs/0056-a-person-snoozes-rows-on-their-own-now-and-nothing-shared-changes.md)). Snoozes live in Unfold's store, one list per signed-in person; Ploeg and the tracker never hear of them. Every role may set their own, and nobody can read or change another person's. In the demo they are kept the same way and `demo` is true.
+
+| Route | Request and answer |
+| --- | --- |
+| `GET /api/now/snoozes` | → `{snoozes, limit, demo}`. `snoozes` lists `{key, fingerprint, kind, untilAt, createdAt}`, oldest first. Ended snoozes, and those set more than 90 days ago, are pruned before the answer |
+| `PUT /api/now/snoozes` | `{key, fingerprint, until, kind?}` → the same shape as `GET`. Keeps or replaces the snooze for `key`, then drops the person's oldest beyond `limit` (200) |
+| `DELETE /api/now/snoozes?key=<key>` | → the same shape as `GET`. Removes the person's snooze for `key`; an unknown key changes nothing |
+
+* `key` is `work:<Work Item id>` or `task:<provider>:<externalId>` for a task Ploeg could not start; anything else is 400 `snooze_key`.
+* `fingerprint` is 1 to 200 characters (400 `snooze_fingerprint`). The browser sends a Work Item's `state|updatedAt` or a refusal's `code|refusedAt`, and shows the row again once it differs.
+* `until` is `1d`, `1w` or `change` (400 `snooze_until`); `untilAt` is then a day or a week later, or `null`.
+* `kind` is `snooze` (the default) or `dismiss` (400 `snooze_kind`). A dismissal is for a `task:` key only and lasts until it changes; `until` may be left out (400 `snooze_dismiss` otherwise).
+* `PUT` and `DELETE` are guarded mutations like every other and appear in the person's action log.
+
 ### Cancel
 
 Cancel is for operators and administrators; viewers get 403. Live, Unfold asks Ploeg to cancel the Work Item as the signed-in person and answers `{workItemId, team, state, demo: false, withdrawn, shiftId, cancelledRuns, stoppedRuns, keysBlocked, message}` with Ploeg's own figures:

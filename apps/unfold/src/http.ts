@@ -57,6 +57,7 @@ import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
 import type { AddressInfo } from 'node:net';
+import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -502,6 +503,19 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             console.log(JSON.stringify({ level: 'info', event: 'flag.choice', actor: user.id, 'feature_flag.key': other, choice: 'off', excludedBy: key }));
           }
           return json(res, 200, await labsView(user));
+        }
+        if (path === '/api/now/snoozes') {
+          const now = new Date();
+          const mine = () => ({ snoozes: store.nowSnoozes(user.id, now.toISOString(), new Date(now.getTime() - snoozeRetentionDays * 86_400_000).toISOString()), limit: maxNowSnoozes, demo: config.mode === 'demo' });
+          try {
+            if (method === 'GET') return json(res, 200, mine());
+            if (method === 'PUT') { store.setNowSnooze(user.id, parseSnooze(await body(req), now), maxNowSnoozes); return json(res, 200, mine()); }
+            if (method === 'DELETE') { store.clearNowSnooze(user.id, snoozeKey(url.searchParams.get('key'))); return json(res, 200, mine()); }
+          } catch (error) {
+            if (error instanceof SnoozeError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
+          fault(405, 'method', 'Unsupported method.');
         }
         const flagOverride = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/override$/);
         const flagRollout = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/rollout$/);

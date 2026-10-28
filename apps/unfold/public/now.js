@@ -6,6 +6,7 @@ import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup, 
 import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
+import { sortOut, snoozeKey } from './core/snoozes.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
 export const awayAfter = 30 * 60 * 1000;
@@ -322,7 +323,50 @@ function waitingActions(entry, context, reason) {
   }
   const grafana = (reason && infrastructure.has(reason.code)) || infra ? grafanaTeam(entry.team, context.grafanaUrl) : null;
   if (grafana) more.push(secondary({ id: `now-grafana-${entry.id}`, label: 'Grafana', icon: 'activity', href: grafana, external: true, ariaLabel: `Open Grafana for the ${entry.team} Team (opens in a new tab)` }));
-  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${more.join('')}</span></div>`;
+  const snooze = waitingGroup(entry) === 'needs' ? snoozeSlot(entry, 'work', title, context) : { toggle: '', options: '' };
+  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${more.join('')}${snooze.toggle}</span></div>${snooze.options}`;
+}
+
+const domKey = key => key.replace(/[^A-Za-z0-9_-]/g, '-');
+
+function snoozeSlot(entry, kind, title, context) {
+  if (!context.snoozable) return { toggle: '', options: '' };
+  const key = snoozeKey(entry, kind);
+  const id = domKey(key);
+  const open = context.snoozeOpen === key;
+  const data = `data-key="${escape(key)}" data-target="${kind}"`;
+  const toggle = `<button type="button" class="button ghost sm now-snooze-toggle" id="now-snooze-${id}" data-action="now-snooze-menu" ${data} aria-expanded="${open}"${open ? ` aria-controls="now-snooze-options-${id}"` : ''} aria-label="${kind === 'task' ? 'Snooze or dismiss' : 'Snooze'} “${escape(title)}”">${icon('clock')}<span class="button-label">Snooze</span></button>`;
+  if (!open) return { toggle, options: '' };
+  const choice = (until, label) => `<button type="button" class="button secondary sm" id="now-snooze-${until}-${id}" data-action="now-snooze" ${data} data-until="${until}">${escape(label)}</button>`;
+  const dismiss = kind === 'task' ? `<button type="button" class="button secondary sm" id="now-dismiss-${id}" data-action="now-dismiss" ${data}>${icon('eye-off')}<span class="button-label">Dismiss</span></button>` : '';
+  const options = `<div class="now-snooze-options" id="now-snooze-options-${id}" role="group" aria-label="Snooze “${escape(title)}” on your Now"><span class="now-snooze-hint">Hide from your Now. It comes back sooner if it changes.</span>${choice('1d', '1 day')}${choice('1w', '1 week')}${choice('change', 'Until it changes')}${dismiss}</div>`;
+  return { toggle, options };
+}
+
+function snoozedLine(entry, kind, snooze, context) {
+  const title = kind === 'task' ? entry.title || `Task ${entry.externalId}` : entry.title || `Work Item ${entry.id}`;
+  const href = kind === 'task' ? safeUrl(entry.url) : `#work/${encodeURIComponent(entry.id)}`;
+  const name = href ? `<a class="now-snoozed-title" href="${escape(href)}"${kind === 'task' ? ' target="_blank" rel="noopener noreferrer"' : ''}>${escape(title)}</a>` : `<span class="now-snoozed-title">${escape(title)}</span>`;
+  const until = snooze.untilAt ? `Snoozed until ${format.timeHtml(snooze.untilAt, { display: 'absolute', now: context.now })}` : snooze.kind === 'dismiss' ? 'Dismissed until it changes' : 'Snoozed until it changes';
+  const key = snoozeKey(entry, kind);
+  return `<li class="now-snoozed-item">${name}<span class="now-snoozed-until">${until}</span><button type="button" class="button ghost sm" id="now-unsnooze-${domKey(key)}" data-action="now-unsnooze" data-key="${escape(key)}" aria-label="Unsnooze “${escape(title)}”">${icon('undo')}<span class="button-label">Unsnooze</span></button></li>`;
+}
+
+function quietMarkup(quiet, context) {
+  if (!quiet) return '';
+  const lines = [];
+  if (quiet.snoozed.length) {
+    const dismissed = quiet.snoozed.some(item => item.snooze.kind === 'dismiss');
+    const text = `${format.count(quiet.snoozed.length)} ${dismissed ? 'snoozed or dismissed' : 'snoozed'} · ${context.showSnoozed ? 'Hide' : 'Show'}`;
+    const list = context.showSnoozed ? `<ul class="now-snoozed-list" id="now-snoozed-list">${quiet.snoozed.map(item => snoozedLine(item.entry, item.kind, item.snooze, context)).join('')}</ul>` : '';
+    lines.push(`<button type="button" class="now-quiet" id="now-snoozed-toggle" data-action="now-snoozed-toggle" aria-expanded="${Boolean(context.showSnoozed)}"${context.showSnoozed ? ' aria-controls="now-snoozed-list"' : ''}>${icon('clock')}<span>${escape(text)}</span></button>${list}`);
+  }
+  if (quiet.older.length) {
+    const text = `${format.plural(quiet.older.length, 'older refusal')} · ${context.showOlder ? 'Hide' : 'Show'}`;
+    const list = context.showOlder ? `<ul class="list now-list now-older-list" id="now-older-list" aria-label="Refusals older than a week">${quiet.older.map(entry => refusalRow(entry, context)).join('')}</ul>` : '';
+    lines.push(`<button type="button" class="now-quiet now-quiet-fold" id="now-older-toggle" data-action="now-older-toggle" aria-expanded="${Boolean(context.showOlder)}"${context.showOlder ? ' aria-controls="now-older-list"' : ''}>${icon('chevron-down')}<span>${escape(text)}</span></button>${list}`);
+  }
+  return lines.length ? `<div class="now-quiet-lines">${lines.join('')}</div>` : '';
 }
 
 const firstSentence = text => {
@@ -469,7 +513,8 @@ function refusalRow(entry, context) {
   const tracker = trackerNames[entry.provider] || '';
   const label = entry.link === 'task' ? `Open in ${tracker || 'its tracker'}` : `Open ${tracker || 'the tracker'}`;
   const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, variant: 'secondary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
-  return `<li class="now-item">${row}<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links"></span></div></li>`;
+  const snooze = snoozeSlot(entry, 'task', entry.title || entry.externalId, context);
+  return `<li class="now-item">${row}<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links">${snooze.toggle}</span></div>${snooze.options}</li>`;
 }
 
 function refusedMarkup(data, context) {
@@ -816,22 +861,27 @@ export function offersRetry(input) {
  * `options` takes `grafanaUrl`, `singleKeys` (show the j/k/o hints), `handOver` (an empty In flight card offers
  * to hand over a task), `yours` (markup of the person's own waiting agent sessions, from `linkedWaitingCard`,
  * shown above what Ploeg waits on), `canCancel` (a stopped row offers Cancel) and `sessions` (Unfold's sessions, so a
- * row an Unfold session drives opens it).
+ * row an Unfold session drives opens it). `snoozes` (the person's, from `GET /api/now/snoozes`) leaves what they snoozed
+ * or dismissed out of every list and count and offers Snooze on Needs-you and refused rows; `snoozeOpen` is the key whose
+ * choices are open, and `showSnoozed` and `showOlder` unfold the snoozed rows and the refusals older than a week (`sortOut`).
  * @param {object} input
- * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean, yours?: string, canCancel?: boolean, sessions?: object[] }} [options]
+ * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean, yours?: string, canCancel?: boolean, sessions?: object[], snoozes?: object[], snoozeOpen?: string|null, showSnoozed?: boolean, showOlder?: boolean }} [options]
  * @param {number} [now]
  * @returns {string}
  */
 export function nowMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
+  const quiet = sortOut(input.data, options.snoozes, now);
+  const { working, leftover: stopped } = splitRunning(input.data);
+  input = { ...input, data: quiet.data };
   const list = value => Array.isArray(value) ? value : [];
-  const { working, leftover } = splitRunning(input.data);
+  const leftover = unsnoozed(stopped, quiet);
   const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: working, active: list(input.data.active), recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true, leftover, shifts: shiftsOf(view.data.active) };
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true, leftover, shifts: shiftsOf(view.data.active), snoozable: Array.isArray(options.snoozes) };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${options.yours || ''}${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
+  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${options.yours || ''}${waitingCard(view, visible, held, context)}${quietMarkup(quiet, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
 }
 
 const loopGroups = {
@@ -901,9 +951,14 @@ function dayLine(view, counts, { worse = false, decideFolded = false } = {}) {
   return `<section class="loop-day" data-tone="${tone}" aria-labelledby="loop-day-title"><span class="loop-day-icon" aria-hidden="true">${icon(clear ? 'check-circle' : worse ? 'alert' : 'inbox')}</span><div class="loop-day-text"><h2 class="loop-day-title" id="loop-day-title">${escape(head)}${parts.length ? `<span class="loop-day-split">: ${escape(parts.join(', '))}</span>` : ''}${quiet}</h2>${day.length ? `<p class="loop-day-facts">${escape(day.join(' · '))}</p>` : ''}</div></section>`;
 }
 
-function laneCard(id, title, total, tone, body, clearText) {
-  if (!total && clearText) return `<section class="loop-lane loop-clear loop-${id}" aria-labelledby="loop-${id}-title"><span class="loop-clear-icon" aria-hidden="true">${icon('check')}</span><h2 class="loop-clear-title" id="loop-${id}-title">${escape(title)}</h2><p class="loop-clear-text">${escape(clearText)}</p></section>`;
-  return `<section class="card flush now-card loop-lane loop-${id}" aria-labelledby="loop-${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-${id}-title">${escape(title)}${total ? count(total, { tone }) : ''}</h2></div></header><div class="card-body">${body}</div></section>`;
+function laneCard(id, title, total, tone, body, clearText, quiet = '') {
+  if (!total && clearText) return `<section class="loop-lane loop-clear loop-${id}" aria-labelledby="loop-${id}-title"><span class="loop-clear-icon" aria-hidden="true">${icon('check')}</span><h2 class="loop-clear-title" id="loop-${id}-title">${escape(title)}</h2><p class="loop-clear-text">${escape(clearText)}</p>${quiet}</section>`;
+  return `<section class="card flush now-card loop-lane loop-${id}" aria-labelledby="loop-${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-${id}-title">${escape(title)}${total ? count(total, { tone }) : ''}</h2></div></header><div class="card-body">${body}${quiet}</div></section>`;
+}
+
+function unsnoozed(leftover, quiet) {
+  const hidden = new Set(quiet.snoozed.filter(item => item.kind === 'work').map(item => String(item.entry.id)));
+  return hidden.size ? new Map([...leftover].filter(([id]) => !hidden.has(id))) : leftover;
 }
 
 function failures(runs) {
@@ -952,21 +1007,25 @@ function loopRecent(view, visible, held, context, hide) {
  * after a closed pull request), and `options.sessions` lets a row driven by an Unfold session open it. The digest shows
  * only when something changed since your last visit. Loading and failure match the desk.
  * @param {object} input `state.now`, as for `nowMarkup`.
- * `options.yours` is the person's own waiting agent sessions, as for `nowMarkup`, shown first among the lanes.
- * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, canCancel?: boolean, sessions?: object[], grafanaUrl?: string, singleKeys?: boolean, yours?: string }} [options]
+ * `options.yours` is the person's own waiting agent sessions, as for `nowMarkup`, shown first among the lanes. Snoozes work
+ * as for `nowMarkup`; the "N snoozed" and "N older refusals" lines sit at the end of Unstick, also when it is clear.
+ * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, canCancel?: boolean, sessions?: object[], grafanaUrl?: string, singleKeys?: boolean, yours?: string, snoozes?: object[], snoozeOpen?: string|null, showSnoozed?: boolean, showOlder?: boolean }} [options]
  * @param {number} [now]
  * @returns {string}
  */
 export function loopMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return nowMarkup(input, options, now);
+  const quiet = sortOut(input.data, options.snoozes, now);
+  const { working, leftover: stopped } = splitRunning(input.data);
+  input = { ...input, data: quiet.data };
   const list = value => Array.isArray(value) ? value : [];
   const hide = options.hideQueued || new Set();
   const active = list(input.data.active).filter(entry => !(entry.state === 'queued' && hide.has(`${entry.provider}:${entry.externalId}`)));
-  const { working, leftover } = splitRunning(input.data);
+  const leftover = unsnoozed(stopped, quiet);
   const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: working, active, recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
   const runs = view.data.errors.recent ? [] : view.data.recent;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs, dots: true, retryHere: options.retryHere !== false, lastFailure: failures(runs), leftover, shifts: shiftsOf(active) };
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs, dots: true, retryHere: options.retryHere !== false, lastFailure: failures(runs), leftover, shifts: shiftsOf(active), snoozable: Array.isArray(options.snoozes) };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const error = view.data.errors.waiting;
   const rows = byWaitingSince(visible.waiting);
@@ -984,7 +1043,7 @@ export function loopMarkup(input, options = {}, now = Date.now()) {
   const news = since !== null && [fresh.review, fresh.needsYou, fresh.proposed].some(value => value > 0);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
   const decideFolded = !error && !decideRows.length && !held.waiting;
-  const lanes = `${options.yours || ''}${decideFolded ? '' : laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, '')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
+  const lanes = `${options.yours || ''}${decideFolded ? '' : laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, '')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.', quietMarkup(quiet, context))}${options.start || ''}`;
   const hideRecent = new Set(rows.map(entry => String(entry.id)));
   const running = (view.data.errors.running ? 0 : view.data.running.length) + (waitingToRun(view.data)?.length ?? 0);
   const flight = running || view.data.errors.running ? runningCard(view, { ...context, handOver: false }) : '<section class="loop-lane loop-clear" aria-labelledby="loop-flight-title"><span class="loop-clear-icon" aria-hidden="true">' + icon('runs') + '</span><h2 class="loop-clear-title" id="loop-flight-title">In flight</h2><p class="loop-clear-text">Nothing runs or waits for a worker.</p></section>';

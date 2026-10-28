@@ -1,4 +1,4 @@
-/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line (at most two facts), every Unstick button labelled, j and k still moving between rows and Cancel in the demo disabled, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
+/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line (at most two facts), every Unstick button labelled, j and k still moving between rows and Cancel in the demo disabled, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, Snooze opens its choices by keyboard and Escape closes them, a snoozed row and a dismissed refusal leave the lane, the day line and the Now badge alike, survive a reload, list under "N snoozed · Show" and come back with Unsnooze, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
 export async function run({ app, page, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -77,6 +77,53 @@ export async function run({ app, page, assert, screenshot }) {
     await dialog.getByRole('button', { name: 'Try again' }).click();
     await page.getByText(/nothing restarted and nothing was spent|Started .* again/).first().waitFor();
   }
+
+  const needYou = async () => Number(((await loop.locator('.loop-day-title').textContent()).match(/^(\d+) things? needs? you/) || [0, 0])[1]);
+  const nowBadge = async () => Number(await page.locator('[data-count-for="waiting"]').first().textContent() || 0);
+  const announced = text => page.waitForFunction(pattern => new RegExp(pattern).test(document.getElementById('announcement')?.textContent || ''), text.source);
+  const before = await needYou();
+  const toggle = loop.locator('[data-action="now-snooze-menu"][data-target="work"]').first();
+  const workKey = await toggle.getAttribute('data-key');
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  const options = loop.getByRole('group', { name: /^Snooze “.+” on your Now$/ });
+  await options.waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.until), '1d', 'opening Snooze does not move focus to its first choice');
+  await page.keyboard.press('Escape');
+  await options.waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.key), workKey, 'Escape does not return focus to Snooze');
+  await page.keyboard.press('Enter');
+  await options.waitFor();
+  await page.keyboard.press('Enter');
+  await announced(/Snoozed “.+” for a day; it comes back sooner if it changes\. Only your Now changed\. This is the demo: nothing was written outside Unfold\./);
+  assert.equal(await loop.locator(`[data-action="now-snooze-menu"][data-key="${workKey}"]`).count(), 0, 'a snoozed row still shows');
+  assert.equal(await needYou(), before - 1, 'a snoozed row still counts in the day line');
+  assert.equal(await nowBadge(), before - 1, 'the Now badge and the day line disagree after a snooze');
+  await loop.getByRole('button', { name: '1 snoozed · Show' }).waitFor();
+
+  const refused = loop.locator('[data-action="now-snooze-menu"][data-target="task"]').first();
+  if (await refused.count()) {
+    await refused.click();
+    await loop.getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await announced(/Dismissed “.+” until it changes\./);
+    assert.equal(await needYou(), before - 2, 'a dismissed refusal still counts');
+    await page.reload();
+    await loop.waitFor();
+    await loop.getByRole('button', { name: '2 snoozed or dismissed · Show' }).waitFor();
+    assert.equal(await needYou(), before - 2, 'snoozes did not survive a reload');
+    assert.equal(await nowBadge(), before - 2, 'the Now badge and the day line disagree after a reload');
+  }
+  await loop.locator('#now-snoozed-toggle').click();
+  await loop.locator('[data-action="now-unsnooze"]').first().waitFor();
+  await screenshot('loop-snoozed');
+  while (await loop.locator('[data-action="now-unsnooze"]').count()) {
+    await loop.locator('[data-action="now-unsnooze"]').first().click();
+    await announced(/Unsnoozed\. It shows on your Now again\./);
+    await page.evaluate(() => { document.getElementById('announcement').textContent = ''; });
+  }
+  assert.equal(await loop.locator('#now-snoozed-toggle').count(), 0, 'the snoozed line stays after unsnoozing everything');
+  assert.equal(await needYou(), before, 'unsnoozing does not bring the count back');
+  assert.equal(await nowBadge(), before);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await loop.waitFor();

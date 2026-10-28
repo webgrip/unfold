@@ -112,15 +112,15 @@ test('signing out forgets the person in place, makes reads in flight stale and r
 
 test('a counts read that lands after sign-out leaves the counts unknown', async () => {
   const saved = { fetch: globalThis.fetch, bootstrap: state.bootstrap, view: state.view };
-  let answer;
-  globalThis.fetch = () => new Promise(done => { answer = done; });
+  const answers = [];
+  globalThis.fetch = () => new Promise(done => { answers.push(done); });
   try {
     state.bootstrap = { mode: 'live', user: { id: 'a' } };
     state.view = 'runs';
     applyNowCounts(null);
     const pending = refreshCounts();
     forgetUserData();
-    answer({ ok: true, status: 200, json: async () => now() });
+    for (const answer of answers) answer({ ok: true, status: 200, json: async () => now() });
     await pending;
     assert.equal(state.counts.waiting, null, 'the previous person\u2019s count came back');
   } finally { Object.assign(globalThis, { fetch: saved.fetch }); state.bootstrap = saved.bootstrap; state.view = saved.view; }
