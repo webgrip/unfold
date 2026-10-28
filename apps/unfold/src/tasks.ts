@@ -175,7 +175,7 @@ function taskUrl(source: TaskSourceConfig, id: string, value: Record<string, unk
   const base = webRoot(source);
   if (source.provider === 'clickup') return `https://app.clickup.com/t/${encodeURIComponent(id)}`;
   if (source.provider === 'vikunja') return `${base}/tasks/${id}`;
-  if (source.provider === 'demo') return 'https://example.invalid/unfold-demo/tasks/1';
+  if (source.provider === 'demo') return `https://example.invalid/unfold-demo/tasks/${id}`;
   if (source.provider === 'gitlab' && numericId.test(source.project)) {
     let url: URL;
     try { url = new URL(field(value.web_url, 2048)); } catch { throw new TaskError(502, 'task_response_invalid', 'The task service returned an invalid issue link.'); }
@@ -214,7 +214,7 @@ function details(source: TaskSourceConfig, value: Record<string, unknown>): Pick
   const labels = (list: unknown, name: string, tint: string) => entries(list).map(entry => ({ name: label(entry[name]), color: color(entry[tint]) })).filter((entry): entry is { name: string; color: string | undefined } => Boolean(entry.name)).map(({ name, color }) => ({ name, ...(color ? { color } : {}) }));
   const people = (list: unknown, username: string, name: string) => entries(list).map(entry => ({ username: label(entry[username], 256), name: label(entry[name]) })).filter((entry): entry is { username: string; name: string | undefined } => Boolean(entry.username)).map(({ username, name }) => ({ username, ...(name ? { name } : {}) }));
   let result: Pick<TaskSnapshot, 'labels' | 'assignees' | 'priority' | 'dueAt' | 'identifier'> = {};
-  if (source.provider === 'vikunja') {
+  if (source.provider === 'vikunja' || source.provider === 'demo') {
     const index = typeof value.index === 'number' && Number.isSafeInteger(value.index) && value.index > 0 ? `#${value.index}` : undefined;
     result = { labels: labels(value.labels, 'title', 'hex_color'), assignees: people(value.assignees, 'username', 'name'), priority: typeof value.priority === 'number' && Number.isSafeInteger(value.priority) && value.priority > 0 && value.priority <= 100 ? value.priority : undefined, dueAt: date(value.due_date), identifier: label(value.identifier, 64) ?? index };
   } else if (source.provider === 'forgejo' || source.provider === 'github') {
@@ -358,13 +358,26 @@ function issuePath(source: TaskSourceConfig): string {
   return `/repos/${source.project.split('/').map(encodeURIComponent).join('/')}/issues`;
 }
 
-function demoTask(source: TaskSourceConfig): TaskSnapshot {
-  return snapshot(source, { id: '1', title: '[Demo fixture] Fix checkout rounding', description: 'This is a local demonstration task, not a linked external tracker item.\n\nFix the rounding regression in the order-service fixture.\n\nAcceptance criteria:\n- Checkout totals use decimal currency rounding.\n- Run the repository test suite and retain its actual result.\n- Keep the change ready for human review; do not publish or merge it.\n\nThis fixture runs real Git changes and checks without model calls or spend.' });
+const demoBrief = (change: string, check: string) => `This is a local demonstration task, not a linked external tracker item.\n\n${change}\n\nAcceptance criteria:\n- ${check}\n- Keep the change ready for human review; do not publish or merge it.\n\nThis fixture makes no model calls and spends nothing.`;
+const demoDue = (days: number) => new Date(Math.floor(Date.now() / 86400000 + days) * 86400000).toISOString();
+const demoLabels = (...names: string[]) => names.map(title => ({ title }));
+
+function demoTasks(source: TaskSourceConfig): TaskSnapshot[] {
+  return [
+    { id: '1', title: '[Demo fixture] Fix checkout rounding', priority: 4, due_date: demoDue(2), labels: demoLabels('ready'), description: 'This is a local demonstration task, not a linked external tracker item.\n\nFix the rounding regression in the order-service fixture.\n\nAcceptance criteria:\n- Checkout totals use decimal currency rounding.\n- Run the repository test suite and retain its actual result.\n- Keep the change ready for human review; do not publish or merge it.\n\nThis fixture runs real Git changes and checks without model calls or spend.' },
+    { id: '2', title: '[Demo fixture] Show the delivery window on the order summary', priority: 3, labels: demoLabels('ready'), description: demoBrief('Show the expected delivery window on the order summary.', 'The order summary names the delivery window from the warehouse schedule.') },
+    { id: '3', title: '[Demo fixture] Refuse negative quantities in the cart', priority: 3, due_date: demoDue(9), labels: demoLabels('ready'), description: demoBrief('Refuse a cart line with a quantity below zero.', 'The cart API answers 400 for a negative quantity.') },
+    { id: '4', title: '[Demo fixture] Explain the shipping cost on the cart page', priority: 2, labels: demoLabels('ready'), description: demoBrief('Say on the cart page how the shipping cost is made up.', 'The cart page lists the shipping cost per parcel.') },
+    { id: '5', title: '[Demo fixture] Check the postcode format at checkout', priority: 2, labels: demoLabels('ready', 'effort/S'), description: demoBrief('Check the postcode format before checkout accepts an address.', 'Checkout refuses a postcode that does not match the country format.') },
+    { id: '6', title: '[Demo fixture] Name the shop in the order confirmation email', labels: demoLabels('ready'), description: demoBrief('Put the shop name in the subject of the order confirmation email.', 'The confirmation email subject starts with the shop name.') },
+    { id: '7', title: '[Demo fixture] Interview five shops about delivery windows', priority: 3, labels: demoLabels('ready', 'repo/market-research'), description: demoBrief('Write up five shop interviews about delivery windows.', 'The research notes hold one summary per shop.') },
+    { id: '8', title: '[Demo fixture] Order the new packaging boxes from the supplier', priority: 4, labels: demoLabels('repo/warehouse'), description: demoBrief('Order 500 packaging boxes in the new size.', 'The supplier confirms the order.') },
+  ].map(value => snapshot(source, value));
 }
 
 export async function listTasks(source: TaskSourceConfig, page = 1): Promise<TaskPage> {
   if (!Number.isSafeInteger(page) || page < 1 || page > maxPage) throw new TaskError(400, 'task_page_invalid', 'Task page must be an integer between 1 and 1000.');
-  if (source.provider === 'demo') return { tasks: page === 1 ? [demoTask(source)] : [] };
+  if (source.provider === 'demo') return { tasks: page === 1 ? demoTasks(source) : [] };
   const pageSize = source.provider === 'clickup' ? 100 : 50;
   let path: string;
   let query: Record<string, string>;
@@ -396,8 +409,9 @@ export async function getTask(source: TaskSourceConfig, nativeId: string, trunca
 async function readTask(source: TaskSourceConfig, nativeId: string, truncate: boolean): Promise<{ task: TaskSnapshot; value: Record<string, unknown> }> {
   const id = taskId(source, nativeId);
   if (source.provider === 'demo') {
-    if (id !== '1') throw new TaskError(404, 'task_not_found', 'The demonstration task does not exist.');
-    return { task: demoTask(source), value: {} };
+    const task = demoTasks(source).find(entry => entry.id === id);
+    if (!task) throw new TaskError(404, 'task_not_found', 'The demonstration task does not exist.');
+    return { task, value: {} };
   }
   const path = source.provider === 'clickup' ? `/task/${encodeURIComponent(id)}` : source.provider === 'vikunja' ? `/tasks/${id}` : `${issuePath(source)}/${id}`;
   const response = await request(source, path, source.provider === 'clickup' ? { include_markdown_description: 'true' } : {});

@@ -179,7 +179,7 @@ test('linked demo task import preserves its revision, deduplicates commands and 
   assert.equal(sources[0].provider, 'demo');
   assert.deepEqual((await client.bootstrap()).taskSources, sources);
   const page = await client.tasks('demo-tasks');
-  assert.equal(page.tasks.length, 1);
+  assert.equal(page.tasks[0].id, '1');
   const task = await client.task('demo-tasks', page.tasks[0].id);
   assert.equal(task.revision, page.tasks[0].revision);
   const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, teamId: 'delivery', runtime: 'demo', budgetUsd: 3 };

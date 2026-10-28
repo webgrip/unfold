@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { handedMarkup, labelledTeam, pendingHandoffs, readiness, retryMarkup, reviewRoom, roomOf, sheetMarkup, startCard, startLimit, startQueue, suggestedTeam, taskKey } from '../public/start.js';
+import { handedMarkup, labelledTeam, pendingHandoffs, priorityOf, readiness, retryMarkup, reviewRoom, roomOf, routeOf, sheetMarkup, startCard, startLimit, startQueue, suggestedTeam, taskKey, whyHere } from '../public/start.js';
+import { namedDate } from '../public/core/format.js';
 import { loopCounts, loopMarkup } from '../public/now.js';
 import { countsFromNow } from '../public/core/counts.js';
 
@@ -27,48 +28,120 @@ test('readiness reads the task alone: a label, a brief and acceptance conditions
   assert.equal(vague.state, 'check');
 });
 
-test('the Start queue leaves out closed tasks and tasks Ploeg holds, and puts ready ones first', () => {
+const connections = {
+  supported: true,
+  repositories: [{ key: 'unfold', label: 'unfold', repo: 'unfold', readiness: 'ready', reason: '' }, { key: 'ploeg', label: 'ploeg', repo: 'ploeg', readiness: 'ready', reason: '' }, { key: 'homelab', label: 'homelab-cluster', repo: 'homelab-cluster', readiness: 'not_ready', reason: 'webgrip/homelab-cluster has no AGENTS.md on branch "main".' }, { key: 'site', label: 'site', repo: 'site', readiness: 'ready', reason: '' }],
+  boards: [{ name: 'Glide', repository: null, default: 'unfold', allow: ['ploeg', 'homelab'], teams: [{ team: 'bronze', assignees: [] }], sources: [{ id: 'glide', name: 'Glide board', target: '', routed: true }] }],
+};
+const entryOf = (value, sourceId = 'glide', position = 0) => ({ task: value, sourceId, position, readiness: readiness(value), blocker: '' });
+
+test('the Start queue leaves out closed tasks and tasks Ploeg holds, and keeps the tracker order: priority, then due date, then list place', () => {
   const standings = new Map([[taskKey(task(5)), { id: '90', state: 'leased', team: 'bronze' }]]);
-  const lists = [{ sourceId: 'glide', tasks: [task(1), task(2, { description: '' }), task(3, { labels: [{ name: 'ready' }], priority: 1 }), task(4, { status: 'closed' }), task(5), task(6, { labels: [{ name: 'ready' }], priority: 3 }), task(7, { title: 'Epic: rebalance the cluster' }), task(8, { labels: [{ name: 'epic' }] }), task(9, { priority: 4 })] }];
-  const queue = startQueue(lists, standings, [{ sourceId: 'glide', taskId: '1' }]);
-  assert.deepEqual(queue.map(entry => entry.task.id), ['6', '3', '9', '2'], 'labelled ready by priority, then the rest by priority, then not ready; epics, handed and held tasks left out');
+  const lists = [{ sourceId: 'glide', tasks: [task(1), task(2, { description: '' }), task(3, { labels: [{ name: 'ready' }], priority: 1 }), task(4, { status: 'closed' }), task(5), task(6, { labels: [{ name: 'ready' }], priority: 3, dueAt: '2026-11-20T00:00:00Z' }), task(7, { title: 'Epic: rebalance the cluster' }), task(8, { labels: [{ name: 'epic' }] }), task(9, { priority: 3, dueAt: '2026-10-30T00:00:00Z' }), task(10), task(11, { priority: 3 })] }];
+  const queue = startQueue(lists, standings, [{ sourceId: 'glide', taskId: '1' }], { sources: [source], connections });
+  assert.deepEqual(queue.map(entry => entry.task.id), ['9', '6', '11', '3', '2', '10'], 'highest priority first, the earlier due date breaks a tie, then the tracker list; a ready label does not jump the order');
+  assert.deepEqual(queue.map(entry => entry.position), [8, 5, 10, 2, 1, 9], 'each entry keeps its place in the list the tracker returned');
+  assert.equal(queue.find(entry => entry.task.id === '2').blocker, 'No brief: an agent would start from the title alone');
+  assert.equal(queue.filter(entry => entry.blocker).length, 1);
 });
 
-test('review room counts pull requests waiting on you and is full at the limit', () => {
+test('a ClickUp priority counts down from urgent, a Vikunja one up to do now', () => {
+  assert.deepEqual(priorityOf({ provider: 'vikunja', priority: 4 }), { rank: 4, name: 'urgent' });
+  assert.deepEqual(priorityOf({ provider: 'vikunja', priority: 5 }), { rank: 5, name: 'do now' });
+  assert.deepEqual(priorityOf({ provider: 'clickup', priority: 1 }), { rank: 4, name: 'urgent' });
+  assert.deepEqual(priorityOf({ provider: 'clickup', priority: 4 }), { rank: 1, name: 'low' });
+  assert.equal(priorityOf({ provider: 'vikunja' }), null);
+  const lists = [{ sourceId: 'list', tasks: [{ ...task(1, { provider: 'clickup' }), priority: 4 }, { ...task(2, { provider: 'clickup' }), priority: 1 }] }];
+  assert.deepEqual(startQueue(lists, new Map()).map(entry => entry.task.id), ['2', '1'], 'ClickUp urgent comes before ClickUp low');
+});
+
+test('a task is agent-ready only when its board routes it to a ready repository with a Team of yours on it', () => {
+  const route = (labels, conn = connections, src = source) => routeOf(task(1, { labels: labels.map(name => ({ name })) }), src, conn);
+  assert.deepEqual(route([]), { ok: true, repository: 'unfold' }, 'no repo/ label takes the board default');
+  assert.deepEqual(route(['repo/ploeg']), { ok: true, repository: 'ploeg' });
+  assert.deepEqual(route(['repo/site']), { ok: false, reason: 'repo/site is not allowed on the Glide board' });
+  assert.deepEqual(route(['repo/mailboxes']), { ok: false, reason: 'repo/mailboxes names no repository Ploeg knows' });
+  assert.deepEqual(route(['repo/ploeg', 'repo/unfold']), { ok: false, reason: 'More than one repo/ label (repo/ploeg, repo/unfold): keep exactly one' });
+  assert.deepEqual(route(['repo/homelab']), { ok: false, reason: 'homelab-cluster is not ready for agents: webgrip/homelab-cluster has no AGENTS.md on branch "main"' });
+  const noDefault = { ...connections, boards: [{ ...connections.boards[0], default: null }] };
+  assert.deepEqual(route([], noDefault), { ok: false, reason: 'The Glide board needs a repo/ label on this task' });
+  const noTeam = { ...connections, boards: [{ ...connections.boards[0], teams: [] }] };
+  assert.deepEqual(route([], noTeam), { ok: false, reason: 'No Team of yours takes work from the Glide board' });
+  assert.deepEqual(route([], { ...connections, boards: [] }), { ok: false, reason: 'Ploeg routes no board for Glide board' });
+  const unrouted = { ...connections, boards: [{ ...connections.boards[0], sources: [{ id: 'glide', routed: false }] }] };
+  assert.equal(route([], unrouted).ok, false);
+  assert.deepEqual(route(['repo/site'], null), { ok: true, repository: 'unfold' }, 'without the connections read, a connection that names a repository routes');
+  assert.deepEqual(route([], null, { ...source, repositoryId: '' }), { ok: false, reason: 'This connection names no repository for agents to work in' });
+  const refused = new Map([['vikunja:3', 'The Glide board needs a repo/ label on this task.']]);
+  const queue = startQueue([{ sourceId: 'glide', tasks: [task(3), task(4, { labels: [{ name: 'repo/site' }] })] }], new Map(), [], { sources: [source], connections, refused });
+  assert.deepEqual(queue.map(entry => entry.blocker), ['The Glide board needs a repo/ label on this task.', 'repo/site is not allowed on the Glide board'], 'Ploeg’s own refusal wins over the routing read');
+});
+
+test('each Up next row says why it is there, in the tracker’s words', () => {
+  assert.equal(whyHere(entryOf(task(1, { priority: 4, dueAt: '2026-10-30T09:00:00Z' }))), `Priority urgent · due ${namedDate('2026-10-30T09:00:00Z')}`);
+  assert.equal(whyHere(entryOf(task(1, { priority: 3 }))), 'Priority high');
+  assert.equal(whyHere(entryOf(task(1, { dueAt: '2026-10-30T09:00:00Z' }))), `Due ${namedDate('2026-10-30T09:00:00Z')}`);
+  assert.equal(whyHere(entryOf(task(1), 'glide', 2)), 'Tracker order #3');
+});
+
+test('review room reads as a sentence and is full at the limit', () => {
   const waiting = n => ({ waiting: Array.from({ length: n }, (_, index) => ({ id: String(index), state: 'awaiting_review' })).concat({ id: 'x', state: 'needs_human' }) });
   assert.deepEqual(roomOf(waiting(1)), { used: 1, size: reviewRoom, full: false });
   assert.equal(roomOf(waiting(reviewRoom)).full, true);
   assert.equal(roomOf({ waiting: [], errors: { waiting: 'down' } }), null);
-  assert.match(startCard({ queue: [{ task: task(1), sourceId: 'glide', readiness: readiness(task(1)) }], sources: [source], room: roomOf(waiting(reviewRoom)) }), /Review room full: 4 pull requests wait for you[\s\S]*Decide on what waits first/);
-  assert.match(startCard({ queue: [], sources: [source], room: roomOf(waiting(1)) }), /Room for 3 more reviews/);
+  assert.match(startCard({ queue: [entryOf(task(1))], sources: [source], room: roomOf(waiting(reviewRoom)) }), /Review room full: 4 pull requests wait for you[\s\S]*Decide on what waits first/);
+  assert.match(startCard({ queue: [], sources: [source], room: roomOf(waiting(0)) }), />You can take 4 more reviews</);
+  const one = startCard({ queue: [], sources: [source], room: roomOf(waiting(1)) });
+  assert.match(one, />You can take 3 more reviews · 1 waits now</);
+  assert.doesNotMatch(one, /start-room-cell/, 'the meter is words, not empty squares');
 });
 
-test('the Start lane says why it is empty, caps its list and points to Tasks', () => {
+test('Up next lists the first five tasks agents can take in the tracker’s order, then Show all and Include', () => {
   assert.match(startCard({ queue: [], sources: [], room: null }), /No task connection hands work to Ploeg/);
   assert.match(startCard({ queue: null, sources: [source], error: 'Vikunja is down', room: null }), /Could not list your tasks[\s\S]*Vikunja is down[\s\S]*start-reload/);
   assert.match(startCard({ queue: [], sources: [source], room: null }), /Nothing left to start/);
-  const many = Array.from({ length: startLimit + 3 }, (_, index) => ({ task: task(index + 1), sourceId: 'glide', readiness: readiness(task(index + 1)) }));
-  const html = startCard({ queue: many, sources: [source], room: roomOf({ waiting: [] }), singleKeys: true });
+  const ready = Array.from({ length: startLimit + 3 }, (_, index) => entryOf(task(index + 1, { labels: [{ name: 'ready' }] }), 'glide', index));
+  const held = [{ ...entryOf(task(20, { title: 'Create the hello@ mailbox', labels: [{ name: 'repo/mailboxes' }] }), 'glide', 20), blocker: 'repo/mailboxes names no repository Ploeg knows' }];
+  const queue = [...ready, ...held];
+  const html = startCard({ queue, sources: [source], room: roomOf({ waiting: [] }), singleKeys: true });
   assert.equal(html.match(/data-action="start-open"/g).length, startLimit);
-  assert.match(html, /3 more open tasks in Tasks/);
-  assert.match(html, /Up next/);
-  assert.doesNotMatch(html, /Not marked ready/, 'the usual case carries no badge');
+  assert.match(html, /In your tracker’s order · 8 tasks agents can take, all marked ready/);
+  assert.doesNotMatch(html, /Marked ready/, 'a badge every row carries says nothing, so the order line says it once');
+  assert.match(html, /Tracker order #1[\s\S]*Tracker order #5/);
+  assert.doesNotMatch(html, /hello@ mailbox/, 'a task agents cannot take is left out by default');
+  assert.match(html, /id="start-all" data-action="start-all" aria-pressed="false">Show all 8</);
+  assert.match(html, /id="start-include" data-action="start-include" aria-pressed="false">Include tasks agents cannot take \(1\)</);
   assert.match(html, /data-now-row/, 'Start rows take part in j and k');
+  const all = startCard({ queue, sources: [source], room: null, all: true });
+  assert.equal(all.match(/data-action="start-open"/g).length, startLimit + 3);
+  assert.match(all, /aria-pressed="true">Show the first 5</);
+  const included = startCard({ queue, sources: [source], room: null, all: true, include: true });
+  assert.equal(included.match(/data-action="start-open"/g).length, startLimit + 4);
+  assert.match(included, /data-held[\s\S]*hello@ mailbox[\s\S]*data-blocked>repo\/mailboxes names no repository Ploeg knows/);
+  const mixed = startCard({ queue: [entryOf(task(1, { labels: [{ name: 'ready' }] })), entryOf(task(2), 'glide', 1)], sources: [source], room: null });
+  assert.match(mixed, /Marked ready/, 'when some rows are not marked ready, the badge tells them apart');
+  assert.doesNotMatch(mixed, /Not marked ready/, 'the usual case carries no badge');
+  const none = startCard({ queue: held, sources: [source], room: null });
+  assert.match(none, /No task agents can take right now[\s\S]*1 open task needs something first/);
+  assert.match(none, /Include tasks agents cannot take \(1\)/);
 });
 
-test('Up next rows show the board, size, Team label and priority, and a board switch narrows them', () => {
+test('Up next rows show the board, size and Team label, and Show all adds a board switch that narrows them', () => {
   const other = { ...source, id: 'homelab', name: 'Homelab Roadmap' };
   const queue = [
-    { task: task(1, { labels: [{ name: 'effort/S' }, { name: 'team/bronze' }, { name: 'spike' }], priority: 3 }), sourceId: 'glide' },
-    { task: task(2), sourceId: 'homelab' },
-  ].map(entry => ({ ...entry, readiness: readiness(entry.task) }));
-  const all = startCard({ queue, sources: [source, other], room: null });
-  assert.match(all, /Spike[\s\S]*#1[\s\S]*Glide board[\s\S]*size S[\s\S]*for bronze[\s\S]*high priority/);
+    entryOf(task(1, { labels: [{ name: 'effort/S' }, { name: 'team/bronze' }, { name: 'spike' }], priority: 3 })),
+    entryOf(task(2), 'homelab', 0),
+  ];
+  const top = startCard({ queue, sources: [source, other], room: null });
+  assert.match(top, /Priority high[\s\S]*Spike[\s\S]*#1[\s\S]*Glide board[\s\S]*size S[\s\S]*for bronze/);
+  assert.doesNotMatch(top, /data-action="start-board"/, 'the first five carry no board switch');
+  const all = startCard({ queue, sources: [source, other], room: null, all: true });
   assert.match(all, /data-action="start-board" data-board="" aria-pressed="true">All 2</);
   assert.match(all, /data-board="homelab" aria-pressed="false">Homelab Roadmap 1</);
-  const narrowed = startCard({ queue, sources: [source, other], room: null, board: 'homelab' });
+  const narrowed = startCard({ queue, sources: [source, other], room: null, all: true, board: 'homelab' });
   assert.equal(narrowed.match(/data-action="start-open"/g).length, 1);
-  assert.match(startCard({ queue, sources: [source, other], room: null, board: 'gone' }), /aria-pressed="true">All 2</, 'an unknown board falls back to all');
+  assert.equal(startCard({ queue, sources: [source, other], room: null, board: 'homelab' }).match(/data-action="start-open"/g).length, 2, 'a chosen board applies only while every task shows');
+  assert.match(startCard({ queue, sources: [source, other], room: null, all: true, board: 'gone' }), /aria-pressed="true">All 2</, 'an unknown board falls back to all');
   assert.equal(labelledTeam(task(1, { labels: [{ name: 'team/pewter' }] })), 'pewter');
 });
 

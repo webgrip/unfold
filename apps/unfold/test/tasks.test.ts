@@ -293,14 +293,21 @@ test('demo tasks are labeled fixtures, bound to the demo repository and unavaila
   const [configured] = validateTaskSources([raw], repositories, 'demo');
   assert.deepEqual(validateTaskSources(undefined, repositories, 'demo'), [configured]);
   const page = await listTasks(configured);
-  assert.equal(page.tasks.length, 1);
-  assert.equal(page.tasks[0].id, '1');
-  assert.match(page.tasks[0].title, /Demo fixture/);
-  assert.match(page.tasks[0].description, /without model calls or spend/);
-  assert.equal(page.tasks[0].repositoryId, 'order-service');
+  assert.deepEqual(page.tasks.map(task => task.id), ['1', '2', '3', '4', '5', '6', '7', '8']);
+  for (const task of page.tasks) {
+    assert.match(task.title, /^\[Demo fixture\] /);
+    assert.match(task.description, /not a linked external tracker item[\s\S]*(without model calls or spend|makes no model calls and spends nothing)/);
+    assert.equal(task.repositoryId, 'order-service');
+    assert.equal(task.url, `https://example.invalid/unfold-demo/tasks/${task.id}`);
+  }
+  assert.deepEqual(page.tasks[0].labels, [{ name: 'ready' }]);
+  assert.equal(page.tasks[0].priority, 4);
+  assert.ok(page.tasks[0].dueAt, 'the first fixture task has a due date so Up next shows one');
+  assert.deepEqual(page.tasks[7].labels, [{ name: 'repo/warehouse' }], 'one fixture task names a repository Ploeg does not route, so Up next shows a task agents cannot take');
   assert.deepEqual(await getTask(configured, '1'), page.tasks[0]);
+  assert.deepEqual(await getTask(configured, '8'), page.tasks[7]);
   assert.deepEqual(await listTasks(configured, 2), { tasks: [] });
-  await assert.rejects(getTask(configured, '2'), expectedError('task_not_found'));
+  await assert.rejects(getTask(configured, '9'), expectedError('task_not_found'));
 });
 
 test('Vikunja snapshots carry labels, assignees, priority, due date and identifier without changing the revision, and the preview adds Markdown', async () => {

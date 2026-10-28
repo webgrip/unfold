@@ -575,7 +575,7 @@ const connections: Omit<PloegConnections, 'fetchedAt'> = {
     { key: 'market-research', label: 'market-research', forge: 'demo', owner: 'example', repo: 'market-research', baseBranch: 'main', readiness: 'not_ready', reason: 'example/market-research has no AGENTS.md on branch "main"', lastForgeEventAt: null, boards: ['Demo'] },
   ],
   boards: [
-    { tracker: 'demo', name: 'Demo', projectId: 'demo', team: null, repository: null, default: 'order-service', allow: ['market-research'], webhook: 'present', teams: [{ team: 'delivery', assignees: [{ username: 'delivery', shared: true }] }, { team: 'research', assignees: [{ username: 'research', shared: false }] }], sources: [{ id: 'demo', name: 'Demo', target: 'example/order-service@main', routed: true }] },
+    { tracker: 'demo', name: 'Demo', projectId: 'demo', team: null, repository: null, default: 'order-service', allow: ['market-research'], webhook: 'present', teams: [{ team: 'delivery', assignees: [{ username: 'delivery', shared: true }] }, { team: 'research', assignees: [{ username: 'research', shared: false }] }], sources: [{ id: 'demo-tasks', name: 'Demo fixture tasks', target: 'example/order-service@main', routed: true }] },
   ],
   unrouted: [],
 };

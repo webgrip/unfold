@@ -1,4 +1,4 @@
-import { nowMarkup, loopMarkup, nextBaseline, shownIds, visibleNow, offersRetry, digestSection } from '../now.js';
+import { nowMarkup, loopMarkup, nextBaseline, shownIds, visibleNow, offersRetry, digestSection, refusalSentence } from '../now.js';
 import { cancelDialogMarkup, cancelSummary } from '../ploeg.js';
 import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
@@ -84,7 +84,7 @@ function modeSwitch(fleet) {
   return `<span class="now-mode">${segmented({ label: 'Show Now as', action: 'now-mode', items: [{ id: 'desk', label: enabled('now.loop') ? 'Loop' : 'Desk', selected: !fleet }, { id: 'fleet', label: 'Fleet', selected: fleet }] })}</span>`;
 }
 
-const start = { lists: new Map(), loading: false, loaded: false, handed: [], sheet: null, week: null, weekAt: 0 };
+const start = { lists: new Map(), connections: null, loading: false, loaded: false, handed: [], sheet: null, week: null, weekAt: 0, all: false, include: false };
 const teamKey = 'unfold.handoffTeam';
 const boardKey = 'unfold.startBoard';
 
@@ -96,6 +96,13 @@ function chooseBoard(element) {
   try { globalThis.localStorage?.setItem(boardKey, element.dataset.board || ''); } catch {}
   renderNow();
   document.querySelector(`[data-action="start-board"][data-board="${CSS.escape(element.dataset.board || '')}"]`)?.focus({ preventScroll: true });
+}
+
+function toggleStart(element) {
+  const key = element.dataset.action === 'start-all' ? 'all' : 'include';
+  start[key] = !start[key];
+  renderNow();
+  document.getElementById(element.dataset.action)?.focus({ preventScroll: true });
 }
 const weekFor = 5 * 60 * 1000;
 
@@ -123,8 +130,9 @@ function startLane(standings) {
   const lists = sources.map(source => ({ sourceId: source.id, tasks: start.lists.get(source.id)?.tasks || [] }));
   const errors = sources.map(source => start.lists.get(source.id)?.error).filter(Boolean);
   const failed = sources.length > 0 && errors.length === sources.length;
-  const queue = !start.loaded || failed ? null : startQueue(lists, standings, start.handed);
-  return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard() });
+  const refused = new Map((Array.isArray(view.data?.refused) ? view.data.refused : []).map(entry => [`${entry.provider}:${entry.externalId}`, refusalSentence(entry)]));
+  const queue = !start.loaded || failed ? null : startQueue(lists, standings, start.handed, { sources, connections: start.connections, refused });
+  return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard(), all: start.all, include: start.include });
 }
 
 function snoozeOptions() {
@@ -323,11 +331,13 @@ async function loadStart() {
   if (!loopShown() || !canStart()) return;
   const sources = startSources();
   start.loading = true;
+  const connections = api('/api/ploeg/connections').catch(() => null);
   const lists = await Promise.all(sources.map(async source => {
     try { return [source.id, { tasks: (await api(`/api/task-sources/${encodeURIComponent(source.id)}/tasks?page=1`)).tasks || [] }]; }
     catch (error) { return [source.id, { tasks: start.lists.get(source.id)?.tasks || [], error: error.message || 'The tracker did not answer.' }]; }
   }));
   start.lists = new Map(lists);
+  start.connections = await connections;
   start.loading = false;
   start.loaded = true;
   if (onNow()) renderNow();
@@ -618,6 +628,8 @@ export default {
     'now-unsnooze': endSnooze,
     'now-snoozed-toggle': element => toggleQuiet(element, 'showSnoozed'),
     'now-older-toggle': element => toggleQuiet(element, 'showOlder'),
+    'start-all': toggleStart,
+    'start-include': toggleStart,
   },
   forms: { 'start-handoff': handOff, 'loop-retry': retry },
   changes: { '[data-form="start-handoff"]': chooseTeam },
