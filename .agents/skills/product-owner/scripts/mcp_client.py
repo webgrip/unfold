@@ -27,7 +27,7 @@ import json
 import os
 import urllib.request
 
-DEFAULT_URL = os.environ.get("VIKUNJA_MCP_URL", "https://litellm.webgrip.dev/mcp/")
+DEFAULT_URL = os.environ.get("VIKUNJA_MCP_URL", "https://litellm.webgrip.dev/mcp/vikunja")
 TOOL_PREFIX = os.environ.get("VIKUNJA_MCP_TOOL_PREFIX", "vikunja-")
 session = {"id": None, "url": DEFAULT_URL}
 _id = [0]

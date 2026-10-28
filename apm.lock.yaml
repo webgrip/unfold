@@ -4,8 +4,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-baseline
   host: forgejo.webgrip.dev
-  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
-  resolved_ref: v0.5.1
+  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
+  resolved_ref: v0.5.2
   version: 0.0.0
   virtual_path: packages/baseline
   is_virtual: true
@@ -20,41 +20,40 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-board
   host: forgejo.webgrip.dev
-  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
-  resolved_ref: v0.5.1
+  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
+  resolved_ref: v0.5.2
   version: 0.0.0
   virtual_path: packages/board
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:3a7b63c2d84878cd7df9c2fec7b50150100ae289914c70ffced7b3c3002bd06b
+  content_hash: sha256:b2132fd4c34af93e722f124a580b32a711096dc072d67df76972c64dfee4dd84
 - repo_url: webgrip/agent-standards
   name: webgrip-secrets
   host: forgejo.webgrip.dev
-  resolved_commit: c335244601eec7b1cf76e3c2a8a170ade334918a
-  resolved_ref: v0.5.1
+  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
+  resolved_ref: v0.5.2
   version: 0.0.0
   virtual_path: packages/secrets
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:0c49093694d63e8db69467ade460a2a95197069051b60b4c1aa8fc74c552f157
+  content_hash: sha256:027f1e4e1fddc2d6a993e8e430005d795c641568aab3bdf645753af77b3a7d2d
 - repo_url: webgrip/ai-skills
   name: guard-secrets
   host: forgejo.webgrip.dev
-  resolved_commit: dc132550c304fd4ff8e8fcfc9d508c563848425d
-  resolved_ref: guard-secrets-v1.0.5
-  version: 1.0.5
+  resolved_commit: 935579bbafa0e80197c8afa9cae99de8cf684db8
+  resolved_ref: guard-secrets-v1.0.6
+  version: 935579b
   virtual_path: skills/guard-secrets
   is_virtual: true
   depth: 2
   resolved_by: webgrip/agent-standards
-  package_type: hybrid
+  package_type: marketplace_plugin
   deployed_files:
   - .agents/skills/guard-secrets
   - .agents/skills/guard-secrets/.claude-plugin/plugin.json
   - .agents/skills/guard-secrets/CHANGELOG.md
   - .agents/skills/guard-secrets/README.md
   - .agents/skills/guard-secrets/SKILL.md
-  - .agents/skills/guard-secrets/apm.yml
   - .agents/skills/guard-secrets/evals/evals.json
   - .agents/skills/guard-secrets/hooks/hooks.json
   - .agents/skills/guard-secrets/scripts/guard_secrets.py
@@ -65,46 +64,43 @@ dependencies:
   - .claude/skills/guard-secrets/CHANGELOG.md
   - .claude/skills/guard-secrets/README.md
   - .claude/skills/guard-secrets/SKILL.md
-  - .claude/skills/guard-secrets/apm.yml
   - .claude/skills/guard-secrets/evals/evals.json
   - .claude/skills/guard-secrets/hooks/hooks.json
   - .claude/skills/guard-secrets/scripts/guard_secrets.py
   - .claude/skills/guard-secrets/test.sh
   - .codex/hooks/guard-secrets/scripts/guard_secrets.py
   deployed_file_hashes:
-    .agents/skills/guard-secrets/.claude-plugin/plugin.json: sha256:30f2e5624e5a8f035b15580988b106c13252d04f548cbec2ae4de55665ad0675
+    .agents/skills/guard-secrets/.claude-plugin/plugin.json: sha256:eb1286fa35eb333cf74708d9c51cb62f819bf87cd33db785599e86dad3548a75
     .agents/skills/guard-secrets/CHANGELOG.md: sha256:36b6b74db992f2e5e8eaf4099443aa058a2338471be10e98055e8ce44d0b3a46
     .agents/skills/guard-secrets/README.md: sha256:839740649fd8dceb1c8a41ebabe319009a0ae13badc76acd3505bd090baffe19
     .agents/skills/guard-secrets/SKILL.md: sha256:bc76648fe95c05ae34a945c15a50e91c28d329720ea4c28bcb08d6e16080c84a
-    .agents/skills/guard-secrets/apm.yml: sha256:f5b914679d494be6289f4ecdccde036d95b37460bb1cf80a0d6fb50d165d0d05
     .agents/skills/guard-secrets/evals/evals.json: sha256:15982cab206b9c4d4c713fb13b4ef245e8bf9d038b724a5547ff288c5e1ee05c
     .agents/skills/guard-secrets/hooks/hooks.json: sha256:bf9110355bb1cda59e34f71408333bb08103ce219f3aebb3c5c597c44290dfdc
     .agents/skills/guard-secrets/scripts/guard_secrets.py: sha256:f783ff501c9c1ec167f5a644ba7c8547bfc345074a67dd8a9bad2bb6567eb753
     .agents/skills/guard-secrets/test.sh: sha256:a9f8ce58bbb82a59442950e161367fd03b360fd54d37c2bdf5d9c4376aa876d4
     .claude/hooks/guard-secrets/scripts/guard_secrets.py: sha256:f783ff501c9c1ec167f5a644ba7c8547bfc345074a67dd8a9bad2bb6567eb753
-    .claude/skills/guard-secrets/.claude-plugin/plugin.json: sha256:30f2e5624e5a8f035b15580988b106c13252d04f548cbec2ae4de55665ad0675
+    .claude/skills/guard-secrets/.claude-plugin/plugin.json: sha256:eb1286fa35eb333cf74708d9c51cb62f819bf87cd33db785599e86dad3548a75
     .claude/skills/guard-secrets/CHANGELOG.md: sha256:36b6b74db992f2e5e8eaf4099443aa058a2338471be10e98055e8ce44d0b3a46
     .claude/skills/guard-secrets/README.md: sha256:839740649fd8dceb1c8a41ebabe319009a0ae13badc76acd3505bd090baffe19
     .claude/skills/guard-secrets/SKILL.md: sha256:bc76648fe95c05ae34a945c15a50e91c28d329720ea4c28bcb08d6e16080c84a
-    .claude/skills/guard-secrets/apm.yml: sha256:f5b914679d494be6289f4ecdccde036d95b37460bb1cf80a0d6fb50d165d0d05
     .claude/skills/guard-secrets/evals/evals.json: sha256:15982cab206b9c4d4c713fb13b4ef245e8bf9d038b724a5547ff288c5e1ee05c
     .claude/skills/guard-secrets/hooks/hooks.json: sha256:bf9110355bb1cda59e34f71408333bb08103ce219f3aebb3c5c597c44290dfdc
     .claude/skills/guard-secrets/scripts/guard_secrets.py: sha256:f783ff501c9c1ec167f5a644ba7c8547bfc345074a67dd8a9bad2bb6567eb753
     .claude/skills/guard-secrets/test.sh: sha256:a9f8ce58bbb82a59442950e161367fd03b360fd54d37c2bdf5d9c4376aa876d4
     .codex/hooks/guard-secrets/scripts/guard_secrets.py: sha256:f783ff501c9c1ec167f5a644ba7c8547bfc345074a67dd8a9bad2bb6567eb753
-  content_hash: sha256:0107065e958a5bafde6c8b356cca13dedb77028a7c4238c691291f2a7881f2f8
+  content_hash: sha256:bbfbfa199d75ec81bbe4668a15a87813883559f320d3990c0025a99d898fd73f
   declared_license: MIT
 - repo_url: webgrip/ai-skills
   name: product-owner
   host: forgejo.webgrip.dev
-  resolved_commit: e94529f83871c6c5c00abaada7c8704a99b82eac
-  resolved_ref: product-owner-v0.9.2
-  version: 0.9.2
+  resolved_commit: 935579bbafa0e80197c8afa9cae99de8cf684db8
+  resolved_ref: product-owner-v0.9.4
+  version: 935579b
   virtual_path: skills/product-owner
   is_virtual: true
   depth: 2
   resolved_by: webgrip/agent-standards
-  package_type: hybrid
+  package_type: marketplace_plugin
   deployed_files:
   - .agents/skills/product-owner
   - .agents/skills/product-owner/.claude-plugin/plugin.json
@@ -115,7 +111,6 @@ dependencies:
   - .agents/skills/product-owner/adapters/clickup.md
   - .agents/skills/product-owner/adapters/vikunja.md
   - .agents/skills/product-owner/agents.md
-  - .agents/skills/product-owner/apm.yml
   - .agents/skills/product-owner/contracts.md
   - .agents/skills/product-owner/evals/evals.json
   - .agents/skills/product-owner/flow.md
@@ -137,7 +132,6 @@ dependencies:
   - .claude/skills/product-owner/adapters/clickup.md
   - .claude/skills/product-owner/adapters/vikunja.md
   - .claude/skills/product-owner/agents.md
-  - .claude/skills/product-owner/apm.yml
   - .claude/skills/product-owner/contracts.md
   - .claude/skills/product-owner/evals/evals.json
   - .claude/skills/product-owner/flow.md
@@ -151,15 +145,14 @@ dependencies:
   - .claude/skills/product-owner/scripts/ticket_lint.py
   - .claude/skills/product-owner/test.sh
   deployed_file_hashes:
-    .agents/skills/product-owner/.claude-plugin/plugin.json: sha256:da2e6807a0db66d1020a8a7011456d72e46e55c35caecc41ec270491440b5dc5
-    .agents/skills/product-owner/.mcp.json: sha256:c892a8770113c3f99cd70a34ee8e6fa35177b58a691a35394b9ccb57be2a4b02
-    .agents/skills/product-owner/CHANGELOG.md: sha256:964ef46958bc7dd9494f30fe68f200d233ff525be211e243c268063126f892dd
-    .agents/skills/product-owner/README.md: sha256:509d60a266ff70b648e796f025b6b09f270bbab0f7776c21ca2edba5a7f69d02
+    .agents/skills/product-owner/.claude-plugin/plugin.json: sha256:d97bc47571c4e8bcc769bd5d65213a0ed2d67b75f4ce0d768a9b6eb36d9836ca
+    .agents/skills/product-owner/.mcp.json: sha256:354dc45ab63d5e541263f4a5c65f8a071da1edc6381f84e5679a7b36c0a47740
+    .agents/skills/product-owner/CHANGELOG.md: sha256:cdf52c3a340f05f9807970b28706ec3a1d2c846bc268813eb0a6afd21f53a885
+    .agents/skills/product-owner/README.md: sha256:47f512cab4567bffcf1af94e045277fe940612951cd1fe77dff1ebd99f229435
     .agents/skills/product-owner/SKILL.md: sha256:149cf1385b7bffb2925101827da5cc7fd831df6413bae2171853d286706bba69
     .agents/skills/product-owner/adapters/clickup.md: sha256:c95d61715bf7e4539d59dfd57fe9e29ed03e8a59f3e54f51a8837eb482bf3841
-    .agents/skills/product-owner/adapters/vikunja.md: sha256:1c1b17aead5e827c0bcfa7ce1e0d67ca514346290f09ef142660e6fb79886ff8
+    .agents/skills/product-owner/adapters/vikunja.md: sha256:f7dbb64bc4d31e4de2d70e012e5f012a0d5d81494faef8642436e1d70d02b5af
     .agents/skills/product-owner/agents.md: sha256:2950758084d67d6e86adfa9c37739a9a6a78ac8c802f1e77815cc826f737c81d
-    .agents/skills/product-owner/apm.yml: sha256:ba398a5af9c3098730f1f315da894e6921b05808a6501c7dd1b92c61543933a6
     .agents/skills/product-owner/contracts.md: sha256:8aa70e2e5e416b38a46e127588bee22075655dbf9d41062aeba80412d0e10647
     .agents/skills/product-owner/evals/evals.json: sha256:deac054ac3d1ab4397897fbc412309788a66878f05f5b4f6a79e2038dacf9950
     .agents/skills/product-owner/flow.md: sha256:2a50d2489bc0218e1b36b220f29105b5cc5463d7e62bdda52adb1e3b6fbad981
@@ -168,19 +161,18 @@ dependencies:
     .agents/skills/product-owner/rationale.md: sha256:2714a0cef009dee844aff8f547e231bf92122b00055a5c25139688db5d2db4f4
     .agents/skills/product-owner/refine.md: sha256:1580ea41a6ec1f87ab44169304808fc692b517d698fa86543752c4273539eea1
     .agents/skills/product-owner/scripts/flow_metrics.py: sha256:6f1f13260a8f21458ae388e9ed24eea8ebec66595cf933d4cdb270948a886daa
-    .agents/skills/product-owner/scripts/mcp_client.py: sha256:a356c838b9356b5ce7b3d9c02f94cd01682f770e3c14ab9d2ec42d8f4b69b683
+    .agents/skills/product-owner/scripts/mcp_client.py: sha256:abd8f141173307831b4d35f0c727d292c32bb6674888307054d15aa3940b46fd
     .agents/skills/product-owner/scripts/merge_check.py: sha256:39f2b66c9d614ed852e2b08793b039b2bcdff8a92ce6bd4fae3e3d4a6442d1a3
     .agents/skills/product-owner/scripts/ticket_lint.py: sha256:3d3ce0f1a5ac2119091fc8b71a755e9614f43db19cb02ed318bf99157169988c
     .agents/skills/product-owner/test.sh: sha256:7d7b1e527a602cb319e82704cc6c17506ca6d0077c499e6ab48c6527c8caf4af
-    .claude/skills/product-owner/.claude-plugin/plugin.json: sha256:da2e6807a0db66d1020a8a7011456d72e46e55c35caecc41ec270491440b5dc5
-    .claude/skills/product-owner/.mcp.json: sha256:c892a8770113c3f99cd70a34ee8e6fa35177b58a691a35394b9ccb57be2a4b02
-    .claude/skills/product-owner/CHANGELOG.md: sha256:964ef46958bc7dd9494f30fe68f200d233ff525be211e243c268063126f892dd
-    .claude/skills/product-owner/README.md: sha256:509d60a266ff70b648e796f025b6b09f270bbab0f7776c21ca2edba5a7f69d02
+    .claude/skills/product-owner/.claude-plugin/plugin.json: sha256:d97bc47571c4e8bcc769bd5d65213a0ed2d67b75f4ce0d768a9b6eb36d9836ca
+    .claude/skills/product-owner/.mcp.json: sha256:354dc45ab63d5e541263f4a5c65f8a071da1edc6381f84e5679a7b36c0a47740
+    .claude/skills/product-owner/CHANGELOG.md: sha256:cdf52c3a340f05f9807970b28706ec3a1d2c846bc268813eb0a6afd21f53a885
+    .claude/skills/product-owner/README.md: sha256:47f512cab4567bffcf1af94e045277fe940612951cd1fe77dff1ebd99f229435
     .claude/skills/product-owner/SKILL.md: sha256:149cf1385b7bffb2925101827da5cc7fd831df6413bae2171853d286706bba69
     .claude/skills/product-owner/adapters/clickup.md: sha256:c95d61715bf7e4539d59dfd57fe9e29ed03e8a59f3e54f51a8837eb482bf3841
-    .claude/skills/product-owner/adapters/vikunja.md: sha256:1c1b17aead5e827c0bcfa7ce1e0d67ca514346290f09ef142660e6fb79886ff8
+    .claude/skills/product-owner/adapters/vikunja.md: sha256:f7dbb64bc4d31e4de2d70e012e5f012a0d5d81494faef8642436e1d70d02b5af
     .claude/skills/product-owner/agents.md: sha256:2950758084d67d6e86adfa9c37739a9a6a78ac8c802f1e77815cc826f737c81d
-    .claude/skills/product-owner/apm.yml: sha256:ba398a5af9c3098730f1f315da894e6921b05808a6501c7dd1b92c61543933a6
     .claude/skills/product-owner/contracts.md: sha256:8aa70e2e5e416b38a46e127588bee22075655dbf9d41062aeba80412d0e10647
     .claude/skills/product-owner/evals/evals.json: sha256:deac054ac3d1ab4397897fbc412309788a66878f05f5b4f6a79e2038dacf9950
     .claude/skills/product-owner/flow.md: sha256:2a50d2489bc0218e1b36b220f29105b5cc5463d7e62bdda52adb1e3b6fbad981
@@ -189,30 +181,29 @@ dependencies:
     .claude/skills/product-owner/rationale.md: sha256:2714a0cef009dee844aff8f547e231bf92122b00055a5c25139688db5d2db4f4
     .claude/skills/product-owner/refine.md: sha256:1580ea41a6ec1f87ab44169304808fc692b517d698fa86543752c4273539eea1
     .claude/skills/product-owner/scripts/flow_metrics.py: sha256:6f1f13260a8f21458ae388e9ed24eea8ebec66595cf933d4cdb270948a886daa
-    .claude/skills/product-owner/scripts/mcp_client.py: sha256:a356c838b9356b5ce7b3d9c02f94cd01682f770e3c14ab9d2ec42d8f4b69b683
+    .claude/skills/product-owner/scripts/mcp_client.py: sha256:abd8f141173307831b4d35f0c727d292c32bb6674888307054d15aa3940b46fd
     .claude/skills/product-owner/scripts/merge_check.py: sha256:39f2b66c9d614ed852e2b08793b039b2bcdff8a92ce6bd4fae3e3d4a6442d1a3
     .claude/skills/product-owner/scripts/ticket_lint.py: sha256:3d3ce0f1a5ac2119091fc8b71a755e9614f43db19cb02ed318bf99157169988c
     .claude/skills/product-owner/test.sh: sha256:7d7b1e527a602cb319e82704cc6c17506ca6d0077c499e6ab48c6527c8caf4af
-  content_hash: sha256:61b38be8daf032d7f81d2e2d0651f836376aaf9a5d5385b30d013233a787de3e
+  content_hash: sha256:f0dc1e1837efaeb8b016fb3ff9c44caba7700d7d3b7a26ac8584dc49d6d85e6b
   declared_license: MIT
 - repo_url: webgrip/ai-skills
   name: product-owner-contract
   host: forgejo.webgrip.dev
-  resolved_commit: 616f1552c9924b4f647486fdbff226a8c87fbb29
-  resolved_ref: product-owner-contract-v0.1.0
-  version: 0.1.0
+  resolved_commit: 935579bbafa0e80197c8afa9cae99de8cf684db8
+  resolved_ref: product-owner-contract-v0.1.1
+  version: 935579b
   virtual_path: skills/product-owner-contract
   is_virtual: true
   depth: 2
   resolved_by: webgrip/agent-standards
-  package_type: hybrid
+  package_type: marketplace_plugin
   deployed_files:
   - .agents/skills/product-owner-contract
   - .agents/skills/product-owner-contract/.claude-plugin/plugin.json
   - .agents/skills/product-owner-contract/CHANGELOG.md
   - .agents/skills/product-owner-contract/README.md
   - .agents/skills/product-owner-contract/SKILL.md
-  - .agents/skills/product-owner-contract/apm.yml
   - .agents/skills/product-owner-contract/evals/evals.json
   - .agents/skills/product-owner-contract/teams/default/assets/definition-of-done.md
   - .agents/skills/product-owner-contract/teams/default/assets/definition-of-ready.md
@@ -225,7 +216,6 @@ dependencies:
   - .claude/skills/product-owner-contract/CHANGELOG.md
   - .claude/skills/product-owner-contract/README.md
   - .claude/skills/product-owner-contract/SKILL.md
-  - .claude/skills/product-owner-contract/apm.yml
   - .claude/skills/product-owner-contract/evals/evals.json
   - .claude/skills/product-owner-contract/teams/default/assets/definition-of-done.md
   - .claude/skills/product-owner-contract/teams/default/assets/definition-of-ready.md
@@ -234,11 +224,10 @@ dependencies:
   - .claude/skills/product-owner-contract/teams/default/board.md
   - .claude/skills/product-owner-contract/test.sh
   deployed_file_hashes:
-    .agents/skills/product-owner-contract/.claude-plugin/plugin.json: sha256:ebea529ca64d92746ed1438ad4fa5199c35d37e8e0f274d7d7cf2fe36bfd2f40
+    .agents/skills/product-owner-contract/.claude-plugin/plugin.json: sha256:5a27085231cec9de21732b321f68dd9ed1aff91d23b576e943760ff2adc61b99
     .agents/skills/product-owner-contract/CHANGELOG.md: sha256:2c2816b5a04aaa067f144e834507b9c6ab7eb3c54c4bb707e1152f9fa5e8edfb
     .agents/skills/product-owner-contract/README.md: sha256:bcd258a57b52179364522f53d4f320e3311d8029c35ea352ea2f3af92ed25621
     .agents/skills/product-owner-contract/SKILL.md: sha256:d4666c59b5dfe0f99312770807482f45dc244ee629f87f24e6a8063de8fd57aa
-    .agents/skills/product-owner-contract/apm.yml: sha256:ec054b2eb780aa5411237a736020b873d22ea251089fa3fd9441b2b0ae176e3d
     .agents/skills/product-owner-contract/evals/evals.json: sha256:6127e6e99eb887a5dfb83fb51465b0d3db2d2f2641c76336d1225443ed976ae0
     .agents/skills/product-owner-contract/teams/default/assets/definition-of-done.md: sha256:757caa01c9c8c674c089430dc23fdd3e77668a414c133c47fcd369d1f6fa060c
     .agents/skills/product-owner-contract/teams/default/assets/definition-of-ready.md: sha256:22ded40e282ed7a40e980533ef5278bf5e6090d66d8dc7f61e4431335e028270
@@ -246,11 +235,10 @@ dependencies:
     .agents/skills/product-owner-contract/teams/default/assets/ticket-template.md: sha256:d3f0df0b433e5f2c30130420fd4edf37b64fae9f43ddaedeeff976986bafd629
     .agents/skills/product-owner-contract/teams/default/board.md: sha256:4c6bdc6947a6e606879f98bb8d58264549c2ba8a56cf31ac72866703d427f516
     .agents/skills/product-owner-contract/test.sh: sha256:296318d8f0c83122a4cee67eddbf197031eac254142bc7b85d6d1df29411068f
-    .claude/skills/product-owner-contract/.claude-plugin/plugin.json: sha256:ebea529ca64d92746ed1438ad4fa5199c35d37e8e0f274d7d7cf2fe36bfd2f40
+    .claude/skills/product-owner-contract/.claude-plugin/plugin.json: sha256:5a27085231cec9de21732b321f68dd9ed1aff91d23b576e943760ff2adc61b99
     .claude/skills/product-owner-contract/CHANGELOG.md: sha256:2c2816b5a04aaa067f144e834507b9c6ab7eb3c54c4bb707e1152f9fa5e8edfb
     .claude/skills/product-owner-contract/README.md: sha256:bcd258a57b52179364522f53d4f320e3311d8029c35ea352ea2f3af92ed25621
     .claude/skills/product-owner-contract/SKILL.md: sha256:d4666c59b5dfe0f99312770807482f45dc244ee629f87f24e6a8063de8fd57aa
-    .claude/skills/product-owner-contract/apm.yml: sha256:ec054b2eb780aa5411237a736020b873d22ea251089fa3fd9441b2b0ae176e3d
     .claude/skills/product-owner-contract/evals/evals.json: sha256:6127e6e99eb887a5dfb83fb51465b0d3db2d2f2641c76336d1225443ed976ae0
     .claude/skills/product-owner-contract/teams/default/assets/definition-of-done.md: sha256:757caa01c9c8c674c089430dc23fdd3e77668a414c133c47fcd369d1f6fa060c
     .claude/skills/product-owner-contract/teams/default/assets/definition-of-ready.md: sha256:22ded40e282ed7a40e980533ef5278bf5e6090d66d8dc7f61e4431335e028270
@@ -258,26 +246,25 @@ dependencies:
     .claude/skills/product-owner-contract/teams/default/assets/ticket-template.md: sha256:d3f0df0b433e5f2c30130420fd4edf37b64fae9f43ddaedeeff976986bafd629
     .claude/skills/product-owner-contract/teams/default/board.md: sha256:4c6bdc6947a6e606879f98bb8d58264549c2ba8a56cf31ac72866703d427f516
     .claude/skills/product-owner-contract/test.sh: sha256:296318d8f0c83122a4cee67eddbf197031eac254142bc7b85d6d1df29411068f
-  content_hash: sha256:500f1a12e78d4214a93db38e4a92216d7e721d611a0147bd18f5480aab668fdb
+  content_hash: sha256:3c4539a62cadfc6a70023e2015d17eb062b1e1e8fbc0a7740df8f9af8fd65a06
   declared_license: MIT
 - repo_url: webgrip/ai-skills
   name: secrets-levels
   host: forgejo.webgrip.dev
-  resolved_commit: 0fa0cee98540f43abc2c9dd4c7852f3cfb345527
-  resolved_ref: secrets-levels-v0.1.0
-  version: 0.1.0
+  resolved_commit: 935579bbafa0e80197c8afa9cae99de8cf684db8
+  resolved_ref: secrets-levels-v0.1.1
+  version: 935579b
   virtual_path: skills/secrets-levels
   is_virtual: true
   depth: 2
   resolved_by: webgrip/agent-standards
-  package_type: hybrid
+  package_type: marketplace_plugin
   deployed_files:
   - .agents/skills/secrets-levels
   - .agents/skills/secrets-levels/.claude-plugin/plugin.json
   - .agents/skills/secrets-levels/CHANGELOG.md
   - .agents/skills/secrets-levels/README.md
   - .agents/skills/secrets-levels/SKILL.md
-  - .agents/skills/secrets-levels/apm.yml
   - .agents/skills/secrets-levels/evals/evals.json
   - .agents/skills/secrets-levels/reference.md
   - .claude/skills/secrets-levels
@@ -285,25 +272,22 @@ dependencies:
   - .claude/skills/secrets-levels/CHANGELOG.md
   - .claude/skills/secrets-levels/README.md
   - .claude/skills/secrets-levels/SKILL.md
-  - .claude/skills/secrets-levels/apm.yml
   - .claude/skills/secrets-levels/evals/evals.json
   - .claude/skills/secrets-levels/reference.md
   deployed_file_hashes:
-    .agents/skills/secrets-levels/.claude-plugin/plugin.json: sha256:7bef435c0056d5a9f29a794301680f6abb99e23a1fa90167356f5a44cf664b0e
+    .agents/skills/secrets-levels/.claude-plugin/plugin.json: sha256:c893f75395363ba46d4b88674e924b0dd1e28b26b569d0bf9d7d84a7bba89076
     .agents/skills/secrets-levels/CHANGELOG.md: sha256:cc25e28212c841ca93c6f45088fe0f51d4a293e9cc86693e49b973a2cbaaaeed
     .agents/skills/secrets-levels/README.md: sha256:ab3d89e2699bd240260500b300030135cd85e3e722a0ccf9383d04078ab5ba01
     .agents/skills/secrets-levels/SKILL.md: sha256:df64af606692f94e544adacd5e8d7136c184d0ff74eaee5c766354b73be43dc2
-    .agents/skills/secrets-levels/apm.yml: sha256:6b3ea0554ee42009ef0201ef6aef41cf5bb6f3016b6bb9fe1e5f25303aeea264
     .agents/skills/secrets-levels/evals/evals.json: sha256:90c5c0c3fc48068d0da20a2416f3620e0d7ba584ea45c4ebfa6c7ad75b1ac40a
     .agents/skills/secrets-levels/reference.md: sha256:9acda08a09b8a3e00497f0e16d97bbbd4939f4976dbfed69710f1fd125c91e41
-    .claude/skills/secrets-levels/.claude-plugin/plugin.json: sha256:7bef435c0056d5a9f29a794301680f6abb99e23a1fa90167356f5a44cf664b0e
+    .claude/skills/secrets-levels/.claude-plugin/plugin.json: sha256:c893f75395363ba46d4b88674e924b0dd1e28b26b569d0bf9d7d84a7bba89076
     .claude/skills/secrets-levels/CHANGELOG.md: sha256:cc25e28212c841ca93c6f45088fe0f51d4a293e9cc86693e49b973a2cbaaaeed
     .claude/skills/secrets-levels/README.md: sha256:ab3d89e2699bd240260500b300030135cd85e3e722a0ccf9383d04078ab5ba01
     .claude/skills/secrets-levels/SKILL.md: sha256:df64af606692f94e544adacd5e8d7136c184d0ff74eaee5c766354b73be43dc2
-    .claude/skills/secrets-levels/apm.yml: sha256:6b3ea0554ee42009ef0201ef6aef41cf5bb6f3016b6bb9fe1e5f25303aeea264
     .claude/skills/secrets-levels/evals/evals.json: sha256:90c5c0c3fc48068d0da20a2416f3620e0d7ba584ea45c4ebfa6c7ad75b1ac40a
     .claude/skills/secrets-levels/reference.md: sha256:9acda08a09b8a3e00497f0e16d97bbbd4939f4976dbfed69710f1fd125c91e41
-  content_hash: sha256:ca9ef24901a49103d9daae7ba3e9572c988351d724bd7f2a77f832d912e34806
+  content_hash: sha256:fc2fec9a77fadbd41bdceefa67dea4e08f4974dfcf4b81cbc2f8a562e4e86683
   declared_license: MIT
 deployments:
 - kind: project-relative
@@ -458,7 +442,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  content_hash: sha256:30f2e5624e5a8f035b15580988b106c13252d04f548cbec2ae4de55665ad0675
+  content_hash: sha256:eb1286fa35eb333cf74708d9c51cb62f819bf87cd33db785599e86dad3548a75
 - kind: project-relative
   target: claude
   value: .claude/skills/guard-secrets/CHANGELOG.md
@@ -486,15 +470,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   content_hash: sha256:bc76648fe95c05ae34a945c15a50e91c28d329720ea4c28bcb08d6e16080c84a
-- kind: project-relative
-  target: claude
-  value: .claude/skills/guard-secrets/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  content_hash: sha256:f5b914679d494be6289f4ecdccde036d95b37460bb1cf80a0d6fb50d165d0d05
 - kind: project-relative
   target: claude
   value: .claude/skills/guard-secrets/evals/evals.json
@@ -584,7 +559,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  content_hash: sha256:ebea529ca64d92746ed1438ad4fa5199c35d37e8e0f274d7d7cf2fe36bfd2f40
+  content_hash: sha256:5a27085231cec9de21732b321f68dd9ed1aff91d23b576e943760ff2adc61b99
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner-contract/CHANGELOG.md
@@ -612,15 +587,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   content_hash: sha256:d4666c59b5dfe0f99312770807482f45dc244ee629f87f24e6a8063de8fd57aa
-- kind: project-relative
-  target: claude
-  value: .claude/skills/product-owner-contract/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  content_hash: sha256:ec054b2eb780aa5411237a736020b873d22ea251089fa3fd9441b2b0ae176e3d
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner-contract/evals/evals.json
@@ -692,7 +658,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:da2e6807a0db66d1020a8a7011456d72e46e55c35caecc41ec270491440b5dc5
+  content_hash: sha256:d97bc47571c4e8bcc769bd5d65213a0ed2d67b75f4ce0d768a9b6eb36d9836ca
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/.mcp.json
@@ -701,7 +667,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:c892a8770113c3f99cd70a34ee8e6fa35177b58a691a35394b9ccb57be2a4b02
+  content_hash: sha256:354dc45ab63d5e541263f4a5c65f8a071da1edc6381f84e5679a7b36c0a47740
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/CHANGELOG.md
@@ -710,7 +676,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:964ef46958bc7dd9494f30fe68f200d233ff525be211e243c268063126f892dd
+  content_hash: sha256:cdf52c3a340f05f9807970b28706ec3a1d2c846bc268813eb0a6afd21f53a885
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/README.md
@@ -719,7 +685,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:509d60a266ff70b648e796f025b6b09f270bbab0f7776c21ca2edba5a7f69d02
+  content_hash: sha256:47f512cab4567bffcf1af94e045277fe940612951cd1fe77dff1ebd99f229435
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/SKILL.md
@@ -746,7 +712,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:1c1b17aead5e827c0bcfa7ce1e0d67ca514346290f09ef142660e6fb79886ff8
+  content_hash: sha256:f7dbb64bc4d31e4de2d70e012e5f012a0d5d81494faef8642436e1d70d02b5af
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/agents.md
@@ -756,15 +722,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   content_hash: sha256:2950758084d67d6e86adfa9c37739a9a6a78ac8c802f1e77815cc826f737c81d
-- kind: project-relative
-  target: claude
-  value: .claude/skills/product-owner/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:ba398a5af9c3098730f1f315da894e6921b05808a6501c7dd1b92c61543933a6
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/contracts.md
@@ -845,7 +802,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:a356c838b9356b5ce7b3d9c02f94cd01682f770e3c14ab9d2ec42d8f4b69b683
+  content_hash: sha256:abd8f141173307831b4d35f0c727d292c32bb6674888307054d15aa3940b46fd
 - kind: project-relative
   target: claude
   value: .claude/skills/product-owner/scripts/merge_check.py
@@ -890,7 +847,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  content_hash: sha256:7bef435c0056d5a9f29a794301680f6abb99e23a1fa90167356f5a44cf664b0e
+  content_hash: sha256:c893f75395363ba46d4b88674e924b0dd1e28b26b569d0bf9d7d84a7bba89076
 - kind: project-relative
   target: claude
   value: .claude/skills/secrets-levels/CHANGELOG.md
@@ -918,15 +875,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   content_hash: sha256:df64af606692f94e544adacd5e8d7136c184d0ff74eaee5c766354b73be43dc2
-- kind: project-relative
-  target: claude
-  value: .claude/skills/secrets-levels/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  content_hash: sha256:6b3ea0554ee42009ef0201ef6aef41cf5bb6f3016b6bb9fe1e5f25303aeea264
 - kind: project-relative
   target: claude
   value: .claude/skills/secrets-levels/evals/evals.json
@@ -1025,7 +973,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  content_hash: sha256:30f2e5624e5a8f035b15580988b106c13252d04f548cbec2ae4de55665ad0675
+  content_hash: sha256:eb1286fa35eb333cf74708d9c51cb62f819bf87cd33db785599e86dad3548a75
 - kind: project-relative
   target: codex
   value: .agents/skills/guard-secrets/CHANGELOG.md
@@ -1053,15 +1001,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
   content_hash: sha256:bc76648fe95c05ae34a945c15a50e91c28d329720ea4c28bcb08d6e16080c84a
-- kind: project-relative
-  target: codex
-  value: .agents/skills/guard-secrets/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/guard-secrets
-  content_hash: sha256:f5b914679d494be6289f4ecdccde036d95b37460bb1cf80a0d6fb50d165d0d05
 - kind: project-relative
   target: codex
   value: .agents/skills/guard-secrets/evals/evals.json
@@ -1151,7 +1090,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  content_hash: sha256:ebea529ca64d92746ed1438ad4fa5199c35d37e8e0f274d7d7cf2fe36bfd2f40
+  content_hash: sha256:5a27085231cec9de21732b321f68dd9ed1aff91d23b576e943760ff2adc61b99
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner-contract/CHANGELOG.md
@@ -1179,15 +1118,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
   content_hash: sha256:d4666c59b5dfe0f99312770807482f45dc244ee629f87f24e6a8063de8fd57aa
-- kind: project-relative
-  target: codex
-  value: .agents/skills/product-owner-contract/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner-contract
-  content_hash: sha256:ec054b2eb780aa5411237a736020b873d22ea251089fa3fd9441b2b0ae176e3d
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner-contract/evals/evals.json
@@ -1259,7 +1189,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:da2e6807a0db66d1020a8a7011456d72e46e55c35caecc41ec270491440b5dc5
+  content_hash: sha256:d97bc47571c4e8bcc769bd5d65213a0ed2d67b75f4ce0d768a9b6eb36d9836ca
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/.mcp.json
@@ -1268,7 +1198,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:c892a8770113c3f99cd70a34ee8e6fa35177b58a691a35394b9ccb57be2a4b02
+  content_hash: sha256:354dc45ab63d5e541263f4a5c65f8a071da1edc6381f84e5679a7b36c0a47740
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/CHANGELOG.md
@@ -1277,7 +1207,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:964ef46958bc7dd9494f30fe68f200d233ff525be211e243c268063126f892dd
+  content_hash: sha256:cdf52c3a340f05f9807970b28706ec3a1d2c846bc268813eb0a6afd21f53a885
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/README.md
@@ -1286,7 +1216,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:509d60a266ff70b648e796f025b6b09f270bbab0f7776c21ca2edba5a7f69d02
+  content_hash: sha256:47f512cab4567bffcf1af94e045277fe940612951cd1fe77dff1ebd99f229435
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/SKILL.md
@@ -1313,7 +1243,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:1c1b17aead5e827c0bcfa7ce1e0d67ca514346290f09ef142660e6fb79886ff8
+  content_hash: sha256:f7dbb64bc4d31e4de2d70e012e5f012a0d5d81494faef8642436e1d70d02b5af
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/agents.md
@@ -1323,15 +1253,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   content_hash: sha256:2950758084d67d6e86adfa9c37739a9a6a78ac8c802f1e77815cc826f737c81d
-- kind: project-relative
-  target: codex
-  value: .agents/skills/product-owner/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:ba398a5af9c3098730f1f315da894e6921b05808a6501c7dd1b92c61543933a6
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/contracts.md
@@ -1412,7 +1333,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/product-owner
-  content_hash: sha256:a356c838b9356b5ce7b3d9c02f94cd01682f770e3c14ab9d2ec42d8f4b69b683
+  content_hash: sha256:abd8f141173307831b4d35f0c727d292c32bb6674888307054d15aa3940b46fd
 - kind: project-relative
   target: codex
   value: .agents/skills/product-owner/scripts/merge_check.py
@@ -1457,7 +1378,7 @@ deployments:
   owners:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  content_hash: sha256:7bef435c0056d5a9f29a794301680f6abb99e23a1fa90167356f5a44cf664b0e
+  content_hash: sha256:c893f75395363ba46d4b88674e924b0dd1e28b26b569d0bf9d7d84a7bba89076
 - kind: project-relative
   target: codex
   value: .agents/skills/secrets-levels/CHANGELOG.md
@@ -1485,15 +1406,6 @@ deployments:
   - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
   content_hash: sha256:df64af606692f94e544adacd5e8d7136c184d0ff74eaee5c766354b73be43dc2
-- kind: project-relative
-  target: codex
-  value: .agents/skills/secrets-levels/apm.yml
-  runtime: null
-  scope: project
-  owners:
-  - forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  active_owner: forgejo.webgrip.dev/webgrip/ai-skills/skills/secrets-levels
-  content_hash: sha256:6b3ea0554ee42009ef0201ef6aef41cf5bb6f3016b6bb9fe1e5f25303aeea264
 - kind: project-relative
   target: codex
   value: .agents/skills/secrets-levels/evals/evals.json

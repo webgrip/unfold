@@ -2,7 +2,6 @@
   "name": "product-owner-contract",
   "displayName": "Product Owner Contract",
   "description": "Webgrip's board contract for the product-owner skill: the default team's Vikunja stage ladder and pull criteria, label dimensions, ratified Definition of Ready, ticket template, golden tickets and Definition of Done, plus a per-repo overlay hook.",
-  "version": "0.1.0",
   "license": "MIT",
   "author": {
     "name": "Webgrip",

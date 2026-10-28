@@ -1,5 +1,12 @@
 # product-owner
 
+## 0.9.3 (2026-10-25)
+
+### 🐛 Bug Fixes
+
+- **product-owner:** point the bundled MCP server at the gateway's vikunja path (d53bd1e3)
+
+
 ## 0.9.2 (2026-10-17)
 
 ### 🐛 Bug Fixes
