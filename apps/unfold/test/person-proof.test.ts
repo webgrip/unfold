@@ -9,7 +9,8 @@ import { Store } from '../src/store.ts';
 import { PersonProof, personProof, personTokenHeader, tokenExpiry, type SignInTokens } from '../src/person-proof.ts';
 import { actionContext } from '../src/action-records.ts';
 import { mcpToolbox } from '../src/chat/tools.ts';
-import { validatePloeg } from '../src/ploeg.ts';
+import { PloegClient, validatePloeg } from '../src/ploeg.ts';
+import { PloegAttribution, personUnprovenCode } from '../src/ploeg-attribution.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { application, configuration, request } from './api-support.ts';
 import { provider, signIn } from './oidc-support.ts';
@@ -18,12 +19,13 @@ const digest = (value: string) => createHash('sha256').update(value).digest('hex
 const jwt = (claims: Record<string, unknown>) => `${Buffer.from('{"alg":"RS256","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.c2lnbmF0dXJl`;
 const exchangeGrant = 'urn:ietf:params:oauth:grant-type:token-exchange';
 
-async function listen(t: TestContext, handler: (method: string, path: string, headers: IncomingHttpHeaders, body: string) => { status: number; body: unknown }): Promise<string> {
+type Answer = { status: number; body: unknown; headers?: Record<string, string> };
+async function listen(t: TestContext, handler: (method: string, path: string, headers: IncomingHttpHeaders, body: string) => Answer): Promise<string> {
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const answer = handler(req.method!, new URL(req.url!, 'http://fixture.invalid').pathname, req.headers, body);
-    res.writeHead(answer.status, { 'content-type': 'application/json' }).end(JSON.stringify(answer.body));
+    res.writeHead(answer.status, { 'content-type': 'application/json', ...answer.headers }).end(JSON.stringify(answer.body));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
@@ -345,7 +347,7 @@ test('tokenExpiry takes the earlier of the JWT exp and expires_in, and five minu
   assert.equal(tokenExpiry('opaque', undefined, now), now + 300_000);
 });
 
-async function proofWorkbench(t: TestContext, options: { personTokens?: boolean } = {}) {
+async function proofWorkbench(t: TestContext, options: { personTokens?: boolean; ploeg?: (method: string, path: string, headers: IncomingHttpHeaders) => Answer | undefined } = {}) {
   const idp = await provider({ groups: ['unfold-admins'] });
   t.after(() => idp.close());
   const exchange = await exchangeServer(t, { subject: 'person@example.com' });
@@ -356,6 +358,8 @@ async function proofWorkbench(t: TestContext, options: { personTokens?: boolean 
   const calls: { method: string; path: string; headers: IncomingHttpHeaders }[] = [];
   const ploegUrl = await listen(t, (method, path, headers) => {
     calls.push({ method, path, headers });
+    const answer = options.ploeg?.(method, path, headers);
+    if (answer) return answer;
     const envelope = (data: object) => ({ status: 200, body: { schemaVersion: '1.0', ...data } });
     if (path.endsWith('/teams')) return envelope({ teams: ploegDemo.teams });
     const step = /\/work-items\/(\d+)\/(approve|reject)$/.exec(path);
@@ -422,3 +426,121 @@ test('without ploeg.personTokens sign-in keeps no tokens and changes go out exac
   const status = await request(server.url, '/api/status', { cookie });
   assert.equal(status.body.personProof, undefined);
 });
+
+const ploegSaysUnproven = { status: 403, body: { schemaVersion: '1.0', error: { code: 'person_token_required', message: "This deployment accepts an operator change only from a proven person: send the person's exchanged token as the bearer or in X-Ploeg-Person-Token. Nothing changed." } } };
+const ploegRejectsToken = { status: 401, body: { schemaVersion: '1.0', error: { code: 'invalid_token', message: 'The person token was refused: token is expired.' } } };
+const provenPloeg = (method: string, _path: string, headers: IncomingHttpHeaders): Answer | undefined => method !== 'GET' && headers['x-ploeg-person-token'] === undefined ? ploegSaysUnproven : undefined;
+
+async function provenClient(t: TestContext, answer: (method: string, path: string, headers: IncomingHttpHeaders) => Answer | undefined = provenPloeg) {
+  const env = `UNFOLD_UNPROVEN_PLOEG_${randomBytes(6).toString('hex').toUpperCase()}`;
+  process.env[env] = randomBytes(24).toString('hex');
+  t.after(() => { delete process.env[env]; });
+  const posts: { path: string; headers: IncomingHttpHeaders }[] = [];
+  const url = await listen(t, (method, path, headers) => {
+    if (method !== 'GET') posts.push({ path, headers });
+    const refused = answer(method, path, headers);
+    if (refused) return refused;
+    const envelope = (data: object) => ({ status: 200, body: { schemaVersion: '1.0', ...data } });
+    if (path.endsWith('/teams')) return envelope({ teams: ploegDemo.teams });
+    const step = /\/work-items\/(\d+)\/(approve|reject)$/.exec(path);
+    if (method === 'POST' && step) return { ...envelope({ decision: { workItemId: step[1], team: 'delivery', state: 'queued' } }), headers: { warning: '299 ploegd "This change names its person only in X-Ploeg-Actor (asserted attribution)."' } };
+    const detail = (ploegDemo.details as Record<string, any>)[path.split('/').at(-1)!];
+    return detail ? envelope(detail) : { status: 404, body: { schemaVersion: '1.0', error: { code: 'not_found', message: 'No such Work Item.' } } };
+  });
+  const config = configuration('/unused', 'live');
+  config.ploeg = { url, tokenEnv: env, teams: ['delivery'] };
+  const attribution = new PloegAttribution();
+  const client = new PloegClient(config);
+  client.usePersonProof(undefined, attribution);
+  return { client, attribution, posts };
+}
+
+test('every change Ploeg refuses for want of a person token says to sign in again, whichever route made it', async t => {
+  const { client, attribution } = await provenClient(t);
+  const person = { id: 'oidc-person', name: 'Person', role: 'admin' as const };
+  const running = Object.entries(ploegDemo.details as Record<string, any>).find(([, detail]) => detail.item.team === 'delivery')![0];
+  const changes: [string, () => Promise<unknown>][] = [
+    ['approve', () => client.decide(person, proposed, 'approve')],
+    ['note', () => client.note(person, running, { commandId: 'note-1', text: 'Keep the tests green.' })],
+    ['Ask', () => client.admitAsk(person, running, 'ask-1', 'What is left?')],
+    ['chat', () => client.admitChat(person, 'delivery', 'chat-1', 'What runs today?')],
+    ['admission', () => client.admitWorkItem(person, { requestId: 'request-1', team: 'delivery', target: 'application', title: 'A title', description: 'A description' })],
+  ];
+  const { lines } = await captured(async () => {
+    for (const [name, change] of changes) {
+      await assert.rejects(change(), (error: { status: number; code: string; message: string }) => {
+        assert.equal(error.code, personUnprovenCode, name);
+        assert.equal(error.status, 403, name);
+        assert.match(error.message, /^Ploeg needs proof it is you before it changes anything/, name);
+        assert.match(error.message, /Sign out and sign in again with single sign-on/, name);
+        assert.doesNotMatch(error.message, /credential cannot|1 to 4096|execute permission/, name);
+        return true;
+      });
+    }
+  });
+  assert.equal(attribution.requiresProof, true, 'the refusal shows Unfold that this Ploeg runs proven');
+  assert.equal(attribution.status(person.id, undefined)?.state, 'degraded');
+  assert.equal(attribution.status(person.id, undefined)?.gap, 'required');
+  assert.equal(lines.filter(line => line.includes('"event":"ploeg.person_unproven"')).length, 1, 'the deployment problem is logged once, not per change');
+});
+
+test('a person token Ploeg rejects under proven keeps its cause, and once Ploeg shows it runs proven Unfold stops retrying without the token', async t => {
+  const store = scratchStore(t);
+  const idp = await exchangeServer(t);
+  const env = secretEnv(t);
+  const signIn = login(store);
+  const { client, attribution, posts } = await provenClient(t, (method, path, headers) => method === 'GET' ? undefined : headers['x-ploeg-person-token'] ? ploegRejectsToken : ploegSaysUnproven);
+  const proof = new PersonProof({ tokenUrl: idp.url, clientId: 'unfold-exchange', clientSecretEnv: env, audience: 'ploeg-for-unfold' }, store, { attribution });
+  proof.remember(signIn, 'oidc-person', 'person-sub', { accessToken: 'access', expiresInSeconds: 3600 });
+  client.usePersonProof(proof, attribution);
+  const person = { id: 'oidc-person', name: 'Person', role: 'admin' as const };
+  const rejected = (error: { code: string; message: string }) => {
+    assert.equal(error.code, personUnprovenCode);
+    assert.match(error.message, /^Ploeg did not accept Unfold’s proof that it is you \(The person token was refused: token is expired\.\)/);
+    return true;
+  };
+  await captured(() => assert.rejects(client.decide(person, proposed, 'approve'), rejected));
+  assert.equal(posts.length, 2, 'before Ploeg showed its mode, the change is retried once without the token');
+  assert.ok(posts[0].headers['x-ploeg-person-token']);
+  assert.equal(posts[1].headers['x-ploeg-person-token'], undefined);
+  assert.equal(attribution.requiresProof, true);
+  await captured(() => assert.rejects(client.decide(person, proposed, 'approve'), rejected));
+  assert.equal(posts.length, 3, 'once Ploeg refuses changes without proof, a rejected token is not retried without it');
+  assert.ok(posts[2].headers['x-ploeg-person-token']);
+  assert.equal(proof.status('oidc-person', signIn).gap, 'rejected');
+  assert.equal(attribution.status('oidc-person', proof.status('oidc-person', signIn))?.gap, 'required');
+});
+
+test('under asserted attribution a rejected person token still falls back to the headers, and Ploeg\'s Warning is logged once', async t => {
+  const store = scratchStore(t);
+  const idp = await exchangeServer(t);
+  const env = secretEnv(t);
+  const signIn = login(store);
+  const { client, attribution, posts } = await provenClient(t, (method, _path, headers) => method !== 'GET' && headers['x-ploeg-person-token'] ? ploegRejectsToken : undefined);
+  const proof = new PersonProof({ tokenUrl: idp.url, clientId: 'unfold-exchange', clientSecretEnv: env, audience: 'ploeg-for-unfold' }, store, { attribution });
+  proof.remember(signIn, 'oidc-person', 'person-sub', { accessToken: 'access', expiresInSeconds: 3600 });
+  client.usePersonProof(proof, attribution);
+  const person = { id: 'oidc-person', name: 'Person', role: 'admin' as const };
+  const { value, lines } = await captured(async () => [await client.decide(person, proposed, 'approve'), await client.decide(person, proposed, 'approve')]);
+  assert.deepEqual(value.map(result => result.state), ['queued', 'queued']);
+  assert.equal(posts.length, 4, 'each change is retried once without the rejected token');
+  assert.equal(attribution.requiresProof, false);
+  assert.equal(attribution.status('oidc-person', undefined), undefined, 'an accepted change leaves the Status page as it was');
+  assert.equal(lines.filter(line => line.includes('"event":"ploeg.warning"')).length, 1, 'each distinct Ploeg warning is logged once');
+  assert.ok(lines.some(line => line.includes('asserted attribution') && line.includes('work-items/')), 'the warning names the route it came from');
+});
+
+test('the Status page says when Ploeg refused a change for want of proof, even without ploeg.personTokens', async t => {
+  const { server, cookie } = await proofWorkbench(t, { personTokens: false, ploeg: provenPloeg });
+  const before = await request(server.url, '/api/status', { cookie });
+  assert.equal(before.body.personProof, undefined);
+  const { value: approve } = await captured(() => request(server.url, `/api/ploeg/work-items/${proposed}/approve`, { method: 'POST', cookie, body: {} }));
+  assert.equal(approve.status, 403, approve.text);
+  assert.equal(approve.body.error.code, personUnprovenCode);
+  assert.match(approve.body.error.message, /Ploeg needs proof it is you/);
+  const after = await request(server.url, '/api/status', { cookie });
+  assert.equal(after.body.personProof.state, 'degraded');
+  assert.equal(after.body.personProof.gap, 'required');
+  assert.match(after.body.personProof.summary, /sign in again/);
+});
+

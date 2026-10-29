@@ -2,8 +2,9 @@ import { defaultWorkspaceRetentionDays, workspaceRetention } from './runtime/ret
 import { knownSecrets } from './redaction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
-import { authorityFailure, authorityRequestTimeoutMs, ExecutionAuthority } from './execution-authority.ts';
+import { authorityFailure, authorityRequestTimeoutMs, ExecutionAuthority, refusedUnproven } from './execution-authority.ts';
 import type { PersonProof } from './person-proof.ts';
+import { unprovenSessionBlocker, type PloegAttribution } from './ploeg-attribution.ts';
 import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, leftWorkingForRestart, workbenchRestart, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
@@ -126,8 +127,8 @@ export class Engine {
     }, 15000).unref();
   }
 
-  /** Sends each execution change with its owner's person token when one can be had (Unfold ADR 0055). */
-  usePersonProof(proof: PersonProof | undefined): void { this.authority?.usePersonProof(proof); }
+  /** Sends each execution change with its owner's person token when one can be had (Unfold ADR 0055), noting in `attribution` each one Ploeg refuses for want of it. */
+  usePersonProof(proof: PersonProof | undefined, attribution?: PloegAttribution): void { this.authority?.usePersonProof(proof, attribution); }
 
   create(input: CreateSessionInput, user: User): Session {
     this.operator(user);
@@ -649,7 +650,9 @@ export class Engine {
     const detail = { ...failure, leaseLeftMs };
     console.error(JSON.stringify({ level: lost ? 'error' : 'warn', event: lost ? 'execution.authority_lost' : 'execution.heartbeat_missed', session: id, ...detail }));
     if (!lost) { this.save(current, 'execution.heartbeat_missed', 'system', detail); return; }
-    current.status = 'interrupted'; current.blocker = 'Ploeg authority was lost. Execution stopped; reconnect and reconcile before explicitly resuming.';
+    const unproven = failure.reason === 'person_unproven';
+    if (unproven) this.store.setSecret(`authority-unproven:${id}`, true);
+    current.status = 'interrupted'; current.blocker = unproven ? unprovenSessionBlocker : 'Ploeg authority was lost. Execution stopped; reconnect and reconcile before explicitly resuming.';
     this.save(current, 'execution.authority_lost', 'system', { autoResumed: false, ...detail });
     this.active.get(id)?.controller.abort(new DOMException('Execution authority lost', 'AbortError'));
   }
@@ -688,16 +691,19 @@ export class Engine {
       }
       await this.authority.observe(session).catch(() => undefined);
       this.store.deleteSecret(`authority-unresolved:${id}`);
+      this.store.deleteSecret(`authority-unproven:${id}`);
       session = this.store.getSession(id)!;
       if (['pause_requested', 'cancel_requested', 'interrupted'].includes(binding.state)) {
         session.blocker = 'Nothing runs or costs money until you choose what to do.';
         this.save(session, 'execution.reconciliation_required', 'system', { state: binding.state, stopConfirmed, autoResumed: false });
       }
-    } catch {
+    } catch (error) {
+      const unproven = refusedUnproven(error);
+      if (unproven) this.store.setSecret(`authority-unproven:${id}`, true);
       await this.authority.block(session).catch(() => undefined);
       session = this.store.getSession(id)!;
-      session.blocker = 'Execution stopped locally. Ploeg has not confirmed reconciliation; its budget remains held and no automatic retry is allowed.';
-      this.save(session, 'execution.reconciliation_pending', 'system', { autoResumed: false, stopConfirmed });
+      session.blocker = unproven ? unprovenSessionBlocker : 'Execution stopped locally. Ploeg has not confirmed reconciliation; its budget remains held and no automatic retry is allowed.';
+      this.save(session, 'execution.reconciliation_pending', 'system', { autoResumed: false, stopConfirmed, ...(unproven ? { reason: 'person_unproven' } : {}) });
     }
   }
 
@@ -1135,7 +1141,7 @@ export class Engine {
     for (const session of this.store.listSessions()) {
       if (this.shuttingDown) return;
       if (session.execution) {
-        if (!this.active.has(session.id) && this.store.getSecret<boolean>(`authority-unresolved:${session.id}`)) await this.finishAuthority(session.id);
+        if (!this.active.has(session.id) && this.store.getSecret<boolean>(`authority-unresolved:${session.id}`)) { if (!this.store.getSecret<boolean>(`authority-unproven:${session.id}`)) await this.finishAuthority(session.id); }
         else if (this.settlementDue(session)) { this.settlementReads.set(session.id, Date.now()); await this.authority!.observe(session).catch(() => undefined); }
         continue;
       }

@@ -11,6 +11,7 @@ import { ExecutionAuthority } from './execution-authority.ts';
 import { contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PersonProof } from './person-proof.ts';
+import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, type PloegAttribution } from './ploeg-attribution.ts';
 import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
 
 type LocalDelivery = { candidate: CanonicalCandidate; generation: number; phase: 'captured' | 'verifying' | 'verified' | 'recorded'; result?: VerificationResult };
@@ -44,6 +45,7 @@ export class DeliveryService {
   private queues = new Map<string, Promise<unknown>>();
   private contract: PloegContractGate | undefined;
   private proof: PersonProof | undefined;
+  private attribution: PloegAttribution | undefined;
   constructor(config: AppConfig, store: Store, publisher?: ForgejoPublisher, kubernetes: KubernetesClient = new KubernetesClient({})) {
     this.config = config; this.store = store; this.kubernetes = kubernetes;
     this.publisher = publisher ?? (config.delivery?.publisher ? new ForgejoPublisher(config.delivery.publisher) : undefined);
@@ -52,8 +54,8 @@ export class DeliveryService {
   /** Refuses every delivery call to a Ploeg that does not serve what this Unfold requires (system ADR-0044). */
   useContract(gate: PloegContractGate | undefined): void { this.contract = gate; }
 
-  /** Sends each delivery change on Unfold's own credential with its owner's person token when one can be had (RFC-0011, Unfold ADR 0055). */
-  usePersonProof(proof: PersonProof | undefined): void { this.proof = proof; }
+  /** Sends each delivery change on Unfold's own credential with its owner's person token when one can be had (RFC-0011, Unfold ADR 0055), noting in `attribution` each one Ploeg refuses for want of it. */
+  usePersonProof(proof: PersonProof | undefined, attribution?: PloegAttribution): void { this.proof = proof; this.attribution = attribution; }
 
   private async exchange(session: Session, suffix = '', payload?: unknown, verifier = false, actingUser = session.ownerId): Promise<PloegReply> {
     const refusal = contractRefusal(this.contract);
@@ -64,11 +66,14 @@ export class DeliveryService {
     try {
       const send = (extra: Record<string, string>) => fetch(`${this.config.ploeg!.url}/api/v1/operator/executions/${session.execution!.id}/delivery${suffix}`, { method: payload === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(payload === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }), ...extra }, body: payload === undefined ? undefined : JSON.stringify(payload), signal: AbortSignal.timeout(10000), redirect: 'manual' });
       const response = payload !== undefined && !verifier && this.proof ? await this.proof.send(session.ownerId, actingUser, send) : await send({});
+      logPloegWarning(response, `executions/{id}/delivery${suffix.split('?')[0]}`);
+      const unproven = payload !== undefined && !verifier ? await unprovenAnswer(response, actingUser, this.attribution, this.proof?.rejection?.(response)) : undefined;
+      if (unproven) { await response.body?.cancel().catch(() => undefined); throw Object.assign(new Error(unprovenMessage(unproven)), { status: 403, code: personUnprovenCode }); }
       if (!response.ok || !(response.headers.get('content-type') ?? '').includes('application/json') || !response.body) { await response.body?.cancel(); throw Object.assign(new Error('Candidate delivery blocked: delivery authority rejected.'), { status: 409, code: 'delivery_authority_rejected', upstreamStatus: response.status }); }
       const chunks: Uint8Array[] = []; let size = 0; const reader = response.body!.getReader();
       try { while (true) { const part = await reader.read(); if (part.done) break; size += part.value.byteLength; if (size > 262144) deliveryFailure('delivery_response_too_large'); chunks.push(part.value); } } finally { await reader.cancel().catch(() => undefined); }
       const data = JSON.parse(Buffer.concat(chunks).toString('utf8')); if (data?.schemaVersion !== '1.0') deliveryFailure('delivery_contract'); return { status: response.status, data };
-    } catch (error) { if ((error as any)?.code?.startsWith('delivery_')) throw error; return deliveryFailure('delivery_authority_unconfirmed'); }
+    } catch (error) { if ((error as any)?.code?.startsWith('delivery_') || (error as any)?.code === personUnprovenCode) throw error; return deliveryFailure('delivery_authority_unconfirmed'); }
   }
 
   private async request(session: Session, suffix = '', payload?: unknown, verifier = false, actingUser = session.ownerId): Promise<any> {

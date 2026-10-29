@@ -17,7 +17,8 @@ import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
-import { personProof } from './person-proof.ts';
+import { personProof, type PersonProofStatus } from './person-proof.ts';
+import { PloegAttribution } from './ploeg-attribution.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
@@ -193,18 +194,21 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
   });
 }
 
+const personProofLine = (line: PersonProofStatus | undefined) => line ? { personProof: line } : {};
+
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
-  const proof = personProof(config, store, oidc?.configured() ? refreshToken => oidc.refresh(refreshToken) : undefined);
-  ploeg.usePersonProof(proof);
-  engine.usePersonProof(proof);
-  agentHost?.usePersonProof(proof);
+  const attribution = new PloegAttribution();
+  const proof = personProof(config, store, oidc?.configured() ? refreshToken => oidc.refresh(refreshToken) : undefined, attribution);
+  ploeg.usePersonProof(proof, attribution);
+  engine.usePersonProof(proof, attribution);
+  agentHost?.usePersonProof(proof, attribution);
   const delivery = new DeliveryService(config, store);
   delivery.useContract(ploegCompatibility);
-  delivery.usePersonProof(proof);
+  delivery.usePersonProof(proof, attribution);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
@@ -559,7 +563,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions,
           flags: await flags.clientValues(flagContext(user))
         }));
-        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize({ ...await status.report(user), ...(proof ? { personProof: proof.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined) } : {}) }));
+        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize({ ...await status.report(user), ...personProofLine(attribution.status(user.id, proof?.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined))) }));
         if (method === 'POST' && path === '/api/status/notes') return json(res, 201, sanitize(status.addNote(user, await body(req))));
         const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
         if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
