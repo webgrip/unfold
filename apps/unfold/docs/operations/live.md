@@ -283,6 +283,27 @@ The provider rule is enforced before the first turn, from the gateway's model ca
 
 Ploeg execution refuses `gatewayPolicy` at start-up, so on a live Unfold enforce provider and region restrictions in the gateway's own policy instead; this setting is kept for the retired standalone path until its code is deleted.
 
+### How residency is enforced
+
+Residency is enforced in the model gateway, not in the agent workspace. Every model request an agent makes goes through the gateway with a key Ploeg authorizes, and that key may call only the model aliases in the Team's managed inference policy ([managed execution](../../../../docs/workflows/managed-execution.md)). The gateway serves each alias only from the deployments configured for it, so the aliases a policy allows decide which providers and regions can answer. For a deployment that must keep inference in the EU, configure each allowed alias on a provider's regional endpoint and leave other aliases out of the policy. Unfold and Ploeg add no second filter on a live workbench; `gatewayPolicy` is the check of the retired standalone path described above.
+
+### Reading Where your data goes
+
+**Where your data goes** on the Status page ([`residency.ts`](../../src/residency.ts)) reads the requests Unfold has stored from the gateway's ledger and checks each against `gatewayPolicy`. Its badge says:
+
+| Badge | Meaning | What to do |
+| --- | --- | --- |
+| Within the policy | Every request in the last 7 days came from an allowed provider and region | Nothing |
+| Outside the policy | At least one request in the last 7 days came from a provider or region the policy does not name | Open the listed session, Run or Work Item, then check the gateway route for its model. A session the engine caught while it ran is already stopped and its key revoked |
+| Nothing to check | A policy is set and no request reached the gateway in 7 days | Nothing |
+| No policy set | Unfold reads the ledger but no `gatewayPolicy` is set, so nothing counts as outside | Set a policy if the workbench must keep requests anywhere in particular |
+| Unknown | Unfold reads no gateway ledger, which is always the case under Ploeg execution: Ploeg budgets the Runs and the gateway's own policy decides where they go | Read the gateway's spend log for the providers and regions that answered |
+| Demo | The demo makes no model calls and shows no requests | Nothing |
+
+The table counts requests per provider and per region for the last 24 hours and 7 days, marks names the policy does not allow as **outside**, and counts requests whose ledger row named no provider or region as **not reported**; a request is judged only on what it reports. A row the engine already marked with a violation stays outside after the policy changes. Each request outside the policy links to its session, names its Run by Role and links its Work Item when the reader may open them; another person's request shows as a count line only. The line does not change the verdict at the top or the navigation dot, because a request outside the policy does not stop new work from starting.
+
+**Where each part runs** names what the configuration says about Unfold, Ploeg and the agent workspaces: the Ploeg API host and the workspace namespace and RuntimeClass for administrators, the backend kind for everyone. Unfold reads no region from its configuration and no Kubernetes node labels, so the Region column reads Unknown rather than a guess.
+
 Each role's brief is recorded with the run and shown in the Activity stream, and the budget panel draws cumulative cost against the ceiling from the gateway's rows.
 
 ## Keeping a thin brief from spending the budget

@@ -3,7 +3,7 @@ import { api } from '../core/api.js';
 import { escape, renderHtml, notify, announce } from '../core/dom.js';
 import { plural, time } from '../core/format.js';
 import { icon } from '../core/icons.js';
-import { button, callout, disclosure, emptyState, timeAgo } from '../core/ui.js';
+import { badge, button, callout, disclosure, dl, emptyState, table, timeAgo } from '../core/ui.js';
 import { shell } from '../shell.js';
 import { live } from '../core/live.js';
 import { parseHash } from '../core/route.js';
@@ -118,6 +118,58 @@ export function proofMarkup(value) {
   return callout({ tone: 'attention', title: 'Ploeg cannot check that your actions are yours', body: `<p>${escape(proof.summary)}</p>` });
 }
 
+const residencyLooks = { ok: { tone: 'success', label: 'Within the policy' }, degraded: { tone: 'danger', label: 'Outside the policy' }, idle: { tone: 'neutral', label: 'Nothing to check' }, unchecked: { tone: 'neutral', label: 'No policy set' }, unknown: { tone: 'neutral', label: 'Unknown' }, not_used: { tone: 'neutral', label: 'Demo' } };
+const windowNames = { '24h': 'Last 24 hours', '7d': 'Last 7 days' };
+
+function tally(items, unreported) {
+  const named = items.map(item => `${escape(item.name)} ${item.requests}${item.allowed === false ? ' <strong>outside</strong>' : ''}`);
+  if (unreported) named.push(`<span class="subtle">${unreported} not reported</span>`);
+  return named.length ? named.join(', ') : '<span class="subtle">None</span>';
+}
+
+function allowed(list, enforcedBy) {
+  if (list) return list.map(escape).join(', ');
+  return enforcedBy === 'gateway' ? 'Set in the gateway’s own policy' : 'Any: no policy is set';
+}
+
+/**
+ * The "Where your data goes" section: the provider and region policy, what the gateway answered from in the last 24
+ * hours and 7 days, each request outside the policy with its session, Run and Work Item where the reader may open
+ * them, and where Unfold, Ploeg and the agent workspaces run. '' when the report carries no residency.
+ * @param {{ residency?: { state: string, summary: string, policy: { providers: string[]|null, regions: string[]|null, enforcedBy: string }, windows: object[], outside: object[], outsideHidden: number, places: { id: string, title: string, where: string, region: string|null, detail?: string }[] } }} value
+ * @returns {string}
+ */
+export function residencyMarkup(value) {
+  const residency = value?.residency;
+  if (!residency) return '';
+  const look = residencyLooks[residency.state] ?? residencyLooks.unknown;
+  const policy = dl([['Allowed providers', allowed(residency.policy.providers, residency.policy.enforcedBy)], ['Allowed regions', allowed(residency.policy.regions, residency.policy.enforcedBy)]], { rows: true });
+  const observed = residency.windows.length ? table({
+    caption: 'Providers and regions that answered',
+    compact: true,
+    rowHeader: true,
+    region: false,
+    columns: [{ key: 'window', label: 'Window' }, { key: 'requests', label: 'Requests', numeric: true }, { key: 'providers', label: 'Providers' }, { key: 'regions', label: 'Regions' }, { key: 'outside', label: 'Outside the policy', numeric: true }],
+    rows: residency.windows.map(window => ({ window: escape(windowNames[window.id] ?? window.id), requests: String(window.requests), providers: tally(window.providers, window.unreported.provider), regions: tally(window.regions, window.unreported.region), outside: window.outside ? `<strong>${window.outside}</strong>` : '0' })),
+  }) : '';
+  const breach = item => {
+    const links = [item.session ? `<a href="#session/${encodeURIComponent(item.session.id)}">${escape(item.session.title)}</a>` : '<span class="subtle">Another person’s session</span>', item.run ? `Run ${escape(item.run.roleName)}` : '', item.workItemId ? `<a href="#work/${encodeURIComponent(item.workItemId)}">Work Item #${escape(item.workItemId)}</a>` : ''].filter(Boolean).map(link => `<li>${link}</li>`).join('');
+    return `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('alert')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(item.model)} answered by ${escape(item.reason)}</p><p class="settings-item-text">${timeAgo(item.at)}</p><ul class="status-sessions">${links}</ul></div></li>`;
+  };
+  const outside = residency.outside.length ? `<ul class="settings-items" aria-label="Requests outside the policy">${residency.outside.map(breach).join('')}${residency.outsideHidden ? `<li class="settings-item"><div class="settings-item-main"><p class="settings-item-text">${escape(plural(residency.outsideHidden, 'older request'))} outside the policy not listed</p></div></li>` : ''}</ul>` : '';
+  const unknownRegion = residency.places.find(place => place.region === null && place.detail)?.detail;
+  const places = table({
+    caption: 'Where each part runs',
+    compact: true,
+    rowHeader: true,
+    region: false,
+    columns: [{ key: 'part', label: 'Part' }, { key: 'where', label: 'Runs on' }, { key: 'region', label: 'Region' }],
+    rows: residency.places.map(place => ({ part: escape(place.title), where: escape(place.where), region: place.region ? escape(place.region) : '<span class="subtle">Unknown</span>' })),
+  });
+  const body = `<div class="card-body status-residency">${policy}${observed}${outside}${places}${unknownRegion ? `<p class="field-hint">${escape(unknownRegion)}</p>` : ''}</div>`;
+  return `<section class="card settings-card" data-state="${escape(residency.state)}" aria-labelledby="status-residency-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="status-residency-title">Where your data goes ${badge({ tone: look.tone, label: look.label, size: 'sm' })}</h2><p class="card-subtitle">${escape(residency.summary)}</p></div></header>${body}</section>`;
+}
+
 function noteMarkup(note) {
   const look = noteLooks[note.severity] ?? noteLooks.info;
   const resolve = isAdmin() && !note.resolvedAt ? button({ label: 'Mark resolved', icon: 'check', size: 'sm', action: 'status-note-resolve', data: { id: note.id } }) : '';
@@ -161,7 +213,7 @@ function renderStatus() {
   if (!state.bootstrap) return;
   let content;
   if (!report) content = failure ? callout({ tone: 'danger', title: 'Could not read the status', body: `<p>${escape(failure)}</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'status-refresh' }) }) : `<div class="status-page" aria-busy="true"><section class="status-answer status-loading"><p class="status-question">Can a new session start?</p><p class="status-verdict status-checking">Checking…</p><ol class="status-line" aria-hidden="true">${steps.map((step, index) => `<li class="status-step" data-state="unreached"><span class="status-knot">${index + 1}</span><div class="status-step-text"><p class="status-step-name">${escape(step.name)}</p><span class="status-bone"></span></div></li>`).join('')}</ol></section></div>`;
-  else content = `<div class="status-page">${answerMarkup()}${proofMarkup(report)}<div class="status-lists">${waitingMarkup()}${failuresMarkup()}</div>${noteToolsMarkup()}</div>`;
+  else content = `<div class="status-page">${answerMarkup()}${proofMarkup(report)}<div class="status-lists">${waitingMarkup()}${failuresMarkup()}</div>${residencyMarkup(report)}${noteToolsMarkup()}</div>`;
   renderHtml(shell(content, { title: 'Status', subtitle: 'Whether new work can start right now, and what got in the way recently.' }));
 }
 
@@ -224,7 +276,7 @@ async function resolveNote(control) {
   finally { control.disabled = false; }
 }
 
-/** The Status page (`#status`): whether a new session can start and where it stops, administrators' notes, what waits for a workspace and recent failures by cause. */
+/** The Status page (`#status`): whether a new session can start and where it stops, administrators' notes, what waits for a workspace, recent failures by cause and where model requests went. */
 export default {
   id: 'status',
   match: hash => hash === 'status' ? {} : null,

@@ -108,6 +108,18 @@ Three fresh reviewers, given only the rendered screenshots and the job stories, 
 | A workspace can reserve less than its limits (`kubernetes.cpuRequest`, `kubernetes.memoryRequest`; chart `workspaceCpuRequest`, `workspaceMemoryRequest`) | The incident's pods asked for a guaranteed 1 CPU and 2 GiB. Ploeg's agent workers, the closest measured workload, peaked at 0.64 GiB and about 1 core over 30 days |
 | The top bar's right-hand group may shrink and the account name truncates | It was `flex: none` and could push past the edge |
 
+## Where your data goes
+
+The section answers a second question for a person deciding whether to trust the workbench with client code: where did the model requests go, and where does the work run? It sits below the lists because it describes the last 7 days, not whether a session can start now, so it never changes the verdict or the navigation dot.
+
+| Claim on the page | Evidence | Wording allowed |
+| --- | --- | --- |
+| A provider or region answered | A stored gateway ledger row with `provider` or `geo` | Counts per window; a row without one is "not reported" |
+| A request was outside the policy | The engine's `violation` on the row, or the row checked against `gatewayPolicy` now | "answered by provider …, region …" |
+| What answered under Ploeg execution | Unfold reads no ledger there | "Unknown", and that the gateway's own policy decides |
+| Where a part runs | The configured Ploeg URL, workspace backend, namespace and RuntimeClass | The region reads "Unknown" while nothing names one |
+| The demo | No model calls | "Demo", and no requests are listed |
+
 ## Validation status
 
 Exercised: unit and API tests for the report and the answer logic, the state renders above, keyboard refresh with focus and open disclosures kept, the motion contract in both motion preferences, the live announcement, measured text contrast, the product-ux and expressive-design source scans (no findings), and three independent heuristic passes on screenshots. Not exercised: real users, a screen reader, Firefox or Safari, forced colours, and the page against the live homelab cluster.

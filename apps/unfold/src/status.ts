@@ -5,6 +5,7 @@ import type { StatusNote, Store } from './store.ts';
 import type { AppConfig, User } from './types.ts';
 import type { PloegCompatibility } from './ploeg-compatibility.ts';
 import type { PersonProofStatus } from './person-proof.ts';
+import { residencyReport, type Residency } from './residency.ts';
 
 export type CheckState = 'ok' | 'degraded' | 'down' | 'idle' | 'not_used';
 export type StatusCheck = { id: 'workspaces' | 'gateway' | 'ploeg'; title: string; state: CheckState; summary: string; checkedAt: string; detail?: string };
@@ -23,6 +24,8 @@ export type StatusReport = {
   ploegContract?: PloegCompatibility;
   /** Whether Ploeg records the reader's actions as proven by their sign-in; absent unless `ploeg.personTokens` is configured (Unfold ADR 0055). */
   personProof?: PersonProofStatus;
+  /** Where model requests went against the gateway policy, and where each part runs; it does not change `overall`. */
+  residency: Residency;
 };
 export type PloegProbe = 'ok' | 'unconfigured' | 'down';
 export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe>; cards?(): string | null; contract?(): PloegCompatibility };
@@ -104,6 +107,7 @@ export class StatusBoard {
         : { own: false, phase: wait.phase, since: wait.since }),
       failures: { since, total: failed.length, causes: [...causes.values()].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt)) },
       notes,
+      residency: residencyReport({ config: this.config, sessions, now, admin, visible }),
       ...(contract ? { ploegContract: contract } : {}),
     };
   }

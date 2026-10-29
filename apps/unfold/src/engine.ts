@@ -16,6 +16,7 @@ import { unavailableCandidate, type Candidate } from './candidates.ts';
 import { reportedVerdict, withoutVerdictBlock } from './runtime/opencode.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
+import { outsidePolicy } from './residency.ts';
 import type { AgentRuntime, AppConfig, Credential, Repository, RepositoryMcp, Run, RuntimeKind, Session, Workspace, SessionStatus, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Team, SessionOutcome, WorkspaceWait } from './types.ts';
 
 type Broker = {
@@ -1057,10 +1058,8 @@ export class Engine {
     if (!policy) return false;
     let violation: GatewayRequest | undefined;
     for (const request of requests) {
-      const reasons: string[] = [];
-      if (policy.providers && request.provider && !policy.providers.includes(request.provider)) reasons.push(`provider ${request.provider}`);
-      if (policy.regions && request.geo && !policy.regions.includes(request.geo)) reasons.push(`region ${request.geo}`);
-      if (reasons.length) { request.violation = reasons.join(', '); violation ??= request; }
+      const reason = outsidePolicy(policy, request);
+      if (reason) { request.violation = reason; violation ??= request; }
     }
     if (!violation || !['running', 'waiting_input'].includes(session.status)) return Boolean(violation);
     session.status = 'failed';
