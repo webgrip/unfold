@@ -54,10 +54,11 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   await accepted(vscode.dispatch('ahp-root://', { type: 'root/configChanged', config: vscodeConfig }), 'ahp-root://', 'root/configChanged');
   assert.equal((await vscode.rpc('getNetworkDiagnosticsInfo', {})).os, process.platform);
 
-  const values = (await vscode.rpc('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', config: { title: 'Fix rounding from VS Code main' } })).values;
+  const workingDirectory = `${repositoriesDirectory}/order-service`;
+  const values = (await vscode.rpc('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory, config: { title: 'Fix rounding from VS Code main' } })).values;
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  assert.deepEqual(await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: values, activeClient: { clientId, tools: [] } }), {});
+  assert.deepEqual(await vscode.rpc('createSession', { channel: session, provider: 'unfold', workingDirectories: [workingDirectory], config: values, activeClient: { clientId, tools: [] } }), {});
   await vscode.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === session);
   const drafted = (await vscode.rpc('subscribe', { channel: session })).snapshot.state;
   assert.equal(drafted.defaultChat, chat, 'the default chat is buildDefaultChatUri of the ahp-session URI');

@@ -8,6 +8,7 @@ type Approval = 'manual' | 'auto';
 /** The AHP spelling of each engine approval: VS Code recognises `approvalMode` with `manual` and `allow-all` and renders its own approvals picker for it. */
 export const approvalModes: Record<Approval, string> = { manual: 'manual', auto: 'allow-all' };
 const approvalFromMode: Record<string, Approval> = { manual: 'manual', 'allow-all': 'auto' };
+const finishedStatuses = ['completed', 'failed', 'cancelled'];
 const budgetSteps = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000];
 const placementLabels: Record<WorkspaceBackend, string> = { docker: 'Container', kubernetes: 'Pod', local: 'Local directory' };
 const isolatedPlacements = new Set<WorkspaceBackend>(['docker', 'kubernetes']);
@@ -18,6 +19,9 @@ export const retiredTeamKey = 'crew';
 
 /** The one model the host advertises, so the composer names what runs instead of a gateway model. */
 export const composerModelId = 'unfold-team';
+
+/** The refusal a session without a repository gets, such as a folderless quick chat or one Compare Models starts: no Run starts. */
+export const noRepositoryRefusal = 'Unfold works on a repository: start the session from a repository\'s folder in the Workspace picker';
 
 /** Thrown when a session configuration names something this workbench does not offer. */
 export class SessionConfigError extends Error {}
@@ -78,12 +82,14 @@ function budgetOf(config: AppConfig, value: unknown): number | undefined {
 /**
  * The session configuration schema VS Code 1.141 renders in the new-session composer. Repository is read-only because the
  * Workspace picker decides it; team, budget and placement are string enums with labels, which is what the Agents window
- * draws as pickers; approvals use the well-known `approvalMode`, offering `allow-all` only for a container or pod placement.
+ * draws as pickers; approvals use the well-known `approvalMode`, offering `allow-all` only for a container or pod placement,
+ * and the read-only `availableApprovalModes` reports the same modes, so a client that seeds approvals from organisation policy
+ * keeps a mode the placement withholds out of the picker.
  */
 export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?: Session): Json {
   const budget = budgetOf(config, values.budgetUsd);
   const properties: Json = {
-    repository: { type: 'string', title: 'Repository', description: 'Chosen with the Workspace picker', readOnly: true, enum: config.repositories.map(repo => repo.id), enumLabels: config.repositories.map(repo => repo.name), enumDescriptions: config.repositories.map(repo => repo.description) },
+    repository: { type: 'string', title: 'Repository', description: values.repository ? 'Chosen with the Workspace picker' : noRepositoryRefusal, readOnly: true, enum: config.repositories.map(repo => repo.id), enumLabels: config.repositories.map(repo => repo.name), enumDescriptions: config.repositories.map(repo => repo.description) },
     team: { type: 'string', title: 'Team', description: 'The roles that work on this session, in order', enum: config.teams.map(team => team.id), enumLabels: config.teams.map(team => team.name), enumDescriptions: config.teams.map(team => describeTeam(config, team)), default: config.teams[0]?.id },
   };
   const amounts = budgetOptions(config, budget);
@@ -92,20 +98,27 @@ export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?:
   if (options.length > 1) properties.placement = { type: 'string', title: 'Placement', description: 'Where the team\'s workspace runs', enum: options.map(item => item.id), enumLabels: options.map(item => placementLabels[item.id]), enumDescriptions: options.map(item => item.name), default: defaultPlacement(config) };
   const placement = live ? live.placement : effectivePlacement(config, values);
   const automatic = offersAutomaticApproval(config, placement);
+  const mutable = live && automatic && !finishedStatuses.includes(live.status);
   properties.approvalMode = {
     type: 'string', title: 'Approvals', description: automatic ? 'Who answers the team\'s permission requests' : 'Automatic approval needs a container or pod placement',
     enum: automatic ? ['manual', 'allow-all'] : ['manual'], enumLabels: automatic ? ['Ask me', 'Approve inside the sandbox'] : ['Ask me'],
     enumDescriptions: automatic ? ['You approve each permission request', 'The team\'s permission requests are approved inside its container or pod; questions still reach you'] : ['You approve each permission request'],
-    default: 'manual', ...(live && automatic && !['completed', 'failed', 'cancelled'].includes(live.status) ? { sessionMutable: true } : {}),
+    default: 'manual', ...(mutable ? { sessionMutable: true } : {}),
   };
+  properties.availableApprovalModes = { type: 'array', title: 'Available approvals', readOnly: true, items: { type: 'string', title: 'Approval' }, ...(mutable ? { sessionMutable: true } : {}) };
   properties.title = { type: 'string', title: 'Session title' };
   return { type: 'object', properties, required: ['repository', 'team', 'budgetUsd'] };
 }
 
-/** Defaults for a new session: the picked repository or the first one, the first team, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
+/** The approval modes a configuration's placement allows, in the schema's spelling. */
+export function availableApprovalModes(config: AppConfig, placement: WorkspaceBackend | undefined): string[] {
+  return offersAutomaticApproval(config, placement) ? [approvalModes.manual, approvalModes.auto] : [approvalModes.manual];
+}
+
+/** Defaults for a new session: the picked repository, or none, so a session without one is refused; the first team, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
 export function defaultSessionConfig(config: AppConfig, repository?: string): Json {
   const placement = placements(config).length > 1 ? defaultPlacement(config) : undefined;
-  return { repository: repository ?? config.repositories[0]?.id, team: config.teams[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
+  return { ...(repository ? { repository } : {}), team: config.teams[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
 }
 
 function pickKnown(requested: unknown): Json {
@@ -121,7 +134,7 @@ function normalize(config: AppConfig, requested: Json, strict: boolean): Json {
   const refuse = (message: string) => { if (strict) throw new SessionConfigError(message); };
   const fallback = defaultSessionConfig(config);
   if (config.repositories.some(repo => repo.id === requested.repository)) values.repository = requested.repository;
-  else { refuse('Choose a configured repository and team'); values.repository = fallback.repository; }
+  else refuse(requested.repository === undefined ? noRepositoryRefusal : 'Choose a configured repository and team');
   if (config.teams.some(team => team.id === requested.team)) values.team = requested.team;
   else { refuse('Choose a configured repository and team'); values.team = fallback.team; }
   const budget = requested.budgetUsd === undefined ? defaultBudget(config) : budgetOf(config, requested.budgetUsd);
@@ -137,17 +150,18 @@ function normalize(config: AppConfig, requested: Json, strict: boolean): Json {
   if (!approvalFromMode[mode]) refuse('Approvals are manual or allow-all');
   if (mode === 'allow-all' && !automatic) refuse('Automatic approval needs a container or pod placement');
   values.approvalMode = mode === 'allow-all' && automatic ? 'allow-all' : 'manual';
+  values.availableApprovalModes = availableApprovalModes(config, effectivePlacement(config, values));
   if (typeof requested.title === 'string' && requested.title.trim()) values.title = requested.title.trim().slice(0, 160);
   return values;
 }
 
-/** What `resolveSessionConfig` answers: the requested values where this workbench offers them, otherwise the defaults; a picked repository always wins. */
+/** What `resolveSessionConfig` answers: the requested values where this workbench offers them, otherwise the defaults; a picked repository always wins, and without one or a configured one the repository stays unset. */
 export function resolveSessionConfig(config: AppConfig, requested: unknown, pickedRepository?: string): { schema: Json; values: Json } {
   const values = normalize(config, { ...defaultSessionConfig(config), ...pickKnown(requested), ...(pickedRepository ? { repository: pickedRepository } : {}) }, false);
   return { schema: sessionConfigSchema(config, values), values };
 }
 
-/** The configuration a new session is created with; throws {@link SessionConfigError} when it names something this workbench does not offer. */
+/** The configuration a new session is created with; throws {@link SessionConfigError} when it names no repository or something this workbench does not offer, such as `allow-all` for a placement without a sandbox. */
 export function acceptSessionConfig(config: AppConfig, requested: unknown, pickedRepository?: string): Json {
   return normalize(config, { ...defaultSessionConfig(config), ...pickKnown(requested), ...(pickedRepository ? { repository: pickedRepository } : {}) }, true);
 }
@@ -171,11 +185,11 @@ export function sessionConfigValues(session: Session): Json {
 
 /** A started session's `config` in its state: only `approvalMode` stays changeable, and only while the session runs in a container or pod. */
 export function sessionConfigState(config: AppConfig, session: Session): Json {
-  const values = sessionConfigValues(session);
+  const values = { ...sessionConfigValues(session), availableApprovalModes: availableApprovalModes(config, session.placement) };
   return { schema: sessionConfigSchema(config, values, session), values };
 }
 
-/** The change a `session/configChanged` asks of a started session: a new approval, or nothing. Any other changed value is refused. */
+/** The change a `session/configChanged` asks of a started session: a new approval, or nothing. Any other changed value, and `allow-all` outside a container or pod, is refused. */
 export function startedConfigChange(session: Session, change: unknown): { approval?: Approval } {
   const requested = pickKnown(change);
   const current = sessionConfigValues(session);
@@ -185,6 +199,7 @@ export function startedConfigChange(session: Session, change: unknown): { approv
   }
   if (requested.approvalMode === undefined || requested.approvalMode === current.approvalMode) return {};
   if (!approvalFromMode[requested.approvalMode]) throw new SessionConfigError('Approvals are manual or allow-all');
+  if (requested.approvalMode === approvalModes.auto && !(session.placement && isolatedPlacements.has(session.placement))) throw new SessionConfigError('Automatic approval needs a container or pod placement');
   return { approval: approvalFromMode[requested.approvalMode] };
 }
 
