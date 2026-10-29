@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, operator]
 owner: unfold
-last_verified: 2026-10-24
-verified_by: "Kit in apps/unfold/ops/cluster/sandbox-runtimes run on kind 0.33.0 (Kubernetes 1.37.0, containerd 2.3.4) with gVisor release-20261005.0: gVisor smoke Job, admission dry runs and the bench. Talos patches validated with talosctl 1.13.4; Image Factory extension list for Talos 1.13.4 and 1.14.0 read on 2026-10-24; Kata handler and configuration read from a homelab Talos 1.13.10 worker with talosctl. Chart values read from apps/unfold/ops/helm/unfold/values.yaml and Ploeg's chart at the pinned release fd45cc7. Not run here: Kata outside the homelab, gVisor on Talos, k3s, GKE and AKS."
+last_verified: 2026-10-29
+verified_by: "Kit in apps/unfold/ops/cluster/sandbox-runtimes run on kind 0.33.0 (Kubernetes 1.37.0, containerd 2.3.4) with gVisor release-20261005.0: gVisor smoke Job, admission dry runs and the bench. Talos patches validated with talosctl 1.13.4; Image Factory extension list for Talos 1.13.4 and 1.14.0 read on 2026-10-24; Kata handler and configuration read from a homelab Talos 1.13.10 worker with talosctl. Chart values read from apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and from Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) on 2026-10-29. Not run here: Kata outside the homelab, gVisor on Talos, k3s, GKE and AKS."
 ---
 
 # Run agent code in a sandbox runtime
@@ -124,12 +124,12 @@ delivery:
     runtimeClassName: gvisor                # each check pod; default kata
 ploeg:
   executor:
-    sandbox:
-      runtimeClassName: kata                # every sandbox team and Role, unless they set their own
+    runtimeClassName: kata                  # every Ploeg worker pod, unless its team or Role sets its own
 ```
 
 * `workspacePodRuntimeClassName` takes one RuntimeClass for every workspace. Choosing it per session is not implemented yet.
-* A Ploeg team gets a RuntimeClass only under the sandbox executor: set `executorType: sandbox` on the team, then `sandbox.runtimeClassName` on the team or one of its Roles to override the default above. Teams on the default KEDA executor start their worker pods on the node's default runtime; a RuntimeClass for them is not implemented yet. The sandbox executor needs the [agent-sandbox controller](../../apps/ploeg/docs/contracts/executor.md).
+* In live mode the Unfold chart refuses to render while the provisioner's RuntimeClass is empty: `workspacePodRuntimeClassName` for the pod provisioner, `workspaceRuntimeClassName` (default `kata`) for the sandbox provisioner. It never picks one for you, because a RuntimeClass your nodes lack leaves every workspace unable to start. To run workspaces without a sandbox anyway, on your own assessment, set `workspaceAllowUnsandboxed: true`; the install notes then print a warning.
+* `ploeg.executor.runtimeClassName` sets the RuntimeClass of every Ploeg worker pod, under every executor: the default KEDA executor, the cron executor and the sandbox executor. A team's or a Role's own `runtimeClassName` overrides it. Under the sandbox executor, the older `executor.sandbox.runtimeClassName` and a team's or Role's `sandbox.runtimeClassName` are read first at each level. The sandbox executor needs the [agent-sandbox controller](../../apps/ploeg/docs/contracts/executor.md).
 * Unfold's pod provisioner refuses `workspacePodRuntimeClassName` together with `workspaceUserNamespaces`, because the sandbox already maps the workload's users.
 * Port-forwarding into a Kata or gVisor pod does not work. Unfold's default `workspaceTransport: pull`, where workspaces dial out to Unfold, works under both.
 
@@ -141,7 +141,7 @@ Once every agent pod runs under a RuntimeClass:
 kubectl apply -f admission/require-sandbox-runtime.yaml
 ```
 
-A pod labelled `app.kubernetes.io/name` `unfold-agent`, `unfold-verifier` or `ploeg-worker` must then set `runtimeClassName` to `kata` or `gvisor`. Edit the list in the file if your RuntimeClasses have other names, and take `ploeg-worker` out while any Ploeg team still uses the KEDA executor. The policy matches by label, so it catches a values file that lost its runtime, not someone who may create pods in the namespace and leaves the label off; keep pod creation there to Unfold's and Ploeg's own service accounts.
+A pod labelled `app.kubernetes.io/name` `unfold-agent`, `unfold-verifier` or `ploeg-worker` must then set `runtimeClassName` to `kata` or `gvisor`. Edit the list in the file if your RuntimeClasses have other names, and take `ploeg-worker` out while any Ploeg worker pod still resolves no RuntimeClass. The policy matches by label, so it catches a values file that lost its runtime, not someone who may create pods in the namespace and leaves the label off; keep pod creation there to Unfold's and Ploeg's own service accounts.
 
 Check that the policy holds:
 

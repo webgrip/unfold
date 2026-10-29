@@ -1,0 +1,15 @@
+Unfold {{ .Chart.AppVersion }} runs in {{ .Values.mode }} mode as {{ include "unfold.name" . }} in namespace {{ .Release.Namespace }}.
+{{- if eq .Values.mode "demo" }}
+This is the deterministic demo: it makes no model calls and spends nothing.
+{{- end }}
+{{- if .Values.ploeg.enabled }}
+Ploeg runs beside it as {{ include "unfold.ploegFullname" . }}.
+{{- end }}
+{{- if include "unfold.workspaceUnsandboxed" . }}
+
+WARNING: agent workspaces run without a sandbox.
+{{ include "unfold.workspaceRuntimeClassValue" . }} is empty and workspaceAllowUnsandboxed is true, so
+code an agent writes or fetches runs on the node's default runtime, against the node's own kernel.
+Install Kata Containers or gVisor and set {{ include "unfold.workspaceRuntimeClassValue" . }}:
+https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/how-to/run-agent-code-in-a-sandbox-runtime.md
+{{- end }}

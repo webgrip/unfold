@@ -66,6 +66,7 @@
     "workspaceWarmPool": { "type": "string" },
     "workspaceUserNamespaces": { "type": "boolean" },
     "workspacePodRuntimeClassName": { "type": "string", "pattern": "^([A-Za-z0-9_.-]{1,253})?$" },
+    "workspaceAllowUnsandboxed": { "type": "boolean" },
     "workspaceRetentionDays": { "type": "integer", "minimum": 0, "maximum": 365 },
     "workspaceVolumeDeleteAnnotations": { "type": "object", "maxProperties": 8, "additionalProperties": { "type": "string" } },
     "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },

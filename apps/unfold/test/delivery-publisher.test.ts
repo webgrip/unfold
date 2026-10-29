@@ -360,7 +360,7 @@ test('the publisher token is a known secret the workbench redacts', () => {
 
 test('the chart refuses to hand the credentials Secret to agent workspaces', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
   const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
-  const render = (secrets: string) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'workspaceNamespace=unfold-workspaces', '--set', `workspaceAgentSecrets={${secrets}}`], { encoding: 'utf8' });
+  const render = (secrets: string) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'workspacePodRuntimeClassName=kata', '--set', 'workspaceNamespace=unfold-workspaces', '--set', `workspaceAgentSecrets={${secrets}}`], { encoding: 'utf8' });
   const refused = render('agent-keys,unfold-credentials');
   assert.notEqual(refused.status, 0); assert.match(refused.stderr, /workspaceAgentSecrets must not list credentialsSecret/);
   assert.equal(render('agent-keys').status, 0);

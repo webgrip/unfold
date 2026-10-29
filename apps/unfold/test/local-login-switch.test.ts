@@ -61,7 +61,7 @@ test('a password session keeps working while local sign-in stays on', async t =>
 
 test('the chart turns local sign-in off only together with single sign-on', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
   const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
-  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
+  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'workspacePodRuntimeClassName=kata', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
   const configured = (output: string) => JSON.parse(JSON.parse(output.match(/config\.json: (".*")$/m)![1])).auth;
   const defaults = render();
   assert.equal(defaults.status, 0, defaults.stderr);

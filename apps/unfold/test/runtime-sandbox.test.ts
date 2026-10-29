@@ -218,7 +218,7 @@ test('a TokenReview proves a warm pod only for the relay audience, the workspace
 
 test('the chart lets the workbench review pod tokens only when it runs a warm pool', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
   const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
-  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
+  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'workspacePodRuntimeClassName=kata', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
   const warm = render('workspaceProvisioner=sandbox', 'workspaceWarmPool=unfold-warm');
   assert.equal(warm.status, 0, warm.stderr);
   assert.match(warm.stdout, /resources: \[tokenreviews\]\n\s+verbs: \[create\]/);
