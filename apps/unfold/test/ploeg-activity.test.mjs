@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, approveDialogMarkup, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, deliveriesCsvLink, deliveriesMarkup, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
 import { modelName, tokens } from '../public/core/format.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
 import { auditActor } from '../public/core/states.js';
@@ -593,4 +593,34 @@ test('the infrastructure step is said once per Work Item, naming each failure wh
   assert.equal([...html.matchAll(/Not the agent’s fault/g)].length, 2, 'once in the table and once in the cards');
   assert.match(html, /<span class="runs-next">Not the agent’s fault: the worker stopped responding \(2 Runs\), the machine running the Run failed \(1 Run\)\. It retries automatically\. If it keeps happening, check the nodes and images\.<\/span>/);
   assert.equal([...html.matchAll(/<span class="runs-note" data-tone="severe">The machine running the Run failed<\/span>/g)].length, 2, 'each failed row and card keeps its short label');
+});
+
+test('Insights lists Deliveries with Acceptance, Token Charge base and unsettled spend, and the demo shows no amounts', () => {
+  const deliveries = {
+    demo: false, window: '30d', scanned: 3, truncated: false,
+    calendar: { workingDays: 'monday-friday', nonWorkingDates: ['2026-12-25'], silentAfterWorkingDays: 10, timeZone: 'UTC', proposed: true },
+    totals: { kinds: { merged: 1, approved: 0, silent: 1, closed_without_acceptance: 0, open: 1 }, tokenChargeBaseUsd: 3.5, unsettledUsd: 0.2, unsettledRuns: 1, unknownRuns: 1 },
+    rows: [
+      { workItemId: '41', externalRef: 'VIK-41', title: 'Round <totals>', team: 'delivery', state: 'done', acceptance: { kind: 'merged', at: '2026-10-05T09:00:00Z', pullRequestUrl: null }, readyForReviewAt: null, silentDueAt: null, tokenChargeBaseUsd: 1.25, unsettled: { runs: 0, usd: 0 }, unknownRuns: 0, runsTruncated: false },
+      { workItemId: '42', externalRef: 'VIK-42', title: 'Quiet one', team: 'delivery', state: 'awaiting_review', acceptance: { kind: 'silent', at: '2026-10-17T00:00:00Z', pullRequestUrl: null }, readyForReviewAt: null, silentDueAt: null, tokenChargeBaseUsd: 2.25, unsettled: { runs: 0, usd: 0 }, unknownRuns: 1, runsTruncated: false },
+      { workItemId: '43', externalRef: 'VIK-43', title: 'Waiting', team: 'delivery', state: 'awaiting_review', acceptance: { kind: 'open', at: null, pullRequestUrl: null }, readyForReviewAt: null, silentDueAt: '2026-11-10T00:00:00Z', tokenChargeBaseUsd: 0, unsettled: { runs: 1, usd: 0.2 }, unknownRuns: 0, runsTruncated: false },
+    ],
+  };
+  const html = deliveriesMarkup({ deliveries }, '30 days', false, helpers);
+  assert.match(html, /<th scope="row"><a href="#work\/41">Round &#60;totals&#62;<\/a>/);
+  assert.match(html, /<td>Merged<\/td><td>05-10-2026<\/td><td class="num">US\$\s1,25<\/td><td class="num"><span class="subtle">—<\/span><\/td>/);
+  assert.match(html, /<td>Accepted by silence<\/td><td>17-10-2026<\/td><td class="num">US\$\s2,25<\/td><td class="num">1 Run not reported<\/td>/);
+  assert.match(html, /<td>Open<\/td><td>Silent on 10-11-2026<\/td><td class="num">US\$\s0,00<\/td><td class="num">US\$\s0,20 · 1 Run<\/td>/);
+  assert.match(html, /1 merged · 1 accepted by silence · 1 open · Token Charge base US\$\s3,50 · US\$\s0,20 unsettled/);
+  assert.match(html, /Monday to Friday, less 1 configured date; this calendar is proposed/);
+  assert.match(html, /nothing is charged, and Credits, the Delivery Fee and invoices are not built/);
+  assert.doesNotMatch(html, /<svg|<canvas|role="region"/);
+  assert.match(deliveriesCsvLink({ deliveries }, '30d', false, helpers), /href="\/api\/ploeg\/deliveries\?window=30d&amp;format=csv" download>Download CSV</);
+  const demo = deliveriesMarkup({ deliveries: { demo: true, window: '30d' } }, '30 days', true, helpers);
+  assert.match(demo, /Demo · no model calls/);
+  assert.doesNotMatch(demo, /US\$/);
+  assert.equal(deliveriesCsvLink({ deliveries: { demo: true } }, '30d', true, helpers), '');
+  assert.match(deliveriesMarkup({ deliveries: null, deliveriesError: { code: 'ploeg_unsupported' } }, '30 days', false, helpers), /Not reported by this Ploeg/);
+  const none = { ...deliveries, rows: [], totals: { ...deliveries.totals, kinds: { merged: 0, approved: 0, silent: 0, closed_without_acceptance: 0, open: 0 } } };
+  assert.match(deliveriesMarkup({ deliveries: none }, '7 days', false, helpers), /No Work Item was attempted in the last 7 days\./);
 });

@@ -32,7 +32,7 @@ export const recordedRoutes = Object.freeze([
   '/api/binder', '/api/packs', '/api/packs/odds', `/api/packs/${id}`, '/api/season', `/api/cards/${id}/seen`,
   '/api/card-themes', `/api/card-themes/${id}`, `/api/card-themes/${id}/versions`, `/api/card-themes/${id}/versions/${id}`,
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
-  '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/economics', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now', '/api/ploeg/connections',
+  '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/economics', '/api/ploeg/deliveries', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now', '/api/ploeg/connections',
   '/api/ploeg/work-items', `/api/ploeg/work-items/${id}`, `/api/ploeg/work-items/${id}/card`, `/api/ploeg/work-items/${id}/cracks`, `/api/ploeg/work-items/${id}/crack-candidates`, `/api/ploeg/work-items/${id}/value-stream`,
   `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, `/api/ploeg/work-items/${id}/runs/${id}/health`, `/api/ploeg/work-items/${id}/tripwire`, '/api/asks', '/api/actions', '/api/actions/filters',
 ].map(path => ({ method: 'GET', path })));

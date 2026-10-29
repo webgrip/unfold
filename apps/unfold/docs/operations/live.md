@@ -231,6 +231,20 @@ node scripts/activity-report.mjs runs.json entries.json
 
 It prints each Run's calls, moves, minutes to its first Change and the share of its time in each Activity, and how many calls no rule placed. The exports hold commands the agents ran, so keep them out of the repository and delete them afterwards.
 
+## Deliveries and the silent Acceptance calendar
+
+Insights lists the window's Deliveries: each attempted Work Item's Acceptance, its date and the Token Charge base, which is the settled cost of every attempt before any Markup. The rules come from [system ADR-0006](../../../../docs/adr/adr-0006-the-ticket-is-the-billing-unit.md); the route is in the [API contract](../contracts/api.md). This is phase 1 of billing per accepted Work Item: figures only. Unfold charges nothing, and has no Credits, Delivery Fee, Reversals or invoices; those are phase 2 and wait for the owner's pricing decisions.
+
+A pull request with no decision from a person counts as silently accepted 10 working days after the agents handed it over. Ploeg records no ready-for-review moment, so the hand-over is the finish of the Shift's last writing Run, the same stand-in the clean-merge rate uses. Working days are Monday to Friday in UTC. The holiday calendar is an open owner decision, so this setting is **proposed**: list any extra non-working dates in the configuration file (default none).
+
+```json
+"acceptanceCalendar": { "nonWorkingDates": ["2026-12-25", "2026-12-26"] }
+```
+
+Unfold refuses to start when a date is not a real `YYYY-MM-DD` date or the list holds more than 1000.
+
+Not counted yet: a change that lands on the base branch by another route, attempts that failed through Unfold's own fault (they are in the base), and Reversals after a revert.
+
 ## Decider tripwire
 
 The tripwire screens every new tool call of a running Run with a decider, a model asked for scores instead of prose ([RFC-0008](../../../../docs/design/rfc-0008-decision-models.md), [ADR-0042](../../../../docs/adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md), both proposed). Built on branch `feat/tripwire-reader`, not released. It is off until a `decider` block is configured and the `runs.tripwire` flag is on for the Run's Team ([feature flags](feature-flags.md)); it needs a connected Ploeg.

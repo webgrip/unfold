@@ -13,6 +13,7 @@ import { expectationKinds, expectationSettings } from '../public/core/expectatio
 import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
+import { acceptanceCalendarSettings } from './delivery-ledger.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -534,5 +535,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
   config.delivery = validateDeliveryConfig(raw.delivery, config);
   config.reports = reportSettings(raw.reports, config.taskSources, mode);
+
+  config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   return config;
 }

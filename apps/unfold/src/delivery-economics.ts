@@ -42,7 +42,11 @@ const amount = (value: unknown): value is number => typeof value === 'number' &&
 const rounded = (value: number): number => Math.round(value * 1e6) / 1e6;
 const changeRequested = (state: string | null | undefined): boolean => ['changes_requested', 'request_changes'].includes(String(state ?? '').toLowerCase());
 
-function spendOf(run: FactsRun, facts: WorkItemFacts): { status: 'settled' | SpendGap; usd: number | null } {
+/**
+ * A Run's spend: settled with its reported cost once it finished and holds no budget; unsettled while it runs or holds
+ * budget, with the latest observed or reported cost; unknown when it finished without reporting a cost.
+ */
+export function runSpend(run: FactsRun, facts: WorkItemFacts): { status: 'settled' | SpendGap; usd: number | null } {
   const reported = amount(run.usage?.costUsd) ? run.usage!.costUsd! : null;
   if (run.state !== 'finished') {
     const live = facts.liveUsage.filter(entry => entry.runId === run.id && amount(entry.costUsd)).sort((a, b) => (at(b.observedAt) ?? 0) - (at(a.observedAt) ?? 0))[0];
@@ -52,11 +56,19 @@ function spendOf(run: FactsRun, facts: WorkItemFacts): { status: 'settled' | Spe
   return reported === null ? { status: 'unknown', usd: null } : { status: 'settled', usd: reported };
 }
 
+/**
+ * When the agents handed a pull request over, as of `until`: the finish of the last writing Run of its Shift, else when
+ * the pull request opened or was first seen. Ploeg records no ready-for-review moment, so this stands in for it.
+ */
+export function handedOverAt(pr: FactsPullRequest, facts: WorkItemFacts, until: number): number | null {
+  const writers = facts.runs.filter(run => run.writes && run.shiftId !== null && run.shiftId === pr.shiftId).map(run => at(run.finishedAt)).filter((ms): ms is number => ms !== null && ms <= until);
+  return writers.length ? Math.max(...writers) : at(pr.openedAt) ?? at(pr.firstSeenAt);
+}
+
 function changedAfterHandOff(pr: FactsPullRequest, facts: WorkItemFacts, mergedAt: number): boolean {
   const bots = new Set(facts.botLogins.map(login => login.toLowerCase()));
   const author = pr.author?.toLowerCase() ?? null;
-  const writers = facts.runs.filter(run => run.writes && run.shiftId !== null && run.shiftId === pr.shiftId).map(run => at(run.finishedAt)).filter((ms): ms is number => ms !== null && ms <= mergedAt);
-  const from = writers.length ? Math.max(...writers) : at(pr.openedAt) ?? at(pr.firstSeenAt) ?? Number.NEGATIVE_INFINITY;
+  const from = handedOverAt(pr, facts, mergedAt) ?? Number.NEGATIVE_INFINITY;
   const inside = (value: string) => { const ms = at(value); return ms !== null && ms > from && ms <= mergedAt; };
   const person = (login: string) => !bots.has(login.toLowerCase());
   if (pr.reviews.some(review => changeRequested(review.state) && person(review.reviewer) && inside(review.receivedAt))) return true;
@@ -96,7 +108,7 @@ export function deliveryEconomics(facts: WorkItemFacts[], { window, since, until
     if (item.truncated.runs) runsTruncated++;
     for (const run of item.runs) {
       if (run.shiftId === null) continue;
-      const spend = spendOf(run, item);
+      const spend = runSpend(run, item);
       if (spend.status === 'settled') { settled += spend.usd!; entry.settled += spend.usd!; continue; }
       if (spend.status === 'unsettled') { unsettledRuns++; entry.unsettled++; if (spend.usd !== null) unsettledUsd += spend.usd; }
       else { unknownRuns++; entry.unknown++; }
@@ -115,21 +127,32 @@ export function deliveryEconomics(facts: WorkItemFacts[], { window, since, until
   };
 }
 
+/** The facts a window reading found, and whether a page bound stopped it. */
+export type WindowFacts = { facts: WorkItemFacts[]; truncated: boolean };
+
+/**
+ * Reads the facts of every Work Item with activity since `since`, page by page up to `maxPages`, and keeps the Teams in
+ * `teams`. `truncated` says the bound stopped it.
+ */
+export async function readWindowFacts(source: FactsSource, { since, teams, fresh = false, maxPages = economicsPageBound }: { since: number; teams: readonly string[]; fresh?: boolean; maxPages?: number }): Promise<WindowFacts> {
+  const allowed = new Set(teams);
+  const facts: WorkItemFacts[] = [];
+  let before: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const result = await source.factsPage({ since: new Date(since).toISOString(), limit: 25, ...(before ? { before } : {}) }, fresh);
+    facts.push(...result.facts.filter(entry => allowed.has(entry.workItem.team)));
+    if (!result.nextBefore) return { facts, truncated: false };
+    before = result.nextBefore;
+  }
+  return { facts, truncated: true };
+}
+
 /**
  * Reads the facts of every Work Item with activity inside the window, page by page up to `maxPages`, keeps the Teams
  * in `teams`, and measures them with `deliveryEconomics`. It says it truncated when the bound stopped it.
  */
 export async function readDeliveryEconomics(source: FactsSource, { window, teams, now = Date.now(), fresh = false, maxPages = economicsPageBound }: { window: EconomicsWindow; teams: readonly string[]; now?: number; fresh?: boolean; maxPages?: number }): Promise<DeliveryEconomics> {
   const since = now - economicsWindows[window];
-  const allowed = new Set(teams);
-  const facts: WorkItemFacts[] = [];
-  let before: string | undefined;
-  let truncated = true;
-  for (let page = 0; page < maxPages; page++) {
-    const result = await source.factsPage({ since: new Date(since).toISOString(), limit: 25, ...(before ? { before } : {}) }, fresh);
-    facts.push(...result.facts.filter(entry => allowed.has(entry.workItem.team)));
-    if (!result.nextBefore) { truncated = false; break; }
-    before = result.nextBefore;
-  }
+  const { facts, truncated } = await readWindowFacts(source, { since, teams, fresh, maxPages });
   return deliveryEconomics(facts, { window, since, until: now, truncated });
 }
