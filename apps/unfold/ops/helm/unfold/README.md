@@ -2,7 +2,7 @@
 
 This chart installs Unfold, Ploeg's front end: one workbench Deployment with a persistent volume, its Service, and, in live mode, the RBAC it needs to manage agent workspaces in a separate namespace. It also carries the Ploeg release this Unfold release was tested with, as the `ploeg` dependency (see [Ploeg](#ploeg)).
 
-By default it runs the deterministic **demo**, which needs nothing outside the cluster except the public image and a default StorageClass, once `ploeg.enabled` is `false`. The demo says it is one and makes no model calls.
+By default it runs the deterministic **demo**, which needs nothing outside the cluster except the public image and a default StorageClass, once `ploeg.enabled` is `false`. The demo says it is one and makes no model calls. Every demo visitor is an administrator, so the chart refuses `mode: demo` together with a real `config.ploeg`, `config.execution`, `config.delivery`, `config.links`, a task source `tokenEnv` or `config.reports.tokenEnv` ([what demo mode refuses](../../../docs/operations/demo.md#what-demo-mode-refuses)).
 
 ## Images
 

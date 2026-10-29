@@ -1090,11 +1090,16 @@ function personTokenSettings(raw: unknown, demo: boolean): PersonTokenSettings {
   return { tokenUrl: tokenUrl.href, clientId: data.clientId, clientSecretEnv: data.clientSecretEnv, audience: data.audience };
 }
 
+/** Why a demo-mode Unfold refuses a `ploeg` block that is not `ploeg.demo`: demo mode signs every visitor in as an administrator. */
+export const demoRefusesRealPloeg = 'Demo mode gives every visitor admin; it cannot use a real Ploeg. Set mode: live, or use ploeg.demo';
+
 export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig['ploeg'] {
   if (raw === undefined) return undefined;
   const data = record(raw);
   if (Object.keys(data).some(key => !['url', 'tokenEnv', 'teams', 'userTeams', 'forgeLogins', 'trackerUrl', 'demo', 'personTokens'].includes(key))) throw new Error('Unknown ploeg field; credentials must use tokenEnv');
   if (data.demo !== undefined && (data.demo !== true || mode !== 'demo')) throw new Error('ploeg.demo requires explicit application demo mode');
+  if (mode === 'demo' && data.demo !== true) throw new Error(demoRefusesRealPloeg);
+  if (mode === 'demo' && data.tokenEnv !== undefined) throw new Error('Demo mode gives every visitor admin; it cannot hold ploeg.tokenEnv, and the demo Ploeg needs no credential. Remove ploeg.tokenEnv, or set mode: live');
   let url: URL;
   try { url = new URL(field(data.url, 2048)); } catch { throw new Error('ploeg.url must be an HTTP(S) origin or base path'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || /[%\\]/.test(url.pathname)) throw new Error('ploeg.url must use HTTP(S) without credentials, query or fragment');

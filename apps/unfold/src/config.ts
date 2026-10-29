@@ -7,7 +7,7 @@ import { mcpHttpSettings } from './mcp-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
-import { validatePloeg } from './ploeg.ts';
+import { demoRefusesRealPloeg, validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { expectationKinds, expectationSettings } from '../public/core/expectations.js';
 import { validateDeliveryConfig } from './delivery-config.ts';
@@ -335,6 +335,32 @@ export function requirePloegExecution(config: Pick<AppConfig, 'mode' | 'executio
   throw new Error(`Live mode runs agent work only under Ploeg's authorization, and standalone live mode is retired. Configure ${missing.join(', ')} (see config/live.example.json) and set the variable ploeg.tokenEnv names to Unfold's Ploeg consumer token. Guide: ${managedExecutionGuide}. For the credential-free demonstration, run npm run demo.`);
 }
 
+const demoRefusal = (what: string, instead = 'Set mode: live') => new Error(`Demo mode gives every visitor admin; it cannot use ${what}. ${instead}`);
+const plain = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Refuses a demo-mode configuration that would reach a real external system with a credential. Demo mode signs every
+ * visitor in as the administrator `demo-operator`, so a credential it held would act for whoever opens the page. Error
+ * reports (`UNFOLD_SENTRY_DSN`, `UNFOLD_ERROR_OTLP_URL`) stay allowed: they only send, and give a visitor nothing to act with.
+ */
+export function refuseDemoCredentials(raw: Record<string, unknown>, env: NodeJS.ProcessEnv = process.env): void {
+  if (raw.ploeg !== undefined) {
+    if (!plain(raw.ploeg) || raw.ploeg.demo !== true) throw new Error(demoRefusesRealPloeg);
+    if (raw.ploeg.tokenEnv !== undefined) throw demoRefusal('ploeg.tokenEnv, and the demo Ploeg needs no credential', 'Remove ploeg.tokenEnv, or set mode: live');
+    if (raw.ploeg.personTokens !== undefined) throw demoRefusal('ploeg.personTokens, which exchange sign-in tokens for a real Ploeg', 'Remove ploeg.personTokens, or set mode: live');
+  }
+  if (raw.execution !== undefined) throw demoRefusal('execution, which runs agent work under a real Ploeg');
+  if (raw.delivery !== undefined) throw demoRefusal('delivery, whose verifier and publisher hold forge credentials');
+  if (raw.links !== undefined) throw demoRefusal('links: a GitLab or ClickUp account one visitor links would act for every visitor', 'Remove links, or set mode: live');
+  for (const source of Array.isArray(raw.taskSources) ? raw.taskSources : []) {
+    if (plain(source) && source.tokenEnv !== undefined) throw demoRefusal(`the token of task source ${String(source.id)} (tokenEnv)`, 'Remove its tokenEnv, or set mode: live');
+  }
+  if (plain(raw.reports) && raw.reports.tokenEnv !== undefined) throw demoRefusal('reports.tokenEnv, which files reports into a real tracker', 'Remove reports, or set mode: live');
+  const providers = plain(raw.flags) && Array.isArray(raw.flags.providers) ? raw.flags.providers : [];
+  if (providers.some(provider => plain(provider) && (provider.apiKeyEnv !== undefined || provider.tokenEnv !== undefined))) throw demoRefusal('a flag provider credential (flags.providers apiKeyEnv or tokenEnv)', 'Remove the credential, or set mode: live');
+  if (env.LITELLM_MASTER_KEY) throw demoRefusal('the LiteLLM master key in LITELLM_MASTER_KEY', 'Unset LITELLM_MASTER_KEY, or set mode: live');
+}
+
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const fileIndex = argv.indexOf('--config');
   const configFile = fileIndex >= 0 ? argv[fileIndex + 1] : process.env.UNFOLD_CONFIG;
@@ -342,6 +368,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const raw = configFile ? JSON.parse(readFileSync(resolve(configFile), 'utf8')) : {};
   const mode = argv.includes('--demo') ? 'demo' : process.env.UNFOLD_MODE || raw.mode || 'live';
   if (!['live', 'demo'].includes(mode)) throw new Error('mode must be live or demo');
+  if (mode === 'demo') refuseDemoCredentials(raw);
   const dataDir = resolve(process.env.UNFOLD_DATA_DIR || raw.dataDir || '.unfold');
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   chmodSync(dataDir, 0o700);
