@@ -2,7 +2,7 @@
   "docs/landscape/index.md": "56c73f4449d555cbb1e7c33e831b26bb569fd9fbd890a72cef5a294e349fa766",
   "docs/landscape/components.md": "dd0a8d51f882ba699c837d36b3b8eeb0cf85298c7cc7b2be8633a0feab24ac3a",
   "docs/landscape/c4.md": "4c6f8953036bf9495654b239cb784f9fc25ef0e24fbdb63d83c44b538e66c7e0",
-  "apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md": "86550417de913ca0a37e41d3f0978ef5705b4a530eb7166eea8caaad380ace89",
+  "apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md": "d1f5931b1f4a22b8d12fd77f941d9b5b1827819bfbebb63b79ba8ad69b1d97a6",
   "docs/landscape/bottlenecks.md": "509c5573fed2e6ce3f0b5643ae39e884fff50454faab5bce81a5011c71ee6e69",
   "docs/reference/glossary.md": "57e30e3054068d8d55da5d3f69fff4785c9cadfabda553730b6cfe16cd42017a",
   "docs/domain/rules.md": "5ee71adab1c94931fdb7f0e37211881350c8da9580ad77d11f0230718276f526",
@@ -12,5 +12,5 @@
   "docs/domain/model.yaml": "bb217d4d3729826bc9b01d2701b5df8bb837f986a32882369992a952df5921f3",
   "docs/domain/overview.md": "52f83b9600f0361981ecd8f29848d1c4b7605f5c9c7370367e06136458b17f49",
   "docs/domain/entities.md": "48e7e96a39b4288aed6c22019448ee0ba6beb709b5ab12839cd0faf1038983cd",
-  "apps/unfold/scripts/build-landscape.mjs": "4913041d7e1096b3156bbf1ad00bc41b9085e3b73006cc8d9c3feb848c99fbd7"
+  "apps/unfold/scripts/build-landscape.mjs": "fa0b0b2e618bdbceb56950f3895e0ac94c392bf3c98c042b6cd001b76810bbe3"
 }

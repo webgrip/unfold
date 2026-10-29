@@ -456,6 +456,61 @@
       "independently_tested": false,
       "supports": "Standardized communication between coding agents and clients/editors.",
       "limitations": "Does not itself provide durable dispatch, tracker state, identity policy or workspace isolation."
+    },
+    {
+      "id": "cursor-spacex-acquisition",
+      "title": "SpaceX acquires Cursor (Techzine)",
+      "url": "https://www.techzine.eu/news/devops/142197/spacex-acquires-cursor-for-60-billion/",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-10-29",
+      "evidence_level": "secondary_source_inspected",
+      "independently_tested": false,
+      "supports": "SpaceX, merged with xAI, is buying Cursor for about US$ 60 billion in stock, announced 2026-06-16.",
+      "limitations": "Trade press, not the vendors' own filing; the close date rests on secondary sources."
+    },
+    {
+      "id": "ona-cloud-shutdown",
+      "title": "Ona stories: joining OpenAI and Ona Cloud shutdown",
+      "url": "https://ona.com/stories",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-10-29",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Ona joined OpenAI; Ona Cloud shuts down on 2026-10-31.",
+      "limitations": "Says nothing about the future of Ona's open-source components."
+    },
+    {
+      "id": "claude-self-hosted-environments",
+      "title": "Claude Code self-hosted environments",
+      "url": "https://code.claude.com/docs/en/self-hosted-environments",
+      "kind": "documentation",
+      "accessed_at": "2026-10-29",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Public beta for Team and Enterprise: runners and an autoscaling orchestrator on the customer's Kubernetes, one owner per runner, a fresh disk afterwards; control plane, queue and transcripts stay at Anthropic; GitHub or GitHub Enterprise Server repositories only.",
+      "limitations": "Beta documentation; EU residency for the control plane was not found."
+    },
+    {
+      "id": "openhands-forgejo",
+      "title": "OpenHands Forgejo provider code",
+      "url": "https://github.com/OpenHands/OpenHands",
+      "kind": "repository",
+      "accessed_at": "2026-10-29",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Forgejo is a git provider in the frontend and integrations (src/types/settings.ts, git-provider-items-service.ts).",
+      "limitations": "Read in source, not documented as a product page and not exercised against a Forgejo instance."
+    },
+    {
+      "id": "copilot-code-review-approvals",
+      "title": "Copilot code review: Max and approvals",
+      "url": "https://github.blog/changelog/2026-10-28-copilot-code-review-merge-with-confidence-with-max-and-approvals",
+      "kind": "vendor_announcement",
+      "accessed_at": "2026-10-29",
+      "evidence_level": "official_source_inspected",
+      "independently_tested": false,
+      "supports": "Copilot's approval counts toward required approvals, can be limited to paths and is dismissed by new commits; off by default.",
+      "limitations": "An AI approval, not an approval by the agency's client."
     }
   ],
   "conflicts": [
@@ -499,6 +554,7 @@
     "Before public comparison publication",
     "Before committing to a major workbench or workspace-platform investment",
     "Before selecting a customer deployment edition",
-    "After relevant agent protocol or pricing change"
+    "After relevant agent protocol or pricing change",
+    "After an acquisition, shutdown or forge-support change among the shortlisted products"
   ]
 }

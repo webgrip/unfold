@@ -10,6 +10,12 @@ There is a credible product opportunity, but “a dashboard for remote, model-in
 
 > An open delivery control plane for teams working across client repositories: turn approved tickets into reviewable changes, with reusable procedures, accountable costs, and human control from the tools people already use.
 
+Restated against the late-October 2026 field ([4.12](#412-october-2026-consolidation-and-self-hosted-runners-added-29-october-2026)), the position narrows to what nobody else combines:
+
+> The only product where an agency runs agent work for many clients on its own EU infrastructure, across each client's own forge, lets the client approve ready work, and bills per accepted ticket.
+
+Turning tickets into review-ready pull requests and supporting Forgejo are no longer differences on their own: Copilot, Devin, Rovo Dev, GitLab Duo and Tembo sell the first, and OpenHands ships the second.
+
 The initial audience should be agencies and internal platform teams managing several clients, repositories, forge instances, environments and commercial boundaries. The buyer is likely a CTO or platform lead; the everyday users are developers and reviewers; product owners need progress and acceptance evidence. This is a **customer hypothesis**, grounded in the initiating team's workflow, not measured market demand.
 
 Ploeg and Unfold should earn a place by making the difficult boundary crossings reliable: tracker to dispatch, dispatch to isolated work, work to evidence, evidence to review, and review back to the original ticket. They should accommodate different harnesses without pretending their native conversations are interchangeable. They should preserve existing priorities instead of creating a second managerial universe that everyone has to keep synchronized.
@@ -54,14 +60,14 @@ The entries below summarize official documentation, not this project's test resu
 | Product | Source and deployment boundary | Ticket and coordination surface | Remote execution / IDE | Why it matters to Ploeg + Unfold |
 | --- | --- | --- | --- | --- |
 | **Kandev** | AGPL-3.0; self-hostable workbench | Multi-step workflows, parallel tasks, integrations and task MCP | Local, Docker, SSH, Sprites; Kubernetes documented separately; integrated review/editor | Closest open workbench comparison; substantial functionality already exists |
-| **OpenHands Agent Canvas / Enterprise** | MIT Canvas; commercial team/enterprise capabilities differ | Multi-harness conversations and automations | Local, remote and cloud backends; enterprise sandboxes and administration | Strong build-on or replace-workbench candidate |
+| **OpenHands Agent Canvas / Enterprise** | MIT Canvas; commercial team/enterprise capabilities differ | Multi-harness conversations and automations | Local, remote and cloud backends; enterprise sandboxes and administration | Strong build-on or replace-workbench candidate; supports Forgejo in its code (4.12) |
 | **Coder Workspaces / Agents** | Open-source workspace foundation; licensed product tiers | Native coding agent, subagents, API-driven work | Self-hosted workspaces; established editor access | Strong infrastructure partner and direct enterprise competitor |
 | **Paperclip** | MIT; self-hosted orchestration | Company/project/goal hierarchy, tasks, budgets, approvals, routines | External runtimes and workspace integration | Broad orchestration competitor; challenges any “we invented governed agent teams” claim |
 | **GitLab Duo Agent Platform** | GitLab product and license conditions; self-managed options | Agents, flows, sessions, issue-to-MR workflow | Editor extension; self-hosted model options | Important incumbent where GitLab already owns the delivery system |
 | **GitHub Copilot cloud agent** | Commercial GitHub service | Issues, agent sessions, PR iteration, automations | Actions environment, including self-hosted runners; VS Code entrypoint | Low-friction incumbent for GitHub-only organizations |
 | **Factory** | Commercial; cloud, hybrid and airgapped deployment patterns documented | Droids, subagents; broader Software Factory is private preview | CLI, app, remote environments and enterprise controls | Strong reference for delivery coverage and model/gateway governance |
-| **Devin** | Commercial; team and enterprise offerings | Tickets, automations, playbooks and review | Cloud execution; enterprise deployment options | Strong outcome-oriented competitor; do not compare against old ACU-only packaging |
-| **Cursor cloud agents** | Commercial cloud-agent service | Event/schedule automations and agent work | Remote computers plus editor integration | Establishes expectations for polished asynchronous developer UX |
+| **Devin** | Commercial; team and enterprise offerings | Tickets, automations, playbooks and review | Cloud execution; enterprise deployment options | Strong outcome-oriented competitor; do not compare against old ACU-only packaging. Its desktop editor is Devin Desktop, formerly Windsurf, and it reaches GitLab self-managed, Bitbucket and Azure DevOps (4.12) |
+| **Cursor cloud agents** | Commercial cloud-agent service | Event/schedule automations and agent work | Remote computers plus editor integration | Establishes expectations for polished asynchronous developer UX; being bought by SpaceX, which merged with xAI (4.12) |
 | **OpenCode** | MIT coding harness | Native sessions and subagents; not the whole proposed delivery contract | Server API and IDE integration | Preferred initial execution component; can also be sufficient alone for simpler needs |
 | **BAND / Jam** *(added 18 September 2026)* | SaaS only, no self-host tier at any price; MIT SDKs over a closed Elixir backend; Jam distributed as proprietary binaries | Chat rooms, `@mention` routing, bilateral Contacts, a per-room task board; no tracker integration of any kind | Jam coordinates local Claude Code and Codex agents over Docker Sandboxes; no forge, diff, PR or merge surface | Sells our governance vocabulary one layer above us, with a transcript where we have typed evidence. Rejected as a dependency, mined for design: [dossier](2026-09-18-band-and-the-interaction-layer.md) |
 | **LiteLLM `agent()`** *(added 8 October 2026)* | MIT outside LiteLLM's `enterprise/` directory; a Python call on the caller's machine | None: one call runs one task, and a session can be resumed in another process | Claude Code, Codex, opencode and Deep Agents in a local or Docker sandbox; no IDE surface | Runs the harnesses Ploeg runs, through the gateway that already meters Ploeg's Runs. See 4.10 |
@@ -128,6 +134,8 @@ OpenCode provides a documented HTTP server surface and IDE integration. Its MIT 
 
 Claude Code Remote Control keeps the session executing on the originating machine; its browser/mobile surface controls that session. The current documentation restricts Remote Control to eligible subscription login and disallows gateway/proxy endpoints. This is different from its cloud execution product. [Remote Control](https://code.claude.com/docs/en/remote-control).
 
+Claude Code [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments), in public beta for Team and Enterprise, run its sessions on the customer's own Kubernetes runners with an autoscaling orchestrator, one owner per runner and a fresh disk afterwards. The control plane, queue and transcripts stay at Anthropic, and repositories are GitHub or GitHub Enterprise Server only. Self-hosted execution is therefore not a difference; a self-hosted control plane still is.
+
 **Our inference:** somebody who only needs to supervise one trusted remote machine may require little more than an existing harness and secure remote access. Ploeg/Unfold makes sense when shared state, assignment, evidence, spending and handoffs become organizational work. Optional proprietary harness adapters can preserve developer choice, but the default usable path must remain open. Model compatibility, subscription eligibility and team authorization must be separate entries in the capability matrix.
 
 ### 4.8 Continue and Vibe Kanban: ideas with lifecycle caveats
@@ -144,7 +152,7 @@ BAND postdates this document's 9 September research date. It raised a $17M seed 
 
 Two things make it worth a row rather than a footnote. Its desktop product, Jam, is the same shape as Unfold's workbench — coding agents on a board, autonomous handoff, human intervention points — and it is a free download today. And BAND built the delivery loop we are building, as [Codeband](https://github.com/band-ai/codeband): adversarial cross-model review, a worktree per coder, risk-tiered auto-merge. Codeband is now marked *"maintenance only"* and redirects users to Jam. The coordination vendor retreated from finishing the work to watching it.
 
-**Our inference:** the differentiator is not "governed agent teams", which BAND will out-market us on, but the four things no vendor and no protocol in this landscape carries — self-hosting, authorized-and-settled model spend, ticket-to-merge delivery, and signed candidates. The [full dossier](2026-09-18-band-and-the-interaction-layer.md) records the design ideas worth mining and the triggers that would reopen the question.
+**Our inference:** the differentiator is not "governed agent teams", which BAND will out-market us on, but the four things no vendor and no protocol in this landscape carries — self-hosting, authorized-and-settled model spend, ticket-to-merge delivery, and signed candidates. Ticket-to-merge delivery on its own is no longer one of them ([4.12](#412-october-2026-consolidation-and-self-hosted-runners-added-29-october-2026)). The [full dossier](2026-09-18-band-and-the-interaction-layer.md) records the design ideas worth mining and the triggers that would reopen the question.
 
 ### 4.10 LiteLLM `agent()`: the gateway runs the harness, added 8 October 2026
 
@@ -161,6 +169,22 @@ This overlaps with Ploeg's Run execution. Ploeg already meters through LiteLLM: 
 It overlaps Ploeg's dispatch, review and claim seams. It lacks what Ploeg exists for: its agents run with Claude Code's `--dangerously-skip-permissions` or Copilot's `--allow-all`, the installation token is not narrowed when minted, its budget is a weekly estimate from list prices that stops new work only when someone sets it, and one hive is one trust domain.
 
 **Our inference:** not a dependency and not yet a competitor for agencies: no money, no tenancy, GitHub-only merging. It is the project to watch because it moves fast toward Ploeg's seam, with Forgejo adapters, a Kata option and LiteLLM, OpenCode and Goose backends added in October. Look again when its Forgejo merge ships, when its budget becomes a hard cap per task, or when its hub offers more than one tenant per hive. The [Hive fit record](../../../../docs/research/2026-10-27-hive-fit.md) is the full survey; the [maturity model fit record](../../../../docs/research/2026-10-27-ai-codebase-maturity-model-fit.md) covers the levels it implements and the mechanisms worth taking from it.
+
+### 4.12 October 2026: consolidation and self-hosted runners, added 29 October 2026
+
+The field consolidated in the months before this refresh, and the model labs moved execution onto customers' infrastructure while keeping the control plane. The evidence is in [the VS Code 1.144 dossier](2026-10-29-vscode-1-144-fit.md#competitor-analysis-late-october-2026).
+
+- **Cursor** is being bought by SpaceX, which merged with xAI, for about US$ 60 billion in stock, announced on 16 June 2026 ([Techzine](https://www.techzine.eu/news/devops/142197/spacex-acquires-cursor-for-60-billion/)); the close date rests on secondary sources. Cursor already owns Continue (2).
+- **Ona** joined OpenAI, and [Ona Cloud shuts down on 31 October 2026](https://ona.com/stories). Its live-environment takeover from the editor stops being a reference product.
+- **Windsurf** is now Devin Desktop, Devin's own editor. Devin added GitLab merge requests and Bitbucket review in October and has a native Jira agent, which makes it the closest commercial match for mixed-forge agencies; Forgejo and price are its gaps.
+- **Claude Code self-hosted environments** put runners on the customer's Kubernetes with the control plane at Anthropic (4.7). Codex exec-server, Cursor self-hosted workers, Factory OpenCompute, Amp self-hosted Orbs and Devin Outpost have the same shape.
+- **OpenHands supports Forgejo** in its frontend and integrations, read in its source (`src/types/settings.ts`, `git-provider-items-service.ts`) ([repository](https://github.com/OpenHands/OpenHands)). Every large commercial vendor still lacks Forgejo and Gitea.
+- **Approval** in the incumbents means an AI approving or a person approving a plan: [Copilot's approval](https://github.blog/changelog/2026-10-28-copilot-code-review-merge-with-confidence-with-max-and-approvals) counts toward required approvals, scoped by path and dismissed by a new push, and Rovo Dev lets a person approve the plan. Nobody lets an agency's client approve ready work.
+- Secondary reports: Harness bought Augment's Cosmos, Auggie and Context Engine, and Cohere and Aleph Alpha signed a merger agreement. Roo Code is archived.
+
+What still holds as a combination: many client tenants under one agency, each with its own forge and tracker (the nearest is Devin Enterprise's multiple organisations); billing per accepted ticket (everyone else bills per seat, credit, token or ACU, and Devin only reports ACUs per merged pull request); the client approving ready work; and both the control plane and execution self-hosted in the EU, which only Coder Agents and OpenHands also offer.
+
+**Our inference:** the threats are Copilot as the default system from ticket to merge inside GitHub Enterprise, VS Code as the multi-harness cockpit, and GitLab Duo plus JetBrains Air for agencies on self-managed GitLab and PhpStorm. Unfold wins on the Work Item, budget and client-approval layer and on where the control plane runs, not on the session interface or on isolated pods alone. Borrow period budget caps, cost per merged pull request as the headline number, and the mechanics of path-scoped approvals dismissed by a new push for client approval.
 
 ## 5. What Unfold can claim today, and what must be earned
 

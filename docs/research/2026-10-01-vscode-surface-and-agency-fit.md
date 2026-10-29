@@ -48,11 +48,14 @@ The market caps the payoff. Glide's first buyers are PHP agencies, and PHP devel
 
 So every VS Code surface needs a JetBrains counterpart. That counterpart is ACP, which JetBrains and Zed use for external agents and which Ploeg already speaks south.
 
-The opening is unchanged and still unmeasured:
+The opening is still unmeasured, and narrower than it was. Read against the late-October field ([the 1.144 dossier](../../apps/unfold/docs/research/2026-10-29-vscode-1-144-fit.md#does-unfolds-opening-still-hold)):
 
-- No competitor sells "tickets to review-ready pull requests, per agency, across client forges, billed per accepted ticket".
-- None of them supports Forgejo or Gitea.
-- None of them has client approval.
+- Tickets to review-ready pull requests is sold by Copilot, Devin, Rovo Dev, GitLab Duo and Tembo. Nobody sells it per agency, across client forges, billed per accepted ticket.
+- OpenHands supports Forgejo in its code. No large commercial vendor supports Forgejo or Gitea.
+- None of them lets the agency's client approve ready work. "Approval" elsewhere means an AI approving (Copilot) or a person approving a plan (Rovo Dev).
+- Only Coder Agents and OpenHands also self-host both the control plane and execution. Claude Code, Cursor, Codex, Devin and Factory run on the customer's machines but keep the control plane and transcripts in their own cloud.
+
+So the opening is: the only product where an agency runs agent work for many clients on its own EU infrastructure, across each client's own forge, lets the client approve ready work, and bills per accepted ticket.
 
 ## Who touches what
 
@@ -95,19 +98,19 @@ That is the per-ticket billing thesis of [ADR-0006](../adr/adr-0006-the-ticket-i
 | Product | Takeover in the editor | Mechanism | Non-GitHub forges | Agency features |
 | --- | --- | --- | --- | --- |
 | [GitHub Copilot cloud agent](https://docs.github.com/en/copilot/concepts/agents/cloud-agent/agent-management) | "Open in VS Code" | Copilot plus the GitHub Pull Requests extension; Agents window session targets | None | Cost centers, per-user budgets |
-| [Cursor](https://cursor.com/docs/cloud-agent) | Moves an agent between cloud and local in its own Agents window | Proprietary editor; ACP only for the local CLI | GitLab including self-hosted, Bitbucket, Azure DevOps | None |
-| [Devin](https://docs.devin.ai/cli/handoff.md) | `/pickup` checks out the pull request branch locally | CLI, SSH, Devin Desktop; ACP for JetBrains and Zed | GitLab self-managed, Bitbucket, Azure DevOps | Per-organization billing separation (Enterprise) |
-| [Ona](https://ona.com/docs/ona/editors/vscode) | "Open" connects the editor to the agent's live environment | Extension plus Remote-SSH | GitLab, Bitbucket, Azure DevOps | None |
+| [Cursor](https://cursor.com/docs/cloud-agent), being bought by SpaceX/xAI | Moves an agent between cloud and local in its own Agents window | Proprietary editor; ACP only for the local CLI | GitLab including self-hosted, Bitbucket, Azure DevOps | None |
+| [Devin](https://docs.devin.ai/cli/handoff.md) | `/pickup` checks out the pull request branch locally | CLI, SSH, Devin Desktop (formerly Windsurf); ACP for JetBrains and Zed | GitLab self-managed, Bitbucket, Azure DevOps | Per-organization billing separation (Enterprise) |
+| [Ona](https://ona.com/docs/ona/editors/vscode); Ona joined OpenAI and [Ona Cloud ends on 2026-10-31](https://ona.com/stories) | "Open" connects the editor to the agent's live environment | Extension plus Remote-SSH | GitLab, Bitbucket, Azure DevOps | None |
 | [Coder](https://github.com/coder/vscode-coder) | `vscode://coder.coder-remote/open?owner=…&workspace=…` | URI handler plus Remote-SSH | GitLab self-hosted (diff view) | Organizations, AI Gateway budgets |
 | [Factory](https://docs.factory.com/ide-integrations.md) | `droid computer ssh` | Extension, SSH; ACP | GitLab via self-managed SCM (Enterprise) | Sub-organizations, dedicated EU deployment |
-| [OpenHands Cloud](https://docs.openhands.dev/openhands/usage/key-features.md) | Browser VS Code tab; otherwise the pull request branch | ACP for the local CLI | GitLab, Bitbucket; Forgejo in open source only, undocumented | Organization budgets |
+| [OpenHands Cloud](https://docs.openhands.dev/openhands/usage/key-features.md) | Browser VS Code tab; otherwise the pull request branch | ACP for the local CLI | GitLab, Bitbucket, Azure DevOps, Forgejo (in its frontend and integrations code) | Organization budgets |
 | [Codex cloud](https://learn.chatgpt.com/docs/ide) | Delegate from the IDE extension, apply the result back | Extension (Marketplace and Open VSX); ACP adapter | GitLab in beta (*unverified*) | Enterprise analytics |
 | [Zed Delta](https://zed.dev/blog/delta-public-beta) | Shared multiplayer thread | Own app on DeltaDB | None found | None |
 | [Amp](https://ampcode.com/manual/orbs), [Jules](https://jules.google/docs/cli/reference), [Warp](https://docs.warp.dev/platform/handoff/) | `amp sync`, `jules remote pull`, `/continue-locally` | CLI or terminal | Warp: GitLab triggers | Warp: team metrics |
 
 Two lessons follow:
 
-1. The best takeovers either open the agent's own environment (Ona, Coder) or check out the agent's branch with its context (Devin, Copilot). A pre-filled prompt alone is the weakest form.
+1. The best takeovers either open the agent's own environment (Coder, and Ona until its cloud ends) or check out the agent's branch with its context (Devin, Copilot). A pre-filled prompt alone is the weakest form.
 2. Nobody else uses AHP. Unfold's host is the only third-party AHP integration among these products. That costs nothing while `chat.remoteAgentHosts` stays open, and it differentiates nothing either.
 
 ## The leverage map
@@ -270,7 +273,7 @@ All the tickets are children of [VIK-1644](https://vikunja.webgrip.dev/tasks/164
 | `chatSessionsProvider` is finalized | Work Items appear in the Sessions view from the extension. Projecting them through the AHP host becomes optional |
 | `chat.remoteAgentHosts` is removed or gated behind a product allowlist | J2 and J3 over AHP stop working. MCP, skills and the URI handler carry the integration alone |
 | Stack Overflow 2026 or a JetBrains PHP 2026 survey moves the PhpStorm share | Re-weigh recommendation 6 against 4 |
-| A competitor ships Forgejo or Gitea support, client approval or per-ticket billing | Revisit the opening in [the market landscape](../../apps/unfold/docs/research/market-landscape.md) |
+| A large commercial vendor ships Forgejo or Gitea support, or any competitor ships client approval, per-ticket billing or a self-hostable control plane for agencies | Revisit the opening in [the market landscape](../../apps/unfold/docs/research/market-landscape.md); OpenHands' Forgejo support is already counted there |
 | Copilot CLI's licence or terms address hosted third-party use | Unblock or drop the Copilot profile for phase 2 |
 | LiteLLM ships the #38176 fix in a stable release | The Codex profile can count spend in provider budgets |
 
