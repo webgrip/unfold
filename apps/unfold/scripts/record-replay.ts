@@ -108,7 +108,7 @@ async function recordViews() {
     for (const path of ['/api/health', '/api/status', '/api/links', '/api/models', '/api/auth/methods', '/api/me/card-identity', '/api/binder', '/api/packs/odds', '/api/task-sources', '/api/ploeg/proposed', '/api/ploeg/now', '/api/ploeg/connections', '/api/ploeg']) await get(path);
     const teams: string[] = (await get('/api/ploeg/teams')).body && ((await get('/api/ploeg/teams')).body as any).teams;
     for (const team of teams) await get(`/api/ploeg?${query({ team })}`);
-    for (const [window] of ploegWindows) await get(`/api/ploeg/summary?${query({ window })}`);
+    for (const [window] of ploegWindows) { await get(`/api/ploeg/summary?${query({ window })}`); await get(`/api/ploeg/economics?${query({ window })}`); }
     for (const team of ['', ...teams]) for (const state of ['', ...Object.keys(runStates)]) for (const outcome of ['', ...Object.keys(runOutcomes)]) {
       let before: string | undefined = '';
       while (before !== undefined) {

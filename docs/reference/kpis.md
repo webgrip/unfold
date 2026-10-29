@@ -8,7 +8,7 @@ verified_by: "K5 and D1 (VIK-1750): source read of Ploeg migrations 0023 and 003
 
 # Unfold KPIs
 
-**Status: proposal.** Nothing on this page is measured yet. The KPIs, thresholds and dashboard below are a proposal for [VIK-1214](https://vikunja.webgrip.dev/tasks/1214) (the KPI set) and [VIK-1215](https://vikunja.webgrip.dev/tasks/1215) (the dashboard). Targets stay provisional until a baseline exists.
+**Status: proposal, two KPIs measured.** Unfold's Insights page shows a merged-Work-Item form of K2 (cost per merged Work Item) and K5 (clean-merge rate) for the selected window. Each one says how it is computed in its section below. The other KPIs are not measured. The KPIs, thresholds and dashboard below are a proposal for [VIK-1214](https://vikunja.webgrip.dev/tasks/1214) (the KPI set) and [VIK-1215](https://vikunja.webgrip.dev/tasks/1215) (the dashboard). Targets stay provisional until a baseline exists.
 
 Unfold's goal is one loop: Work Items go to agents, the agents do all the code work until a pull request is ready for your review, and the throughput limit becomes cluster size rather than your time ([Architecture](../concepts/architecture.md#goals)). These six KPIs tell you whether that loop is working and what to change when it is not. Each one names the decision it changes. A KPI that stops changing a decision comes off the list at the next review.
 
@@ -57,6 +57,7 @@ Owner: Ryan Grippeling, for every KPI. Review by: 2026-12-23, then quarterly.
 * **Baseline:** the median weekly value over the same four weeks as K1.
 * **Provisional target:** no rise quarter on quarter while K1 and K5 hold. **Signal:** above twice the baseline for a week.
 * **Decision:** above the signal, look at the per-Team and per-model tables. Change model routing, drop a reviewer Round from the costliest plan, or lower its budget pool. Compare with what the same pull request would cost in your own hours.
+* **Measured on Insights as cost per merged Work Item.** Unfold reads Ploeg's delivery facts for the window, within the caller's Teams ([`GET /api/ploeg/economics`](../../apps/unfold/docs/contracts/api.md)). A Work Item counts once when one of its pull requests merged inside the window. Its cost is the settled `costUsd` of every Run of all its Shifts, failed Runs included. A Run that is still running, still holds budget or reported no cost is counted and listed apart and never added. The settled total is divided by the merged Work Items only once there are 20 of them; below that, Insights shows the count and says the sample is too small. Unfold reads at most 20 facts pages of 25 Work Items and says when it stopped there. The denominator is merged Work Items, not `awaiting_review` settles, so this is the billing-per-accepted-ticket form of K2.
 
 ### K3 Lead time to ready
 
@@ -88,6 +89,7 @@ Two numbers, both about work that had to be done twice.
 * **Baseline:** the first 20 merged or closed pull requests.
 * **Provisional target:** 60 %. **Signal:** below 40 %.
 * **Decision:** below the signal, the reviewer agents miss what you catch. Add what you keep correcting to the reviewer Role's instructions. Above 80 % for a quarter, spend less review time on low-risk classes of work. Ploeg still never merges.
+* **Measured on Insights from delivery facts.** Unfold counts Ploeg's pull requests (those with a Shift) that merged or closed without merging inside the window, within the caller's Teams. A merged pull request is clean unless a person requested changes (a review or a review event with state `changes_requested`) or someone other than its author pushed, after the hand-off and up to the merge. Logins in the facts' `botLogins` never make a pull request unclean. The facts carry no `awaiting_review` settle time, so the finish of the Shift's last writing Run stands in for the hand-off, and the pull request's opening time does when no writing Run finished. Below 20 merged or closed pull requests, Insights marks the rate as a sample too small. The data gaps above apply unchanged.
 
 ### K6 Owner review minutes per pull request
 

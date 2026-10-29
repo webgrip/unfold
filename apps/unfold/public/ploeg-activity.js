@@ -238,6 +238,9 @@ function unsettledTile(data, { icon }) {
   return ui.stat({ ...base, value: count(unsettled.count), tone: 'danger', detail: `${money(unsettled.heldUsd)} held by finished Runs` }, { icon });
 }
 
+/** The merged Work Items cost per merged Work Item needs before it divides, as the server's `minimumSample` also says. */
+export const minimumMerged = 20;
+
 /** Merge rate from Ploeg's current Done and Withdrawn counts, which span all time: Ploeg reports no per-window count. */
 export function mergeRate(workItems) {
   const done = workItems?.done, withdrawn = workItems?.withdrawn;
@@ -245,8 +248,6 @@ export function mergeRate(workItems) {
   const closed = done + withdrawn;
   return { rate: closed > 0 ? done / closed : null, done, closed };
 }
-
-const costPerMergedWhy = 'Ploeg counts Done Work Items for all time, not per window';
 
 function mergeTile(workItems, helpers) {
   const { rate, done, closed } = mergeRate(workItems);
@@ -256,10 +257,55 @@ function mergeTile(workItems, helpers) {
   return ui.stat({ ...base, value: percent(rate), detail: `${count(done)} Done of ${count(closed)} closed · all time` }, helpers);
 }
 
-function costPerMergedTile(demo, helpers) {
+const economicsMissing = (economics, error) => error?.code === 'ploeg_unsupported' ? 'Not reported by this Ploeg' : error ? 'Could not be loaded' : economics ? '' : 'Loading…';
+const truncatedNote = economics => economics.truncated ? `newest ${count(economics.scanned)} Work Items only` : '';
+const parts = (...items) => items.filter(Boolean).join(' · ');
+
+/**
+ * Words for the cost per merged Work Item (K2 over merged Work Items) of a window, from `/api/ploeg/economics`:
+ * the figure once at least `minimumSample` Work Items merged, otherwise the count and that the sample is too small.
+ * Spend not settled is never in the figure; the detail says how many Runs it left out.
+ * @returns {{ value: string, detail: string, quiet: boolean, text: boolean }}
+ */
+export function costPerMerged(economics, windowName) {
+  const open = economics.unsettled.runs + economics.unknown.runs;
+  const left = open ? `${plural(open, 'Run')} not settled, not added` : '';
+  if (!economics.merged) return { value: '—', quiet: true, text: false, detail: parts(`No Work Item merged in the last ${windowName}`, truncatedNote(economics)) };
+  if (economics.costPerMergedUsd === null) return { value: `${count(economics.merged)} merged`, quiet: false, text: true, detail: parts(`Sample too small: needs ${count(economics.minimumSample)}`, `${money(economics.settledUsd)} settled`, left, truncatedNote(economics)) };
+  return { value: money(economics.costPerMergedUsd), quiet: false, text: false, detail: parts(`${count(economics.merged)} merged`, `${money(economics.settledUsd)} settled`, left, truncatedNote(economics)) };
+}
+
+/** Words for K5, the clean-merge rate of the window: Ploeg's pull requests merged with no change after the agents finished, of those merged or closed. */
+export function cleanMerge(entry, windowName, minimum = minimumMerged) {
+  const closed = entry.merged + entry.closed;
+  if (entry.rate === null) return { value: '—', quiet: true, detail: `No pull request merged or closed in the last ${windowName}` };
+  return { value: percent(entry.rate), quiet: false, detail: parts(`${count(entry.clean)} clean of ${count(closed)} merged or closed`, closed < minimum ? 'sample too small' : '') };
+}
+
+function costPerMergedTile(view, windowName, helpers) {
   const base = { label: 'Cost per merged Work Item', icon: 'coins' };
-  if (demo) return ui.stat({ ...base, value: 'No model calls', detail: 'Demo', text: true }, helpers);
-  return ui.stat({ ...base, value: '—', quiet: true, detail: costPerMergedWhy }, helpers);
+  if (view.data.demo) return ui.stat({ ...base, value: 'No model calls', detail: 'Demo', text: true }, helpers);
+  const missing = economicsMissing(view.economics, view.economicsError);
+  if (missing) return ui.stat({ ...base, value: '—', quiet: true, detail: missing }, helpers);
+  return ui.stat({ ...base, ...costPerMerged(view.economics, windowName) }, helpers);
+}
+
+function cleanMergeTile(view, windowName, helpers) {
+  const base = { label: 'Clean-merge rate', icon: 'pull-request' };
+  if (view.data.demo) return ui.stat({ ...base, value: '—', quiet: true, detail: 'Demo · nothing merged' }, helpers);
+  const missing = economicsMissing(view.economics, view.economicsError);
+  if (missing) return ui.stat({ ...base, value: '—', quiet: true, detail: missing }, helpers);
+  return ui.stat({ ...base, ...cleanMerge(view.economics.cleanMerge, windowName) }, helpers);
+}
+
+function openSpendNote(economics, helpers) {
+  const { escape } = helpers;
+  if (!economics || economics.demo || !economics.openSpend?.length) return '';
+  const said = { unsettled: 'not settled', unknown: 'cost not reported' };
+  const items = economics.openSpend.map(entry => `<li><a href="#work/${escape(entry.workItemId)}">Work Item ${escape(entry.workItemId)}</a> · Run ${escape(entry.runId)} · ${escape(said[entry.status] || entry.status)}${entry.usd === null ? '' : ` · ${escape(money(entry.usd))} so far`}</li>`).join('');
+  const more = economics.openSpendTruncated ? '<li>More Runs are left out than are listed here.</li>' : '';
+  const total = economics.unsettled.runs + economics.unknown.runs;
+  return `<details class="meta insights-open-spend"><summary>${escape(`${plural(total, 'Run')} of merged Work Items left out of the cost`)}</summary><ul>${items}${more}</ul></details>`;
 }
 
 function teamTable({ caption, columns, rows }, { escape }) {
@@ -275,11 +321,11 @@ function insightsSection(id, title, description, body, { escape }, actions = '')
 function insightsSkeleton(windowName, switcher, helpers) {
   const tiles = (total, kind) => `<div class="stat-row insights-stats${kind ? ` insights-stats-${kind}` : ''}" aria-hidden="true">${'<div class="stat insights-tile-skeleton"><span class="skeleton insights-skeleton-label"></span><span class="skeleton insights-skeleton-value"></span><span class="skeleton insights-skeleton-detail"></span></div>'.repeat(total)}</div>`;
   const table = rows => `<div class="card insights-table-skeleton" aria-hidden="true">${'<div class="insights-skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>'.repeat(rows)}</div>`;
-  return `<div class="insights" aria-busy="true"><span class="sr-only">Loading…</span>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', tiles(2, 'outcomes'), helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName}`, `${tiles(4)}${table(3)}`, helpers)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', `${tiles(5, 'work')}${table(3)}`, helpers)}</div>`;
+  return `<div class="insights" aria-busy="true"><span class="sr-only">Loading…</span>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', tiles(3, 'outcomes'), helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName}`, `${tiles(4)}${table(3)}`, helpers)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', `${tiles(5, 'work')}${table(3)}`, helpers)}</div>`;
 }
 
 /**
- * Insights: the window switch, outcome tiles (merge rate, cost per merged Work Item), Run and spend tiles for the
+ * Insights: the window switch, outcome tiles (merge rate, cost per merged Work Item, clean-merge rate), Run and spend tiles for the
  * window, Work Item tiles for right now, and per-Team tables (cards on narrow screens). Stats and tables only, never a
  * chart; glyphs come from `helpers.icon`.
  */
@@ -303,7 +349,7 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
     tile({ label: 'Stuck', value: count(runs.stuck), detail: 'An agent asked for a person', href: '#runs?state=finished&outcome=stuck', tone: 'attention', glyph: 'alert' }, helpers),
     settledTile,
   ].join('');
-  const outcomeTiles = [mergeTile(items, helpers), costPerMergedTile(data.demo, helpers)].join('');
+  const outcomeTiles = [mergeTile(items, helpers), costPerMergedTile(view, windowName, helpers), cleanMergeTile(view, windowName, helpers)].join('');
   const workTiles = [
     tile({ label: 'Ready for review', value: count(items.awaitingReview), detail: tileDetail.review(), href: '#work?lane=awaiting_review', tone: 'review', glyph: 'pull-request' }, helpers),
     tile({ label: 'Needs you', value: count(items.needsHuman), detail: tileDetail.needsYou(), href: '#work?lane=needs_human', tone: 'attention', glyph: 'alert' }, helpers),
@@ -315,21 +361,27 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
   const when = value => value ? timeHtml(value, { now }) : '<span class="subtle">None</span>';
   const settled = entry => data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd));
   const reserved = entry => data.demo ? '<span class="subtle">—</span>' : escape(money(entry.spend.reservedUsd));
-  const costPerMerged = () => data.demo ? '<span class="subtle">No model calls</span>' : `<span class="subtle" title="${escape(costPerMergedWhy)}">—</span>`;
+  const perMerged = entry => {
+    if (data.demo) return '<span class="subtle">No model calls</span>';
+    const team = view.economics?.teams?.find(candidate => candidate.team === entry.team);
+    if (!view.economics || !team?.merged) return '<span class="subtle">—</span>';
+    if (team.costPerMergedUsd === null) return `<span class="subtle" title="${escape(`Sample too small: needs ${count(view.economics.minimumSample)}`)}">${escape(`${count(team.merged)} merged`)}</span>`;
+    return escape(money(team.costPerMergedUsd));
+  };
   const rateOf = entry => { const { rate } = mergeRate(entry.workItems); return rate === null ? '<span class="subtle">—</span>' : escape(percent(rate)); };
   const runColumns = [['Team'], ['Finished', true], ['Failed', true], ['Stuck', true], ['Settled', true], ['Held now', true], ['Cost per merged', true], ['Last activity']];
-  const runCells = entry => [count(entry.runs.finished), count(entry.runs.failed), count(entry.runs.stuck), settled(entry), reserved(entry), costPerMerged(), when(entry.lastActivityAt)];
+  const runCells = entry => [count(entry.runs.finished), count(entry.runs.failed), count(entry.runs.stuck), settled(entry), reserved(entry), perMerged(entry), when(entry.lastActivityAt)];
   const workKeys = [['awaitingReview', 'Ready for review'], ['needsHuman', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['proposed', 'Proposed'], ['stale', 'Stopped retrying'], ['done', 'Done'], ['withdrawn', 'Withdrawn']];
   const workColumns = [['Team'], ...workKeys.map(([, label]) => [label, true]), ['Merge rate', true]];
   const workCells = entry => [...workKeys.map(([key]) => count(entry.workItems[key])), rateOf(entry)];
-  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', settled(entry)], ['Held', reserved(entry)], ['Cost per merged', costPerMerged()]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl([...workKeys.map(([key, label]) => [label, count(entry.workItems[key])]), ['Merge rate · all time', rateOf(entry)]])}</div></div></article>`;
+  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', settled(entry)], ['Held', reserved(entry)], ['Cost per merged', perMerged(entry)]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl([...workKeys.map(([key, label]) => [label, count(entry.workItems[key])]), ['Merge rate · all time', rateOf(entry)]])}</div></div></article>`;
   const runTable = teamTable({ caption: `Runs and spend per Team, last ${windowName}`, columns: runColumns, rows: data.teams.map(entry => [entry.team, runCells(entry)]) }, helpers);
   const workTable = teamTable({ caption: 'Work Items per Team, right now', columns: workColumns, rows: data.teams.map(entry => [entry.team, workCells(entry)]) }, helpers);
-  const footnote = data.demo ? '' : `<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway. A running Run holds a reservation until it settles. Cost per merged stays empty because ${costPerMergedWhy}, so the window’s spend cannot be divided by them.</p>`;
+  const footnote = data.demo ? '' : `<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway. A running Run holds a reservation until it settles. Cost per merged Work Item adds the settled spend of every Shift of each Work Item whose pull request merged in the window, failed Runs included, and divides it by those Work Items once there are ${count(minimumMerged)}. Spend that has not settled is left out and listed apart.</p>`;
   const runsBody = `<div class="stat-row insights-stats">${runTiles}</div><div class="card flush insights-tables">${runTable}</div>${footnote}`;
   const workBody = `<div class="stat-row insights-stats insights-stats-work">${workTiles}</div><div class="card flush insights-tables">${workTable}</div>`;
   const cards = `<section class="section insights-cards" aria-label="Per Team"><div class="insights-teams">${data.teams.map(teamCard).join('')}</div></section>`;
-  const outcomesBody = `<div class="stat-row insights-stats insights-stats-outcomes">${outcomeTiles}</div>`;
+  const outcomesBody = `<div class="stat-row insights-stats insights-stats-outcomes">${outcomeTiles}</div>${data.demo ? '' : openSpendNote(view.economics, helpers)}`;
   return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', outcomesBody, helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
 }
 
