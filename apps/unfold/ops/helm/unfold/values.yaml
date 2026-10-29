@@ -169,3 +169,5 @@ ingress:
   tlsSecret: ""
 ploeg:
   enabled: true
+  operator:
+    attribution: asserted

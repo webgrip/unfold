@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
 import { deadlineAfter, settle, waitFor } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
+import { personUnprovenCode, unprovenSessionBlocker } from '../src/ploeg-attribution.ts';
 import type { PersonProof } from '../src/person-proof.ts';
 import { chatChannel } from '../src/ahp/host.ts';
 import { connect } from './ahp-support.ts';
@@ -57,7 +58,7 @@ async function governed(t: TestContext) {
   const inferenceKey = randomBytes(32).toString('hex');
   const forbiddenMaster = randomBytes(32).toString('hex');
   process.env[env] = consumerToken;
-  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', observedUsd: null as number | null, dropAdmissionResponse: false, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
+  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', observedUsd: null as number | null, dropAdmissionResponse: false, unproven: false, unprovenPosts: 0, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
   const receipts = new Map<string, RemoteExecution>();
   const api = createServer(async (req, res) => {
     try {
@@ -68,6 +69,12 @@ async function governed(t: TestContext) {
       const chunks: Buffer[] = [];
       for await (const chunk of req) { chunks.push(Buffer.from(chunk)); if (Buffer.concat(chunks).length > 65536) throw new Error('Oversized fixture input'); }
       const input = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : undefined;
+      if (state.unproven && req.method === 'POST') {
+        state.unprovenPosts++;
+        if (req.url?.endsWith('/commands')) state.commandAttempts.push({ id: input.commandId, action: input.action });
+        res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', error: { code: 'person_token_required', message: 'This deployment accepts an operator change only from a proven person. Nothing changed.' } }));
+        return;
+      }
       if (req.method === 'POST' && req.url === '/api/v1/operator/executions') {
         state.admissions++;
         if (state.admissionGate) await state.admissionGate.promise;
@@ -554,6 +561,60 @@ test('a heartbeat Ploeg rejects as stale stops the Run at once, whatever the lea
   assert(Number(lost.data.leaseLeftMs) > 5000, 'the lease still had time left');
   assert.equal(f.runtime.aborted, 1);
   assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted');
+});
+
+test('a heartbeat Ploeg refuses for want of a person token stops the session at once with a sign-in prompt and is never re-sent', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  const original = console.error;
+  console.error = () => undefined;
+  t.after(() => { console.error = original; });
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.unproven = true;
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_pending'), 'the refused heartbeat did not stop the session');
+  const lost = f.server.app.store.events(session.id).find(event => event.type === 'execution.authority_lost')!;
+  assert.equal(lost.data.cause, 'refused');
+  assert.equal(lost.data.reason, 'person_unproven');
+  assert.equal(lost.data.status, 403);
+  assert(Number(lost.data.leaseLeftMs) > 5000, 'it stopped while the lease still had time left');
+  assert(!f.server.app.store.events(session.id).some(event => event.type === 'execution.heartbeat_missed'), 'a refusal is not a missed heartbeat to retry');
+  const stopped = f.server.app.store.getSession(session.id)!;
+  assert.equal(stopped.status, 'interrupted');
+  assert.equal(stopped.blocker, unprovenSessionBlocker);
+  assert.equal(f.runtime.aborted, 1);
+  const pending = f.server.app.store.events(session.id).find(event => event.type === 'execution.reconciliation_pending')!;
+  assert.equal(pending.data.reason, 'person_unproven');
+  assert.equal(f.server.app.store.getSecret(`command:${session.id}`), undefined, 'the refused command is not kept to be re-sent');
+  const heartbeats = f.state.commandAttempts.filter(command => command.action === 'heartbeat');
+  const posts = f.state.unprovenPosts;
+  await settle(300);
+  await f.server.app.engine.reconcilePending();
+  assert.equal(f.state.commandAttempts.filter(command => command.action === 'heartbeat').length, heartbeats.length, 'no heartbeat is sent after the refusal');
+  assert.equal(f.state.unprovenPosts, posts, 'upkeep does not keep sending refused changes until someone acts');
+  assert.equal(new Set(f.state.commandAttempts.map(command => command.id)).size, f.state.commandAttempts.length, 'no refused command is sent twice');
+});
+
+test('an execution command Ploeg refuses for want of a person token tells the person to sign in again and is not replayed', async t => {
+  const f = await governed(t); const session = f.create();
+  const original = console.error;
+  console.error = () => undefined;
+  t.after(() => { console.error = original; });
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.unproven = true;
+  await assert.rejects(f.server.app.engine.setSupervision(session.id, 'background', owner), (error: { code: string; message: string }) => {
+    assert.equal(error.code, personUnprovenCode);
+    assert.match(error.message, /^Ploeg needs proof it is you before it changes anything/);
+    return true;
+  });
+  const refused = f.state.commandAttempts.at(-1)!;
+  assert.equal(refused.action, 'handback');
+  assert.equal(f.server.app.store.getSecret(`command:${session.id}`), undefined);
+  f.state.unproven = false;
+  await f.server.app.engine.setSupervision(session.id, 'human', owner);
+  assert.equal(f.state.commandAttempts.filter(command => command.id === refused.id).length, 1, 'the refused command was not sent again');
+  await f.server.app.engine.cancel(session.id, owner);
 });
 
 test('streamed message deltas are stored as a few events per part without losing or reordering text', async t => {

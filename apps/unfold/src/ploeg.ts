@@ -1,5 +1,6 @@
 import { ploegAttribution } from './action-records.ts';
 import type { PersonProof, PersonTokenSettings } from './person-proof.ts';
+import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, type PloegAttribution } from './ploeg-attribution.ts';
 import { legacyServed, type PloegCompatibility, type PloegContractGate, type PloegContractRequirement, type PloegServed, type PloegServedContract } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
@@ -1122,6 +1123,7 @@ export class PloegClient {
   private readonly demoDecisions = new Map<string, PloegDecision>();
   private cardService: CardService | undefined;
   private proof: PersonProof | undefined;
+  private attribution: PloegAttribution | undefined;
   private factsProbe: { until: number; supported: boolean } | null = null;
   private notesRoute: boolean | undefined;
   private cancelGuard: boolean | undefined;
@@ -1191,8 +1193,11 @@ export class PloegClient {
   }
   constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
-  /** Sends each operator change made for a person with that person's token when one can be had (RFC-0011, Unfold ADR 0055). */
-  usePersonProof(proof: PersonProof | undefined): void { this.proof = proof; }
+  /**
+   * Sends each operator change made for a person with that person's token when one can be had (RFC-0011, Unfold ADR
+   * 0055), and notes in `attribution` each change Ploeg refuses for want of that proof (Ploeg ADR-0171).
+   */
+  usePersonProof(proof: PersonProof | undefined, attribution?: PloegAttribution): void { this.proof = proof; this.attribution = attribution; }
   /** Whether this client answers from the deterministic demo instead of a Ploeg. */
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
@@ -1210,6 +1215,9 @@ export class PloegClient {
       const send = (extra: Record<string, string>) => fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers: { ...headers, ...extra }, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       const response = post && this.proof ? await this.proof.send(options.actor!, options.actingUser, send) : await send({});
       if (post) this.cache.clear();
+      logPloegWarning(response, path.split('?')[0]);
+      const unproven = post ? await unprovenAnswer(response, options.actingUser ?? options.actor!, this.attribution, this.proof?.rejection?.(response)) : undefined;
+      if (unproven) { await response.body?.cancel().catch(() => undefined); throw new PloegError(403, personUnprovenCode, unprovenMessage(unproven)); }
       if (!response.ok) {
         const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.chat ? await chatRefusal(response) : options.requeue ? await requeueRefusal(response) : options.takeOver ? await takeOverRefusalOf(response) : options.admission ? await admissionRefusal(response) : options.claim ? await claimRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.questionAnswer !== undefined ? await answerRefusal(response, options.questionAnswer) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
         await response.body?.cancel().catch(() => undefined);

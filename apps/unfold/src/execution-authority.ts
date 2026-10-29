@@ -6,6 +6,7 @@ import { PloegError, contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PloegRevision } from './investigation.ts';
 import type { PersonProof } from './person-proof.ts';
+import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, type PloegAttribution } from './ploeg-attribution.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
 /** The Operator Execution states Unfold accepts from Ploeg; `test/ploeg-contract.test.ts` checks them against Ploeg's domain model. */
@@ -15,8 +16,16 @@ const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) 
 /** How long one authority request may take, except a credential request. */
 export const authorityRequestTimeoutMs = 5000;
 
-/** Why an authority operation failed: no response in time, no connection, an HTTP error status, a stale or refused operation, an unusable response, missing configuration, or a Ploeg whose contract this Unfold does not speak, so nothing was sent. */
-export type AuthorityFailure = { cause: 'timeout' | 'network' | 'http' | 'stale' | 'refused' | 'invalid_response' | 'not_configured' | 'incompatible' | 'unknown'; status?: number; durationMs?: number };
+/**
+ * Why an authority operation failed: no response in time, no connection, an HTTP error status, a stale or refused
+ * operation, an unusable response, missing configuration, or a Ploeg whose contract this Unfold does not speak, so
+ * nothing was sent. `reason` `person_unproven` marks a change Ploeg refused for want of proof of the person (Ploeg
+ * ADR-0171): a definite refusal that changed nothing.
+ */
+export type AuthorityFailure = { cause: 'timeout' | 'network' | 'http' | 'stale' | 'refused' | 'invalid_response' | 'not_configured' | 'incompatible' | 'unknown'; status?: number; durationMs?: number; reason?: 'person_unproven' };
+
+/** Whether an authority error is Ploeg refusing a change for want of proof of the person. */
+export function refusedUnproven(error: unknown): boolean { return authorityFailure(error).reason === 'person_unproven' || (error as { code?: string } | undefined)?.code === personUnprovenCode; }
 
 /** The recorded reason behind an authority error, or `unknown` for an error that did not come from an authority request. */
 export function authorityFailure(error: unknown): AuthorityFailure {
@@ -32,6 +41,7 @@ export class ExecutionAuthority {
   private config: AppConfig;
   private contract: PloegContractGate | undefined;
   private proof: PersonProof | undefined;
+  private attribution: PloegAttribution | undefined;
   constructor(store: Store, config: AppConfig, contract?: PloegContractGate) {
     this.store = store;
     this.config = config;
@@ -39,8 +49,8 @@ export class ExecutionAuthority {
     if (!config.ploeg?.url || config.ploeg.demo || !config.ploeg.tokenEnv || !config.execution) throw unavailable();
   }
 
-  /** Sends each execution change with its owner's person token when one can be had (RFC-0011, Unfold ADR 0055). */
-  usePersonProof(proof: PersonProof | undefined): void { this.proof = proof; }
+  /** Sends each execution change with its owner's person token when one can be had (RFC-0011, Unfold ADR 0055), noting in `attribution` each one Ploeg refuses for want of it. */
+  usePersonProof(proof: PersonProof | undefined, attribution?: PloegAttribution): void { this.proof = proof; this.attribution = attribution; }
 
   current(id: string): ExecutionBinding | undefined { return this.store.getSecret<ExecutionBinding>(`authority:${id}`); }
 
@@ -58,6 +68,9 @@ export class ExecutionAuthority {
     try {
       const send = (extra: Record<string, string>) => fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }), ...extra }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
       const response = body !== undefined && this.proof ? await this.proof.send(session.ownerId, actingUser, send) : await send({});
+      logPloegWarning(response, `executions${path.replace(/^\/[a-f0-9]{32}/, '/{id}').split('?')[0]}`);
+      const unproven = body !== undefined ? await unprovenAnswer(response, actingUser, this.attribution, this.proof?.rejection?.(response)) : undefined;
+      if (unproven) { await response.body?.cancel().catch(() => undefined); throw Object.assign(new PloegError(403, personUnprovenCode, unprovenMessage(unproven)), { failure: { cause: 'refused', status: 403, reason: 'person_unproven' } satisfies AuthorityFailure }); }
       if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
       if (!response.body || !(response.headers.get('content-type') ?? '').includes('application/json')) throw unavailable();
       const chunks: Uint8Array[] = []; let size = 0;
@@ -123,14 +136,14 @@ export class ExecutionAuthority {
       const pending = this.store.getSecret<Command>(pendingKey);
       if (pending) {
         try { binding = await this.accepted(session, (await this.request(session, `/${binding.id}/commands`, pending, pending.authenticatedBy)).execution); }
-        catch (error) { if (error instanceof PloegError && error.status === 409) this.store.deleteSecret(pendingKey); throw error; }
+        catch (error) { if (error instanceof PloegError && (error.status === 409 || refusedUnproven(error))) this.store.deleteSecret(pendingKey); throw error; }
         this.store.deleteSecret(pendingKey);
         if (pending.action === action && pending.state === detail.state && pending.text === detail.text && Boolean(pending.stopConfirmed) === Boolean(detail.stopConfirmed)) return binding;
       }
       const command: Command = { commandId: randomUUID(), action, expectedRevision: binding.revision, generation: binding.generation, authenticatedBy: actingUser, ...detail };
       this.store.setSecret(pendingKey, command);
       try { binding = await this.accepted(session, (await this.request(session, `/${binding.id}/commands`, command, actingUser)).execution); }
-      catch (error) { if (error instanceof PloegError && error.status === 409) this.store.deleteSecret(pendingKey); throw error; }
+      catch (error) { if (error instanceof PloegError && (error.status === 409 || refusedUnproven(error))) this.store.deleteSecret(pendingKey); throw error; }
       this.store.deleteSecret(pendingKey);
       return binding;
     });
