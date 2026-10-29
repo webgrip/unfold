@@ -161,6 +161,34 @@
         "labs": false
       }
     },
+    "client.sign-off": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-29",
+        "title": "Client Sign-off",
+        "description": "Lets an administrator or operator record and withdraw a Client Sign-off on the Client's behalf on a Work Item's open pull request (system ADR-0049, proposed): looks good or needs changes, bound to the head commit from Ploeg's delivery facts and dismissed by a newer head. It covers the changed files minus the exclusion globs set per repository. Input to the Agency's Acceptance only: it changes no Ploeg or forge state. Evaluated per Team: the context carries the Work Item's team.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "client.sign-off-comment": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-29",
+        "title": "Client Sign-off comment on pull requests",
+        "description": "Keeps one comment, keyed client-sign-off, on the open pull request of a Work Item with a Client Sign-off: the answer, the head commit and what it covers, and that the Agency decides Acceptance. It names the Client only, never the person, the note, a price or spend. Written through Ploeg's keyed pull request comment 30 seconds after a change, only when the text changed. Evaluated per Team: the context carries the Work Item's team.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

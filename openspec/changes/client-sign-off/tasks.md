@@ -28,22 +28,22 @@ ADR-0017 Tenant and Client slices (VIK-1876, VIK-1877, VIK-1878, VIK-1740),
 
 ## 4. P2.2 Client Sign-off core
 
-- [ ] 4.1 Sign-off store: Work Item, pull request, head commit, person, time, answer, note, scope, dismissal and withdrawal; the Client column joins at **[P1]**
-- [ ] 4.2 Head binding from `workItemFacts(id, true)`; refuse a submit whose head is not current
-- [ ] 4.3 Dismissal on every facts read, never revived by a return to the signed commit
-- [ ] 4.4 Scope rule: the whole change minus the Client Profile's exclusion globs per repository, with truncated and missing lists, stored with each sign-off
-- [ ] 4.6 Repository file seam (`.unfold/sign-off.yml`, globs only): its exclusions apply unless the Client Profile keeps the path; tested, behind the flag
+- [x] 4.1 Sign-off store: Work Item, pull request, head commit, person, time, answer, note, scope, dismissal and withdrawal; the Client column joins at **[P1]**
+- [x] 4.2 Head binding from `workItemFacts(id, true)`; refuse a submit whose head is not current
+- [x] 4.3 Dismissal on every facts read, never revived by a return to the signed commit
+- [x] 4.4 Scope rule: the whole change minus the Client Profile's exclusion globs per repository, with truncated and missing lists, stored with each sign-off
+- [x] 4.5 Unit tests for every scenario in the spec's head, dismissal and coverage requirements
+- [x] 4.6 Repository file seam (`.unfold/sign-off.yml`, globs only): its exclusions apply unless the Client Profile keeps the path; tested, behind the flag
 - [ ] 4.7 **[Ploeg]** Commit status `client-sign-off` through a generic keyed commit status contract in ploeg-hq (its own Ploeg ADR, in Ploeg's words); until then a tested seam that writes nothing
 - [ ] 4.8 Later, proposed: change categories (UI, copy, content, prices, email) from globs and labels on the same scope, the judge advising only
-- [ ] 4.5 Unit tests for every scenario in the spec's head, dismissal and coverage requirements
 
 ## 5. P2.3 Sign-off route and control
 
 - [ ] 5.1 Sign-off route with object authorization and a confirmation of the text agreed to; `admin` and `operator` only until **[P1]** adds Client users
 - [ ] 5.2 Sign-off control on the Work Item page for Client users, and the Agency reviewer's view of the current sign-off, with workbench stories for every state
-- [ ] 5.3 Flags `client.sign-off` and `client.sign-off-comment` in `src/flag-registry.json` (permission, default off, per Team)
-- [ ] 5.4 Comment writer on Ploeg's keyed comment as key `client-sign-off`, following `agent-trace-comments.ts`; tests for unchanged text, restart and a failed write
-- [ ] 5.5 Contract entry for the new routes in `apps/unfold/docs/contracts/`
+- [x] 5.3 Flags `client.sign-off` and `client.sign-off-comment` in `src/flag-registry.json` (permission, default off, per Team)
+- [x] 5.4 Comment writer on Ploeg's keyed comment as key `client-sign-off`, following `agent-trace-comments.ts`; tests for unchanged text, restart and a failed write
+- [x] 5.5 Contract entry for the new routes in `apps/unfold/docs/contracts/`
 
 ## 6. P2.4 Client view
 
