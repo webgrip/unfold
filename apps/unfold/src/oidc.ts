@@ -1,9 +1,10 @@
 import { createHash, createPublicKey, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
 import type { AppConfig, UserRole } from './types.ts';
 import type { SignInTokens } from './person-proof.ts';
+import { membershipsFromGroups, type Membership } from './tenancy.ts';
 
 export type OidcSettings = { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
-export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string };
+export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string; memberships: Membership[] };
 type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
 type Pending = { verifier: string; nonce: string; createdAt: number; browserBinding: string; editor?: string };
 
@@ -205,6 +206,6 @@ export class Oidc {
     const preferred = [claims.preferred_username, claims.name, email, subject].find((value): value is string => typeof value === 'string' && value.trim().length > 0)!;
     const name = preferred.trim().slice(0, 100);
     const id = subjectUserId(settings.subjectNamespace ?? settings.issuer, subject);
-    return { id, name, role, subject, ...(email ? { email } : {}) };
+    return { id, name, role, subject, ...(email ? { email } : {}), memberships: membershipsFromGroups(claims[settings.groupsClaim]) };
   }
 }

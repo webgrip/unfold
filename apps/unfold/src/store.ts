@@ -12,6 +12,7 @@ import type { FlagOverride } from './flags.ts';
 import type { RolloutSpec, Segment } from './flag-rollouts.ts';
 import { editorIdleDays } from './auth.ts';
 import type { NowSnooze } from './now-snoozes.ts';
+import { storedMemberships, type Membership } from './tenancy.ts';
 
 export type StoredUser = User & { passwordHash: string };
 /** One change to an administrator flag override. */
@@ -27,6 +28,11 @@ export type EditorCredential = { id: string; tokenHash: string; userId: string; 
 export type StatusNote = { id: string; severity: 'info' | 'degraded' | 'outage'; text: string; author: string; createdAt: string; resolvedAt?: string; resolvedBy?: string };
 
 const retiredCostStatus = 'pending';
+const userQuery = 'SELECT users.*, user_memberships.memberships AS memberships FROM users LEFT JOIN user_memberships ON user_memberships.user_id = users.id';
+
+function parsedJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return undefined; }
+}
 
 function restoreAsk(body: string): Ask {
   const ask: Ask = JSON.parse(body);
@@ -103,6 +109,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS events_session ON events(session_id,id);
       CREATE TABLE IF NOT EXISTS permissions (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, role TEXT NOT NULL, password_hash TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS user_memberships (user_id TEXT PRIMARY KEY REFERENCES users(id), memberships TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS logins (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS editor_credentials (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, user_id TEXT NOT NULL REFERENCES users(id), label TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT);
       CREATE INDEX IF NOT EXISTS editor_credentials_user ON editor_credentials(user_id);
@@ -419,14 +426,18 @@ export class Store {
   }
 
   addUser(user: StoredUser): void {
-    this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?)').run(user.id, user.name, user.role, user.passwordHash);
+    const insert = () => this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?)').run(user.id, user.name, user.role, user.passwordHash);
+    if (!user.memberships) { insert(); return; }
+    const memberships = user.memberships;
+    this.transaction(() => { insert(); this.setMemberships(user.id, memberships); });
   }
 
-  /** Stores a user by id and returns the name it holds: `user.name`, or a numbered variant when another account already holds that name. */
+  /** Stores a user by id and returns the name it holds: `user.name`, or a numbered variant when another account already holds that name. `memberships`, when given, replace the stored ones; otherwise they stay as they are. */
   upsertUser(user: StoredUser): string {
     return this.transaction(() => {
       const name = this.nameFreeFor(user.id, user.name);
       this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, role=excluded.role').run(user.id, name, user.role, user.passwordHash);
+      if (user.memberships) this.setMemberships(user.id, user.memberships);
       return name;
     });
   }
@@ -442,15 +453,22 @@ export class Store {
   }
 
   getUserByName(name: string): StoredUser | undefined {
-    return this.user(this.db.prepare('SELECT * FROM users WHERE name=? COLLATE NOCASE').get(name));
+    return this.user(this.db.prepare(`${userQuery} WHERE users.name=? COLLATE NOCASE`).get(name));
   }
 
-  getUser(id: string): StoredUser | undefined { return this.user(this.db.prepare('SELECT * FROM users WHERE id=?').get(id)); }
+  getUser(id: string): StoredUser | undefined { return this.user(this.db.prepare(`${userQuery} WHERE users.id=?`).get(id)); }
+
+  /** Replaces the Tenant and Client memberships stored for an existing user. */
+  setMemberships(userId: string, memberships: Membership[]): void {
+    this.db.prepare('INSERT INTO user_memberships(user_id,memberships,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET memberships=excluded.memberships, updated_at=excluded.updated_at')
+      .run(userId, JSON.stringify(storedMemberships(memberships) ?? []), new Date().toISOString());
+  }
 
   private user(row: unknown): StoredUser | undefined {
     if (!row) return undefined;
-    const value = row as Record<string, string>;
-    return { id: value.id, name: value.name, role: value.role as User['role'], passwordHash: value.password_hash };
+    const value = row as Record<string, string | null>;
+    const memberships = typeof value.memberships === 'string' ? storedMemberships(parsedJson(value.memberships)) : undefined;
+    return { id: value.id!, name: value.name!, role: value.role as User['role'], passwordHash: value.password_hash!, ...(memberships ? { memberships } : {}) };
   }
 
   createLogin(tokenHash: string, userId: string, expiresAt: string): void {
