@@ -26,6 +26,7 @@ import { PloegClient, PloegContractIncompatible, PloegError, contextInput, conte
 import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.ts';
+import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
@@ -912,6 +913,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
               if (ploeg.isDemo) return json(res, 200, { demo: true, window });
               return json(res, 200, sanitize(await readDeliveryEconomics(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), fresh })));
+            }
+            if (path === '/api/ploeg/deliveries') {
+              const window = url.searchParams.get('window') ?? '7d';
+              const format = url.searchParams.get('format') ?? 'json';
+              if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
+              if (!['json', 'csv'].includes(format)) fault(400, 'ploeg_filter', 'Choose a format of json or csv.');
+              const ledger = ploeg.isDemo ? null : sanitize(await readDeliveryLedger(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), calendar: config.acceptanceCalendar, fresh }));
+              if (format === 'json') return json(res, 200, ledger ?? { demo: true, window });
+              res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="unfold-deliveries-${ledger ? '' : 'demo-'}${window}.csv"`, 'Cache-Control': 'no-store' });
+              res.end(deliveriesCsv(ledger?.rows ?? [])); return;
             }
             if (path === '/api/ploeg/runs') return json(res, 200, sanitize(await ploeg.runs(user, { team: optional('team'), state: optional('state'), outcome: optional('outcome'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));

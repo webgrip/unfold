@@ -7,6 +7,7 @@ import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
+import type { AcceptanceCalendar } from './delivery-ledger.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -72,6 +73,8 @@ export type AppConfig = {
   /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
   flags?: FlagSettings;
   reports?: ReportTarget | null;
+  /** The extra non-working dates the silent Acceptance timer skips (proposed; ADR-0006's holiday calendar is open). */
+  acceptanceCalendar?: AcceptanceCalendar;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
