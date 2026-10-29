@@ -8,6 +8,12 @@ Read this alongside the [product and system design](../design/00-product-system-
 
 **Ploeg helps teams turn approved engineering work into changes they can review and own. Unfold is the workbench for steering that work.**
 
+The opening that sets it apart is narrower than "tickets to pull requests":
+
+> The only product where an agency runs agent work for many clients on its own EU infrastructure, across each client's own forge, lets the client approve ready work, and bills per accepted ticket.
+
+Each part of that sentence carries weight, and none should be sold alone. Copilot, Devin, Rovo Dev, GitLab Duo and Tembo already turn tickets into review-ready pull requests; OpenHands already supports Forgejo; Claude Code, Cursor, Codex, Devin and Factory already run agents on the customer's own machines while keeping the control plane and transcripts in their cloud. What nobody else combines is many client tenants under one agency, each on its own forge, a control plane and execution the agency hosts, approval by the agency's client, and a price per accepted ticket. Client approval and per-agency tenancy are designed, not built; the claim is a direction until they are. The evidence is in the [market research](../research/market-landscape.md#412-october-2026-consolidation-and-self-hosted-runners-added-29-october-2026).
+
 The intended result is consistent delivery across existing client toolchains: a ticket keeps its business context, execution happens remotely, a person can intervene, and the returned change carries evidence and attributable cost. The ambition is larger than the current prototype. The first sale should be a measured design-partner engagement that helps prove the missing delivery loop.
 
 Do not sell a universal autonomous engineering platform. Sell an outcome that one team can evaluate: less setup and supervision for a bounded class of work, without losing control of review, credentials or spending. The customer keeps the authority to accept work and decide what ships.
@@ -187,11 +193,11 @@ Record the observed workflow separately from proposed features. “We would like
 
 **“Why not Kandev?”** “You should evaluate it. It already offers a substantial multi-agent workbench, and its dedicated documentation includes Kubernetes execution. Our intended focus is a governed external-ticket, client-boundary and evidence workflow. If Kandev meets that workflow better, an integration may be the right outcome.” [Kandev Kubernetes](https://kandev.ai/docs/k8s), [feature status](https://kandev.ai/docs/feature-status).
 
-**“OpenHands already does this.”** “There is significant overlap. Canvas and Enterprise have different collaboration and isolation boundaries. We will compare the edition that meets your requirements, then justify any custom layer with your actual integration and operating needs.” [OpenHands edition comparison](https://docs.openhands.dev/enterprise/enterprise-vs-oss).
+**“OpenHands already does this.”** “There is significant overlap, and it supports Forgejo too. Canvas and Enterprise have different collaboration and isolation boundaries, and neither runs many agency clients as tenants or lets those clients approve ready work. We will compare the edition that meets your requirements, then justify any custom layer with your actual integration and operating needs.” [OpenHands edition comparison](https://docs.openhands.dev/enterprise/enterprise-vs-oss).
 
 **“We already have Coder.”** “Keep that investment in the comparison. Coder has its own agent and established workspaces. We would first test whether Ploeg needs only an adapter, or whether Coder's native workflow already covers the requirement.” [Coder Agents](https://coder.com/docs/ai-coder/agents).
 
-**“Why not our forge's agent?”** “If your delivery fits its workflow and terms, it may be simpler. GitHub supports self-hosted runners, and GitLab supports self-hosted models. The proposed value here is consistency across different client systems, with explicit evidence and operating boundaries.” [GitHub environment](https://docs.github.com/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment), [GitLab models](https://docs.gitlab.com/administration/gitlab_duo_self_hosted/).
+**“Why not our forge's agent?”** “If your delivery fits its workflow and terms, it may be simpler. Copilot now runs from issue to merge inside GitHub Enterprise, with credit caps and AI approvals, and GitLab Duo turns issues into merge requests inside self-managed GitLab. The proposed value here is consistency across different client forges, a control plane you host, approval by your client and a price per accepted ticket.” [GitHub environment](https://docs.github.com/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment), [GitLab models](https://docs.gitlab.com/administration/gitlab_duo_self_hosted/).
 
 **“Is this cheaper than Cursor, Devin or Factory?”** “We have not established that. We compare all-attempt cost and human review effort for your tasks. A polished commercial tool may win. We also evaluate source rights, deployment and exit requirements separately from price.” [Comparison method](../research/market-landscape.md).
 
