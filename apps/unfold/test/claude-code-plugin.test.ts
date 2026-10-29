@@ -20,7 +20,7 @@ test('the plugin manifest, hooks and marketplace entry are what Claude Code load
   assert.equal(manifest.name, 'unfold');
   assert.equal(manifest.license, 'Apache-2.0');
   const hooks = JSON.parse(await readFile(join(plugin, 'hooks/hooks.json'), 'utf8')).hooks;
-  assert.deepEqual(Object.keys(hooks).sort(), ['Notification', 'PermissionRequest', 'PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
+  assert.deepEqual(Object.keys(hooks).sort(), ['Notification', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
   for (const [event, entries] of Object.entries(hooks) as [string, { hooks: { type: string; command: string; timeout: number }[] }[]][]) for (const entry of entries) for (const command of entry.hooks) {
     assert.equal(command.type, 'command');
     assert.match(command.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/unfold-hook\.mjs/);

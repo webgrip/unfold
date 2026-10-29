@@ -8,6 +8,7 @@ import { mentionsIn } from './mentions.mjs';
 import { deliver } from './inbox.mjs';
 import { pushAgentTrace } from './push-agent-trace.mjs';
 import { awaitRemoteAnswer, waitSettings } from './permission.mjs';
+import { recordEvidence } from './evidence.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
@@ -202,6 +203,10 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { return; }
   if (!input || typeof input.session_id !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(input.session_id)) return;
+  if (input.hook_event_name === 'PostToolUse' || input.hook_event_name === 'PostToolUseFailure') {
+    try { recordEvidence(input); } catch (error) { if (process.env.UNFOLD_HOOK_DEBUG) process.stderr.write(`unfold: ${error.message}\n`); }
+  }
+  if (input.hook_event_name === 'PostToolUseFailure') return;
   if (!unfoldUrl || !token) return;
   try {
     const output = input.hook_event_name === 'PermissionRequest' ? await permission(input) : await handle(input);

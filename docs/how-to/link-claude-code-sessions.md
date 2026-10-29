@@ -257,6 +257,12 @@ The description of a shell command is the agent's own words. An agent that read 
 
 Every answer is an Action Record: who answered, through which channel (browser, or `unfold-mcp` with its confirmation), the decision, and when.
 
+## Hand over with a Delivery Brief
+
+Run `/unfold:brief`, optionally with the pull request or Work Item, when the work is ready for someone else. The skill reads this session's evidence ledger, writes one record of what changed and why, how it was checked and how to roll it out and back, and publishes it as a claude.ai Artifact with a fold for the reviewer, the operator and the Client. It adds the link to the Work Item.
+
+Every claim in a brief says whether anyone checked it: `verified` cites a passing command from the ledger or a CI run or live check you can open, `failed` and `stale` say what broke or changed since, and everything else is `unverified`. The Artifact is private until you share it. The Client fold carries only the outcome, the Preview Environment and what to try. The decision is [ADR 0057](../../apps/unfold/docs/adrs/0057-a-delivery-brief-is-one-evidence-backed-record-rendered-per-audience.md).
+
 ## Show reviewers which lines an agent wrote
 
 Agent Trace records say which lines of a commit an agent wrote. Three things carry them to the people who review your pull request. Each is off until you or an administrator turns it on, because each one shares attribution beyond your machine.
@@ -284,6 +290,7 @@ The plugin sends:
 * commit ids and subjects;
 * the Agent Trace records;
 * with `UNFOLD_PUSH_AGENT_TRACE=1`, the same records to your git remote as `refs/notes/agent-trace`.
+* nothing from the evidence ledger: it stays in `${CLAUDE_PLUGIN_DATA}/evidence/` until you publish a Delivery Brief that cites it;
 * with `UNFOLD_REMOTE_APPROVAL=1`, for each tool prompt the tool name and the one-line summary described in [What the summary contains](#what-the-summary-contains).
 
 While you read a session's conversation in Unfold, it sends that session's prompts and replies, secrets masked, and one summary line per tool call, to your browser through Unfold, which stores none of it. To collect messages it sends only the session id, and which kinds of message it wants. It never sends tool output, file contents, Claude's thinking or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
