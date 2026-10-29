@@ -31,6 +31,7 @@ nav:
       - Link your Claude Code sessions: how-to/link-claude-code-sessions.md
       - Run agent code in a sandbox runtime: how-to/run-agent-code-in-a-sandbox-runtime.md
       - Protect data at rest and in transit: how-to/protect-data-at-rest-and-in-transit.md
+      - Self-host the whole stack in the EU: how-to/self-host-the-whole-stack.md
       - Operate Ploeg:
           - Overview: ploeg/index.md
           - Runbooks: ploeg/how-to/index.md
