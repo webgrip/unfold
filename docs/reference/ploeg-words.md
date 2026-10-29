@@ -117,7 +117,7 @@ MCP: passes the Ploeg value through as `failureReason` in unfold_get_work, `""` 
 
 ## Shift close reason
 
-Ploeg term: [Shift](glossary.md#shift). Not in a published schema: the operator API types `closeReason` as free text. The test checks each code against the Go constant that writes it.
+Ploeg term: [Shift](glossary.md#shift). Not in a published schema: the operator API types `closeReason` as free text. The test checks each code against the Go constant that writes it. The refusal codes in pkg/httpapi, such as `person_token_required` (ADR-0171), answer an HTTP request and never close a Shift, so the test does not read that package.
 
 Unfold accepts: any string: apps/unfold/src/ploeg.ts keeps the close reason as text. Screen words: apps/unfold/public/core/states.js `closeReasonLabel` (Shift rows, audit lines) and apps/unfold/public/core/reasons.js `listReason` (the Needs-you chip).
 
@@ -272,6 +272,7 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `checkpoint.written` | [Checkpoint](glossary.md#checkpoint) | Wrote a checkpoint | not exposed |  |
 | `operator.admitted` | [Operator Execution](glossary.md#operator-execution) | An Unfold session took over | not exposed |  |
 | `operator.admission_expired` | [Operator Execution](glossary.md#operator-execution) | The Unfold session never started | not exposed |  |
+| `operator.attribution_refused` | [Work Item](glossary.md#work-item) | Ploeg refused a change that did not prove who made it | not exposed |  |
 | `delivery.candidate_admitted` | [Delivery Candidate](glossary.md#delivery-candidate) | Delivery candidate admitted | not exposed |  |
 | `delivery.verification_recorded` | [Verification Receipt](glossary.md#verification-receipt) | Verification recorded | not exposed |  |
 | `delivery.approved` | [Delivery Candidate](glossary.md#delivery-candidate) | Delivery approved | not exposed |  |
