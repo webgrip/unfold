@@ -420,6 +420,29 @@ What the identity provider and Ploeg need:
 * **Ploeg.** Unfold's consumer in `PLOEG_OPERATOR_CONSUMERS` lists `"audiences": ["ploeg-for-unfold"]`. `PLOEG_OPERATOR_PERSON_ISSUER` is the issuer of the exchanged tokens; for Authentik's global issuer that is `https://authentik.example/`. Set `PLOEG_OPERATOR_PERSON_SUBJECT_NAMESPACE` to Unfold's account namespace: `auth.oidc.subjectNamespace`, or `auth.oidc.issuer` when that is unset. Ploeg derives the person's id from that namespace and the token's subject. That id must equal the Unfold account id Unfold puts in `X-Ploeg-Actor`, or Ploeg refuses every change with `actor_conflict`.
 * **The same subject.** The target provider must issue the same `sub` for a person as the sign-in provider; Authentik's default subject mode, a hashed user id, does. Unfold checks it and sends no token for another subject.
 
+### When Ploeg refuses changes without proof
+
+Ploeg's `PLOEG_OPERATOR_ATTRIBUTION` decides what happens to a change that carries no person token (Ploeg ADR-0171). Under `asserted`, Ploeg accepts it, records it as named by Unfold and answers with a `Warning: 299` header; Unfold logs each distinct warning once as `ploeg.warning`. Under `proven`, Ploeg refuses every operator change other than a read without a verified person token, answers 403 `person_token_required`, changes nothing and writes an `operator.attribution_refused` audit row. Reads stay open either way.
+
+What Unfold does under `proven`:
+
+* Every refused change answers `ploeg_person_unproven` with a message that tells the person to sign out and sign in again, whichever route made it: an approval, a note, an Ask, a chat message, an admission, context, a delivery step or an execution command. The Status page's person-proof line then turns degraded with `gap` `required`, also without `ploeg.personTokens`, and recovers at that person's next accepted change. Unfold logs `ploeg.person_unproven` once.
+* A session whose heartbeat or command is refused stops at once, without waiting for its lease to run out. Its blocker asks the person to sign in again and reconcile; the refused command is not kept for a retry, and store upkeep does not send the session's report again until someone acts on it.
+* A person token Ploeg rejects with 401 `invalid_token` is sent once more without the token, as under `asserted`, and the refusal that follows keeps Ploeg's reason for the rejection. Ploeg does not report its attribution mode (its version route names only its release and contracts), so Unfold learns it from the first `person_token_required` and from then on returns a rejected token's 401 as it is, without the retry.
+
+Unfold cannot check Ploeg's mode when it starts, for the same reason. The Unfold chart checks it instead: it sets `ploeg.operator.attribution: asserted` and refuses to render a resolved `proven` without `config.ploeg.personTokens`.
+
+Moving to Ploeg chart 0.3.0, whose empty `operator.attribution` resolves to `proven`, needs either `ploeg.operator.attribution: asserted` (the Unfold chart's default) or person tokens on both sides:
+
+| Where | Setting |
+| --- | --- |
+| Unfold | `config.ploeg.personTokens` as above, with `auth.oidc` |
+| Ploeg chart | `ploeg.operator.personTokens.issuer` (and `subjectNamespace` when it differs from the issuer), which the chart renders as `PLOEG_OPERATOR_PERSON_ISSUER` and its siblings |
+| Ploeg chart | `audiences: [ploeg-for-unfold]` on Unfold's entry in `ploeg.operator.consumers` |
+| Ploeg chart | `ploeg.operator.attribution: proven`, or empty from 0.3.0 |
+
+Ploeg's chart refuses to render `proven` with consumers and no `operator.personTokens`. Changes Unfold makes without a person (the `unfold-cards` pull request comments, the delivery verifier's calls, an administrator acting for someone else's session) carry no person token, so Ploeg refuses them under `proven`; Ploeg has not yet decided how such a caller is attributed.
+
 ## Linking GitLab
 
 Register one OAuth application per workbench in GitLab, under your user or the group that owns the repositories ([GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/)): redirect URI `<baseUrl>/api/links/gitlab/callback`, confidential off, scopes `read_api`, `read_repository` and `write_repository`. The application ID is not a secret. Put it in the profile as `links.gitlab.clientId`, or export `UNFOLD_GITLAB_CLIENT_ID`, and set `links.gitlab.baseUrl` for a self-hosted GitLab. `baseUrl` on the workbench must match what the browser uses, because it forms the redirect URI.

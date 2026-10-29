@@ -21,3 +21,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- with $image.digest -}}@{{ . }}{{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "unfold.ploegAttribution" -}}
+{{- $ploeg := default (dict) .Values.ploeg -}}
+{{- $env := default (dict) (get $ploeg "env") -}}
+{{- $operator := default (dict) (get $ploeg "operator") -}}
+{{- if hasKey $env "PLOEG_OPERATOR_ATTRIBUTION" -}}
+{{- get $env "PLOEG_OPERATOR_ATTRIBUTION" -}}
+{{- else if get $operator "attribution" -}}
+{{- get $operator "attribution" -}}
+{{- else -}}
+{{- $version := "0.0.0" -}}
+{{- range .Chart.Dependencies -}}{{- if eq .Name "ploeg" -}}{{- $version = .Version -}}{{- end -}}{{- end -}}
+{{- ternary "proven" "asserted" (semverCompare ">=0.3.0-0" $version) -}}
+{{- end -}}
+{{- end -}}

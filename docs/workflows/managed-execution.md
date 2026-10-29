@@ -67,6 +67,7 @@ Close the client and reconnect: execution remains server-owned. Pause waits for 
 | Credential response is lost | Account remains issued or uncertain; another key is not minted |
 | Gateway billing is delayed | Show unknown/provisional spend; retain authorization |
 | Cancellation races with admission | The recorded stop supersedes launch; no workspace or paid turn starts |
+| Ploeg refuses a change for want of a person token | The session stops at once and asks the person to sign in again; nothing is re-sent ([Live operation](../../apps/unfold/docs/operations/live.md#when-ploeg-refuses-changes-without-proof)) |
 
 Keep both stores and the workbench encryption key backed up. Restoring session JSON without the internal encrypted state cannot recover issued inference keys and must not trigger replacement issuance. Preserve native workspaces and candidate evidence during investigation. A failed shared execution needs an explicit new session after accounting reconciliation; changing a local flag must never revive it.
 

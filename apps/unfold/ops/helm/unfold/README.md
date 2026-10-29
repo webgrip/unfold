@@ -23,6 +23,10 @@ helm install unfold oci://ghcr.io/webgrip/charts/unfold --version <version> -n u
 
 `Chart.yaml` depends on `ploeg` from `oci://ghcr.io/ploeg-hq/charts` at exactly the release [apps/unfold/ploeg-release.json](../../../ploeg-release.json) pins, and the published chart vendors that chart ([system ADR-0043](../../../../../docs/adr/adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md)). Ploeg's values go under `ploeg:`, unchanged from Ploeg's own chart; Ploeg needs at least `ploeg.database.existingSecret.name` and `ploeg.executor.litellm.adminUrl`, as the [live example](values.live.example.yaml) shows. `ploeg.enabled` (default `true`) turns the dependency off for the demo or a cluster that runs Ploeg elsewhere.
 
+### Attribution
+
+`ploeg.operator.attribution` is `asserted` by default. It decides whether Ploeg accepts an operator change that names its person only in `X-Ploeg-Actor` (`asserted`) or refuses every change without a verified person token with 403 `person_token_required` (`proven`), as Ploeg ADR-0171 sets out. Ploeg's own chart leaves the value empty, which resolves to `asserted` before chart 0.3.0 and to `proven` from 0.3.0; this chart sets `asserted` so that a Ploeg upgrade does not turn the default for an Unfold that sends no person tokens. With `proven`, set `config.ploeg.personTokens` too: this chart refuses to render a resolved `proven` without it, because Ploeg would then refuse every change Unfold makes. Ploeg's chart in turn needs `ploeg.operator.personTokens` and the consumer's `audiences`; [Live operation](../../../docs/operations/live.md#when-ploeg-refuses-changes-without-proof) lists every setting.
+
 Only `scripts/consume-ploeg-release.sh`, which Ploeg's release runs, moves the dependency: `mise run ploeg-pin <version>` rewrites its version and `Chart.lock` together with the other pins. A checkout downloads the locked chart into `charts/`, which Git ignores, with `mise run setup` or `mise exec -- python3 scripts/ploeg-contract.py chart`; `helm template` and `helm lint` of this directory need it, even with `ploeg.enabled=false`.
 
 ## Scheduling and pod metadata

@@ -4,6 +4,7 @@
 {{- $_ := set $cfg "publicDir" "/app/public" -}}
 {{- if hasKey (default (dict) .Values.config.auth) "localLogin" -}}{{- fail "Set local password sign-in through auth.localLogin, not config.auth.localLogin" -}}{{- end -}}
 {{- if and (not .Values.auth.localLogin) (not (hasKey (default (dict) .Values.config.auth) "oidc")) -}}{{- fail "auth.localLogin false needs config.auth.oidc: without local sign-in, single sign-on is the only way in" -}}{{- end -}}
+{{- if and .Values.ploeg.enabled (eq (include "unfold.ploegAttribution" .) "proven") (not (hasKey (default (dict) .Values.config.ploeg) "personTokens")) -}}{{- fail "ploeg.operator.attribution resolves to proven, so Ploeg refuses every change Unfold makes without a person token, and config.ploeg.personTokens is not set: configure config.ploeg.personTokens with Ploeg's operator.personTokens, or set ploeg.operator.attribution: asserted" -}}{{- end -}}
 {{- $auth := deepCopy (default (dict) .Values.config.auth) -}}
 {{- $_ := set $auth "localLogin" .Values.auth.localLogin -}}
 {{- $_ := set $cfg "auth" $auth -}}
