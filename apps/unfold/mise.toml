@@ -4,7 +4,7 @@ node = "24.22.1"
 helm = "4.3.1"
 
 [tasks.probe-opencode]
-tools = { "npm:opencode-ai" = { version = "1.19.4", npm_args = "--ignore-scripts=false" } }
+tools = { "npm:opencode-ai" = { version = "1.19.5", npm_args = "--ignore-scripts=false" } }
 run = "node scripts/probe-opencode.mjs"
 description = "Probe the pinned OpenCode server without a model call"
 
@@ -13,6 +13,6 @@ run = "node scripts/opencode-contract.mjs"
 description = "Run the permission round-trip against the OpenCode build ops/agent/Dockerfile pins, with a local fake model"
 
 [tasks.live]
-tools = { "npm:opencode-ai" = { version = "1.19.4", npm_args = "--ignore-scripts=false" } }
+tools = { "npm:opencode-ai" = { version = "1.19.5", npm_args = "--ignore-scripts=false" } }
 run = "npm start --"
 description = "Run Unfold with the pinned OpenCode binary on PATH"
