@@ -58,6 +58,7 @@ import { LinkedConversation, conversationRoute } from './linked-conversation.ts'
 import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
+import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
 
@@ -278,6 +279,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -822,6 +824,34 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (path === '/api/asks') {
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
           return json(res, 200, sanitize(await asks.mine(user)));
+        }
+        const signOffRoute = /^\/api\/ploeg\/work-items\/([^/]+)\/client-sign-off(\/withdraw)?$/.exec(path);
+        if (signOffRoute || path === '/api/client-sign-off/exclusions') {
+          try {
+            if (!signOffs) fault(503, 'facts_unavailable', 'Client Sign-off needs a connected Ploeg with delivery facts; the deterministic demo has none.');
+            if (!signOffRoute) {
+              if (method === 'GET') return json(res, 200, sanitize({ exclusions: signOffs.store.allExclusions(unassignedClient) }));
+              if (method !== 'PUT') fault(405, 'method', 'Read Client Sign-off exclusions with GET and set them with PUT.');
+              if (user.role !== 'admin') fault(403, 'forbidden', 'Only administrators set Client Sign-off exclusions.');
+              const data = await body(req);
+              const repository = text(data.repository, 'Repository', 300).trim().toLowerCase();
+              if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) fault(400, 'sign_off_repository', 'Name the repository as owner/name.');
+              const entry = { client: unassignedClient, repository, exclude: exclusionGlobs(data.exclude), keep: exclusionGlobs(data.keep, 'Kept paths'), repositoryFile: data.repositoryFile === true, updatedAt: new Date().toISOString(), updatedBy: user.id };
+              signOffs.store.setExclusions(entry);
+              return json(res, 200, sanitize(entry));
+            }
+            const id = signOffRoute[1];
+            await ploeg.detail(user, id, true);
+            if (method === 'GET' && !signOffRoute[2]) return json(res, 200, sanitize(await signOffs.view(id)));
+            if (method !== 'POST') fault(405, 'method', 'Record or withdraw a Client Sign-off with POST.');
+            const proven = proof?.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined).state === 'proven';
+            const person = { id: user.id, name: user.name, role: user.role, attribution: proven ? 'proven' as const : 'asserted' as const };
+            if (signOffRoute[2]) return json(res, 200, sanitize(await signOffs.withdraw(person, id)));
+            return json(res, 201, sanitize(await signOffs.record(person, id, await body(req))));
+          } catch (error) {
+            if (error instanceof ClientSignOffError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
         }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
