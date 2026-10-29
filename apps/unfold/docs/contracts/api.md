@@ -235,7 +235,7 @@ A message is `{id, kind, text, createdAt, createdBy, fromOwner, deliveredAt}`. `
 
 ## Linked tasks
 
-Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read API. Only hand-off to Ploeg writes to a tracker, and only to Vikunja. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
+Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read API. Only hand-off to Ploeg writes to a tracker, and only to Vikunja and ClickUp. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
 
 | Method and path | Behavior |
 | --- | --- |
@@ -246,7 +246,7 @@ Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab,
 | `GET /api/task-sources/:sourceId/tasks/:taskId/ploeg` | `TaskPloegStatus`: Ploeg's teams, the task's hand-off and its Work Items; `refresh=1` bypasses the short cache |
 | `POST /api/task-sources/:sourceId/tasks/:taskId/handoff` | `{team,revision}` → `TaskPloegStatus` with optional `warnings` |
 | `DELETE /api/task-sources/:sourceId/tasks/:taskId/handoff?team=` | Takes the task back from that team → `TaskPloegStatus` with optional `warnings` |
-| `GET /api/tasks/lookup?provider=vikunja&id=` | `{sourceId}` of the configured source whose project holds the task, or 404 `task_source_unknown` |
+| `GET /api/tasks/lookup?provider=vikunja\|clickup&id=` | `{sourceId}` of the configured source whose Vikunja project or ClickUp home List holds the task, or 404 `task_source_unknown` |
 
 A snapshot includes `key`, `sourceId`, `provider`, `id`, `revision`, `title`, `description`, `url`, `status`, `repositoryId` and optional `updatedAt`. It may also carry `labels` (`{name,color?}`, at most 50), `assignees` (`{username,name?}`, at most 50), the provider's own `priority` (omitted when unset), `dueAt` and the tracker's display `identifier` such as `UNFOLD-12`. None of these change the revision. A list page cuts a description over 16,000 characters and sets `descriptionTruncated: true`; its revision still covers the whole description. A preview with `truncate=1` shortens it the same way, while a plain preview or an import of that task still refuses it. The preview alone adds `descriptionMarkdown`, the description to display. A Vikunja description that looks like HTML is first converted to the Markdown subset the browser renders, with relative links resolved against the tracker's web address; any other description is taken as it is. In every case the source's token is then replaced by `[redacted]` ([`presentTask`](../../src/tasks.ts)). The list, the snapshot's `revision`, the stored `sourceTask` and the import never carry it. Status is normalized to `open`, `closed` or `unknown`; only open tasks can be imported. The revision hashes the material snapshot. Import refetches the configured source and returns 409 `task_changed` if the preview is stale. The server retains the accepted snapshot in `session.sourceTask`, redacting any known server credentials from its title and description before persistence and prompting and frames its body as untrusted reference material in the objective.
 
@@ -254,7 +254,7 @@ Import requires an operator or administrator and passes the same mutation guard 
 
 ### Hand a task to Ploeg
 
-A source has `handoff: true` when it is a Vikunja source with a token, `executionOwner: "ploeg"` and a live Ploeg operator connection. Hand-off assigns the tracker user that routes work to a team, which Ploeg's `task.assignee.created` webhook turns into a queued Work Item ([ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md)).
+A source has `handoff: true` when it is a Vikunja or ClickUp source with a token, `executionOwner: "ploeg"` and a live Ploeg operator connection. Hand-off assigns the tracker user that routes work to a team, which Ploeg's assignment webhook (Vikunja `task.assignee.created`, ClickUp `taskAssigneeUpdated`) turns into a queued Work Item ([ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md)).
 
 ```ts
 type TaskPloegStatus = {
@@ -268,7 +268,7 @@ type TaskPloegStatus = {
 };
 ```
 
-`teams` are the caller's Ploeg teams that report at least one tracker assignee; `assignee` is the first. `assignedTeams` are those whose assignee is on the task, compared without case because Ploeg lowercases routing names. `workItems` come from Ploeg's `work-items?provider&externalId` filter, limited to the caller's teams, with the latest Shift's branch and spend and, for the three most recent, a pull request link from checkpoints. An unreachable Ploeg gives `available: false`. A Ploeg too old to report assignees or the filter gives empty `teams` or `workItems` with a reason; neither is an error. The demo fixture source answers `available: false` with `Demo fixture tasks are not linked to Ploeg.`
+`teams` are the caller's Ploeg teams that report at least one tracker assignee; `assignee` is the first. `assignedTeams` are those whose assignee is on the task, compared without case because Ploeg lowercases routing names; on ClickUp an assignee's email also counts, because Ploeg routes ClickUp assignees by username or email. `workItems` come from Ploeg's `work-items?provider&externalId` filter, limited to the caller's teams, with the latest Shift's branch and spend and, for the three most recent, a pull request link from checkpoints. An unreachable Ploeg gives `available: false`. A Ploeg too old to report assignees or the filter gives empty `teams` or `workItems` with a reason; neither is an error. The demo fixture source answers `available: false` with `Demo fixture tasks are not linked to Ploeg.`
 
 Hand-off and take-back pass the mutation guard and require an operator or administrator.
 
@@ -277,16 +277,20 @@ Hand-off and take-back pass the mutation guard and require an operator or admini
 | 403 `forbidden` | A viewer |
 | 422 `handoff_unsupported` | The source cannot hand off |
 | 404 `handoff_team` | The team is outside the caller's Ploeg scope, has no tracker user, or Ploeg does not report assignees |
-| 409 `task_closed`, 409 `task_changed` | The re-read task is done, or its revision differs from `revision`; reload it |
-| 502 `task_write_forbidden` | The workbench's Vikunja token cannot add or remove assignees or add comments |
-| 502 `handoff_assignee_unknown` | Vikunja has no user with the team's tracker username that the token can see |
+| 409 `task_closed`, 409 `task_changed` | The re-read task is done, closed or archived, or its revision differs from `revision`; reload it |
+| 502 `task_write_forbidden` | The workbench's Vikunja or ClickUp token cannot add or remove assignees or add comments |
+| 502 `handoff_assignee_unknown` | The tracker has no user with the team's tracker username (or, on ClickUp, email) that the token can see |
 | 409 `handoff_active` | Hand-off while another team's tracker user is on the task, or while any Work Item for it is in a state other than withdrawn, done or stale; a team outside the caller's scope is not named; nothing is written |
 | 409 `handoff_started` | Take-back while any Work Item for the task, in any team, is in a state other than queued, withdrawn, done or stale |
 
 These safety checks read Ploeg's Work Items for the task across every team the workbench's Ploeg consumer can see, not only the caller's teams, because Ploeg files one Work Item per tracker task and a board pin can place it in another team. A board that Ploeg pins to a team (`pinnedScopes` on that team) offers only that team; if it has no tracker user or is outside the caller's access, the status explains why hand-off is unavailable.
 | 503 `handoff_unverified` | Hand-off or take-back while Ploeg cannot list Work Items by tracker task; nothing is written |
 
-Hand-off resolves the user through `GET /projects/:project/projectusers?s=`, then `GET /users?s=`, and sends `PUT /tasks/:id/assignees` and `PUT /tasks/:id/comments` with `<p>Handed to Ploeg team <code>TEAM</code> by NAME from Unfold.</p>`, NAME HTML-escaped. Take-back sends `DELETE /tasks/:id/assignees/:userId` and a `Taken back from Ploeg team` comment. Both are idempotent: when there is nothing to change, nothing is written. A failed comment leaves the assignment in place and adds a warning. Each action writes a `task.handoff` or `task.take_back` log line with the actor, source, task, team and outcome.
+On Vikunja, hand-off resolves the user through `GET /projects/:project/projectusers?s=`, then `GET /users?s=`, and sends `PUT /tasks/:id/assignees` and `PUT /tasks/:id/comments` with `<p>Handed to Ploeg team <code>TEAM</code> by NAME from Unfold.</p>`, NAME HTML-escaped. Take-back sends `DELETE /tasks/:id/assignees/:userId` and a `Taken back from Ploeg team` comment.
+
+On ClickUp, hand-off resolves the user through `GET /list/:list/member`, then `GET /team`, and sends `PUT /task/:id` with `{"assignees":{"add":[userId],"rem":[]}}` and `POST /task/:id/comment` with `{"comment_text":"Handed to Ploeg team TEAM by NAME from Unfold.","notify_all":false}` as plain text. Take-back sends `PUT /task/:id` with the user in `rem` and a `Taken back from Ploeg team` comment.
+
+Both actions are idempotent on either tracker: when there is nothing to change, nothing is written. A failed comment leaves the assignment in place and adds a warning. Each action writes a `task.handoff` or `task.take_back` log line with the actor, source, task, team and outcome.
 
 Set `executionOwner: "ploeg"` on repositories assigned to Ploeg execution. A live Unfold always has shared authority configured, because it refuses to start without it; supported tracker imports instead require the current registered Ploeg binding and canonical admission checks at Start. See [tracker binding](ploeg-tracker-binding.md) and [connection setup](../operations/task-connections.md).
 

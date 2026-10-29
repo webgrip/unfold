@@ -445,11 +445,14 @@ export async function getHandoffTask(source: TaskSourceConfig, nativeId: string)
   return { task, assigneeIds };
 }
 
-/** Returns the Vikunja project that holds a task, or undefined when the source cannot read it. */
+/** Returns the Vikunja project or ClickUp home List that holds a task, or undefined when the source cannot read it. */
 export async function taskProject(source: TaskSourceConfig, nativeId: string): Promise<string | undefined> {
-  if (source.provider !== 'vikunja') return undefined;
+  if (!handoffProviders.has(source.provider)) return undefined;
   const id = taskId(source, nativeId);
-  try { const value = record((await request(source, `/tasks/${id}`)).value); return typeof value.project_id === 'number' && Number.isSafeInteger(value.project_id) ? String(value.project_id) : undefined; }
+  try {
+    if (source.provider === 'clickup') { const list = String(record(record((await request(source, `/task/${encodeURIComponent(id)}`)).value).list).id ?? ''); return numericId.test(list) ? list : undefined; }
+    const value = record((await request(source, `/tasks/${id}`)).value); return typeof value.project_id === 'number' && Number.isSafeInteger(value.project_id) ? String(value.project_id) : undefined;
+  }
   catch (error) { if (error instanceof TaskError) return undefined; throw error; }
 }
 
