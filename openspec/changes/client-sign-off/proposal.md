@@ -23,14 +23,18 @@ for it yet; task 1.1 files one.
 
 ## What Changes
 
-All of it is proposed. Nothing in this change is implemented, and every
-requirement in `specs/client-sign-off/spec.md` is proposed behaviour. Client
-Sign-off and Sign-off Paths are proposed terms. The spec assumes ADR-0017's
+All of it is proposed. Only P2.2's core is being built, behind a flag that is
+off by default, and every requirement in `specs/client-sign-off/spec.md` is
+proposed behaviour. Client Sign-off, Sign-off Paths and Approver are proposed
+terms; the owner settled their meaning on 2026-10-29 (design.md, Decisions
+recorded). The spec assumes ADR-0017's
 Tenant and Client scoping and does not restate it.
 
-- **P2.1 Client approves Proposed work.** A user with a client membership
-  (ADR-0017) approves or rejects the proposed Work Items of its own Client,
-  and only those. The Agency may approve on the Client's behalf and may
+- **P2.1 Client approves Proposed work.** The Client's **Approver** (proposed
+  term) approves or rejects the proposed Work Items of that Client, and only
+  those. The Approver is the Client by default; the Agency may set it to
+  itself or to the party in front of the work that pays for it, such as a
+  main contractor. The Agency may approve on the Client's behalf and may
   require its own approval as well (ADR-0007).
 - **A generic Ploeg contract, upstream.** An Operator Consumer names the
   approvals a proposed Work Item requires. Ploeg records each approval, and
@@ -40,13 +44,14 @@ Tenant and Client scoping and does not restate it.
 - **P2.2 Client Sign-off core.** A new proposed term, **Client Sign-off**: a
   Client user's answer on one of its Work Item's pull requests, either "looks
   good" or "needs changes", with a note. It is bound to the pull request's
-  head commit, dismissed by a new push, and limited to the Sign-off Paths in
-  the Client Profile. The head commit and the changed paths come from Ploeg's
+  head commit, dismissed by a new push, and covers the Sign-off Paths: the
+  whole change, minus the exclusion globs the Agency sets per Client and
+  repository in the Client Profile. The head commit and the changed paths come from Ploeg's
   delivery facts (`apps/unfold/src/cards/facts.ts`).
 - **P2.3 Sign-off route and control.** An HTTP route and a page control
-  record a Client Sign-off. Behind the proposed flag `client.verdict-comment`,
+  record a Client Sign-off. Behind the proposed flag `client.sign-off-comment`,
   Unfold writes it into the pull request through Ploeg's keyed pull request
-  comment (Ploeg ADR-0079) as key `client-verdict`, following the pattern of
+  comment (Ploeg ADR-0079) as key `client-sign-off`, following the pattern of
   `apps/unfold/src/agent-trace-comments.ts`.
 - **P2.4 Client view.** A read-only page for a Client user: its Work Items,
   their pull requests and Client Sign-offs. It shows the Agency's price and
@@ -70,8 +75,9 @@ None. `openspec/specs/` holds no capability these requirements change.
 ## Non-goals
 
 - **Client acceptance.** The domain model forbids the phrase: Acceptance is
-  the Agency's decision (ADR-0006, R11). A Client Sign-off is input to it,
-  unless the owner decides otherwise (open question 1).
+  the Agency's decision (ADR-0006, R11). A Client Sign-off is input to it
+  (owner, 2026-10-29). A per-Agency option to require one before Acceptance
+  is proposed for a later decision.
 - **Unfold contacting a Client.** No email, chat or forge mention reaches a
   Client from Unfold (ADR-0007, R15). The Agency passes on links and
   questions.
@@ -80,7 +86,8 @@ None. `openspec/specs/` holds no capability these requirements change.
   branch rule's required approvals.
 - **Quotes and prices.** Drafting and storing a Quote belongs to Refinement
   and billing (ADR-0006). The client view shows a price only when one
-  exists.
+  exists. The owner is still designing pricing, so nothing here builds
+  anything about money, including who the Approver bills.
 - **Building Preview Environments.** ADR-0008's preview deploy is its own
   change. P2.5 only signs a link to a preview that exists.
 - **Tenant and Client scoping.** The P1 slices of ADR-0017 (VIK-1876,
@@ -93,12 +100,15 @@ None. `openspec/specs/` holds no capability these requirements change.
 
 - `apps/unfold/src`: a Client Sign-off store, the approve and sign-off routes,
   the comment writer, the client view route, the signed preview link, and a
-  new entry in `flag-registry.json`.
+  two entries in `flag-registry.json`: `client.sign-off` for recording and
+  `client.sign-off-comment` for the pull request comment.
 - `apps/unfold/public`: the sign-off control on the Work Item page and the
   client view, with workbench stories for every state.
 - `apps/unfold/docs/contracts/`: the new routes.
-- `docs/domain/model.yaml`: the proposed terms Client Sign-off and Sign-off
-  Paths, and Sign-off Paths as a part of Client Profile.
+- `docs/domain/model.yaml`: the proposed terms Client Sign-off, Sign-off
+  Paths and Approver, and the Client Profile's exclusion globs and Approver.
+- Ploeg (ploeg-hq), later and optional: a generic keyed commit status
+  contract for the `client-sign-off` status (design.md D5).
 - Ploeg (ploeg-hq): required approvals on a proposed Work Item, then a
   `ploeg`-scoped commit that moves Unfold's pin.
 - No new runtime dependency and no model call. Nothing here spends money

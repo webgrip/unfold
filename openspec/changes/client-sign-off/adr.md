@@ -20,15 +20,17 @@
 - `docs/adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md` — approvals and sign-offs name their person and confirmation.
 - `apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md` — the proposed state and approve route that D1 extends.
 - `apps/ploeg/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md` — the keyed pull request comment and the delivery facts the sign-off reads.
-- `apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md` — the `client.verdict-comment` flag.
+- `apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md` — the `client.sign-off` and `client.sign-off-comment` flags.
 
 ## Records Created
 
-- none yet. One durable decision qualifies: the Client Sign-off's name, its
-  weight against Acceptance, and its binding to the head commit and Sign-off
-  Paths. Its content depends on open questions 1 and 2, so it is written as a
-  proposed system ADR after the owner answers (tasks.md 1.3). The Ploeg
-  contract's record belongs to ploeg-hq (tasks.md 2.1).
+- `docs/adr/adr-0049-a-client-sign-off-is-input-to-acceptance-bound-to-the-head-commit-and-each-client-has-an-approver.md`
+  (proposed): the Client Sign-off's name, its weight against Acceptance, its
+  binding to the head commit, its scope (the whole change minus the Agency's
+  exclusions, a repository file the Client Profile overrides, an optional
+  commit status), and an Approver per Client. The Ploeg contracts' records
+  belong to ploeg-hq: required approvals (tasks.md 2.1) and the keyed commit
+  status (tasks.md 4.7).
 
 ## Supersessions
 
@@ -38,10 +40,10 @@
 
 ```sh
 $ python3 scripts/validate_adr_consistency.py .
-validate-adr-consistency: OK (47 record(s) in docs/adr, registry-checked)
+validate-adr-consistency: OK (48 record(s) in docs/adr, registry-checked)
 ```
 
 ## Notes
 
-Nothing here is accepted or implemented. The owner decides open questions 1
-to 4 in design.md before the ADR in tasks.md 1.3 is written.
+The owner answered open questions 1 to 4 on 2026-10-29. Nothing here is
+accepted; the P2.2 core is built behind a flag that is off by default.

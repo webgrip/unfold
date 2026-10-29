@@ -63,6 +63,14 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 **Also known as:** Agent Host Protocol  
 **See also:** [Unfold](#unfold), [Harness](../reference/glossary.md#harness)  
 
+## Approver
+*Context: Offering · Owner: Unfold*
+
+The party whose approval a Client's proposed Work Items need before a Shift: the Client by default, or, as the Agency sets per Client, the Agency itself or the party in front of the work that pays for it, such as a main contractor. Unfold names that approval to Ploeg under a generic approval name, and Ploeg never learns who the Approver is. Proposed (system ADR-0049); not implemented yet.
+
+**Not to be confused with** [Steward](#steward): The person a Run Card names for its change, picked from the forge's merger or pull request approver.  
+**See also:** [Client](../reference/glossary.md#client), [Agency](#agency), [Quote](#quote), [Client Profile](#client-profile)  
+
 ## Attempt
 *Context: Participation · Owner: Unfold*
 
@@ -120,9 +128,19 @@ The part of Unfold where Clients submit Requests, talk to the refinement agent, 
 ## Client Profile
 *Context: Offering*
 
-A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions.
+A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions. Proposed (system ADR-0049): it also holds the Client's Approver and, per repository, the exclusion globs that narrow its Sign-off Paths, and later the Client's default language.
 
-**See also:** [Client](../reference/glossary.md#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
+**See also:** [Client](../reference/glossary.md#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement), [Approver](#approver), [Sign-off Paths](#sign-off-paths)  
+
+## Client Sign-off
+*Context: Offering · Owner: Unfold*
+
+A Client's answer on one of its Work Item's open pull requests, "looks good" or "needs changes" with a note. It is bound to the pull request's head commit, a new push dismisses it for good, and it covers its Sign-off Paths. It is input to the Agency's Acceptance, never Acceptance itself: it merges nothing, approves nothing in the forge and changes no Ploeg state. Until Client memberships exist, Agency people record it on the Client's behalf. Proposed (system ADR-0049); not implemented yet.
+
+**Do not use:** client acceptance, client verdict, client approval  
+**Not to be confused with** [Acceptance](#acceptance): The Agency's decision that a pull request delivers its Work Item; a Client Sign-off is one input to it.  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's answer; a Client Sign-off is a person's answer for a Client.  
+**See also:** [Sign-off Paths](#sign-off-paths), [Client](../reference/glossary.md#client), [Acceptance](#acceptance), [Preview Environment](#preview-environment), [Client Profile](#client-profile)  
 
 ## Crack
 *Context: Cards*
@@ -400,6 +418,13 @@ Unfold's internal record of a Work Item a person started in Unfold: its brief, t
 The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Work Item](../reference/glossary.md#work-item), [Crack](#crack)  
+
+## Sign-off Paths
+*Context: Offering · Owner: Unfold*
+
+The changed paths a Client Sign-off covers: every path its pull request changes at the signed head, minus those matching the exclusion globs the Agency set for that Client and repository in the Client Profile. A file in the repository may propose more exclusions; the Client Profile wins where they disagree. Each Client Sign-off stores its own, and a truncated or missing path list never counts as the whole change. Proposed (system ADR-0049); not implemented yet.
+
+**See also:** [Client Sign-off](#client-sign-off), [Client Profile](#client-profile), [Attention Path](#attention-path)  
 
 ## Size
 *Context: Billing*
