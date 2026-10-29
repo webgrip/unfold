@@ -1,6 +1,6 @@
 import type { AppConfig, User } from './types.ts';
 import { PloegError, type PloegClient, type PloegItem, type PloegTeam } from './ploeg.ts';
-import { commentOnTask, findTrackerUser, getHandoffTask, handoffUnsupported, setTrackerAssignee, taskProject, TaskError, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
+import { commentOnTask, findTrackerUser, getHandoffTask, handoffUnsupported, setTrackerAssignee, taskProject, TaskError, trackerName, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 
 export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] };
 export type TaskPloegWorkItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
@@ -12,7 +12,10 @@ export type Routing = { teams: PloegTeam[]; all: PloegTeam[]; reported: boolean 
 const olderTeams = 'This Ploeg version does not report which tracker users route work to its teams. Update Ploeg to hand tasks off from here.';
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 const pinnedTo = (routing: Routing, source: TaskSourceConfig) => routing.all.find(team => team.pinnedScopes.includes(source.project));
-const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => person.username.toLowerCase() === name.toLowerCase()));
+const handles = (task: TaskSnapshot, person: NonNullable<TaskSnapshot['assignees']>[number]) => (task.provider === 'clickup' && person.name ? [person.username, person.name] : [person.username]).map(name => name.toLowerCase());
+const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => handles(task, person).includes(name.toLowerCase())));
+const noteActions = { handed: 'Handed to Ploeg team', taken: 'Taken back from Ploeg team' };
+const note = (source: TaskSourceConfig, kind: keyof typeof noteActions, team: string, person: string) => source.provider === 'clickup' ? `${noteActions[kind]} ${team} by ${person} from Unfold.` : `<p>${noteActions[kind]} <code>${escapeHtml(team)}</code> by ${escapeHtml(person)} from Unfold.</p>`;
 
 /** The Ploeg teams a person may route a board's tasks to: the team the board is pinned to, or else every team of theirs with a tracker user to assign. */
 export function routedTeams(routing: Routing, source: TaskSourceConfig, allows: (team: string) => boolean): { teams: PloegTeam[]; pinned?: string; reason?: string } {
@@ -23,7 +26,7 @@ export function routedTeams(routing: Routing, source: TaskSourceConfig, allows: 
   return { teams: [pinned], pinned: pinned.id };
 }
 
-/** Hands Vikunja tasks to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
+/** Hands Vikunja and ClickUp tasks to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
 export class TaskHandoff {
   private readonly config: AppConfig;
   private readonly ploeg: PloegClient;
@@ -114,11 +117,11 @@ export class TaskHandoff {
       if (active) throw new TaskError(409, 'handoff_active', `${this.holding(user, active)}. Finish or cancel that work in the Ploeg view first.`);
       const assignee = team.assignees[0];
       const userId = await findTrackerUser(source, assignee);
-      if (!userId) throw new TaskError(502, 'handoff_assignee_unknown', `Vikunja has no user named ${assignee} that the workbench token can see. Check the team's tracker user in Ploeg's configuration.`);
+      if (!userId) throw new TaskError(502, 'handoff_assignee_unknown', `${trackerName(source)} has no user named ${assignee} that the workbench token can see. Check the team's tracker user in Ploeg's configuration.`);
       try { await setTrackerAssignee(source, task.id, userId, true); }
       catch (error) { if (!(error instanceof TaskError && error.code === 'task_write_conflict' && onTask(team, (await getHandoffTask(source, task.id)).task))) throw error; }
       outcome = 'assigned';
-      await commentOnTask(source, task.id, `<p>Handed to Ploeg team <code>${escapeHtml(team.id)}</code> by ${escapeHtml(user.name)} from Unfold.</p>`).catch((error: unknown) => { warnings.push(`The task is handed off, but the workbench could not leave a comment on it. ${error instanceof TaskError ? error.message : ''}`.trim()); });
+      await commentOnTask(source, task.id, note(source, 'handed', team.id, user.name)).catch((error: unknown) => { warnings.push(`The task is handed off, but the workbench could not leave a comment on it. ${error instanceof TaskError ? error.message : ''}`.trim()); });
     }
     this.log(user, source, task.id, team.id, 'handoff', outcome, outcome === 'assigned' && !warnings.length);
     return { ...await this.report(user, source, (await getHandoffTask(source, task.id)).task, true), ...(warnings.length ? { warnings } : {}) };
@@ -131,9 +134,9 @@ export class TaskHandoff {
     const items = await this.everyItem(user, task, 'The workbench could not confirm with Ploeg that this work has not started. Try again, or cancel it from the Ploeg view.');
     if (items.some(entry => !notStarted.includes(entry.state))) throw new TaskError(409, 'handoff_started', 'Ploeg has already started; cancel it from the Ploeg view instead.');
     const warnings: string[] = [];
-    const present = team.assignees.map(name => assigneeIds.get(name.toLowerCase())).filter((id): id is number => id !== undefined);
+    const present = [...new Set(team.assignees.map(name => assigneeIds.get(name.toLowerCase())).filter((id): id is number => id !== undefined))];
     for (const id of present) await setTrackerAssignee(source, task.id, id, false);
-    if (present.length) await commentOnTask(source, task.id, `<p>Taken back from Ploeg team <code>${escapeHtml(team.id)}</code> by ${escapeHtml(user.name)} from Unfold.</p>`).catch((error: unknown) => { warnings.push(`The task is taken back, but the workbench could not leave a comment on it. ${error instanceof TaskError ? error.message : ''}`.trim()); });
+    if (present.length) await commentOnTask(source, task.id, note(source, 'taken', team.id, user.name)).catch((error: unknown) => { warnings.push(`The task is taken back, but the workbench could not leave a comment on it. ${error instanceof TaskError ? error.message : ''}`.trim()); });
     this.log(user, source, task.id, team.id, 'take_back', present.length ? 'removed' : 'not_assigned', present.length > 0 && !warnings.length);
     return { ...await this.report(user, source, (await getHandoffTask(source, task.id)).task, true), ...(warnings.length ? { warnings } : {}) };
   }

@@ -21,9 +21,30 @@ async function listen(handler: (req: IncomingMessage, res: ServerResponse, body:
   return `http://127.0.0.1:${address.port}`;
 }
 
-function workItem(state: string, team = 'silver') {
+function workItem(state: string, team = 'silver', provider = 'vikunja', externalId = '1505') {
   const shift = { id: '77', workItemId: '9001', team, branch: 'agent/unfold-7', round: 1, budgetUsd: 5, spentUsd: 1.25, reservedUsd: 0, openedAt: at, closedAt: null, closeReason: '' };
-  return { id: '9001', provider: 'vikunja', externalId: '1505', revision: at, team, state, title: 'Round the totals', description: '', url: '', priority: 0, attempts: 1, infraFailures: 0, nextEligibleAt: null, createdAt: at, updatedAt: at, target: null, latestShift: state === 'queued' ? null : shift, lease: null };
+  return { id: '9001', provider, externalId, revision: at, team, state, title: 'Round the totals', description: '', url: '', priority: 0, attempts: 1, infraFailures: 0, nextEligibleAt: null, createdAt: at, updatedAt: at, target: null, latestShift: state === 'queued' ? null : shift, lease: null };
+}
+
+type PloegState = { items: ReturnType<typeof workItem>[]; ploegDown: boolean; olderPloeg: boolean; itemsDown: boolean; pins: Record<string, string[]>; teams?: [string, string[]][] };
+
+async function ploegStub(state: PloegState, bearer: string, t: TestContext): Promise<string> {
+  return listen((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...value as object }));
+    if (req.headers.authorization !== `Bearer ${bearer}` || req.method !== 'GET') return send({}, 401);
+    if (state.ploegDown) return send({}, 503);
+    const team = (id: string, assignees: string[]) => ({ id, paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], ...(state.olderPloeg ? {} : { assignees, pinnedScopes: state.pins[id] ?? [] }) });
+    if (url.pathname === '/api/v1/operator/teams') return send({ teams: (state.teams ?? [['silver', ['silver']], ['bronze', ['bronze']], ['unfold', []], ['gold', ['gold']]]).map(([id, assignees]) => team(id, assignees)) });
+    if (url.pathname === '/api/v1/operator/work-items') {
+      if (state.itemsDown) return send({}, 503);
+      if (state.olderPloeg || !url.searchParams.has('provider')) return send({ error: { code: 'invalid_request' } }, 400);
+      return send({ items: state.items.filter(item => item.provider === url.searchParams.get('provider') && item.externalId === url.searchParams.get('externalId')), nextCursor: null });
+    }
+    const item = state.items.find(entry => url.pathname === `/api/v1/operator/work-items/${entry.id}`);
+    if (item) return send({ item, shifts: item.latestShift ? [item.latestShift] : [], runs: [], checkpoints: [{ id: '5', workItemId: item.id, phase: 'publish', branch: 'agent/unfold-7', prUrl: 'https://forge.example/team/app/pulls/3', createdAt: at, nodeName: '', podUid: '' }], events: [], truncated: { shifts: false, runs: false, checkpoints: false, events: false } });
+    return send({}, 404);
+  }, t);
 }
 
 async function fixture(t: TestContext) {
@@ -65,22 +86,7 @@ async function fixture(t: TestContext) {
     if (req.method === 'PUT' && comment) return send({ id: 1, comment: body.comment }, 201);
     return send({ message: 'not found' }, 404);
   }, t);
-  const ploeg = await listen((req, res) => {
-    const url = new URL(req.url!, 'http://fixture.invalid');
-    const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...value as object }));
-    if (req.headers.authorization !== `Bearer ${bearer}` || req.method !== 'GET') return send({}, 401);
-    if (state.ploegDown) return send({}, 503);
-    const team = (id: string, assignees: string[]) => ({ id, paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], ...(state.olderPloeg ? {} : { assignees, pinnedScopes: state.pins[id] ?? [] }) });
-    if (url.pathname === '/api/v1/operator/teams') return send({ teams: [team('silver', ['silver']), team('bronze', ['bronze']), team('unfold', []), team('gold', ['gold'])] });
-    if (url.pathname === '/api/v1/operator/work-items') {
-      if (state.itemsDown) return send({}, 503);
-      if (state.olderPloeg || !url.searchParams.has('provider')) return send({ error: { code: 'invalid_request' } }, 400);
-      return send({ items: state.items.filter(item => item.provider === url.searchParams.get('provider') && item.externalId === url.searchParams.get('externalId')), nextCursor: null });
-    }
-    const item = state.items.find(entry => url.pathname === `/api/v1/operator/work-items/${entry.id}`);
-    if (item) return send({ item, shifts: item.latestShift ? [item.latestShift] : [], runs: [], checkpoints: [{ id: '5', workItemId: item.id, phase: 'publish', branch: 'agent/unfold-7', prUrl: 'https://forge.example/team/app/pulls/3', createdAt: at, nodeName: '', podUid: '' }], events: [], truncated: { shifts: false, runs: false, checkpoints: false, events: false } });
-    return send({}, 404);
-  }, t);
+  const ploeg = await ploegStub(state, bearer, t);
   const server = await application('live', config => {
     config.taskSources = [
       { id: 'board', name: 'Board', provider: 'vikunja', baseUrl: `${vikunja}/api/v1`, project: '42', repositoryId: 'order-service', token, executionOwner: 'ploeg' },
@@ -354,4 +360,178 @@ test('lookup finds the configured source whose project holds a Vikunja task', { 
   assert.equal(missing.status, 404, missing.text);
   for (const query of ['provider=github&id=1505', 'provider=vikunja&id=../1', 'provider=vikunja']) assert.equal((await request(f.server.url, `/api/tasks/lookup?${query}`, { cookie: f.operator.cookie })).status, 400, query);
   assert.equal((await request(f.server.url, '/api/tasks/lookup?provider=vikunja&id=1505')).status, 401);
+});
+
+async function clickupFixture(t: TestContext) {
+  const token = `pk_${randomBytes(20).toString('hex')}`;
+  const env = `UNFOLD_HANDOFF_TEST_${randomBytes(6).toString('hex').toUpperCase()}`;
+  const bearer = randomBytes(24).toString('hex');
+  process.env[env] = bearer;
+  t.after(() => { delete process.env[env]; });
+  const state = {
+    task: { id: 'abc123', custom_id: 'AGENCY-7', name: 'Round the totals', markdown_description: 'Round **half** cents.', status: { status: 'to do', type: 'open' }, archived: false, date_updated: '1790000000000', list: { id: '901' }, tags: [] as unknown[], assignees: [] as { id: number; username: string | null; email: string }[] },
+    users: [{ id: 11, username: 'Silver', email: 'silver-bot@agency.example' }, { id: 12, username: 'Bronze Bot', email: 'Bronze@Agency.example' }] as { id: number; username: string | null; email: string }[],
+    calls: [] as { method: string; path: string; body: any; authorization?: string }[],
+    writeStatus: 0, commentStatus: 0, memberStatus: 0,
+    items: [] as ReturnType<typeof workItem>[],
+    ploegDown: false, olderPloeg: false, itemsDown: false,
+    pins: {} as Record<string, string[]>,
+    teams: [['silver', ['silver']], ['bronze', ['bronze@agency.example']], ['gold', ['gold']]] as [string, string[]][],
+  };
+  const clickup = await listen((req, res, body) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(value));
+    if (req.headers.authorization !== token) return send({ err: 'Token invalid', ECODE: 'OAUTH_025' }, 401);
+    state.calls.push({ method: req.method!, path: url.pathname, body, authorization: req.headers.authorization });
+    if (req.method === 'GET') {
+      if (url.pathname === '/api/v2/task/abc123') return send(state.task);
+      if (url.pathname === '/api/v2/list/901/task') return send({ tasks: [state.task], last_page: true });
+      if (url.pathname === '/api/v2/list/901/member') return state.memberStatus ? send({ err: 'forbidden' }, state.memberStatus) : send({ members: state.users });
+      if (url.pathname === '/api/v2/team') return send({ teams: [{ id: '3001', name: 'Agency', members: state.users.map(user => ({ user })) }] });
+      return send({ err: 'not found' }, 404);
+    }
+    const comment = req.method === 'POST' && url.pathname === '/api/v2/task/abc123/comment';
+    const status = comment ? state.commentStatus || state.writeStatus : state.writeStatus;
+    if (status) return send({ err: `refused ${token}` }, status);
+    if (req.method === 'PUT' && url.pathname === '/api/v2/task/abc123') {
+      for (const id of body.assignees.add) if (!state.task.assignees.some(entry => entry.id === id)) state.task.assignees.push(state.users.find(entry => entry.id === id)!);
+      state.task.assignees = state.task.assignees.filter(entry => !body.assignees.rem.includes(entry.id));
+      state.task.date_updated = String(Number(state.task.date_updated) + 1000);
+      return send(state.task);
+    }
+    if (comment) return send({ id: '458', hist_id: '26508', date: Date.now() });
+    return send({ err: 'not found' }, 404);
+  }, t);
+  const ploeg = await ploegStub(state, bearer, t);
+  const server = await application('live', config => {
+    config.taskSources = [{ id: 'agency', name: 'Agency', provider: 'clickup', baseUrl: `${clickup}/api/v2`, project: '901', repositoryId: 'order-service', token, executionOwner: 'ploeg' }];
+    config.ploeg = { url: ploeg, tokenEnv: env, userTeams: { 'op-1': ['silver', 'bronze'] } };
+  });
+  t.after(() => server.close());
+  server.app.store.addUser({ id: 'op-1', name: 'Op <b>One</b>', role: 'operator', passwordHash: await hashPassword(password) });
+  const operator = await login(server.url, 'Op <b>One</b>', password);
+  const status = async () => { const result = await request(server.url, '/api/task-sources/agency/tasks/abc123/ploeg?refresh=1', { cookie: operator.cookie }); assert.equal(result.status, 200, result.text); return result.body; };
+  const revision = async () => (await request(server.url, '/api/task-sources/agency/tasks/abc123', { cookie: operator.cookie })).body.revision as string;
+  const handOff = (body: Record<string, unknown>) => request(server.url, '/api/task-sources/agency/tasks/abc123/handoff', { method: 'POST', cookie: operator.cookie, body });
+  const takeBack = (team: string) => request(server.url, `/api/task-sources/agency/tasks/abc123/handoff?team=${team}`, { method: 'DELETE', cookie: operator.cookie });
+  const writes = () => state.calls.filter(call => call.method !== 'GET').map(call => [call.method, call.path, call.body]);
+  return { state, server, token, operator, status, revision, handOff, takeBack, writes };
+}
+
+test('a ClickUp source run by Ploeg hands off, and a List pinned to a team offers only that team', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  const sources = await request(f.server.url, '/api/task-sources', { cookie: f.operator.cookie });
+  assert.deepEqual(sources.body.map((source: { id: string; handoff: boolean }) => [source.id, source.handoff]), [['agency', true]]);
+  const open = await f.status();
+  assert.deepEqual(open.handoff, { allowed: true });
+  assert.deepEqual(open.teams.map((team: { id: string }) => team.id), ['silver', 'bronze']);
+  f.state.pins = { bronze: ['901'] };
+  const pinned = await f.status();
+  assert.deepEqual(pinned.teams.map((team: { id: string; assignee: string }) => [team.id, team.assignee]), [['bronze', 'bronze@agency.example']]);
+  assert.equal((await f.handOff({ team: 'silver', revision: await f.revision() })).status, 404);
+  assert.deepEqual(f.writes(), []);
+  const result = await f.handOff({ team: 'bronze', revision: await f.revision() });
+  assert.equal(result.status, 200, result.text);
+  assert.deepEqual(result.body.assignedTeams, ['bronze'], 'Ploeg routes a ClickUp assignee by email as well as username');
+  assert.deepEqual(f.writes(), [
+    ['PUT', '/api/v2/task/abc123', { assignees: { add: [12], rem: [] } }],
+    ['POST', '/api/v2/task/abc123/comment', { comment_text: 'Handed to Ploeg team bronze by Op <b>One</b> from Unfold.', notify_all: false }],
+  ]);
+});
+
+test('a ClickUp hand-off makes exactly these API calls, leaves one comment and is idempotent', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  const revision = await f.revision();
+  f.state.calls = [];
+  const result = await f.handOff({ team: 'silver', revision });
+  assert.equal(result.status, 200, result.text);
+  assert.deepEqual(result.body.assignedTeams, ['silver']);
+  assert.equal(result.body.warnings, undefined);
+  const calls = f.state.calls.map(call => [call.method, call.path, call.body]);
+  assert.deepEqual(calls, [
+    ['GET', '/api/v2/task/abc123', undefined],
+    ['GET', '/api/v2/list/901/member', undefined],
+    ['PUT', '/api/v2/task/abc123', { assignees: { add: [11], rem: [] } }],
+    ['POST', '/api/v2/task/abc123/comment', { comment_text: 'Handed to Ploeg team silver by Op <b>One</b> from Unfold.', notify_all: false }],
+    ['GET', '/api/v2/task/abc123', undefined],
+  ], 'the List members name the user, so no Workspace read is needed');
+  assert(f.state.calls.every(call => call.authorization === f.token), 'ClickUp takes the personal token as the raw Authorization header');
+  const repeated = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(repeated.status, 200, repeated.text);
+  assert.deepEqual(repeated.body.assignedTeams, ['silver']);
+  const old = await f.handOff({ team: 'silver', revision });
+  assert.equal(old.status, 409, old.text);
+  assert.equal(old.body.error.code, 'task_changed', 'the assignment moved date_updated, so the old read is stale');
+  assert.equal(f.writes().length, 2, 'repeating the hand-off writes nothing and leaves no second comment');
+  const other = await f.handOff({ team: 'bronze', revision: await f.revision() });
+  assert.equal(other.status, 409, other.text);
+  assert.match(other.body.error.message, /Take it back from silver/);
+  assert.equal(f.writes().length, 2);
+});
+
+test('a ClickUp user hidden from the List is found among the Workspace members', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  f.state.memberStatus = 403;
+  const revision = await f.revision();
+  f.state.calls = [];
+  assert.equal((await f.handOff({ team: 'silver', revision })).status, 200);
+  assert.deepEqual(f.state.calls.slice(0, 4).map(call => [call.method, call.path]), [['GET', '/api/v2/task/abc123'], ['GET', '/api/v2/list/901/member'], ['GET', '/api/v2/team'], ['PUT', '/api/v2/task/abc123']]);
+  assert.deepEqual(f.writes()[0], ['PUT', '/api/v2/task/abc123', { assignees: { add: [11], rem: [] } }]);
+  f.state.users = f.state.users.filter(user => user.id !== 12);
+  f.state.task.assignees = [];
+  f.state.pins = { bronze: ['901'] };
+  const unknown = await f.handOff({ team: 'bronze', revision: await f.revision() });
+  assert.equal(unknown.status, 502, unknown.text);
+  assert.equal(unknown.body.error.code, 'handoff_assignee_unknown');
+  assert.match(unknown.body.error.message, /^ClickUp has no user named bronze@agency\.example/);
+  assert.equal(f.writes().length, 2);
+});
+
+test('a ClickUp task that changed, closed or was archived since it was read is refused without writing', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  const revision = await f.revision();
+  f.state.task.name = 'Round the totals up';
+  f.state.task.date_updated = '1790000005000';
+  const changed = await f.handOff({ team: 'silver', revision });
+  assert.equal(changed.status, 409, changed.text);
+  assert.equal(changed.body.error.code, 'task_changed');
+  const fresh = await f.revision();
+  f.state.task.status = { status: 'complete', type: 'closed' };
+  const closed = await f.handOff({ team: 'silver', revision: fresh });
+  assert.equal(closed.status, 409, closed.text);
+  assert.equal(closed.body.error.code, 'task_closed');
+  f.state.task.status = { status: 'to do', type: 'open' };
+  f.state.task.archived = true;
+  const archived = await f.handOff({ team: 'silver', revision: fresh });
+  assert.equal(archived.status, 409, archived.text);
+  assert.equal(archived.body.error.code, 'task_closed');
+  assert.deepEqual(f.writes(), []);
+});
+
+test('a ClickUp take-back removes the team’s assignee once, and a token without write access is named as ClickUp’s', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  f.state.writeStatus = 403;
+  const forbidden = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(forbidden.status, 502, forbidden.text);
+  assert.equal(forbidden.body.error.code, 'task_write_forbidden');
+  assert.match(forbidden.body.error.message, /ClickUp token/);
+  assert(!forbidden.text.includes(f.token));
+  f.state.writeStatus = 0;
+  f.state.calls = [];
+  assert.equal((await f.handOff({ team: 'silver', revision: await f.revision() })).status, 200);
+  f.state.items.push(workItem('queued', 'silver', 'clickup', 'abc123'));
+  const taken = await f.takeBack('silver');
+  assert.equal(taken.status, 200, taken.text);
+  assert.deepEqual(taken.body.assignedTeams, []);
+  assert.deepEqual(f.writes().slice(2), [
+    ['PUT', '/api/v2/task/abc123', { assignees: { add: [], rem: [11] } }],
+    ['POST', '/api/v2/task/abc123/comment', { comment_text: 'Taken back from Ploeg team silver by Op <b>One</b> from Unfold.', notify_all: false }],
+  ]);
+  assert.equal((await f.takeBack('silver')).status, 200);
+  assert.equal(f.writes().length, 4, 'taking back an unassigned team changes nothing');
+  f.state.items[0] = workItem('leased', 'silver', 'clickup', 'abc123');
+  const live = await f.handOff({ team: 'silver', revision: await f.revision() });
+  assert.equal(live.status, 409, live.text);
+  assert.equal(live.body.error.code, 'handoff_active');
+  assert.equal(f.writes().length, 4);
 });

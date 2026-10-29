@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
-import { getTask, listTasks, presentTask, publicTaskSource, sourceTaskUrl, TaskError, validateTaskSources, type TaskSourceConfig, type TaskProvider } from '../src/tasks.ts';
+import { getHandoffTask, getTask, handoffUnsupported, listTasks, presentTask, publicTaskSource, sourceTaskUrl, TaskError, validateTaskSources, type TaskSourceConfig, type TaskProvider } from '../src/tasks.ts';
 import type { Repository } from '../src/types.ts';
 
 const repositories: Repository[] = [{ id: 'order-service', name: 'Orders', description: '', url: 'https://forge.example/team/orders.git', baseBranch: 'main', verify: ['node', '--test'] }];
@@ -350,5 +350,28 @@ test('a list page and an opted-in detail read truncate one oversized description
     assert.equal(shown.descriptionTruncated, true, 'the task view can still open it, marked as shortened');
     assert(presentTask(configured, shown).descriptionMarkdown.length <= 16000);
     assert.equal(shown.revision, page.tasks[0].revision, 'the revision covers the full description, so a shortened view never passes for the original');
+  } finally { await remote.close(); }
+});
+
+test('Vikunja and ClickUp sources run by Ploeg can hand off; other trackers say which ones can', () => {
+  const ploeg = { url: 'https://ploeg.example', tokenEnv: 'PLOEG_TOKEN' };
+  for (const provider of ['vikunja', 'clickup'] as const) {
+    const owned = { ...source(provider), executionOwner: 'ploeg' as const };
+    assert.equal(handoffUnsupported(owned, ploeg), undefined, provider);
+    assert.match(handoffUnsupported(source(provider), ploeg)!, /not assigned to Ploeg/, provider);
+    assert.match(handoffUnsupported({ ...owned, token: undefined }, ploeg)!, /no tracker token/, provider);
+  }
+  for (const provider of ['forgejo', 'github', 'gitlab'] as const) assert.equal(handoffUnsupported({ ...source(provider), executionOwner: 'ploeg' }, ploeg), 'Only Vikunja and ClickUp tasks can be handed to Ploeg from the workbench.', provider);
+});
+
+test('a ClickUp hand-off read keys assignee IDs by username and email, ignoring case', async () => {
+  const remote = await fixture((request, response) => {
+    assert.equal(request.url, '/api/v2/task/abc17?include_markdown_description=true');
+    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(issue('clickup', { assignees: [{ id: 11, username: 'Silver Bot', email: 'Silver@Agency.example' }, { id: 'x', username: 'nobody', email: 'nobody@agency.example' }] })));
+  });
+  try {
+    const { task, assigneeIds } = await getHandoffTask(source('clickup', remote.origin), 'abc17');
+    assert.equal(task.id, 'abc17');
+    assert.deepEqual([...assigneeIds], [['silver bot', 11], ['silver@agency.example', 11]]);
   } finally { await remote.close(); }
 });
