@@ -371,9 +371,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (denied) throw Object.assign(new Error(denied), { code: denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied' });
           const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req));
           const claimedName = identity.email ?? identity.name;
-          const name = store.upsertUser({ id: identity.id, name: claimedName, role: identity.role, passwordHash: '' });
+          const name = store.upsertUser({ id: identity.id, name: claimedName, role: identity.role, passwordHash: '', memberships: identity.memberships });
           if (name !== claimedName) console.error(JSON.stringify({ level: 'warn', event: 'login.name_taken', method: 'oidc', user: identity.id, name }));
-          const issued = auth.issue({ id: identity.id, name, role: identity.role });
+          const issued = auth.issue({ id: identity.id, name, role: identity.role, memberships: identity.memberships });
           if (proof && identity.tokens) proof.remember(issued.signIn, identity.id, identity.subject, identity.tokens);
           if (identity.editor) auth.claimEditor(identity.editor, issued.user);
           res.writeHead(303, { Location: identity.editor ? `/#editor-sign-in/${encodeURIComponent(identity.editor)}` : '/', 'Set-Cookie': issued.cookie });

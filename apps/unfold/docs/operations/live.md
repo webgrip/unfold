@@ -362,7 +362,7 @@ Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs
 * The roles are [Access Roles](../../../../docs/reference/glossary.md#access-role). ADR-0017 names the middle group `member`, a word the glossary avoids; reading it as Developer is proposed until the owner confirms it. Lead, Product owner and Account owner have no group yet.
 * A local password account and the demo account hold their workbench role in the `default` Tenant: admin as Admin, operator as Developer, viewer as Viewer. A person who signs in with single sign-on joins `default` only through an `unfold/default/<role>` group.
 * `GET /api/bootstrap` reports them as `user.memberships`, for example `[{ "kind": "tenant", "tenant": "default", "role": "admin" }]`, and so does a password sign-in's answer.
-* The store keeps them per account in `user_memberships`. Saving them at each single sign-on, so a removed group removes the membership at the next sign-in, is proposed (VIK-1877); until then an account created by single sign-on reports none.
+* Each single sign-on saves them on the account, in `user_memberships`, replacing what the previous sign-in saved: a group removed at the provider removes its membership at the person's next sign-in, and their open sessions report the new set from then on.
 
 ### Local sign-in
 
