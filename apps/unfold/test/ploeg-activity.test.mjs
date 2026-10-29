@@ -190,7 +190,7 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(html, /<th scope="row">research<\/th>/);
   assert.match(html, /<th scope="col" class="num">Stopped retrying<\/th>/);
   assert.match(html, /<p class="section-description">Last 30 days · 2 Teams<\/p>/);
-  assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\. Cost per merged stays empty because Ploeg counts Done Work Items for all time, not per window, so the window’s spend cannot be divided by them\.<\/p>/);
+  assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\. Cost per merged Work Item adds the settled spend of every Shift of each Work Item whose pull request merged in the window, failed Runs included, and divides it by those Work Items once there are 20\. Spend that has not settled is left out and listed apart\.<\/p>/);
   assert.doesNotMatch(html, /role="region"|tabindex="0"/);
   assert.match(html, /<dt>Held<\/dt>/);
   assert.doesNotMatch(html, /<dt>Held now<\/dt>/);
@@ -209,40 +209,59 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   const loading = overviewMarkup({ window: '7d', data: null, loading: true, error: null }, helpers, now);
   assert.doesNotMatch(loading, /<svg|<canvas|polyline/);
   assert.match(loading, /Outcomes[\s\S]*Runs and spend[\s\S]*Last 7 days[\s\S]*Work Items/);
-  assert.equal(loading.match(/insights-tile-skeleton/g).length, 11);
+  assert.equal(loading.match(/insights-tile-skeleton/g).length, 12);
   const noTeams = overviewMarkup({ window: '7d', data: { ...summary('7d'), teams: [], totals: summaryTotals([]) }, loading: false, error: null }, helpers, now);
   assert.match(noTeams, /No Teams are visible to your account/);
   assert.doesNotMatch(noTeams, /class="stat"|Teams your account|insights-window/);
 });
 
-test('Insights leads with the merge rate over all time and says why cost per merged Work Item has no figure', () => {
+test('Insights leads with the merge rate over all time, then cost per merged Work Item and the clean-merge rate for the window', () => {
   assert.equal(insightsWindow, '7d', 'Insights opens on 7 days, where a quiet day still shows what landed');
   assert.equal(state.ploegSummary.window, insightsWindow, 'a first visit starts on the default window');
   const tileOf = (html, label) => html.match(new RegExp(`<(?:a|div) class="stat"[^>]*><span class="stat-label"><i data-icon="[a-z-]+"></i>${label}</span>[\\s\\S]*?</(?:a|div)>`))?.[0] || '';
-  const live = (teams, extra = {}) => overviewMarkup({ window: '7d', data: { ...summary('7d'), teams, totals: summaryTotals(teams), ...extra }, loading: false, error: null }, helpers, now);
+  const economics = (extra = {}) => ({ demo: false, window: '7d', since: '2026-09-03T09:00:00.000Z', until: '2026-09-10T09:00:00.000Z', merged: 24, settledUsd: 30, costPerMergedUsd: 1.25, sampleTooSmall: false, minimumSample: 20, unsettled: { runs: 0, usd: 0 }, unknown: { runs: 0 }, openSpend: [], openSpendTruncated: false, cleanMerge: { clean: 15, merged: 24, closed: 1, rate: 0.6 }, teams: [{ team: 'bronze', merged: 24, settledUsd: 30, costPerMergedUsd: 1.25, unsettledRuns: 0, unknownRuns: 0, cleanMerge: { clean: 15, merged: 24, closed: 1, rate: 0.6 } }], scanned: 30, truncated: false, runsTruncated: 0, ...extra });
+  const live = (teams, view = {}) => overviewMarkup({ window: '7d', data: { ...summary('7d'), teams, totals: summaryTotals(teams) }, loading: false, error: null, ...view }, helpers, now);
   const team = (name, done, withdrawn) => ({ ...summary('7d').teams[0], team: name, workItems: { ...summary('7d').teams[0].workItems, done, withdrawn } });
-  const html = live([team('bronze', 18, 23), team('silver', 0, 0)]);
+  const teams = [team('bronze', 18, 23), team('silver', 0, 0)];
+  const html = live(teams, { economics: economics() });
   assert.match(html, /<h2 class="section-title" id="insights-outcomes-title">Outcomes<\/h2>[\s\S]*data-action="ploeg-window"[\s\S]*<h2 class="section-title" id="insights-runs-title">/, 'the outcomes lead and carry the window switch');
+  assert.match(html, /Merge rate<\/span>[\s\S]*Cost per merged Work Item<\/span>[\s\S]*Clean-merge rate<\/span>/, 'the clean-merge rate sits beside the cost');
   assert.match(tileOf(html, 'Merge rate'), /^<a class="stat" href="#work\?lane=closed">[\s\S]*<strong class="stat-value">44%<\/strong><span class="stat-detail">18 Done of 41 closed · all time<\/span>/);
-  assert.match(tileOf(html, 'Cost per merged Work Item'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Ploeg counts Done Work Items for all time, not per window<\/span>/);
-  assert.doesNotMatch(tileOf(html, 'Cost per merged Work Item'), /US\$/, 'no windowed spend is divided by an all-time count');
+  assert.match(tileOf(html, 'Cost per merged Work Item'), /<strong class="stat-value">US\$\s1,25<\/strong><span class="stat-detail">24 merged · US\$\s30,00 settled<\/span>/);
+  assert.match(tileOf(html, 'Clean-merge rate'), /<strong class="stat-value">60%<\/strong><span class="stat-detail">15 clean of 25 merged or closed<\/span>/);
   assert.match(html, /<th scope="col" class="num">Merge rate<\/th>/);
   assert.match(html, /<th scope="col" class="num">Cost per merged<\/th>/);
+  assert.match(html, /<th scope="row">bronze<\/th>(?:<td[^>]*>[^]*?<\/td>){5}<td class="num">US\$\s1,25<\/td>/, 'bronze’s Run row carries its cost per merged Work Item');
+  assert.match(html, /<th scope="row">silver<\/th>(?:<td[^>]*>[^]*?<\/td>){5}<td class="num"><span class="subtle">—<\/span><\/td>/, 'a Team with nothing merged shows a dash, never US$ 0,00');
   assert.match(html, /<th scope="row">bronze<\/th>(?:<td[^>]*>[^]*?<\/td>){8}<td class="num">44%<\/td>/, 'bronze’s Work Item row ends in its merge rate');
-  assert.match(html, /<th scope="row">silver<\/th>(?:<td[^>]*>[^]*?<\/td>){8}<td class="num"><span class="subtle">—<\/span><\/td>/, 'a Team with nothing closed shows a dash, never 0%');
   assert.match(html, /<dt>Merge rate · all time<\/dt><dd>44%<\/dd>/, 'phone cards carry the merge rate');
-  assert.match(html, /<dt>Cost per merged<\/dt><dd><span class="subtle" title="Ploeg counts Done Work Items for all time, not per window">—<\/span><\/dd>/);
-  assert.match(html, /insights-footnote">[^<]*Cost per merged stays empty because Ploeg counts Done Work Items for all time, not per window/);
-  const none = live([team('silver', 0, 0)]);
+  assert.match(html, /<dt>Cost per merged<\/dt><dd>US\$\s1,25<\/dd>/);
+  assert.doesNotMatch(html, /insights-open-spend/, 'nothing is listed apart when every Run settled');
+
+  const small = live(teams, { economics: economics({ merged: 3, settledUsd: 3.1, costPerMergedUsd: null, sampleTooSmall: true, unsettled: { runs: 1, usd: 0.2 }, unknown: { runs: 1 }, openSpend: [{ workItemId: '7', team: 'bronze', runId: '70', status: 'unsettled', usd: 0.2 }, { workItemId: '8', team: 'bronze', runId: '80', status: 'unknown', usd: null }], cleanMerge: { clean: 2, merged: 3, closed: 0, rate: 2 / 3 }, teams: [{ team: 'bronze', merged: 3, settledUsd: 3.1, costPerMergedUsd: null, unsettledRuns: 1, unknownRuns: 1, cleanMerge: { clean: 2, merged: 3, closed: 0, rate: 2 / 3 } }], truncated: true, scanned: 500 }) });
+  assert.match(tileOf(small, 'Cost per merged Work Item'), /<strong class="stat-value is-text">3 merged<\/strong><span class="stat-detail">Sample too small: needs 20 · US\$\s3,10 settled · 2 Runs not settled, not added · newest 500 Work Items only<\/span>/);
+  assert.doesNotMatch(tileOf(small, 'Cost per merged Work Item'), /US\$\s1,0/, 'no figure is divided out of a small sample');
+  assert.match(tileOf(small, 'Clean-merge rate'), /<span class="stat-detail">2 clean of 3 merged or closed · sample too small<\/span>/);
+  assert.match(small, /<td class="num"><span class="subtle" title="Sample too small: needs 20">3 merged<\/span><\/td>/);
+  assert.match(small, /<details class="meta insights-open-spend"><summary>2 Runs of merged Work Items left out of the cost<\/summary><ul><li><a href="#work\/7">Work Item 7<\/a> · Run 70 · not settled · US\$\s0,20 so far<\/li><li><a href="#work\/8">Work Item 8<\/a> · Run 80 · cost not reported<\/li><\/ul><\/details>/);
+
+  const none = live([team('silver', 0, 0)], { economics: economics({ merged: 0, settledUsd: 0, costPerMergedUsd: null, sampleTooSmall: true, cleanMerge: { clean: 0, merged: 0, closed: 0, rate: null }, teams: [] }) });
   assert.match(tileOf(none, 'Merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">No Work Item is Done or Withdrawn yet<\/span>/);
+  assert.match(tileOf(none, 'Cost per merged Work Item'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">No Work Item merged in the last 7 days<\/span>/);
+  assert.match(tileOf(none, 'Clean-merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">No pull request merged or closed in the last 7 days<\/span>/);
+  assert.match(tileOf(live(teams), 'Cost per merged Work Item'), /data-quiet>—<\/strong><span class="stat-detail">Loading…<\/span>/);
+  assert.match(tileOf(live(teams, { economicsError: { code: 'ploeg_unsupported', message: '' } }), 'Cost per merged Work Item'), /<span class="stat-detail">Not reported by this Ploeg<\/span>/);
+  assert.match(tileOf(live(teams, { economicsError: { code: 'ploeg_unavailable', message: '' } }), 'Clean-merge rate'), /<span class="stat-detail">Could not be loaded<\/span>/);
   const allDone = live([team('bronze', 3, 0)]);
   assert.match(tileOf(allDone, 'Merge rate'), /<strong class="stat-value">100%<\/strong><span class="stat-detail">3 Done of 3 closed · all time<\/span>/);
   const missing = overviewMarkup({ window: '7d', data: { ...summary('7d'), totals: { ...summary('7d').totals, workItems: { ...summary('7d').totals.workItems, done: null } } }, loading: false, error: null }, helpers, now);
   assert.match(tileOf(missing, 'Merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Done and Withdrawn not reported<\/span>/);
-  const demo = overviewMarkup({ window: '7d', data: summary('7d', true), loading: false, error: null }, helpers, now);
+
+  const demo = overviewMarkup({ window: '7d', data: summary('7d', true), loading: false, error: null, economics: { demo: true, window: '7d' } }, helpers, now);
   assert.match(tileOf(demo, 'Cost per merged Work Item'), /<strong class="stat-value is-text">No model calls<\/strong><span class="stat-detail">Demo<\/span>/);
+  assert.match(tileOf(demo, 'Clean-merge rate'), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Demo · nothing merged<\/span>/);
   assert.match(tileOf(demo, 'Merge rate'), /<strong class="stat-value">95%<\/strong><span class="stat-detail">21 Done of 22 closed · all time<\/span>/);
-  assert.doesNotMatch(demo, /title="Ploeg counts Done/, 'the demo never explains a figure it does not have');
+  assert.doesNotMatch(demo, /US\$|insights-open-spend|Sample too small/, 'the demo invents no spend and no sample');
 });
 
 test('the demo summary counts window-bound Runs and keeps spend at zero', () => {

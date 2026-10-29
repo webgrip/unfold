@@ -17,6 +17,25 @@ function renderInsights() {
 }
 
 const summaryPath = (view, fresh) => `/api/ploeg/summary?window=${encodeURIComponent(view.window)}${fresh ? '&refresh=1' : ''}`;
+const economicsPath = (window, fresh) => `/api/ploeg/economics?window=${encodeURIComponent(window)}${fresh ? '&refresh=1' : ''}`;
+
+async function loadEconomics(fresh) {
+  const view = state.ploegSummary;
+  const window = view.window;
+  const request = (view.economicsRequest || 0) + 1;
+  view.economicsRequest = request;
+  const current = () => request === view.economicsRequest && window === view.window;
+  try {
+    const economics = await api(economicsPath(window, fresh));
+    if (!current()) return;
+    Object.assign(view, { economics, economicsError: null });
+  } catch (error) {
+    if (!current()) return;
+    view.economicsError = ploegFailure(error);
+  }
+  if (ploegVisible('insights')) renderInsights();
+}
+
 const signature = view => { const { generatedAt, fetchedAt, ...data } = view.data || {}; return JSON.stringify([data, view.error]); };
 
 async function load(fresh) {
@@ -24,6 +43,7 @@ async function load(fresh) {
   const request = ++state.ploegRequest;
   view.loading = true;
   renderInsights();
+  void loadEconomics(fresh);
   try {
     const data = await api(summaryPath(view, fresh));
     if (request !== state.ploegRequest) return;
@@ -65,7 +85,7 @@ async function enterInsights({ query = {} } = {}) {
   enterPloegView('insights');
   const window = windows.includes(query.window) ? query.window : state.ploegSummary.window || insightsWindow;
   keepWindowInHash(window);
-  if (window !== state.ploegSummary.window || state.ploegSummary.data?.window !== window) state.ploegSummary.data = null;
+  if (window !== state.ploegSummary.window || state.ploegSummary.data?.window !== window) Object.assign(state.ploegSummary, { data: null, economics: null, economicsError: null });
   state.ploegSummary.window = window;
   if (state.ploegTeams === null) void loadPloegTeams();
   return await loadSummary();
@@ -73,7 +93,7 @@ async function enterInsights({ query = {} } = {}) {
 
 async function selectWindow(button) {
   if (!windows.includes(button.dataset.id) || button.dataset.id === state.ploegSummary.window) return;
-  Object.assign(state.ploegSummary, { window: button.dataset.id, data: null, error: null });
+  Object.assign(state.ploegSummary, { window: button.dataset.id, data: null, error: null, economics: null, economicsError: null });
   keepWindowInHash(button.dataset.id);
   await loadSummary();
   const view = state.ploegSummary;
@@ -86,7 +106,7 @@ async function selectWindow(button) {
 onPloegReload('insights', () => loadSummary(true));
 live.register('insights', { interval: 60000, refresh: liveRefresh('insights', poll, () => state.ploegSummary.error) });
 
-/** Insights: merge rate, cost per merged Work Item, Run counts and spend per Team for a 24 hour, 7 day (the default) or 30 day window, and Work Items per state right now (`#insights?window=`). Refreshes every minute. */
+/** Insights: merge rate, cost per merged Work Item and clean-merge rate for the window (`/api/ploeg/economics`, read on entry, window switch and Refresh), Run counts and spend per Team for a 24 hour, 7 day (the default) or 30 day window, and Work Items per state right now (`#insights?window=`). Refreshes every minute. */
 export default {
   id: 'insights',
   match: hash => hash === 'insights' ? {} : null,

@@ -24,6 +24,7 @@ import { rarityShown } from './cards/settings.ts';
 import { PloegClient, PloegContractIncompatible, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
 import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
+import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
@@ -902,6 +903,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg') return json(res, 200, sanitize(await ploeg.overview(user, url.searchParams.get('team') ?? undefined, fresh)));
             if (path === '/api/ploeg/teams') return json(res, 200, sanitize({ teams: (await ploeg.teams(user, fresh)).map(team => team.id) }));
             if (path === '/api/ploeg/summary') return json(res, 200, sanitize(await ploeg.summary(user, url.searchParams.get('window') ?? '24h', fresh)));
+            if (path === '/api/ploeg/economics') {
+              const window = url.searchParams.get('window') ?? '7d';
+              if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
+              if (ploeg.isDemo) return json(res, 200, { demo: true, window });
+              return json(res, 200, sanitize(await readDeliveryEconomics(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), fresh })));
+            }
             if (path === '/api/ploeg/runs') return json(res, 200, sanitize(await ploeg.runs(user, { team: optional('team'), state: optional('state'), outcome: optional('outcome'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/proposed') return json(res, 200, sanitize(await ploeg.proposed(user, fresh)));
