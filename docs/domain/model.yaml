@@ -493,7 +493,54 @@ terms:
       A Client's Definition of Ready, Definition of Done and extra instructions
       for agents. It ranks below the delivery contract, like repository
       instructions. The Definition of Done becomes Acceptance Conditions.
-    see_also: [Client, Ready, Acceptance Conditions, Refinement]
+      Proposed (system ADR-0049): it also holds the Client's Approver and, per
+      repository, the exclusion globs that narrow its Sign-off Paths, and
+      later the Client's default language.
+    see_also: [Client, Ready, Acceptance Conditions, Refinement, Approver, Sign-off Paths]
+  - name: Client Sign-off
+    context: Offering
+    owner: unfold
+    definition: >
+      A Client's answer on one of its Work Item's open pull requests, "looks
+      good" or "needs changes" with a note. It is bound to the pull request's
+      head commit, a new push dismisses it for good, and it covers its Sign-off
+      Paths. It is input to the Agency's Acceptance, never Acceptance itself:
+      it merges nothing, approves nothing in the forge and changes no Ploeg
+      state. Until Client memberships exist, Agency people record it on the
+      Client's behalf. Proposed (system ADR-0049); not implemented yet.
+    avoid: [client acceptance, client verdict, client approval]
+    not_to_be_confused_with:
+      - term: Acceptance
+        note: The Agency's decision that a pull request delivers its Work Item; a Client Sign-off is one input to it.
+      - term: Verdict
+        note: A reviewing Run's answer; a Client Sign-off is a person's answer for a Client.
+    see_also: [Sign-off Paths, Client, Acceptance, Preview Environment, Client Profile]
+  - name: Sign-off Paths
+    context: Offering
+    owner: unfold
+    definition: >
+      The changed paths a Client Sign-off covers: every path its pull request
+      changes at the signed head, minus those matching the exclusion globs the
+      Agency set for that Client and repository in the Client Profile. A file
+      in the repository may propose more exclusions; the Client Profile wins
+      where they disagree. Each Client Sign-off stores its own, and a
+      truncated or missing path list never counts as the whole change.
+      Proposed (system ADR-0049); not implemented yet.
+    see_also: [Client Sign-off, Client Profile, Attention Path]
+  - name: Approver
+    context: Offering
+    owner: unfold
+    definition: >
+      The party whose approval a Client's proposed Work Items need before a
+      Shift: the Client by default, or, as the Agency sets per Client, the
+      Agency itself or the party in front of the work that pays for it, such
+      as a main contractor. Unfold names that approval to Ploeg under a generic
+      approval name, and Ploeg never learns who the Approver is. Proposed
+      (system ADR-0049); not implemented yet.
+    not_to_be_confused_with:
+      - term: Steward
+        note: The person a Run Card names for its change, picked from the forge's merger or pull request approver.
+    see_also: [Client, Agency, Quote, Client Profile]
   - name: Ticket
     context: Offering
     definition: >

@@ -2,11 +2,38 @@
 
 ## ADDED Requirements
 
-### Requirement: A Client user approves only its own Client's proposed Work Items
+### Requirement: Each Client has one Approver
 
-A user with a client membership (ADR-0017) SHALL be able to approve or reject
-a Work Item that Ploeg reports as `proposed` when its Client is that user's
-Client. Unfold MUST answer 404 for any other Work Item, and MUST check the
+Each Client SHALL have one Approver: the party whose approval a proposed Work
+Item of that Client needs. The Approver SHALL be the Client unless the Agency
+sets it, per Client, to the Agency itself or to another party that sits in
+front of the work and pays for it, such as a main contractor or a reseller.
+Unfold SHALL name the Approver's approval to Ploeg as `approver` and MUST NOT
+tell Ploeg who the Approver is.
+
+#### Scenario: A new Client
+
+- **WHEN** an Agency adds a Client and sets no Approver
+- **THEN** the Client is its own Approver, and its users see the approve
+  control on its proposed Work Items
+
+#### Scenario: The Agency is the Approver
+
+- **WHEN** the Agency sets itself as the Approver of a Client
+- **THEN** an Agency user who may start work approves that Client's proposed
+  Work Items, and the Client's users see them as waiting on the Agency
+
+#### Scenario: A main contractor is the Approver
+
+- **WHEN** the Agency sets a main contractor as the Approver of a Client
+- **THEN** the main contractor's users approve that Client's proposed Work
+  Items, and the Client's own users see no approve control
+
+### Requirement: The Approver approves only its own Client's proposed Work Items
+
+A user of a Client's Approver (ADR-0017 memberships) SHALL be able to approve
+or reject a Work Item that Ploeg reports as `proposed` when its Client is that
+Approver's Client. Unfold MUST answer 404 for any other Work Item, and MUST check the
 Tenant and the Client before it calls Ploeg. A rejection MUST carry a reason.
 
 #### Scenario: A Client user approves its own proposed Work Item
@@ -47,15 +74,15 @@ the Work Item's current state instead of an error.
 ### Requirement: The Agency decides which approvals a Work Item needs
 
 An Agency admin SHALL be able to set, per Client, whether its proposed Work
-Items need a Client approval, an Agency approval, or both (ADR-0007). The
-default SHALL be a Client approval only. Unfold SHALL name the required
+Items need the Approver's approval, an Agency approval as well, or both
+(ADR-0007). The default SHALL be the Approver's approval only. Unfold SHALL name the required
 approvals to Ploeg when the Work Item is proposed, and MUST NOT decide
 Admission itself.
 
 #### Scenario: The Agency requires its own approval too
 
-- **WHEN** the Client's setting requires both approvals and only the Client
-  has approved
+- **WHEN** the Client's setting requires both approvals and only the
+  Approver has approved
 - **THEN** the Work Item stays proposed, and Unfold shows it as waiting for the
   Agency's approval
 
@@ -164,36 +191,53 @@ Item's history, and a return to the bound commit MUST NOT revive it.
 - **THEN** the earlier sign-off stays dismissed, and the Client must sign off
   again
 
-### Requirement: A Client Profile holds Sign-off Paths
+### Requirement: A Client Sign-off covers the whole change unless the Agency excludes paths
 
-A Client Profile SHALL hold Sign-off Paths: path globs, per repository of the
-Client, that the Client may judge. With no Sign-off Paths for a repository, a
-sign-off covers no path, and Unfold SHALL say so before the Client signs off.
+The Sign-off Paths of a Client Sign-off SHALL be every path the pull request
+changes at its head, from the delivery facts' `changedPaths`, minus the paths
+that match an exclusion glob the Agency set for that Client and repository in
+the Client Profile. With no exclusion globs, a sign-off covers the whole
+change, and Unfold SHALL need no setup for it.
 
-#### Scenario: A repository has no Sign-off Paths
+#### Scenario: No exclusions are set
 
-- **WHEN** a Client user opens the sign-off control for a repository with no
-  Sign-off Paths
-- **THEN** the control says the sign-off will cover no files of this change
+- **WHEN** a Client signs off a pull request in a repository with no
+  exclusion globs, and the changed paths are not truncated
+- **THEN** the sign-off covers the whole change
+
+#### Scenario: The Agency excludes infrastructure
+
+- **WHEN** the Agency's exclusion globs for the repository are `infra/**`,
+  and the pull request changes `src/pages/home.tsx` and `infra/deploy.yaml`
+- **THEN** the sign-off covers `src/pages/home.tsx`, lists
+  `infra/deploy.yaml` as excluded, and the Agency sees it as partial
+
+### Requirement: A repository file may propose exclusions, and the Client Profile wins
+
+Unfold SHALL read exclusion globs from a file in the repository at the pull
+request's head, such as `.unfold/sign-off.yml`, when the Agency turns that on.
+The file SHALL hold globs only; Unfold MUST ignore anything in it that names a
+Client or a person. A path the Client Profile keeps SHALL stay covered even
+when the file excludes it.
+
+#### Scenario: The file excludes generated files
+
+- **WHEN** the file excludes `dist/**` and the Client Profile sets nothing
+- **THEN** a changed path under `dist/` is listed as excluded
+
+#### Scenario: The file and the Client Profile disagree
+
+- **WHEN** the file excludes `content/**` and the Client Profile keeps
+  `content/**`
+- **THEN** changed paths under `content/` stay covered by the sign-off
 
 ### Requirement: A Client Sign-off reports what it covers
 
-A Client Sign-off SHALL list which changed paths at its head match a Sign-off
-Path and which do not, from the delivery facts' `changedPaths`. It covers the
-whole change only when every path matches and the list is not truncated.
-Unfold MUST NOT present a partial sign-off as covering the whole change.
-
-#### Scenario: The change stays inside the Client's paths
-
-- **WHEN** the Client's Sign-off Paths are `content/**` and `src/pages/**`,
-  and every changed path matches
-- **THEN** the sign-off covers the whole change
-
-#### Scenario: The change reaches outside the Client's paths
-
-- **WHEN** the pull request also changes `infra/deploy.yaml`
-- **THEN** the sign-off covers the matching paths, lists `infra/deploy.yaml`
-  as not covered, and the Agency sees it as partial
+A Client Sign-off SHALL list which changed paths at its head it covers and
+which were excluded, and SHALL store that scope with the sign-off. It covers
+the whole change only when nothing was excluded and the list is not
+truncated. Unfold MUST NOT present a partial sign-off as covering the whole
+change.
 
 #### Scenario: The changed paths are truncated or missing
 
@@ -201,13 +245,57 @@ Unfold MUST NOT present a partial sign-off as covering the whole change.
 - **THEN** the sign-off says which paths it covers and that the full list was
   not available, and never claims the whole change
 
+#### Scenario: The exclusions change after the sign-off
+
+- **WHEN** the Agency adds an exclusion glob after a Client signed off
+- **THEN** the stored sign-off keeps the scope it was given, and the next
+  sign-off uses the new globs
+
+### Requirement: An Agency may enforce a current Sign-off through a commit status
+
+When the pinned Ploeg offers a generic keyed commit status contract and the
+Agency turns it on, Unfold SHALL keep a commit status with context
+`client-sign-off` on the pull request's head: success for a current "looks
+good" sign-off, failure for "needs changes", pending otherwise. The Agency MAY
+make it required in its branch protection. This requirement waits on that
+Ploeg contract.
+
+#### Scenario: A push dismisses the sign-off
+
+- **WHEN** the commit status is on and a new push dismisses the sign-off
+- **THEN** the new head carries a pending `client-sign-off` status
+
+#### Scenario: The pinned Ploeg lacks the contract
+
+- **WHEN** Unfold runs against a Ploeg without keyed commit statuses
+- **THEN** Unfold writes no status and says the enforcement is unavailable
+
+### Requirement: Agency people record a Sign-off until Client memberships exist
+
+Until Client memberships (ADR-0017) are enforced, only a user with the
+`admin` or `operator` role SHALL record or withdraw a Client Sign-off, which
+is then recorded on the Client's behalf. A viewer MUST be refused. The record
+SHALL name the person and whether Unfold proved who they were.
+
+#### Scenario: A viewer tries to sign off
+
+- **WHEN** a viewer submits a Client Sign-off
+- **THEN** Unfold answers 403 and stores nothing
+
+#### Scenario: An operator withdraws a Sign-off
+
+- **WHEN** an operator withdraws the current Client Sign-off of a pull request
+- **THEN** the sign-off is marked withdrawn with the person and time, stays in
+  the history, and the pull request comment says no sign-off is current
+
 ### Requirement: A Client Sign-off is input to the Agency's Acceptance
 
 A Client Sign-off MUST NOT be Acceptance, a Review or a Verdict. It SHALL NOT
 merge, approve in the forge, change Ploeg state, start a Run or charge a
 Delivery Fee. Unfold SHALL show it to the Agency's reviewer as input to their
-decision against the Acceptance Conditions (ADR-0007, R22). Any further weight
-waits for the owner.
+decision against the Acceptance Conditions (ADR-0007, R22). A per-Agency
+option to require a current sign-off before Acceptance is proposed and is not
+part of this requirement.
 
 #### Scenario: The Client says it looks good
 
@@ -225,16 +313,16 @@ waits for the owner.
 
 ### Requirement: Unfold writes the Client Sign-off into the pull request behind a flag
 
-When the flag `client.verdict-comment` is on for the Work Item's Team, Unfold
-SHALL keep one comment with key `client-verdict` on the open pull request
+When the flag `client.sign-off-comment` is on for the Work Item's Team, Unfold
+SHALL keep one comment with key `client-sign-off` on the open pull request
 through Ploeg's keyed pull request comment (Ploeg ADR-0079). It SHALL name
 the Client, the answer, the bound head and the coverage, and say the Agency
 decides Acceptance. With the flag off, Unfold writes no comment.
 
 #### Scenario: The flag is on
 
-- **WHEN** a Client signs off and the Team has `client.verdict-comment` on
-- **THEN** the pull request carries one `client-verdict` comment with the
+- **WHEN** a Client signs off and the Team has `client.sign-off-comment` on
+- **THEN** the pull request carries one `client-sign-off` comment with the
   Client, the answer, the head commit and the coverage
 
 #### Scenario: A push dismisses the sign-off
@@ -244,7 +332,7 @@ decides Acceptance. With the flag off, Unfold writes no comment.
 
 ### Requirement: The sign-off comment carries no person and no money
 
-The `client-verdict` comment MUST NOT name the Client's person, quote a price
+The `client-sign-off` comment MUST NOT name the Client's person, quote a price
 or carry Unfold's charges, because everyone with forge access reads it.
 
 #### Scenario: The comment is written
@@ -276,13 +364,30 @@ A Client user SHALL have a client view listing only its Client's Work Items:
 title, state in plain words, the Agency's price from the Quote when one
 exists, pull request status, the current or dismissed Client Sign-off and the
 preview link when one exists. It SHALL be read-only apart from the approve
-and sign-off controls. The Agency's brand SHALL come first.
+and sign-off controls.
 
 #### Scenario: A Client user opens the client view
 
 - **WHEN** a user of Client A opens the client view
 - **THEN** it lists Client A's Work Items with their prices and sign-offs,
   and no other Client's Work Item appears
+
+### Requirement: The client view shows the Agency's brand and English copy
+
+The client view SHALL show the Agency's brand first. Its copy SHALL be English
+until translations exist; then the Client Profile SHALL set each Client's
+default language. The Agency MAY override the copy.
+
+#### Scenario: A Client user opens the client view before translations exist
+
+- **WHEN** a user of a Dutch Client opens the client view
+- **THEN** it shows the Agency's brand first and English copy
+
+#### Scenario: The Agency rewrites the "Agency decides" line
+
+- **WHEN** the Agency overrides the line that says it decides Acceptance
+- **THEN** the client view shows the Agency's wording in place of the
+  default English copy
 
 ### Requirement: The client view hides Unfold's charge and the Agency's people
 
