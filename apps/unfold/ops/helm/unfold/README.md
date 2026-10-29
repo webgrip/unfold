@@ -23,6 +23,14 @@ helm install unfold oci://ghcr.io/webgrip/charts/unfold --version <version> -n u
 
 `Chart.yaml` depends on `ploeg` from `oci://ghcr.io/ploeg-hq/charts` at exactly the release [apps/unfold/ploeg-release.json](../../../ploeg-release.json) pins, and the published chart vendors that chart ([system ADR-0043](../../../../../docs/adr/adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md)). Ploeg's values go under `ploeg:`, unchanged from Ploeg's own chart; Ploeg needs at least `ploeg.database.existingSecret.name` and `ploeg.executor.litellm.adminUrl`, as the [live example](values.live.example.yaml) shows. `ploeg.enabled` (default `true`) turns the dependency off for the demo or a cluster that runs Ploeg elsewhere.
 
+### Names
+
+Both charts name their Deployment, Service and ServiceAccount after the Helm release unless an override says otherwise. This chart therefore sets `ploeg.fullnameOverride: ploeg`, so a release called `unfold` installs Unfold's objects as `unfold` and Ploeg's as `ploeg`, and Ploeg answers at `http://ploeg.<namespace>.svc:8080`. The chart refuses to render when the two names meet: a release called `ploeg` with the default, or `ploeg.fullnameOverride` set to the release name. An existing install whose Ploeg objects carry the release name keeps them by setting `ploeg.fullnameOverride` to that name, provided the release is not also Unfold's name.
+
+### Network policy
+
+Ploeg's chart renders a default-deny NetworkPolicy for ploegd. While `ploeg.networkPolicy.ploegd.ingressFrom` is empty it admits port 8080 from every pod; once that list names any caller, it admits only those and Ploeg's own pods. This chart then adds the NetworkPolicy `<release>-to-ploegd`, which admits the Unfold workbench's pods (`app.kubernetes.io/name: unfold` and the release's `app.kubernetes.io/instance`) to ploegd on port 8080, so naming the gateway or Prometheus in `ingressFrom` never locks the workbench out. Leave the workbench out of `ingressFrom`. NetworkPolicies add up, so the extra policy widens nothing beyond that one caller.
+
 ### Attribution
 
 `ploeg.operator.attribution` is `asserted` by default. It decides whether Ploeg accepts an operator change that names its person only in `X-Ploeg-Actor` (`asserted`) or refuses every change without a verified person token with 403 `person_token_required` (`proven`), as Ploeg ADR-0171 sets out. Ploeg's own chart leaves the value empty, which resolves to `asserted` before chart 0.3.0 and to `proven` from 0.3.0; this chart sets `asserted` so that a Ploeg upgrade does not turn the default for an Unfold that sends no person tokens. With `proven`, set `config.ploeg.personTokens` too: this chart refuses to render a resolved `proven` without it, because Ploeg would then refuse every change Unfold makes. Ploeg's chart in turn needs `ploeg.operator.personTokens` and the consumer's `audiences`; [Live operation](../../../docs/operations/live.md#when-ploeg-refuses-changes-without-proof) lists every setting.
@@ -104,6 +112,17 @@ Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold
 | Value | Default | Sets |
 | --- | --- | --- |
 | `auth.localLogin` | `true` | `config.auth.localLogin`. `false` turns local name-and-password sign-in off: only single sign-on is offered, `POST /api/login` answers 404, `UNFOLD_ADMIN_PASSWORD` creates no administrator and sessions of local accounts stop working. It needs `config.auth.oidc`; the chart refuses to render without it, and refuses `config.auth.localLogin` so the switch has one place. [Live operation](../../../docs/operations/live.md#local-sign-in) describes the switch |
+
+## Workspace sandbox
+
+In live mode an agent workspace runs code nobody reviewed, so it belongs under a sandbox runtime such as Kata Containers or gVisor ([Run agent code in a sandbox runtime](../../../../../docs/how-to/run-agent-code-in-a-sandbox-runtime.md)). The pod provisioner (the default) reads `workspacePodRuntimeClassName`, which is empty because not every cluster has a sandbox runtime; the sandbox provisioner reads `workspaceRuntimeClassName`, default `kata`. The chart never picks a runtime for you: a RuntimeClass the nodes lack would leave every workspace unable to start.
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `workspacePodRuntimeClassName` | `""` | The RuntimeClass of agent and export pods under the pod provisioner, such as `kata` or `gvisor`. |
+| `workspaceAllowUnsandboxed` | `false` | In live mode the chart refuses to render while the provisioner's RuntimeClass is empty. `true` runs workspaces on the node's default runtime, against the node's own kernel, and the install notes print a warning. |
+
+The demo starts no workspace pods, so neither value applies to it.
 
 ## Workspace size
 

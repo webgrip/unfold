@@ -40,7 +40,7 @@ def release_values(values, version, digests):
 
 
 def rendered_images(archive_path, *overrides):
-    rendered = command('helm', 'template', 'unfold', archive_path, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'baseUrl=https://unfold.invalid', *(argument for override in overrides for argument in ('--set', override)))
+    rendered = command('helm', 'template', 'unfold', archive_path, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'baseUrl=https://unfold.invalid', '--set', 'workspacePodRuntimeClassName=kata', *(argument for override in overrides for argument in ('--set', override)))
     return sorted(set(re.findall(r'^\s*(?:- )?image: "?([^"\s]+)"?\s*$', rendered, re.M)) | set(re.findall(r'\\?"image\\?":\s*\\?"([^"\\]+)', rendered)))
 
 
