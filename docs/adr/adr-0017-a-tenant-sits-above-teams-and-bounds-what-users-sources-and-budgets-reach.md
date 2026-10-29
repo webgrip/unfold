@@ -131,6 +131,7 @@ Proposed tests, none of which exist yet:
 
 * 2026-10-04 — Accepted. The owner answered the open questions (see Owner decisions) and moved tenancy and client access into milestone M1, so clients can attach context to their own Work Items sooner.
 * Technical story: VIK-1741.
+* Refinement proposed in [ADR-0048](adr-0048-projects-share-accounts-and-repositories-within-a-tenant-and-a-work-item-has-one-origin.md): Clients keep owning sources, and reach repositories through grants instead of owning them.
 * Refines [ADR-0009](adr-0009-one-tenant-per-agency.md): that ADR's Tenant is the entity defined here, and its cluster isolation is unchanged.
 * Relies on [ADR-0002](adr-0002-ploeg-is-the-only-engine.md): Ploeg is the Authority, so Ploeg's checks are the binding ones and Unfold's are the first line.
 * 2026-10-03 — Proposed. The owner stated that Unfold is RBAC'd, SSO'd and multi-tenant, and that users are limited to what they can see. The code facts in the problem statement were read on `development` that day.
