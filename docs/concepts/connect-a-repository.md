@@ -62,6 +62,33 @@ Proposed, for the owner to decide. They build on the tracker-port RFC in the clu
 4. **Workers on more than one forge.** The worker takes the forge URL from the target instead of from the release, so one installation serves Forgejo and GitHub. This unblocks Ploeg working on its own repository.
 5. **Connect from Unfold.** A form in Unfold that writes the declaration from direction 3 as a pull request on the cluster repository, which the operator merges. It respects "configuration stays in the cluster repository" and gives the journey a start inside the product.
 
+## What an installation asks for today
+
+A second installation, Unfold staging on the unfold-cluster, was set up on 2026-10-28 and 2026-10-29. Every credential it needed came from outside the product:
+
+| Credential | How it got there | What a person did |
+|---|---|---|
+| Forgejo tokens for the builder and reviewer bots | a person creates each token in Forgejo's settings and types it into OpenBao with `just secret-set` | two tokens, two commands; ploegd does not start without them, even with its executor off |
+| Vikunja bot token | a copy of the homelab bot's token, pushed by a homelab job, because Vikunja 2.6 creates bot tokens only in its web UI | none, but the copy can write every board that bot is on |
+| Vikunja board share and webhook | a homelab CronJob shares the board with the bot and registers the webhook with a secret it generates | none |
+| Model provider keys | a person creates each key on the provider's site and types it into OpenBao | two keys, two commands |
+| Public hostname and login | an OpenTofu apply, from a plan a person reviews | one workflow run and a digest |
+
+None of these steps happens in Unfold, and none is visible in it until something fails. The owner's verdict on 2026-10-29 was that this is not how connecting should feel.
+
+## Direction 6: connect credentials from Unfold
+
+Proposed. It extends direction 5 from configuration to credentials. Under **Settings → Connections** an operator connects each outside system once, the way a hosted product connects to GitHub or Linear:
+
+1. **Connect Forgejo.** Unfold sends the operator to Forgejo's OAuth consent as themselves, lists the repositories they may administer, and for each chosen repository adds the builder and reviewer bots with the least permission and registers the review webhook. The bots' own tokens are minted by Unfold through Forgejo's API with that consent, never pasted.
+2. **Connect a board.** The operator picks a Vikunja board from the boards they can see; Unfold shares it with the Team's bot and registers the tracker webhook with a secret it generates, replacing the homelab CronJob.
+3. **Add a model key.** One field per provider; Unfold tests the key with a free call before it saves it, shows the provider's spend cap if the provider reports one, and never shows the key again.
+4. **See every connection.** The checks from direction 1 stay the single view, each line green or red with the button that fixes it.
+
+Where the credentials live is the decision this direction needs: ADR-0055 in the homelab keeps OpenBao as the only original of every secret. The proposal is that Unfold writes each credential to OpenBao under its installation's path through a role that may write there and nowhere else, and ploegd and the workers keep reading them through External Secrets. Unfold holds a credential only while it writes it.
+
+Not in scope: the OpenTofu apply that gives an installation its hostname. That is the operator setting up the installation, done once, and stays in the cluster repository.
+
 ## Open questions
 
 Each is the owner's to decide.
@@ -70,3 +97,5 @@ Each is the owner's to decide.
 2. Should Ploeg's own repository be worked on by the homelab installation at all, or stay with linked sessions?
 3. Where the single declaration of direction 3 lives: in the cluster repository next to the Helm values, or in Ploeg's Team manifest (Ploeg ADR-0110, proposed).
 4. Whether a board that Unfold lists but Ploeg does not route should be hidden in Unfold, or shown with "not connected".
+5. Direction 6: whether Unfold writes credentials to OpenBao through a scoped role, or keeps them in its own encrypted store and hands them to ploegd another way.
+6. Direction 6: whether Vikunja's missing bot-token API is worked around by connecting as the operator and minting a token for the bot user, or fixed upstream in Vikunja.
