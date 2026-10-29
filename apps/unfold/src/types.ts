@@ -19,7 +19,8 @@ export type RepositoryAccess = { username: string; password: string };
 export type GitRewrite = { url: string; insteadOf: string };
 /** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
 export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
-export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
+/** A registered repository. `tenant` (the default Tenant when absent) and `client` name its owner (system ADR-0017). */
+export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp; tenant?: string; client?: string };
 export type TeamRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
 export type Team = { id: string; name: string; description: string; roles: TeamRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';

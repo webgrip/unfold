@@ -398,6 +398,7 @@ Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs
 * A local password account and the demo account hold their workbench role in the `default` Tenant: admin as Admin, operator as Developer, viewer as Viewer. A person who signs in with single sign-on joins `default` only through an `unfold/default/<role>` group.
 * `GET /api/bootstrap` reports them as `user.memberships`, for example `[{ "kind": "tenant", "tenant": "default", "role": "admin" }]`, and so does a password sign-in's answer.
 * Each single sign-on saves them on the account, in `user_memberships`, replacing what the previous sign-in saved: a group removed at the provider removes its membership at the person's next sign-in, and their open sessions report the new set from then on.
+* Repositories and task sources name the Tenant and Client that own them with `tenant` and `client` ([who owns a source](task-connections.md#who-owns-a-source-and-a-repository)). Unfold checks those fields at startup and does not yet compare them with anyone's memberships.
 
 ### Local sign-in
 

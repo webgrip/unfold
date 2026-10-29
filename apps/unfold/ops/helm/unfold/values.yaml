@@ -151,6 +151,8 @@ config:
   # Each repository may add `mcp: {litellmTeamId: agents-orders, accessGroups: [observability-read-orders]}`.
   # Session keys are then minted into that LiteLLM team with exactly those MCP access groups, and the
   # agent gets one remote MCP server `litellm` at <litellm root>/mcp. Absent means no MCP tools.
+  # Each repository and task source may name its owner (system ADR-0017): `tenant` (default `default`) and an
+  # optional `client`. One repository, or one tracker project on one instance, registered for two owners stops startup.
   repositories: []
   taskSources: []
   # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a

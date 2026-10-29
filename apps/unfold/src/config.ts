@@ -14,6 +14,7 @@ import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
+import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameOwnership, type Ownership } from './tenancy.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -362,6 +363,22 @@ export function refuseDemoCredentials(raw: Record<string, unknown>, env: NodeJS.
   if (env.LITELLM_MASTER_KEY) throw demoRefusal('the LiteLLM master key in LITELLM_MASTER_KEY', 'Unset LITELLM_MASTER_KEY, or set mode: live');
 }
 
+/**
+ * Checks each repository's optional `tenant` and `client`, and that no instance-qualified repository key
+ * ({@link repositoryKey}) is registered twice for different owners: a repository belongs to exactly one Tenant and
+ * Client (system ADR-0017). The error names both entries.
+ */
+export function validateRepositoryOwners(repositories: Repository[]): void {
+  const held = new Map<string, { index: number; id: string; owner: Ownership }>();
+  repositories.forEach((repo, index) => {
+    const owner = ownership(configuredOwnership(repo as unknown as Record<string, unknown>, `repositories[${index}] (${repo.id})`));
+    const key = repositoryKey(repo.url);
+    const first = held.get(key);
+    if (first && !sameOwnership(first.owner, owner)) throw new Error(`repositories[${first.index}] (${first.id}) and repositories[${index}] (${repo.id}) register the same repository ${key} for different owners (${describeOwnership(first.owner)}; ${describeOwnership(owner)}). A repository belongs to exactly one Tenant and Client.`);
+    if (!first) held.set(key, { index, id: repo.id, owner });
+  });
+}
+
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const fileIndex = argv.indexOf('--config');
   const configFile = fileIndex >= 0 ? argv[fileIndex + 1] : process.env.UNFOLD_CONFIG;
@@ -384,6 +401,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (repo.executionOwner !== undefined && !['interactive', 'ploeg'].includes(repo.executionOwner)) throw new Error(`Invalid execution owner for repository ${repo.id}`);
     if (repo.mcp !== undefined) validateRepositoryMcp(repo.mcp, repo.id);
   }
+  validateRepositoryOwners(repositories);
   if (raw.teams !== undefined && raw.crews !== undefined && JSON.stringify(raw.teams) !== JSON.stringify(raw.crews)) throw new Error('Set teams only: crews, its retired name, lists different Teams');
   const teams = mode === 'demo' ? defaultTeams.filter(team => team.id === 'delivery') : raw.teams || raw.crews || defaultTeams;
   if (!Array.isArray(teams) || !teams.length) throw new Error('At least one team is required in teams');

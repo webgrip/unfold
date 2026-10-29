@@ -75,3 +75,49 @@ function canonical(items: Array<Membership | undefined>): Membership[] {
     ...[...clients.values()].sort((left, right) => byName(left.tenant, right.tenant) || byName(left.client, right.client)),
   ];
 }
+
+/** Who owns a configured repository or task source: one Tenant, and within it at most one Client (system ADR-0017). */
+export type Ownership = { tenant: string; client?: string };
+
+/** The owner `entry` names: its `tenant`, or the default Tenant when it names none, and its `client` when it names one. */
+export function ownership(entry: { tenant?: string; client?: string }): Ownership {
+  return { tenant: entry.tenant ?? defaultTenant, ...(entry.client !== undefined ? { client: entry.client } : {}) };
+}
+
+/** Whether two owners are the same Tenant with the same Client, or the same Tenant with no Client. */
+export function sameOwnership(left: Ownership, right: Ownership): boolean {
+  return left.tenant === right.tenant && left.client === right.client;
+}
+
+/** An owner in words for configuration errors, such as `Tenant default` or `Tenant agency, Client acme`. */
+export function describeOwnership(owner: Ownership): string {
+  return owner.client === undefined ? `Tenant ${owner.tenant}` : `Tenant ${owner.tenant}, Client ${owner.client}`;
+}
+
+/**
+ * The optional `tenant` and `client` of a configuration entry, checked: each, when present, is a Tenant or Client id.
+ * Throws an error that starts with `label` otherwise. Only the fields the entry sets are returned.
+ */
+export function configuredOwnership(entry: Record<string, unknown>, label: string): { tenant?: string; client?: string } {
+  for (const key of ['tenant', 'client'] as const) if (entry[key] !== undefined && !validTenancyId(entry[key])) throw new Error(`${label} ${key} must be lower-case letters, digits and inner hyphens, at most 63 characters`);
+  return { ...(entry.tenant !== undefined ? { tenant: entry.tenant as string } : {}), ...(entry.client !== undefined ? { client: entry.client as string } : {}) };
+}
+
+/**
+ * The instance-qualified key of a repository URL: its forge host and its `owner/name` path, lower-cased and without
+ * `.git`, so the HTTPS and SSH URLs of one repository share a key. A local path keys by the path itself.
+ */
+export function repositoryKey(url: string): string {
+  const scp = /^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):(?!\/)(.+)$/.exec(url);
+  let host: string;
+  let path: string;
+  if (scp) { host = scp[1]; path = scp[2]; }
+  else {
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { return `path:${url.replace(/\/+$/, '')}`; }
+    if (parsed.protocol === 'file:') return `path:${decodeURIComponent(parsed.pathname).replace(/\/+$/, '')}`;
+    host = parsed.hostname;
+    path = decodeURIComponent(parsed.pathname);
+  }
+  return `${host.toLowerCase()}/${path.replace(/^\/+|\/+$/g, '').replace(/\.git$/i, '').toLowerCase()}`;
+}
