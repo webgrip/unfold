@@ -341,7 +341,7 @@
       "ploegTerm": "Shift",
       "ploeg": {
         "source": "apps/ploeg/pkg",
-        "note": "Not in a published schema: the operator API types `closeReason` as free text. The test checks each code against the Go constant that writes it."
+        "note": "Not in a published schema: the operator API types `closeReason` as free text. The test checks each code against the Go constant that writes it. The refusal codes in pkg/httpapi, such as `person_token_required` (ADR-0171), answer an HTTP request and never close a Shift, so the test does not read that package."
       },
       "unfold": {
         "accepts": "any string: apps/unfold/src/ploeg.ts keeps the close reason as text",
@@ -967,6 +967,11 @@
           "value": "operator.admission_expired",
           "ploegTerm": "Operator Execution",
           "label": "The Unfold session never started",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "operator.attribution_refused",
+          "label": "Ploeg refused a change that did not prove who made it",
           "mcp": "not exposed"
         },
         {

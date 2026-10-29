@@ -534,6 +534,7 @@ export function auditEvent(entry) {
     case 'checkpoint.written': return event(detail.phase ? (Object.hasOwn(checkpointPhases, detail.phase) ? checkpointPhases[detail.phase].label : `Checkpoint: ${words(detail.phase)}`) : 'Wrote a checkpoint', 'neutral', Object.hasOwn(checkpointPhases, detail.phase ?? '') ? checkpointPhases[detail.phase].glyph : 'branch', said);
     case 'operator.admitted': return event('An Unfold session took over', 'neutral', 'sessions', said);
     case 'operator.admission_expired': return event('The Unfold session never started', 'neutral', 'clock', said);
+    case 'operator.attribution_refused': return event('Ploeg refused a change that did not prove who made it', 'attention', 'lock', '');
     case 'delivery.candidate_admitted': return event('Delivery candidate admitted', 'neutral', 'inbox', said);
     case 'delivery.verification_recorded': return event('Verification recorded', 'neutral', 'check', said);
     case 'delivery.approved': return event('Delivery approved', 'success', 'check-circle', said);

@@ -44,6 +44,7 @@ function goSources(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? goSources(join(directory, entry.name)) : entry.name.endsWith('.go') && !entry.name.endsWith('_test.go') ? [join(directory, entry.name)] : []);
 }
 const ploegSource = [...goSources(join(ploeg, 'pkg')), ...goSources(join(ploeg, 'cmd'))].map(file => readFileSync(file, 'utf8')).join('\n');
+const ploegSourceOutsideHttpRefusals = [...goSources(join(ploeg, 'pkg')).filter(file => !file.startsWith(join(ploeg, 'pkg', 'httpapi'))), ...goSources(join(ploeg, 'cmd'))].map(file => readFileSync(file, 'utf8')).join('\n');
 const literal = (text: string) => ploegSource.includes(`"${text}"`) || ploegSource.includes(`'${text}'`);
 
 function lifecycle(entity: string): string[] {
@@ -139,7 +140,7 @@ test('codes Ploeg defines only in its code (close reasons, needs_human reasons, 
     }
   }
   const close = sets['close-reason'];
-  for (const [, value] of ploegSource.matchAll(/\b(?:reason[A-Z]\w*|CloseReason\w+)\s*=\s*"([^"]+)"/g)) {
+  for (const [, value] of ploegSourceOutsideHttpRefusals.matchAll(/\b(?:reason[A-Z]\w*|CloseReason\w+)\s*=\s*"([^"]+)"/g)) {
     assert(close.values.some(entry => entry.value === value), `Ploeg defines the Shift close reason "${value}". Add it to ${table}, set "close-reason", with what Unfold shows for it (mark it as a gap if Unfold does not word it yet).`);
   }
   const audit = sets['audit-event'];
