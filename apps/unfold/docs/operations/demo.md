@@ -2,8 +2,8 @@
 type: tutorial
 audience: [owner, operator, contributor]
 owner: unfold
-last_verified: 2026-10-01
-verified_by: "On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/unfold/package.json (demo, smoke), src/config.ts (demo repository, Team, port 4080, UNFOLD_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/unfold/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/unfold-redesign"
+last_verified: 2026-10-29
+verified_by: "Read src/config.ts (refuseDemoCredentials), src/ploeg.ts (validatePloeg), src/auth.ts (the demo operator) and ops/helm/unfold/templates/config.yaml for the credentials section. On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/unfold/package.json (demo, smoke), src/config.ts (demo repository, Team, port 4080, UNFOLD_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/unfold/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/unfold-redesign"
 ---
 
 # A ten-minute coworker walkthrough
@@ -50,11 +50,30 @@ npm run smoke
 
 The smoke script refuses a non-demo server. It creates and runs a session, checks retained baseline/verification/review evidence, requires a real Git diff and explicit reviewer approval, and checks the durable history. It does not call a model. A second invocation creates a separate isolated session.
 
+## What demo mode refuses
+
+Demo mode signs every visitor in as `demo-operator`, an administrator, with no login. A credential a demo-mode Unfold held would therefore act for anyone who opens the page. Unfold refuses to start in demo mode when its configuration would reach a real external system with a credential, and names the setting:
+
+| Refused in demo mode | Why | Instead |
+| --- | --- | --- |
+| A `ploeg` block without `demo: true` | Every visitor would act on that Ploeg as the operator consumer | `mode: live`, or `ploeg.demo: true` for the illustrative Ploeg |
+| `ploeg.tokenEnv` or `ploeg.personTokens`, also with `ploeg.demo` | The demo Ploeg needs no credential | Remove them |
+| `execution` | It runs agent work under a real Ploeg | `mode: live` |
+| `delivery` | Its verifier and publisher hold forge credentials | `mode: live` |
+| `links` | A GitLab or ClickUp account one visitor links would act for every visitor | `mode: live` |
+| A task source's `tokenEnv`, or `reports.tokenEnv` | The tracker token would read and write for every visitor | Remove the token; a task source without one still reads public projects |
+| `apiKeyEnv` or `tokenEnv` on an OFREP provider under `flags.providers` | The flag service credential | Remove the credential |
+| `LITELLM_MASTER_KEY` in the environment | The gateway master key | Unset it |
+
+The message reads, for example, `Demo mode gives every visitor admin; it cannot use a real Ploeg. Set mode: live, or use ploeg.demo`. The refusal comes before Unfold creates its data directory. The demo already ignores `decider` and `cardThemes.ai`, refuses `UNFOLD_MCP_RESOURCE`, and files no reports. Error reports (`UNFOLD_SENTRY_DSN`, `UNFOLD_ERROR_OTLP_URL`) stay allowed: they only send, and give a visitor nothing to act with.
+
+The Helm chart refuses the same settings under `config` when `mode` is `demo`, at render time, and mounts `credentialsSecret` only in live mode. The local demonstrations that pair the demo runtime with a real local Ploeg, [the local shared execution demonstration](../../../../docs/workflows/local-demo.md) and the qualification scripts, build their configuration in code and bind Unfold to loopback, so they never pass through these checks.
+
 ## The hosted replay
 
 The marketing site's `/demo/` page replays this demo without a server ([ADR-0015](../../../../docs/adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)). [The recorder](../../scripts/record-replay.ts) runs the demo in-process on a fixed clock and records every view the interface reads and the demo session above, with one fresh session per review decision. [The replay script](../../public/replay/replay.js) answers the interface's API from that recording on the `/demo` page only; the product never serves `public/replay/`. Its [route table](../../public/replay/routes.js) lists what it refuses, such as pausing or a second session.
 
-The site build records the replay itself, from the same checkout, into `apps/site/replay/`, which Git ignores. Nothing is committed after a change to this interface, the demo runtime or the illustrative Ploeg data. The recording fails, and so does the site build, when Unfold's browser code calls an API path that `routes.js` neither answers nor refuses. `mise run demo-record` from the Unfold root records it on its own.
+The site build records the replay itself, from the same checkout, into `apps/site/replay/`, which Git ignores. Nothing is committed after a change to this interface, the demo runtime or the illustrative Ploeg data. The recorder loads the demo with `--demo` and no configuration file, so the refusals above never apply to it. The recording fails, and so does the site build, when Unfold's browser code calls an API path that `routes.js` neither answers nor refuses. `mise run demo-record` from the Unfold root records it on its own.
 
 ## CTO discussion
 
