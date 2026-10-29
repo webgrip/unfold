@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answer, phaseLabel, proofMarkup, returnTo, startLine } from '../public/views/status.js';
+import { answer, phaseLabel, proofMarkup, residencyMarkup, returnTo, startLine } from '../public/views/status.js';
 import { contractBanner, contractFrom, signalFrom } from '../public/core/status-signal.js';
 
 const check = (id, state, summary = `${id} ${state}`) => ({ id, title: id, state, summary, checkedAt: '2026-10-05T06:29:14Z' });
@@ -103,4 +103,47 @@ test('the Status page tells a person in plain words when Ploeg cannot check that
   assert.match(line, /data-tone="attention"/);
   assert.match(line, /Ploeg cannot check that your actions are yours/);
   assert.match(line, /Sign out and sign in again/);
+});
+
+const places = [
+  { id: 'unfold', title: 'Unfold', where: 'The machine or cluster that runs this workbench', region: null, detail: 'Unfold’s configuration names no region and Unfold reads no node labels, so the region is unknown.' },
+  { id: 'ploeg', title: 'Ploeg', where: 'The connected Ploeg API', region: null },
+  { id: 'workspaces', title: 'Agent workspaces', where: 'Kubernetes pods', region: null },
+];
+const windowOf = (id, extra = {}) => ({ id, since: '2026-10-28T12:00:00.000Z', requests: 0, providers: [], regions: [], unreported: { provider: 0, region: 0 }, outside: 0, ...extra });
+
+test('Where your data goes names the policy, counts what answered per window and links each request outside it', () => {
+  const line = residencyMarkup({ residency: {
+    state: 'degraded', summary: 'One request in the last 7 days went to a provider or region outside the policy.',
+    policy: { providers: ['anthropic'], regions: ['eu'], enforcedBy: 'unfold' },
+    windows: [windowOf('24h', { requests: 3, providers: [{ name: 'anthropic', requests: 2, allowed: true }, { name: 'openai', requests: 1, allowed: false }], regions: [{ name: 'eu', requests: 2, allowed: true }], unreported: { provider: 0, region: 1 }, outside: 1 }), windowOf('7d', { requests: 3, outside: 1 })],
+    outside: [{ at: '2026-10-29T11:00:00.000Z', model: 'coding', provider: 'openai', region: 'us', reason: 'provider openai, region us', session: { id: 's1', title: 'Fix login' }, run: { id: 'r1', roleName: 'Writer' }, workItemId: '245' }, { at: '2026-10-28T11:00:00.000Z', model: 'coding', provider: 'openai', region: null, reason: 'provider openai' }],
+    outsideHidden: 2, places,
+  } });
+  assert.match(line, /Where your data goes/);
+  assert.match(line, /data-state="degraded"/);
+  assert.match(line, /data-tone="danger"[^>]*>Outside the policy/);
+  assert.match(line, /<dt>Allowed providers<\/dt><dd>anthropic<\/dd>/);
+  assert.match(line, /openai 1 <strong>outside<\/strong>/);
+  assert.match(line, /1 not reported/);
+  assert.match(line, /coding answered by provider openai, region us/);
+  assert.match(line, /href="#session\/s1">Fix login<\/a>/);
+  assert.match(line, /Run Writer/);
+  assert.match(line, /href="#work\/245">Work Item #245<\/a>/);
+  assert.match(line, /Another person’s session/);
+  assert.match(line, /2 older requests outside the policy not listed/);
+  assert.match(line, /reads no node labels, so the region is unknown/);
+  assert.equal((line.match(/>Unknown</g) ?? []).length, 3);
+});
+
+test('Where your data goes says when the gateway owns the policy and Unfold cannot see requests, and the demo shows none', () => {
+  const managed = residencyMarkup({ residency: { state: 'unknown', summary: 'Unfold does not read the gateway’s request log here.', policy: { providers: null, regions: null, enforcedBy: 'gateway' }, windows: [windowOf('24h'), windowOf('7d')], outside: [], outsideHidden: 0, places } });
+  assert.match(managed, /Set in the gateway’s own policy/);
+  assert.match(managed, /data-tone="neutral"[^>]*>Unknown/);
+  const demo = residencyMarkup({ residency: { state: 'not_used', summary: 'This is a demo. It makes no model calls, so no request leaves this machine and none is shown.', policy: { providers: null, regions: null, enforcedBy: 'none' }, windows: [], outside: [], outsideHidden: 0, places } });
+  assert.match(demo, /This is a demo\./);
+  assert.match(demo, />Demo</);
+  assert.doesNotMatch(demo, /Providers and regions that answered/);
+  assert.doesNotMatch(demo, /answered by/);
+  assert.equal(residencyMarkup({}), '');
 });
