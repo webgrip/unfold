@@ -21,6 +21,7 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const READ = 32, ARCHIVED = 64, ACTIVITY = 31;
 const vscode142Info = { name: 'vscode-agents-window', title: 'VS Code Agents Window', version: '1.142.0' };
 const vscode142Offer = ['1.0.0', '0.10.0', '0.9.0'];
+const pickedFolder = 'file:///unfold-repositories/order-service';
 const windowInfo141 = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
 const objective = 'Reproduce the order rounding regression and fix it with the tests intact.';
 const results = [];
@@ -344,10 +345,10 @@ async function scenario142(url) {
   record(S, 'listSessions before create', listed.ok, listed.ok ? { count: listed.result.items.length, resources: listed.result.items.map(item => item.resource) } : listed.error);
   for (const item of listed.ok ? listed.result.items : []) h.summaries.set(item.resource, item);
 
-  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', config: { title: 'SDK e2e as VS Code main' } });
+  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: pickedFolder, config: { title: 'SDK e2e as VS Code main' } });
   record(S, 'resolveSessionConfig returns schema and values', resolved.ok && resolved.result.values?.repository && resolved.result.schema?.properties, resolved.ok ? resolved.result.values : resolved.error);
   const session = `ahp-session:/${randomUUID()}`;
-  const created = await h.request('createSession', { channel: session, provider: 'unfold', config: resolved.result.values, activeClient: { clientId: h.clientId, tools: [] } });
+  const created = await h.request('createSession', { channel: session, provider: 'unfold', workingDirectories: [pickedFolder], config: resolved.result.values, activeClient: { clientId: h.clientId, tools: [] } });
   record(S, 'createSession on an ahp-session:/<uuid> channel', created.ok, created.ok ? { session, result: created.result } : created.error);
   await h.waitFor(() => h.findEvent(event => event.type === 'sessionAdded'), 'root/sessionAdded');
   const added = h.findEvent(event => event.type === 'sessionAdded');
@@ -474,10 +475,10 @@ async function scenario141(url, session142) {
     const uuid = session142.session.slice('ahp-session:/'.length);
     record(S, 'a session created by the 1.142 client is listed to 1.141 as unfold:/<uuid>', listed.ok && listed.result.items.some(item => item.resource === `unfold:/${uuid}`), listed.ok ? listed.result.items.map(item => item.resource) : listed.error);
   }
-  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', config: { title: 'SDK e2e as VS Code 1.141' } });
+  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: pickedFolder, config: { title: 'SDK e2e as VS Code 1.141' } });
   const id = randomUUID();
   const session = `unfold:/${id}`;
-  const created = await h.request('createSession', { channel: session, provider: 'unfold', config: resolved.result.values });
+  const created = await h.request('createSession', { channel: session, provider: 'unfold', workingDirectories: [pickedFolder], config: resolved.result.values });
   record(S, 'createSession on unfold:/<uuid>', created.ok, created.ok ? created.result : created.error);
   await h.waitFor(() => h.findEvent(event => event.type === 'sessionAdded' && event.params.summary.resource === session), 'root/sessionAdded', 10_000).catch(() => {});
   const added = h.findEvent(event => event.type === 'sessionAdded');
@@ -524,9 +525,9 @@ async function scenarioPureSdk(url) {
   catch (error) { init = { ok: false, error: { code: error.code, message: error.message, data: error.data } }; }
   if (!record(S, `SDK initialize() with SUPPORTED_PROTOCOL_VERSIONS ${JSON.stringify(SUPPORTED_PROTOCOL_VERSIONS)}`, init.ok && init.result.protocolVersion === '1.0.0', init.ok ? { protocolVersion: init.result.protocolVersion } : init.error)) return;
   for (const snapshot of init.result.snapshots) h.applySnapshot(snapshot, 'root');
-  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold' });
+  const resolved = await h.request('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: pickedFolder });
   const session = `ahp-session:/${randomUUID()}`;
-  const created = await h.request('createSession', { channel: session, provider: 'unfold', config: resolved.result.values });
+  const created = await h.request('createSession', { channel: session, provider: 'unfold', workingDirectories: [pickedFolder], config: resolved.result.values });
   record(S, 'createSession on ahp-session:/<uuid> without vendor _meta', created.ok, created.ok ? created.result : created.error);
   await h.waitFor(() => h.findEvent(event => event.type === 'sessionAdded'), 'root/sessionAdded', 10_000).catch(() => {});
   const added = h.findEvent(event => event.type === 'sessionAdded');

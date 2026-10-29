@@ -51,7 +51,7 @@ function isolatedConfiguration(): AppConfig {
 test('the Agents window renders team, budget and placement as pickers, the repository read-only from the Workspace picker, and approvals in its own picker', () => {
   const config = isolatedConfiguration();
   const resolved = resolveSessionConfig(config, { title: 'From the composer', isolation: 'worktree', worktreeBranchPrefix: 'copilot/' }, 'order-service');
-  assert.deepEqual(Object.keys(resolved.values).sort(), ['approvalMode', 'budgetUsd', 'placement', 'repository', 'team', 'title'], 'VS Code\'s own keys are not echoed back');
+  assert.deepEqual(Object.keys(resolved.values).sort(), ['approvalMode', 'availableApprovalModes', 'budgetUsd', 'placement', 'repository', 'team', 'title'], 'VS Code\'s own keys are not echoed back');
   assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label, chip.readOnly]), [
     ['repository', 'Order service', true],
     ['team', 'Delivery team', false],
@@ -95,7 +95,7 @@ test('a started session keeps its configuration, and only its approval stays cha
   const config = isolatedConfiguration();
   const session = { repositoryId: 'order-service', teamId: 'delivery', budgetUsd: 2.5, title: 'Running', placement: 'docker', approval: 'manual', status: 'running' } as Session;
   const state = sessionConfigState(config, session);
-  assert.deepEqual(state.values, { repository: 'order-service', team: 'delivery', budgetUsd: '2.5', title: 'Running', placement: 'docker', approvalMode: 'manual' });
+  assert.deepEqual(state.values, { repository: 'order-service', team: 'delivery', budgetUsd: '2.5', title: 'Running', placement: 'docker', approvalMode: 'manual', availableApprovalModes: ['manual', 'allow-all'] });
   assert.deepEqual(chipsOfVscode1141(state, false), [], 'no picker for a fixed value');
   assert.deepEqual(approvalLevelsOfVscode1141(state.schema, false), ['default', 'autoApprove']);
   assert.deepEqual(startedConfigChange(session, { ...state.values, approvalMode: 'allow-all' }), { approval: 'auto' });

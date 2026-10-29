@@ -122,6 +122,7 @@ test('C10: the candidate offers Accept, the workbench\'s own review, under the s
   await assert.rejects(bob.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' }), (error: any) => error.code === -32001, 'another person cannot accept someone else\'s candidate');
   await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'download-bundle' }), (error: any) => error.code === -32602);
   await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept', target: { kind: 'resource', resource: 'file:///workspace/repository/src/order.js' } }), (error: any) => error.code === -32602);
+  await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept', target: { kind: 'range', resource: 'file:///workspace/repository/src/order.js', side: 'after', range: { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } }, nonce: 'n-1' } }), (error: any) => error.code === -32602 && /whole candidate/.test(error.message), 'a target carrying the 1.144 nonce gets the same answer, never a conflict or a crash');
 
   const result = await client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' });
   assert.match(result.message, /nothing was pushed or merged/);
