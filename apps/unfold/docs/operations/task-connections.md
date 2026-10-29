@@ -166,22 +166,25 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 ## Hand a task to Ploeg
 
-Ploeg takes Vikunja work when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+Ploeg takes Vikunja and ClickUp work when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
 
 A connection can hand off when all of these hold:
 
-* it is a Vikunja source with a `tokenEnv`;
+* it is a Vikunja or ClickUp source with a `tokenEnv`;
 * its `executionOwner` is `"ploeg"`. A `ploeg.target` is not needed for hand-off; it is only for [importing the existing Ploeg work item](#import-the-existing-ploeg-work-item);
 * the server has a live `ploeg` operator connection, not the demo;
 * Ploeg reports tracker assignees for its teams. Ploeg's teams config `teams.<team>.assignees` and `PLOEG_TEAM_MAP` set them.
 
-Only one team holds a task at a time. Hand-off is refused while another team's tracker user is on the task or Ploeg has live work for it, and take-back is refused once any team has started. When Ploeg pins a board to a team (a project with an `id` and a `team:` in Ploeg's tracker configuration), every assignment on that board runs as the pinned team, so the task view offers only that team.
+Only one team holds a task at a time. Hand-off is refused while another team's tracker user is on the task or Ploeg has live work for it, and take-back is refused once any team has started. When Ploeg pins a board to a team (a Vikunja project or ClickUp List with an `id` and a `team:` in Ploeg's tracker configuration), every assignment on that board runs as the pinned team, so the task view offers only that team.
 
-The Vikunja token then needs more than reads. Give it permission to add and remove task assignees and to add task comments on the project. Vikunja lists these as separate API token permissions. A read-only token still browses and previews; hand-off answers `task_write_forbidden`.
+The token then needs more than reads. A read-only token still browses and previews; hand-off answers `task_write_forbidden`.
 
-A person can hand a task only to a Ploeg team they may use (`ploeg.userTeams`, or any team in scope for an administrator) that has a tracker user. Viewers see the status but cannot hand off. The server rereads the task first. A done task or one that changed since it was opened is refused, and the client reloads it. Handing off again, or taking back a task that is not assigned, changes nothing.
+* **Vikunja:** give it permission to add and remove task assignees and to add task comments on the project. Vikunja lists these as separate API token permissions.
+* **ClickUp:** the account behind the personal token must be able to edit tasks and comment in the List. Unfold adds and removes the assignee with `PUT /task/{id}` (`assignees.add` and `assignees.rem`) and comments with `POST /task/{id}/comment` with `notify_all: false`. It finds the team's tracker user among the List's members (`GET /list/{id}/member`) and then the Workspace's (`GET /team`). Ploeg routes a ClickUp assignee by username or email, so either may be the team's tracker user.
 
-The comment reads *Handed to Ploeg team `silver` by NAME from Unfold.*, posted by the connection's Vikunja account. Taking back removes the assignee only while Ploeg's Work Items for that team are queued, withdrawn, done or stale; once Ploeg has started, cancel the work from the Ploeg view. Ploeg itself withdraws a queued Work Item when its assignee is removed.
+A person can hand a task only to a Ploeg team they may use (`ploeg.userTeams`, or any team in scope for an administrator) that has a tracker user. Viewers see the status but cannot hand off. The server rereads the task first. A done, closed or archived task, or one that changed since it was opened, is refused, and the client reloads it. Handing off again, or taking back a task that is not assigned, changes nothing.
+
+The comment reads *Handed to Ploeg team `silver` by NAME from Unfold.*, posted by the connection's tracker account; on ClickUp it is plain text. Taking back removes the assignee only while Ploeg's Work Items for that team are queued, withdrawn, done or stale; once Ploeg has started, cancel the work from the Ploeg view. Ploeg itself withdraws a queued Work Item when its assignee is removed.
 
 The status beside the task shows which team holds it, Ploeg's Work Items for it with their state, branch, spend and pull request, and why hand-off is unavailable when it is. The demo fixture source is not linked to Ploeg and shows no Ploeg work.
 
@@ -224,7 +227,7 @@ Start at **Settings → Connections** (`#settings/connections`, also linked from
 | Shared import blocked | Check the explicit source target, singleton API root, configured execution team and current queued/pristine Ploeg item. Unsupported tracker providers remain inspection-only in shared mode |
 | Redirect or unexpected content rejected | Configure the final API root directly and inspect the reverse proxy; login HTML is not an API response |
 | Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. A list shows it truncated; preview and import refuse it rather than truncate it |
-| Hand-off refused with `task_write_forbidden` | The Vikunja token can read but not change the task. Grant it task assignee and comment permissions |
+| Hand-off refused with `task_write_forbidden` | The tracker token can read but not change the task. Grant it task assignee and comment permissions in Vikunja, or task edit and comment access to the List in ClickUp |
 | No team to hand off to | Your account needs Ploeg team access in `ploeg.userTeams`, and the team needs a tracker user in Ploeg's configuration. An older Ploeg does not report tracker users at all |
 
 The tests exercise provider contracts with local HTTP fixtures. They do not demonstrate live authentication against your accounts, verify every self-hosted version, or create external tasks. The [connector source notes](../research/task-connector-sources.md) record the inspected official API contracts and adapter limits. Record the instance version and a real list → preview → import result in [validation](../validation.md) during qualification.

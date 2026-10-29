@@ -125,10 +125,15 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
   });
 }
 
+const handoffProviders = new Set<TaskProvider>(['vikunja', 'clickup']);
+const handoffOnly = 'Only Vikunja and ClickUp tasks can be handed to Ploeg from the workbench.';
+/** The product name of a hand-off source's tracker, for messages. */
+export function trackerName(source: TaskSourceConfig): string { return source.provider === 'clickup' ? 'ClickUp' : 'Vikunja'; }
+
 /** Reports why a source cannot hand tasks to Ploeg, or undefined when it can. */
 export function handoffUnsupported(source: TaskSourceConfig, ploeg: AppConfig['ploeg']): string | undefined {
   if (source.provider === 'demo') return 'Demo fixture tasks are not linked to Ploeg.';
-  if (source.provider !== 'vikunja') return 'Only Vikunja tasks can be handed to Ploeg from the workbench.';
+  if (!handoffProviders.has(source.provider)) return handoffOnly;
   if (source.executionOwner !== 'ploeg') return 'This connection is not assigned to Ploeg. An administrator sets its executionOwner to "ploeg" to enable hand-off.';
   if (!source.token) return 'This connection has no tracker token, so the workbench cannot assign its tasks.';
   if (ploeg?.demo) return 'Ploeg is showing illustrative demo records. Hand-off needs a live Ploeg operator connection.';
@@ -420,12 +425,23 @@ async function readTask(source: TaskSourceConfig, nativeId: string, truncate: bo
   return { task, value: record(response.value) };
 }
 
-/** Reads a Vikunja task for hand-off: an oversized description is truncated rather than refused, and assignee user IDs are keyed by lowercase username. */
+function trackerUserId(entry: Record<string, unknown>): number | undefined {
+  return typeof entry.id === 'number' && Number.isSafeInteger(entry.id) && entry.id > 0 ? entry.id : undefined;
+}
+
+function trackerHandles(source: TaskSourceConfig, entry: Record<string, unknown>): string[] {
+  return (source.provider === 'clickup' ? [entry.username, entry.email] : [entry.username]).filter((name): name is string => typeof name === 'string' && name.length > 0).map(name => name.toLowerCase());
+}
+
+/** Reads a Vikunja or ClickUp task for hand-off: an oversized description is truncated rather than refused, and assignee user IDs are keyed by lowercase username, and on ClickUp also by lowercase email address. */
 export async function getHandoffTask(source: TaskSourceConfig, nativeId: string): Promise<{ task: TaskSnapshot; assigneeIds: Map<string, number> }> {
-  if (source.provider !== 'vikunja') throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
+  if (!handoffProviders.has(source.provider)) throw new TaskError(422, 'handoff_unsupported', handoffOnly);
   const { task, value } = await readTask(source, nativeId, true);
   const assigneeIds = new Map<string, number>();
-  for (const entry of entries(value.assignees)) if (typeof entry.username === 'string' && typeof entry.id === 'number' && Number.isSafeInteger(entry.id) && entry.id > 0) assigneeIds.set(entry.username.toLowerCase(), entry.id);
+  for (const entry of entries(value.assignees)) {
+    const id = trackerUserId(entry);
+    if (id) for (const name of trackerHandles(source, entry)) assigneeIds.set(name, id);
+  }
   return { task, assigneeIds };
 }
 
@@ -437,19 +453,26 @@ export async function taskProject(source: TaskSourceConfig, nativeId: string): P
   catch (error) { if (error instanceof TaskError) return undefined; throw error; }
 }
 
-/** Resolves a Vikunja username to its user ID, first among the project's users and then through user search; matching ignores case. */
+/**
+ * Resolves a tracker username to its user ID; matching ignores case. Vikunja looks among the project's users and then
+ * through user search. ClickUp looks among the List's members and then the Workspace members, and also matches an email
+ * address, because Ploeg routes ClickUp assignees by username or email.
+ */
 export async function findTrackerUser(source: TaskSourceConfig, username: string): Promise<number | undefined> {
   const wanted = username.toLowerCase();
-  for (const [path, query] of [[`/projects/${source.project}/projectusers`, { s: username }], ['/users', { s: username }]] as const) {
-    let users: unknown;
-    try { users = (await request(source, path, query)).value; } catch (error) { if (error instanceof TaskError && error.code !== 'task_unreachable' && error.code !== 'task_timeout') continue; throw error; }
-    const match = entries(users).find(user => typeof user.username === 'string' && user.username.toLowerCase() === wanted && typeof user.id === 'number' && Number.isSafeInteger(user.id) && user.id > 0);
-    if (match) return match.id as number;
+  const lookups: [string, Record<string, string>, (value: unknown) => Record<string, unknown>[]][] = source.provider === 'clickup'
+    ? [[`/list/${source.project}/member`, {}, value => entries(record(value).members)], ['/team', {}, value => entries(record(value).teams).flatMap(team => entries(team.members)).map(member => member.user && typeof member.user === 'object' && !Array.isArray(member.user) ? member.user as Record<string, unknown> : {})]]
+    : [[`/projects/${source.project}/projectusers`, { s: username }, entries], ['/users', { s: username }, entries]];
+  for (const [path, query, users] of lookups) {
+    let found: Record<string, unknown>[];
+    try { found = users((await request(source, path, query)).value); } catch (error) { if (error instanceof TaskError && error.code !== 'task_unreachable' && error.code !== 'task_timeout') continue; throw error; }
+    const id = found.filter(user => trackerHandles(source, user).includes(wanted)).map(trackerUserId).find(Boolean);
+    if (id) return id;
   }
   return undefined;
 }
 
-async function write(source: TaskSourceConfig, method: 'PUT' | 'DELETE', path: string, payload?: unknown): Promise<void> {
+async function write(source: TaskSourceConfig, method: 'PUT' | 'POST' | 'DELETE', path: string, payload?: unknown): Promise<void> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -457,7 +480,7 @@ async function write(source: TaskSourceConfig, method: 'PUT' | 'DELETE', path: s
     await response.body?.cancel();
     if (response.ok) return;
     if (response.status >= 300 && response.status < 400) throw new TaskError(502, 'task_redirect_refused', 'The task service redirected the request. Update its configured API root.');
-    if (response.status === 401 || response.status === 403) throw new TaskError(502, 'task_write_forbidden', 'The workbench’s Vikunja token may not change this task. Give it permission to add and remove task assignees and to add task comments, then try again.');
+    if (response.status === 401 || response.status === 403) throw new TaskError(502, 'task_write_forbidden', `The workbench’s ${trackerName(source)} token may not change this task. Give it permission to add and remove task assignees and to add task comments, then try again.`);
     if (response.status === 404) throw new TaskError(404, 'task_not_found', 'The task or configured source was not found or is inaccessible.');
     if (response.status === 400 || response.status === 409) throw new TaskError(409, 'task_write_conflict', 'The task service refused the change. Refresh the task and try again.');
     if (response.status === 429) throw new TaskError(503, 'task_rate_limited', 'The task service rate limit was reached. Try again later.');
@@ -469,18 +492,20 @@ async function write(source: TaskSourceConfig, method: 'PUT' | 'DELETE', path: s
   } finally { clearTimeout(timer); }
 }
 
-/** Adds or removes one Vikunja assignee on a task, using the source's server credential. */
+/** Adds or removes one Vikunja or ClickUp assignee on a task, using the source's server credential. */
 export async function setTrackerAssignee(source: TaskSourceConfig, nativeId: string, userId: number, assigned: boolean): Promise<void> {
   const id = taskId(source, nativeId);
-  if (source.provider !== 'vikunja' || !Number.isSafeInteger(userId) || userId < 1) throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
+  if (!handoffProviders.has(source.provider) || !Number.isSafeInteger(userId) || userId < 1) throw new TaskError(422, 'handoff_unsupported', handoffOnly);
+  if (source.provider === 'clickup') return write(source, 'PUT', `/task/${encodeURIComponent(id)}`, { assignees: { add: assigned ? [userId] : [], rem: assigned ? [] : [userId] } });
   await (assigned ? write(source, 'PUT', `/tasks/${id}/assignees`, { user_id: userId }) : write(source, 'DELETE', `/tasks/${id}/assignees/${userId}`));
 }
 
-/** Leaves an HTML comment on a Vikunja task, using the source's server credential. */
-export async function commentOnTask(source: TaskSourceConfig, nativeId: string, html: string): Promise<void> {
+/** Leaves a comment on a task, using the source's server credential: HTML on Vikunja, plain text on ClickUp, which notifies nobody. */
+export async function commentOnTask(source: TaskSourceConfig, nativeId: string, body: string): Promise<void> {
   const id = taskId(source, nativeId);
-  if (source.provider !== 'vikunja') throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
-  await write(source, 'PUT', `/tasks/${id}/comments`, { comment: html });
+  if (!handoffProviders.has(source.provider)) throw new TaskError(422, 'handoff_unsupported', handoffOnly);
+  if (source.provider === 'clickup') return write(source, 'POST', `/task/${encodeURIComponent(id)}/comment`, { comment_text: body, notify_all: false });
+  await write(source, 'PUT', `/tasks/${id}/comments`, { comment: body });
 }
 
 /** A file Report a problem attaches to the issue it files. */
