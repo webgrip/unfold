@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccessTokenVerifier, KeysUnavailable, TokenRefused, challenge, metadataPath, resourceMetadata, type AccessToken, type McpHttpSettings } from './mcp-auth.ts';
 import { confirmationLedger, createMcpServer, mcpModernProtocolVersions, mcpProtocolVersions } from './mcp.ts';
 import { lowerRole, subjectUserId } from './oidc.ts';
+import { narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
 import type { User, UserRole } from './types.ts';
 
@@ -13,6 +14,8 @@ export type McpHttpOptions = {
   findUser(id: string): User | undefined;
   /** The role verified claims entitle, by the same rule as browser sign-in; undefined when they entitle none. */
   entitle(claims: Record<string, unknown>): UserRole | undefined;
+  /** The Tenant and Client memberships verified claims grant, by the same rule as browser sign-in; none when absent. */
+  memberships?(claims: Record<string, unknown>): Membership[];
   /** A credential acting as `user` for one request, carrying `proof` for the Ploeg changes it makes. */
   delegate(user: User, ttlMs: number, proof: DelegatedProof): { token: string; revoke(): void };
   /** Where this process's own API answers, such as its loopback address. */
@@ -103,7 +106,8 @@ export function createMcpHttp(options: McpHttpOptions) {
       console.error(JSON.stringify({ level: 'warn', event: 'mcp.not_entitled', actor: account.id }));
       return problem(res, 403, 'forbidden', `Signed in as ${who}, but the token holds none of the groups this workbench admits.`);
     }
-    const user: User = { ...account, role: lowerRole(account.role, entitled) };
+    const role = lowerRole(account.role, entitled);
+    const user: User = { ...account, role, memberships: narrowedMemberships(account.memberships ?? [], options.memberships?.(token.claims) ?? [], role) };
     if (!header(req, 'content-type')?.toLowerCase().startsWith('application/json')) return problem(res, 415, 'unsupported_media_type', 'Send one JSON-RPC message as application/json.');
     const raw = await readBody(req);
     if (!raw) return rpcError(res, 413, null, -32600, 'Message exceeds 1 MiB.');

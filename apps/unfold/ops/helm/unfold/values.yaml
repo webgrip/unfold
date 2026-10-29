@@ -151,6 +151,9 @@ config:
   # optional `client`. One repository, or one tracker project on one instance, registered for two owners stops startup.
   repositories: []
   taskSources: []
+  # tenancy.enforce (optional, off when absent): limit each person to what their Tenant and Client memberships reach.
+  # tenancy:
+  #   enforce: true
   # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a
   # Ploeg-audience token sent with every change Unfold makes for them. The secret comes from credentialsSecret.
   # ploeg:

@@ -15,6 +15,7 @@ import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
 import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameOwnership, type Ownership } from './tenancy.ts';
+import { tenancySettings } from './tenant-scope.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -582,5 +583,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   config.reports = reportSettings(raw.reports, config.taskSources, mode);
 
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
+  if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);
   return config;
 }

@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, User, UserRole } from './types.ts';
 import { lowerRole } from './oidc.ts';
 import type { EditorCredential, Store, StoredUser } from './store.ts';
-import { defaultMemberships } from './tenancy.ts';
+import { defaultMemberships, narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
@@ -168,21 +168,22 @@ export class Auth {
     const user = this.store.getUser(id);
     return user && (user.passwordHash === '' || localLoginEnabled(this.config)) ? user : undefined;
   }
-  private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number; proof?: DelegatedProof }>();
+  private readonly delegated = new Map<string, { userId: string; role: UserRole; memberships: Membership[]; expiresAt: number; proof?: DelegatedProof }>();
 
   /**
    * Mints a credential that acts as `user` on this process's own API for at most `ttlMs`, reaching only
    * `delegatedRoutes` and never more than `user.role` or the account's stored role, whichever is lower. It lives
    * only in memory and is revoked by `revoke`. `unfold-mcp` over HTTP calls the API with it, so a caller's access
    * token never travels further than the MCP endpoint. `proof` is what Ploeg changes made with it prove the person
-   * with, and goes with the credential.
+   * with, and goes with the credential. Its Tenant and Client memberships are those of `user` capped at `user.role`,
+   * and at each use only those the account still holds, capped at the role it acts with then.
    */
   delegate(user: User, ttlMs: number, proof?: DelegatedProof): { token: string; revoke(): void } {
     const now = Date.now();
     for (const [hash, entry] of this.delegated) if (entry.expiresAt <= now) this.delegated.delete(hash);
     const token = `vlm_${randomBytes(32).toString('base64url')}`;
     const hash = digest(token);
-    this.delegated.set(hash, { userId: user.id, role: user.role, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs), ...(proof && proof.userId === user.id ? { proof } : {}) });
+    this.delegated.set(hash, { userId: user.id, role: user.role, memberships: narrowedMemberships(user.memberships ?? [], user.memberships ?? [], user.role), expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs), ...(proof && proof.userId === user.id ? { proof } : {}) });
     return { token, revoke: () => { this.delegated.delete(hash); } };
   }
 
@@ -201,7 +202,9 @@ export class Auth {
     if (bearer && delegatedTokenPattern.test(bearer)) {
       const entry = this.delegated.get(digest(bearer));
       const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.account(entry.userId) : undefined;
-      return user && entry ? signedInUser(user, lowerRole(user.role, entry.role)) : undefined;
+      if (!user || !entry) return undefined;
+      const signed = signedInUser(user, lowerRole(user.role, entry.role));
+      return { ...signed, memberships: narrowedMemberships(entry.memberships, signed.memberships ?? [], signed.role) };
     }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));

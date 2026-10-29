@@ -48,6 +48,21 @@ export function defaultMemberships(role: UserRole): Membership[] {
   return [{ kind: 'tenant', tenant: defaultTenant, role: accountRoles[role] }];
 }
 
+/**
+ * The memberships a credential acting with `role` keeps from two sets it must satisfy at once, such as what the
+ * account held when the credential was minted and what it holds now: a Tenant held in both, at the lowest of the two
+ * roles and of the Access Role `role` maps to, and a Client membership held in both. Never more than either set.
+ */
+export function narrowedMemberships(held: readonly Membership[], allowed: readonly Membership[], role: UserRole): Membership[] {
+  const rank = (value: AccessRole) => accessRoles.indexOf(value);
+  const cap = rank(accountRoles[role]);
+  return canonical(held.map(entry => {
+    if (entry.kind === 'client') return allowed.some(other => other.kind === 'client' && other.tenant === entry.tenant && other.client === entry.client) ? entry : undefined;
+    const other = allowed.find((candidate): candidate is TenantMembership => candidate.kind === 'tenant' && candidate.tenant === entry.tenant);
+    return other ? { kind: 'tenant', tenant: entry.tenant, role: accessRoles[Math.min(rank(entry.role), rank(other.role), cap)] } : undefined;
+  }));
+}
+
 /** Stored memberships read back: each well-formed entry, sorted and without duplicates; undefined when `value` is no list. */
 export function storedMemberships(value: unknown): Membership[] | undefined {
   if (!Array.isArray(value)) return undefined;

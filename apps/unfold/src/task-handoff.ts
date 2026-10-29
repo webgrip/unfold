@@ -141,11 +141,11 @@ export class TaskHandoff {
     return { ...await this.report(user, source, (await getHandoffTask(source, task.id)).task, true), ...(warnings.length ? { warnings } : {}) };
   }
 
-  /** Finds the configured Vikunja or ClickUp source whose project or home List holds a tracker task. */
-  async lookup(provider: string | null, id: string | null): Promise<{ sourceId: string }> {
+  /** Finds the configured Vikunja or ClickUp source, among `reached` (every source unless given), whose project or home List holds a tracker task. */
+  async lookup(provider: string | null, id: string | null, reached: readonly TaskSourceConfig[] = this.config.taskSources ?? []): Promise<{ sourceId: string }> {
     if (provider !== 'vikunja' && provider !== 'clickup') throw new TaskError(400, 'lookup_unsupported', 'Only Vikunja and ClickUp tasks can be looked up.');
     if (!id || !(provider === 'clickup' ? /^[a-zA-Z0-9_-]{1,128}$/ : /^[1-9][0-9]{0,19}$/).test(id)) throw new TaskError(400, 'task_id_invalid', 'Use the native task ID.');
-    const sources = (this.config.taskSources ?? []).filter(source => source.provider === provider).sort((a, b) => Number(b.executionOwner === 'ploeg') - Number(a.executionOwner === 'ploeg'));
+    const sources = reached.filter(source => source.provider === provider).sort((a, b) => Number(b.executionOwner === 'ploeg') - Number(a.executionOwner === 'ploeg'));
     for (const baseUrl of [...new Set(sources.map(source => source.baseUrl))]) {
       const project = await taskProject(sources.find(source => source.baseUrl === baseUrl)!, id);
       const match = project && sources.find(source => source.baseUrl === baseUrl && source.project === project);

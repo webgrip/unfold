@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
-import { Auth, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
+import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
@@ -28,6 +28,8 @@ import { DeliveryService } from './delivery.ts';
 import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.ts';
 import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
 import { TaskHandoff } from './task-handoff.ts';
+import { TenantScope } from './tenant-scope.ts';
+import { membershipsFromGroups } from './tenancy.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
@@ -212,6 +214,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   delivery.usePersonProof(proof, attribution);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
+  const tenants = new TenantScope(config);
   const linked = new LinkedSessions(store.db, config, ploeg);
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
   const takeOver = new TakeOver(ploeg);
@@ -309,12 +312,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
     return value;
   }
-  const account = (record: { id: string; name: string; role: User['role'] } | undefined): User | undefined => record ? { id: record.id, name: record.name, role: record.role } : undefined;
   const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
     settings: config.mcp,
     subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
-    findUser: id => account(store.getUser(id)),
+    findUser: id => { const record = store.getUser(id); return record ? signedInUser(record) : undefined; },
     entitle: claims => entitledRole(config.auth.oidc!, claims),
+    memberships: claims => membershipsFromGroups(claims[config.auth.oidc!.groupsClaim]),
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
     apiUrl: () => loopbackUrl(server.address() as AddressInfo),
     linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
@@ -556,8 +559,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
           reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
-          repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
-          taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
+          repositories: tenants.repositories(user).map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
+          taskSources: tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
           teams: config.teams, crews: config.teams, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
@@ -577,7 +580,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, folders: [...repositoryFolderPaths(config.repositories)].map(([repositoryId, folder]) => ({ repositoryId, name: config.repositories.find(repo => repo.id === repositoryId)?.name ?? repositoryId, path: folder })), vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, folders: [...repositoryFolderPaths(config.repositories)].filter(([repositoryId]) => tenants.repository(user, repositoryId)).map(([repositoryId, folder]) => ({ repositoryId, name: config.repositories.find(repo => repo.id === repositoryId)?.name ?? repositoryId, path: folder })), vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
           }
           if (method === 'GET' && agentsWindowLink) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to open.');
@@ -640,24 +643,25 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (!linked) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
           return { ...source, token: linked!.token, ...(source.provider === 'gitlab' && linked!.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) };
         };
-        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
+        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize(tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
         const handoffRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks\/([a-zA-Z0-9_-]+)\/(ploeg|handoff)$/);
         if (handoffRoute) {
-          const source = config.taskSources?.find(item => item.id === handoffRoute[1]);
+          const source = tenants.source(user, handoffRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           if (handoffRoute[3] === 'ploeg' && method === 'GET') return json(res, 200, sanitize(await handoff.status(user, source!, handoffRoute[2], url.searchParams.get('refresh') === '1')));
           if (handoffRoute[3] === 'handoff' && (method === 'POST' || method === 'DELETE')) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot hand tasks to Ploeg.');
+            if (!tenants.mayAct(user, source!)) fault(403, 'forbidden', 'Handing off needs a Developer or Admin membership of the Tenant that owns this connection.');
             if (method === 'DELETE') return json(res, 200, sanitize(await handoff.takeBack(user, source!, handoffRoute[2], text(url.searchParams.get('team'), 'Team', 100))));
             const data = await body(req);
             return json(res, 200, sanitize(await handoff.handOff(user, source!, handoffRoute[2], text(data.team, 'Team', 100), text(data.revision, 'Task revision', 128))));
           }
           fault(405, 'method', 'Unsupported method.');
         }
-        if (method === 'GET' && path === '/api/tasks/lookup') return json(res, 200, sanitize(await handoff.lookup(url.searchParams.get('provider'), url.searchParams.get('id'))));
+        if (method === 'GET' && path === '/api/tasks/lookup') return json(res, 200, sanitize(await handoff.lookup(url.searchParams.get('provider'), url.searchParams.get('id'), tenants.sources(user))));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
-          const source = config.taskSources?.find(item => item.id === taskRoute[1]);
+          const source = tenants.source(user, taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
           if (taskRoute[2]) return json(res, 200, sanitize(presentTask(resolved, await engine.previewTask(await getTask(resolved, taskRoute[2], url.searchParams.get('truncate') === '1'), user))));
@@ -673,8 +677,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const revision = text(data.revision, 'Task revision', 128);
           const teamId = teamInput(data);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
-          const source = config.taskSources?.find(item => item.id === sourceId);
+          const source = tenants.source(user, sourceId);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (!tenants.mayAct(user, source!)) fault(403, 'forbidden', 'Importing needs a Developer or Admin membership of the Tenant that owns this connection.');
           if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
           if (!runtimeKinds.includes(runtime) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
@@ -690,7 +695,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const repositoryId = text(data.repositoryId, 'Repository', 64);
           const teamId = teamInput(data);
-          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
+          if (!runtimeKinds.includes(runtime) || !tenants.repository(user, repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const trackerUrl = text(data.trackerUrl, 'Tracker link', 2048, true);
           if (trackerUrl) {
