@@ -96,6 +96,12 @@
             }
           }
         },
+        "tenancy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional. enforce: true limits every person to the repositories, task sources and Work Items their Tenant and Client memberships reach (system ADR-0017). Off when absent.",
+          "properties": { "enforce": { "type": "boolean" } }
+        },
         "taskSources": {
           "type": "array",
           "items": {

@@ -383,7 +383,7 @@ This carries accounts across only while the provider keeps issuing the same subj
 
 ### Tenant and Client memberships
 
-Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs/reference/glossary.md#tenant) and [Client](../../../../docs/reference/glossary.md#client) memberships ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Unfold records them; it does not check them yet, so a membership changes nothing a person can see or do, and the workbench role above still decides who may sign in.
+Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs/reference/glossary.md#tenant) and [Client](../../../../docs/reference/glossary.md#client) memberships ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Unfold records them, and checks them only while [`tenancy.enforce`](#limiting-people-to-their-tenant-and-client) is on; with it off, a membership changes nothing a person can see or do. The workbench role above still decides who may sign in.
 
 | Group | Membership |
 | --- | --- |
@@ -398,7 +398,25 @@ Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs
 * A local password account and the demo account hold their workbench role in the `default` Tenant: admin as Admin, operator as Developer, viewer as Viewer. A person who signs in with single sign-on joins `default` only through an `unfold/default/<role>` group.
 * `GET /api/bootstrap` reports them as `user.memberships`, for example `[{ "kind": "tenant", "tenant": "default", "role": "admin" }]`, and so does a password sign-in's answer.
 * Each single sign-on saves them on the account, in `user_memberships`, replacing what the previous sign-in saved: a group removed at the provider removes its membership at the person's next sign-in, and their open sessions report the new set from then on.
-* Repositories and task sources name the Tenant and Client that own them with `tenant` and `client` ([who owns a source](task-connections.md#who-owns-a-source-and-a-repository)). Unfold checks those fields at startup and does not yet compare them with anyone's memberships.
+* Repositories and task sources name the Tenant and Client that own them with `tenant` and `client` ([who owns a source](task-connections.md#who-owns-a-source-and-a-repository)). Unfold checks those fields at startup and compares them with memberships while `tenancy.enforce` is on.
+
+### Limiting people to their Tenant and Client
+
+`tenancy.enforce` turns on the checks of [system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) in Unfold. It is off by default, and while it is off every answer is the same as without it. In the chart it is `config.tenancy.enforce`. Turning it on for a deployment is a change to that deployment's values; give every person their `unfold/<tenant>/...` groups first, because a person without a membership then sees no task source, repository or Work Item.
+
+```json
+"tenancy": { "enforce": true }
+```
+
+While it is on:
+
+* A Tenant membership, with any Access Role, reaches every repository and task source of that Tenant, including every Client's. A Client membership reaches only what that Client owns, never what no Client owns. The workbench role grants no Tenant: an admin without a membership reaches nothing.
+* `GET /api/bootstrap`, `GET /api/task-sources`, the task list and task reads, `GET /api/tasks/lookup`, the hand-off routes, `POST /api/task-imports`, `POST /api/sessions` and the folders of `GET /api/agent-host` see only what the person reaches. Unfold decides this before it reads a tracker with a source's token.
+* Anything else answers exactly like an id that does not exist: `404 source_not_found` for a task source, `400 unknown_profile` for a repository in `POST /api/sessions`, `404 ploeg_not_found` for a Work Item. Probing ids shows nothing about another Tenant.
+* Importing, handing off and taking back need a Developer or Admin membership of the source's Tenant. A Viewer or a Client user reads the tasks and gets `403 forbidden` for those.
+* The Ploeg reads Unfold already limits by Team are limited again by the owner of each Work Item's target repository: Work Item lists and reads, Now, Proposed, Runs and a Work Item's value stream. Ploeg does not record a Tenant yet, so Unfold takes the owner of the registered repository the target names, through a task source's Ploeg target or the repository's `owner/name`. A Work Item with no target, or one no registered repository matches, belongs to the `default` Tenant with no Client; one whose target matches repositories of different owners reaches nobody. Each Run whose Work Item Unfold has not read yet costs one Ploeg read.
+* A delegated `unfold-mcp` credential holds only the memberships the account held both when it was minted and when it is used, and over HTTP only those the caller's access token's groups also grant. Each Tenant role is capped at the role the credential acts with: viewer as Viewer, operator as Developer, admin as Admin. A token whose role is lowered to viewer can read in its Tenant but cannot hand off, and a token without `unfold/` groups reaches nothing.
+* A person in several Tenants sees all of them together until the Tenant switcher exists (VIK-1877). Audit events, Run Cards, Ploeg connections and the folders the agent host offers over its own protocol are still limited by Team only.
 
 ### Local sign-in
 

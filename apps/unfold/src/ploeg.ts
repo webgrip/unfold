@@ -8,6 +8,7 @@ import { takeOverRefusal } from '../public/core/take-over.js';
 import { descriptionMarkdown } from './rich-text.ts';
 import { cardKpis, playKpis } from './card-kpis.ts';
 import { sourceTaskUrl, type TaskSourceConfig } from './tasks.ts';
+import { TenantScope } from './tenant-scope.ts';
 import { FactsError, parseFactsPage, parseFactsResponse, type FactsPage, type WorkItemFacts } from './cards/facts.ts';
 import { CrackError } from './cards/cracks.ts';
 import { valueStream, type ValueStream } from './value-stream.ts';
@@ -1125,6 +1126,8 @@ export class PloegClient {
   private cachedToken: string | undefined;
   private readonly cache = new Map<string, { until: number; value: unknown }>();
   private readonly titles = new Map<string, string>();
+  private readonly tenancy: TenantScope;
+  private readonly targets = new Map<string, PloegItem['target']>();
   private readonly demoDecisions = new Map<string, PloegDecision>();
   private cardService: CardService | undefined;
   private proof: PersonProof | undefined;
@@ -1196,7 +1199,7 @@ export class PloegClient {
     const pr = record(comment.pullRequest);
     return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
   }
-  constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
+  constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.tenancy = new TenantScope(config); this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   /**
    * Sends each operator change made for a person with that person's token when one can be had (RFC-0011, Unfold ADR
@@ -1266,7 +1269,7 @@ export class PloegClient {
     catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return { items: [], supported: false, message: olderTracker }; throw error; }
     if (result.items.some(entry => entry.provider !== provider || entry.externalId !== externalId)) return { items: [], supported: false, message: olderTracker };
     if (!scoped) return { items: result.items, supported: true };
-    const items = result.items.filter(entry => this.allowed(user, entry.team));
+    const items = result.items.filter(entry => this.allowed(user, entry.team) && this.reaches(user, entry));
     for (const entry of items) this.remember(entry.id, entry.title);
     return { items, supported: true };
   }
@@ -1287,7 +1290,7 @@ export class PloegClient {
     const result = this.demo ? { items: this.demoItems().filter(item => item.team === selectedTeam && wanted.includes(item.state) && (cursor === '0' || (newestFirst ? BigInt(item.id) < BigInt(cursor) : BigInt(item.id) > BigInt(cursor)))).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1) * (newestFirst ? -1 : 1)), nextCursor: null } : page(await this.request(`work-items?${query}`, fresh));
     if (result.items.some(item => item.team !== selectedTeam || !wanted.includes(item.state))) throw invalid();
     for (const entry of result.items) this.remember(entry.id, entry.title);
-    return { items: result.items.map(entry => presented(entry)), nextCursor: result.nextCursor };
+    return { items: result.items.filter(entry => this.reaches(user, entry)).map(entry => presented(entry)), nextCursor: result.nextCursor };
   }
   async overview(user: User, selectedTeam?: string, fresh = false): Promise<PloegOverview> {
     this.authorize(user);
@@ -1306,7 +1309,7 @@ export class PloegClient {
     if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
     const demoDetail = this.demo ? ploegDemo.details[id] : undefined;
     const result = this.demo ? demoDetail && { ...demoDetail, item: this.demoItems().find(entry => entry.id === id)! } : detail(await this.request(`work-items/${id}`, fresh));
-    if (!result || result.item.id !== id || !this.allowed(user, result.item.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (!result || result.item.id !== id || !this.allowed(user, result.item.team) || !this.reaches(user, result.item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     this.remember(result.item.id, result.item.title);
     const copy = structuredClone(result);
     return { ...copy, item: presented(copy.item), demo: this.demo, fetchedAt: new Date().toISOString() };
@@ -1317,11 +1320,11 @@ export class PloegClient {
     if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
     if (this.demo) {
       const item = this.demoItems().find(entry => entry.id === id);
-      if (!item || !this.allowed(user, item.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+      if (!item || !this.allowed(user, item.team) || !this.reaches(user, item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
       return { workItemId: id, trackerCreatedAt: null, admittedAt: item.createdAt, closed: false, lanes: [], notes: ['The demo has no tracker, forge, CI or deploy facts; it shows only its Shifts and Runs.'], demo: true, fetchedAt: new Date().toISOString() };
     }
     const facts = await this.workItemFacts(id, fresh);
-    if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team) || !(await this.reachesId(user, id, fresh))) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return valueStream(facts);
   }
   /** Reads the agent pod logs of one Run of a Work Item the caller may see; `after` is the `cursor` of an earlier read. See {@link readRunLogs}. */
@@ -1427,7 +1430,8 @@ export class PloegClient {
       if (runs.some(run => (filter.team && run.team !== filter.team) || (filter.state && run.state !== filter.state) || (filter.outcome && run.outcome !== filter.outcome))) throw invalid();
     }
     for (const run of runs) if (run.workItemTitle) this.remember(run.workItemId, run.workItemTitle);
-    return { demo: this.demo, runs: runs.filter(run => this.allowed(user, run.team)), nextBefore, fetchedAt: new Date().toISOString() };
+    const reached = await this.reachedIds(user, runs.filter(run => this.allowed(user, run.team)).map(run => run.workItemId), fresh);
+    return { demo: this.demo, runs: runs.filter(run => this.allowed(user, run.team) && reached.has(run.workItemId)), nextBefore, fetchedAt: new Date().toISOString() };
   }
   /**
    * Lists audit events across the caller's teams: newest first, where `before` pages to older events, or with `after`
@@ -2073,6 +2077,25 @@ export class PloegClient {
     if (this.demo) return null;
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg does not know this Team, or it is outside the Teams you may use.');
     return chatAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}&purpose=chat`)).allowance);
+  }
+  private reaches(user: User, item: Pick<PloegItem, 'id' | 'target'>): boolean {
+    if (this.targets.size >= 2000 && !this.targets.has(item.id)) this.targets.delete(this.targets.keys().next().value!);
+    this.targets.set(item.id, item.target);
+    return this.tenancy.reachesWorkItem(user, item.target);
+  }
+  private async reachesId(user: User, id: string, fresh: boolean): Promise<boolean> {
+    if (!this.tenancy.enforced) return true;
+    if (this.targets.has(id)) return this.tenancy.reachesWorkItem(user, this.targets.get(id)!);
+    try {
+      const item = this.demo ? this.demoItems().find(entry => entry.id === id) : detail(await this.request(`work-items/${id}`, fresh)).item;
+      return item !== undefined && item.id === id && this.reaches(user, item);
+    } catch { return false; }
+  }
+  private async reachedIds(user: User, ids: string[], fresh: boolean): Promise<Set<string>> {
+    const unique = [...new Set(ids)];
+    if (!this.tenancy.enforced) return new Set(unique);
+    const answers = await Promise.all(unique.map(async id => [id, await this.reachesId(user, id, fresh)] as const));
+    return new Set(answers.filter(([, reached]) => reached).map(([id]) => id));
   }
   private remember(id: string, title: string): void {
     if (!title) return;
