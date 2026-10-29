@@ -535,3 +535,18 @@ test('a ClickUp take-back removes the team’s assignee once, and a token withou
   assert.equal(live.body.error.code, 'handoff_active');
   assert.equal(f.writes().length, 4);
 });
+
+test('lookup finds the configured source whose home List holds a ClickUp task', { timeout: testTimeout(15_000) }, async t => {
+  const f = await clickupFixture(t);
+  const found = await request(f.server.url, '/api/tasks/lookup?provider=clickup&id=abc123', { cookie: f.operator.cookie });
+  assert.equal(found.status, 200, found.text);
+  assert.deepEqual(found.body, { sourceId: 'agency' });
+  assert.deepEqual(f.state.calls.map(call => [call.method, call.path]), [['GET', '/api/v2/task/abc123']]);
+  f.state.task.list = { id: '902' };
+  const elsewhere = await request(f.server.url, '/api/tasks/lookup?provider=clickup&id=abc123', { cookie: f.operator.cookie });
+  assert.equal(elsewhere.status, 404, elsewhere.text);
+  assert.equal(elsewhere.body.error.code, 'task_source_unknown');
+  assert.equal((await request(f.server.url, '/api/tasks/lookup?provider=clickup&id=zzz999', { cookie: f.operator.cookie })).status, 404);
+  assert.equal((await request(f.server.url, '/api/tasks/lookup?provider=clickup&id=../abc', { cookie: f.operator.cookie })).status, 400);
+  assert.equal(f.writes().length, 0);
+});
