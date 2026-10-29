@@ -6,11 +6,13 @@ import type { DeliveryConfig } from './delivery-config.ts';
 import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
+import type { Membership } from './tenancy.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
 export type UserRole = 'admin' | 'operator' | 'viewer';
-export type User = { id: string; name: string; role: UserRole };
+/** A signed-in person. `memberships` are the Tenant and Client memberships they hold; nothing checks them yet (system ADR-0017). */
+export type User = { id: string; name: string; role: UserRole; memberships?: Membership[] };
 export type RepositoryAccess = { username: string; password: string };
 /** A git URL prefix fetched from another address: `insteadOf` is what repository URLs say, `url` is where git goes. */
 export type GitRewrite = { url: string; insteadOf: string };

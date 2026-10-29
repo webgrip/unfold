@@ -346,6 +346,24 @@ A person's account is identified by the provider's subject together with `subjec
 
 This carries accounts across only while the provider keeps issuing the same subject for a person. Authentik's default subject mode, a hashed user id, is the same in every application of one Authentik. A provider set to a per-application subject breaks the link, and so does pointing the namespace at a different provider, which would hand one provider's accounts to another provider's people.
 
+### Tenant and Client memberships
+
+Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs/reference/glossary.md#tenant) and [Client](../../../../docs/reference/glossary.md#client) memberships ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Unfold records them; it does not check them yet, so a membership changes nothing a person can see or do, and the workbench role above still decides who may sign in.
+
+| Group | Membership |
+| --- | --- |
+| `unfold/<tenant>/viewer` | Viewer in that Tenant |
+| `unfold/<tenant>/member` | Developer in that Tenant |
+| `unfold/<tenant>/admin` | Admin in that Tenant |
+| `unfold/<tenant>/client/<client>` | Client membership of that Client in that Tenant, with no Tenant role |
+
+* Tenant and Client ids are lower-case letters, digits and inner hyphens, at most 63 characters. The group must match exactly: any other case, an extra or empty segment, or another role word is ignored, never read as something close.
+* A Tenant named by several role groups keeps the highest: viewer, then developer, then admin.
+* The roles are [Access Roles](../../../../docs/reference/glossary.md#access-role). ADR-0017 names the middle group `member`, a word the glossary avoids; reading it as Developer is proposed until the owner confirms it. Lead, Product owner and Account owner have no group yet.
+* A local password account and the demo account hold their workbench role in the `default` Tenant: admin as Admin, operator as Developer, viewer as Viewer. A person who signs in with single sign-on joins `default` only through an `unfold/default/<role>` group.
+* `GET /api/bootstrap` reports them as `user.memberships`, for example `[{ "kind": "tenant", "tenant": "default", "role": "admin" }]`, and so does a password sign-in's answer.
+* The store keeps them per account in `user_memberships`. Saving them at each single sign-on, so a removed group removes the membership at the next sign-in, is proposed (VIK-1877); until then an account created by single sign-on reports none.
+
 ### Local sign-in
 
 Local sign-in is the name-and-password door: the bootstrap administrator from `UNFOLD_ADMIN_PASSWORD` and the accounts `npm run user:add` creates. It is on by default, so the demo and a first local install work without an identity provider. Once single sign-on works, turn it off so every person comes through the provider and its groups:

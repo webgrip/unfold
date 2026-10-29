@@ -2,7 +2,8 @@ import { randomBytes, randomInt, scryptSync, timingSafeEqual, createHash } from 
 import type { IncomingMessage } from 'node:http';
 import type { AppConfig, User, UserRole } from './types.ts';
 import { lowerRole } from './oidc.ts';
-import type { EditorCredential, Store } from './store.ts';
+import type { EditorCredential, Store, StoredUser } from './store.ts';
+import { defaultMemberships } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
@@ -87,6 +88,15 @@ export const localLoginOff = () => failure(404, 'local_login_off', 'Sign-in with
 
 const unknownEditor = () => failure(404, 'editor_login_unknown', 'This editor sign-in is unknown or has expired. Start it again from your editor.');
 
+/**
+ * The person a stored account signs in as, acting with `role`. A local password account holds `role` in the default
+ * Tenant; an account single sign-on created holds the memberships its groups granted at its last sign-in, if any.
+ */
+export function signedInUser(record: StoredUser, role: UserRole = record.role): User {
+  const memberships = record.passwordHash === '' ? record.memberships : defaultMemberships(role);
+  return { id: record.id, name: record.name, role, ...(memberships ? { memberships } : {}) };
+}
+
 /** Whether local name-and-password sign-in is on. It is on unless the configuration turns it off. */
 export function localLoginEnabled(config: AppConfig): boolean { return config.auth.localLogin !== false; }
 
@@ -145,14 +155,14 @@ export class Auth {
     return this.user(req) ? 'browser' : undefined;
   }
   user(req: IncomingMessage): User | undefined {
-    if (this.config.mode === 'demo') return { id: 'demo-operator', name: 'Demo operator', role: 'admin' };
+    if (this.config.mode === 'demo') return { id: 'demo-operator', name: 'Demo operator', role: 'admin', memberships: defaultMemberships('admin') };
     if (this.bearer(req) !== undefined) return this.editorUser(req);
     const token = this.token(req);
     if (!token || token.length > 200) return undefined;
     const login = this.store.getLogin(digest(token));
     if (!login || Date.parse(login.expiresAt) <= Date.now()) return undefined;
     const user = this.account(login.userId);
-    return user ? { id: user.id, name: user.name, role: user.role } : undefined;
+    return user ? signedInUser(user) : undefined;
   }
   private account(id: string) {
     const user = this.store.getUser(id);
@@ -191,7 +201,7 @@ export class Auth {
     if (bearer && delegatedTokenPattern.test(bearer)) {
       const entry = this.delegated.get(digest(bearer));
       const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.account(entry.userId) : undefined;
-      return user && entry ? { id: user.id, name: user.name, role: lowerRole(user.role, entry.role) } : undefined;
+      return user && entry ? signedInUser(user, lowerRole(user.role, entry.role)) : undefined;
     }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));
@@ -199,7 +209,7 @@ export class Auth {
     if (!credential || !user) return undefined;
     const now = Date.now();
     if (!credential.lastUsedAt || now - Date.parse(credential.lastUsedAt) >= 60_000) this.store.touchEditorCredential(credential.id, new Date(now).toISOString());
-    return { id: user.id, name: user.name, role: user.role };
+    return signedInUser(user);
   }
   login(name: string, password: string, address: string): { user: User; cookie: string } {
     if (!localLoginEnabled(this.config)) throw localLoginOff();
@@ -215,7 +225,7 @@ export class Auth {
     const token = randomBytes(32).toString('base64url');
     const seconds = this.config.auth.sessionHours * 3600;
     this.store.createLogin(digest(token), record.id, new Date(now + seconds * 1000).toISOString());
-    return { user: { id: record.id, name: record.name, role: record.role }, cookie: this.cookie(token, seconds) };
+    return { user: signedInUser(record), cookie: this.cookie(token, seconds) };
   }
   private readonly editors = new Map<string, EditorTicket>();
   private readonly editorStarts = new Map<string, { count: number; since: number }>();
@@ -285,7 +295,7 @@ export class Auth {
     this.editors.delete(code);
     const record = this.account(item.signedInBy);
     if (!record) throw unknownEditor();
-    const user = { id: record.id, name: record.name, role: record.role };
+    const user = signedInUser(record);
     const token = `${editorTokenPrefix}${randomBytes(32).toString('base64url')}`;
     const expiresAt = new Date(now + editorCredentialDays * 86_400_000).toISOString();
     this.store.createEditorCredential({ id: randomBytes(12).toString('hex'), tokenHash: digest(token), userId: user.id, label: item.label, scope: 'editor', createdAt: new Date(now).toISOString(), expiresAt });
