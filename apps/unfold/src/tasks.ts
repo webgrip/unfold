@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { AppConfig, Repository } from './types.ts';
 import { descriptionMarkdown } from './rich-text.ts';
+import { configuredOwnership, describeOwnership, ownership } from './tenancy.ts';
 
 export type TaskProvider = 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja' | 'demo';
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
 export type PloegTaskSource = { workItemId: string; provider: string; externalId: string; expectedBaseUrl: string; expectedScope: string; expectedRevision: string; expectedUpdatedAt: string; expectedTarget: TaskTarget };
-export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget } };
+/** A registered task source. `tenant` (the default Tenant when absent) and `client` name its owner (system ADR-0017). */
+export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget }; tenant?: string; client?: string };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionTruncated?: true };
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
@@ -32,7 +34,7 @@ const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
 const projectPart = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,254}$/;
 const gheComApiHost = /^api\.([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.ghe\.com$/;
-const sourceFields = new Set(['id', 'name', 'provider', 'baseUrl', 'project', 'repositoryId', 'tokenEnv', 'executionOwner', 'ploeg']);
+const sourceFields = new Set(['id', 'name', 'provider', 'baseUrl', 'project', 'repositoryId', 'tokenEnv', 'executionOwner', 'ploeg', 'tenant', 'client']);
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TaskError(502, 'task_response_invalid', 'The task service returned an unsupported response.');
@@ -83,8 +85,8 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
   if (raw === undefined) raw = mode === 'demo' ? [{ id: 'demo-tasks', name: 'Demo fixture tasks', provider: 'demo', baseUrl: 'https://example.invalid', project: 'order-service', repositoryId: 'order-service', executionOwner: 'interactive' }] : [];
   if (!Array.isArray(raw) || raw.length > 50) throw new Error('taskSources must contain at most 50 sources');
   const ids = new Set<string>();
-  const mappings = new Map<string, string>();
-  return raw.map(value => {
+  const mappings = new Map<string, { index: number; id: string; mapping: string }>();
+  return raw.map((value, index) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Each task source must be an object');
     const source = value as Record<string, unknown>;
     if (Object.keys(source).some(key => !sourceFields.has(key))) throw new Error('Unknown task source field; credentials must use tokenEnv, never literal tokens');
@@ -117,11 +119,18 @@ export function validateTaskSources(raw: unknown, repositories: Repository[], mo
       token = process.env[source.tokenEnv];
       if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new Error('Task source tokenEnv must reference a non-empty, valid API token');
     }
+    const label = `taskSources[${index}] (${source.id})`;
+    const owned = configuredOwnership(source, label);
+    const owner = ownership(owned);
+    const repository = repositories.find(item => item.id === source.repositoryId)!;
+    const repositoryOwner = ownership(repository);
+    if (owner.tenant !== repositoryOwner.tenant || (repositoryOwner.client !== undefined && owner.client !== repositoryOwner.client)) throw new Error(`${label} is owned by ${describeOwnership(owner)}, but its repository ${repository.id} is owned by ${describeOwnership(repositoryOwner)}. A task source maps to a repository of its own Tenant, and to a Client's repository only when it belongs to that Client.`);
     const identity = JSON.stringify([provider, baseUrl, project]);
-    const mapping = JSON.stringify([source.repositoryId, source.executionOwner, ploeg]);
-    if (mappings.has(identity) && mappings.get(identity) !== mapping) throw new Error('Aliases of a task source must use the same repository and execution owner');
-    mappings.set(identity, mapping);
-    return { id: source.id, name: source.name, provider, baseUrl, project, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(token ? { token } : {}), ...(ploeg ? { ploeg } : {}) };
+    const mapping = JSON.stringify([source.repositoryId, source.executionOwner, ploeg, owner.tenant, owner.client ?? null]);
+    const first = mappings.get(identity);
+    if (first && first.mapping !== mapping) throw new Error(`Aliases of a task source must use the same repository, execution owner, Tenant and Client: taskSources[${first.index}] (${first.id}) and ${label} both read ${provider} ${project} at ${baseUrl}`);
+    if (!first) mappings.set(identity, { index, id: source.id, mapping });
+    return { id: source.id, name: source.name, provider, baseUrl, project, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(token ? { token } : {}), ...(ploeg ? { ploeg } : {}), ...owned };
   });
 }
 

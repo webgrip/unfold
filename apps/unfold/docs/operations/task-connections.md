@@ -60,6 +60,25 @@ The following is one `taskSources` entry, placed inside the array in the full co
 | `tokenEnv` | Optional name of the server environment variable containing this source's credential. If supplied, it must contain a token when the server starts. Omit only for an API that permits the intended unauthenticated reads. Do not reuse the LiteLLM master or an operator login secret |
 | `executionOwner` | `ploeg` when Ploeg owns dispatch and execution, which every importable live source needs; `interactive` sources stay readable but import only into the retired standalone mode |
 | `ploeg` | Optional explicit Work Target for shared Vikunja or ClickUp imports; requires shared execution configuration |
+| `tenant` | Optional [Tenant](../../../../docs/reference/glossary.md#tenant) that owns the source; `default` when unset. It must be the Tenant of the source's repository |
+| `client` | Optional [Client](../../../../docs/reference/glossary.md#client) inside that Tenant that owns the source. A repository with a `client` takes sources of that Client only |
+
+### Who owns a source and a repository
+
+Each task source and each entry in `repositories` belongs to exactly one Tenant and, inside it, to at most one Client ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Both take the same optional `tenant` and `client` fields; an entry that sets neither belongs to the `default` Tenant with no Client, which is what every install without tenancy has. Ids are lower-case letters, digits and inner hyphens, at most 63 characters.
+
+```json
+"repositories": [{ "id": "acme-shop", "name": "Acme shop", "url": "https://forge.example/agency/acme-shop.git", "baseBranch": "main", "verify": ["npm", "test"], "tenant": "agency", "client": "acme" }],
+"taskSources": [{ "id": "acme-board", "name": "Acme · Vikunja", "provider": "vikunja", "baseUrl": "https://tasks.example/api/v1", "project": "42", "repositoryId": "acme-shop", "tokenEnv": "UNFOLD_TASK_VIKUNJA_TOKEN", "executionOwner": "ploeg", "tenant": "agency", "client": "acme" }]
+```
+
+Unfold refuses to start, naming both entries, when:
+
+* one repository is registered twice for different owners. A repository is keyed by its forge host and `owner/name`, without `.git` and in any case, so its HTTPS and SSH URLs are one repository;
+* one tracker project is registered twice, under two connection ids, for different owners. A project is keyed by provider, API root and project id, so the same project id on another instance is another source. Two connection ids for one project and one owner stay allowed, as before;
+* a source's Tenant is not its repository's Tenant, or its repository belongs to a Client and the source does not belong to that same Client. A Client's source may use a repository of its Tenant that no Client owns.
+
+What the owner limits for people signed in is in [Tenant and Client memberships](live.md#tenant-and-client-memberships).
 
 Use HTTPS for remote API roots. HTTP is accepted only for loopback development fixtures. The adapters reject redirects and embedded URL credentials. A reverse proxy must expose the provider API directly at the configured root. Network access and DNS resolution occur on the Unfold server.
 
