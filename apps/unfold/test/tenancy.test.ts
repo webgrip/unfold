@@ -10,6 +10,7 @@ import { Auth, signedInUser } from '../src/auth.ts';
 import { Oidc } from '../src/oidc.ts';
 import { Store } from '../src/store.ts';
 import { application, configuration, login, request } from './api-support.ts';
+import { signIn, workbench } from './oidc-support.ts';
 
 test('membership groups parse into typed Tenant and Client memberships', () => {
   assert.deepEqual(membershipFromGroup('unfold/acme/viewer'), { kind: 'tenant', tenant: 'acme', role: 'viewer' });
@@ -114,4 +115,22 @@ test('the demo session reports the default Tenant', async t => {
   t.after(() => server.close());
   const bootstrap = await request(server.url, '/api/bootstrap');
   assert.deepEqual(bootstrap.body.user.memberships, [{ kind: 'tenant', tenant: 'default', role: 'admin' }]);
+});
+
+test('a single sign-on stores the memberships its groups grant, the session endpoint reports them, and the next sign-in replaces them', async t => {
+  const groups = ['unfold-operators', 'unfold/acme/member', 'unfold/acme/client/bakery', 'unfold/acme/owner'];
+  const { server, idp } = await workbench(t, { groups });
+  const first = await signIn(server, idp);
+  assert.equal(first.callback.status, 303, await first.callback.text());
+  const cookie = first.callback.headers.get('set-cookie')!.split(';')[0];
+  const bootstrap = await request(server.url, '/api/bootstrap', { cookie });
+  assert.equal(bootstrap.body.user.role, 'operator', 'memberships leave the workbench role alone');
+  assert.deepEqual(bootstrap.body.user.memberships, [{ kind: 'tenant', tenant: 'acme', role: 'developer' }, { kind: 'client', tenant: 'acme', client: 'bakery' }]);
+  assert.deepEqual(server.app.store.getUser(bootstrap.body.user.id)?.memberships, bootstrap.body.user.memberships, 'the store keeps them on the account');
+  groups.splice(1, groups.length, 'unfold/zeta/viewer');
+  const second = await signIn(server, idp);
+  const again = await request(server.url, '/api/bootstrap', { cookie: second.callback.headers.get('set-cookie')!.split(';')[0] });
+  assert.deepEqual(again.body.user.memberships, [{ kind: 'tenant', tenant: 'zeta', role: 'viewer' }], 'a removed group removes its membership');
+  const earlier = await request(server.url, '/api/bootstrap', { cookie });
+  assert.deepEqual(earlier.body.user.memberships, [{ kind: 'tenant', tenant: 'zeta', role: 'viewer' }], 'an open browser session reads the current memberships');
 });
