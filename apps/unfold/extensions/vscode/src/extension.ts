@@ -27,6 +27,7 @@ import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission, PublicationBinding } from './types.js';
 import { readPublication } from './publication.js';
+import { followHandOffsInTerminal, vscodeTerminalHost } from './claude-terminal.js';
 import { mcpInstallUri, mcpJsonEntry, mcpProviderApi, ploegMcpProviderId, ploegMcpServer, provideServersSetting, type RemoteMcpServer } from './mcp-servers.js';
 
 type SessionRef = string | SessionEntry | undefined;
@@ -61,6 +62,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private readonly handOffNotifier: HandOffNotifier;
   private lastHandOffs?: HandOffList;
   private handOffsReadAt = 0;
+  private claudeOutput: vscode.OutputChannel | undefined;
   private agentsWindow: AgentsWindowState = { status: 'unknown' };
   private agentsWindowTimer?: ReturnType<typeof setInterval>;
   private agentsWindowCheck?: ReturnType<typeof setTimeout>;
@@ -171,6 +173,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('setApproval', value => this.setApprovalCommand(value));
     register('linkedAccounts', () => this.linkedAccounts());
     register('addPloegMcpServer', () => this.addPloegMcpServer());
+    register('followHandOffsInTerminal', () => followHandOffsInTerminal(vscodeTerminalHost(vscode, () => this.configurationError ? undefined : this.current.origin, () => this.claudeOutput ??= (channel => (context.subscriptions.push(channel), channel))(vscode.window.createOutputChannel('Unfold: Claude Code')))));
     for (const action of ['start', 'pause', 'resume', 'cancel', 'retry'] as const) register(action, value => this.lifecycleCommand(action, value));
     register('review', async value => { const id = await this.choose(value, 'Review which session?'); if (!id) return; const decision = await vscode.window.showQuickPick([{ label: '$(check) Accept', description: 'The outcome is fit to take further', value: 'accepted' as const }, { label: '$(circle-slash) Reject', description: 'Say why so the next attempt can use it', value: 'rejected' as const }], { title: 'Record your review', ignoreFocusOut: true }); if (decision) await this.review(id, decision.value); });
     this.registerMcpServers(context);

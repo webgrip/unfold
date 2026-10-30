@@ -30,6 +30,7 @@ nav:
       - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Link your Claude Code sessions: how-to/link-claude-code-sessions.md
       - Install the Unfold plugin in other clients: how-to/install-the-unfold-plugin.md
+      - Follow hand-offs as tasks in a terminal: how-to/follow-hand-offs-as-tasks-in-a-terminal.md
       - Run agent code in a sandbox runtime: how-to/run-agent-code-in-a-sandbox-runtime.md
       - Protect data at rest and in transit: how-to/protect-data-at-rest-and-in-transit.md
       - Self-host the whole stack in the EU: how-to/self-host-the-whole-stack.md

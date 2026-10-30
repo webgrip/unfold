@@ -131,7 +131,7 @@ test('the vendored mcp.json schema is the Agent Plugins 1.0.0 one, and the test 
 
 test('the generated marketplace pins the upstream plugin by commit and adds an Agent Plugin whose mcp.json names the configured unfold-mcp URL', () => {
   const files = generated('https://unfold.example.com/mcp');
-  assert.deepEqual(Object.keys(files).sort(), ['.claude-plugin/marketplace.json', `${connectionPlugin}/mcp.json`, `${connectionPlugin}/plugin.json`]);
+  assert.deepEqual(Object.keys(files).sort(), ['.claude-plugin/marketplace.json', `${connectionPlugin}/.claude-plugin/plugin.json`, `${connectionPlugin}/.mcp.json`, `${connectionPlugin}/mcp.json`, `${connectionPlugin}/plugin.json`]);
   const manifest = files[`${connectionPlugin}/plugin.json`];
   assert.deepEqual(violations(schema, manifest), []);
   assert.equal(manifest.version, readJson(join(plugin, 'plugin.json')).version);
@@ -140,6 +140,11 @@ test('the generated marketplace pins the upstream plugin by commit and adds an A
   assert.deepEqual(mcp.mcpServers, { unfold: { type: 'streamable-http', url: 'https://unfold.example.com/mcp' } });
   assert.notEqual(generated('https://work.acme.example/tools/mcp')[`${connectionPlugin}/mcp.json`].mcpServers.unfold.url, mcp.mcpServers.unfold.url);
   assert.equal(generated('https://work.acme.example/tools/mcp')[`${connectionPlugin}/mcp.json`].mcpServers.unfold.url, 'https://work.acme.example/tools/mcp');
+  assert.deepEqual(files[`${connectionPlugin}/.mcp.json`], { mcpServers: { unfold: { type: 'http', url: 'https://unfold.example.com/mcp', oauth: { clientId: 'unfold-mcp' } } } }, 'Claude Code reads .mcp.json, signs in with the pre-registered client and negotiates 2026-07-28 over HTTP');
+  assert.equal(buildMarketplace({ mcpUrl: 'https://unfold.example.com/mcp', sha: pinned, clientId: 'acme-unfold' })[`${connectionPlugin}/.mcp.json`].includes('"clientId": "acme-unfold"'), true);
+  assert.throws(() => buildMarketplace({ mcpUrl: 'https://unfold.example.com/mcp', sha: pinned, clientId: 'has space' }), /not an OAuth client id/);
+  const claudeManifest = files[`${connectionPlugin}/.claude-plugin/plugin.json`];
+  assert.deepEqual([claudeManifest.name, claudeManifest.version, claudeManifest.mcpServers], [connectionPlugin, manifest.version, undefined], 'Claude Code needs a manifest to validate the plugin; the server comes from .mcp.json');
   const [upstream, connection] = files['.claude-plugin/marketplace.json'].plugins;
   assert.deepEqual(upstream.source, { source: 'git-subdir', url: 'https://forgejo.webgrip.dev/webgrip/unfold.git', path: 'apps/unfold/extensions/claude-code', sha: pinned });
   assert.equal(readJson(join(repository, upstream.source.path, 'plugin.json')).name, upstream.name);
@@ -154,6 +159,9 @@ test('the generated mcp.json holds no secret: no headers, no credential in the U
     for (const [path, text] of Object.entries(files)) assert.doesNotMatch(text, secretShaped, `${path} looks like it carries a credential`);
     const server = JSON.parse(files[`${connectionPlugin}/mcp.json`]).mcpServers.unfold;
     assert.deepEqual(Object.keys(server).sort(), ['type', 'url']);
+    const claudeServer = JSON.parse(files[`${connectionPlugin}/.mcp.json`]).mcpServers.unfold;
+    assert.deepEqual(Object.keys(claudeServer).sort(), ['oauth', 'type', 'url']);
+    assert.deepEqual(Object.keys(claudeServer.oauth), ['clientId']);
   }
   for (const [url, reason] of [
     ['http://unfold.example.com/mcp', /must use https/],

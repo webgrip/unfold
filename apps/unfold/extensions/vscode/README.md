@@ -63,6 +63,10 @@ The extension does not provide `unfold-mcp`, the server for Unfold's own reasons
 
 Not verified against a desktop VS Code: the sign-in through the provider and the client ID question, the install view keeping `oauth.clientId`, and whether the Copilot, Claude and Codex harnesses in the Agents window can sign in to a forwarded Ploeg server. VS Code 1.142 forwards the URL to them but drops the client ID.
 
+## Follow hand-offs in a Claude Code terminal
+
+Claude Code shows MCP tasks in its terminal CLI only, from 2.1.304 on, and not in its VS Code panel. **Unfold: Follow Hand-offs in a Claude Code Terminal** checks `claude --version` (and links the install guide or offers `claude update` when it is missing or older), runs `claude mcp list` to find your `unfold-mcp` server, writes each check to the **Unfold: Claude Code** output (version, server, whether protocol 2026-07-28 would be negotiated, and any setting that turns tasks off), then opens an integrated terminal in the workspace running `claude`, where hand-offs appear under `/tasks`. Without an `unfold-mcp` server it offers to copy the `claude mcp add` command for this workbench. See [Follow hand-offs as tasks in a terminal](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/how-to/follow-hand-offs-as-tasks-in-a-terminal.md). Not checked in a desktop VS Code yet.
+
 ## Tools for agents in VS Code
 
 The extension lends agents in VS Code chat three read-only tools, so an agent session in the editor window can answer "what waits for me" or "where is this Work Item" without an MCP server:

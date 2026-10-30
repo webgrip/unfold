@@ -11,6 +11,7 @@ const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export const defaultRepository = 'https://forgejo.webgrip.dev/webgrip/unfold.git';
 export const connectionPlugin = 'unfold-mcp';
+export const defaultClientId = 'unfold-mcp';
 
 /**
  * Checks an unfold-mcp endpoint against Agent Plugins 1.0.0 §7.2.1 and returns it normalized.
@@ -30,11 +31,13 @@ export function mcpEndpoint(value) {
 
 /**
  * Builds a marketplace for one Unfold installation: the upstream `unfold` plugin pinned to one commit,
- * and a generated `unfold-mcp` plugin whose mcp.json names that installation's unfold-mcp endpoint.
+ * and a generated `unfold-mcp` plugin that names that installation's unfold-mcp endpoint twice: in the
+ * Agent Plugins `mcp.json`, and in the `.mcp.json` Claude Code reads, with the OAuth client id it signs in with.
  * Returns the files to write as a map of relative path to text.
  */
-export function buildMarketplace({ mcpUrl, sha, repository = defaultRepository, name = 'unfold', owner = 'Unfold' }) {
+export function buildMarketplace({ mcpUrl, sha, repository = defaultRepository, name = 'unfold', owner = 'Unfold', clientId = defaultClientId }) {
   const url = mcpEndpoint(mcpUrl);
+  if (typeof clientId !== 'string' || !/^[A-Za-z0-9._~-]{1,128}$/.test(clientId)) throw new Error(`${clientId} is not an OAuth client id; pass the id the provider registered for unfold-mcp, one of UNFOLD_MCP_CLIENT_IDS`);
   if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha)) throw new Error('pass --sha with the full 40-character commit of the Unfold release to pin, such as the output of git rev-parse unfold-v0.4.0^{commit}');
   if (!/^https:\/\/[^\s#?]+\.git$/.test(repository)) throw new Error(`${repository} must be an https git URL ending in .git, which VS Code requires`);
   if (!/^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(name) || name.length > 64) throw new Error(`${name} is not a valid marketplace name`);
@@ -52,6 +55,8 @@ export function buildMarketplace({ mcpUrl, sha, repository = defaultRepository, 
     keywords: ['unfold', 'mcp', 'work-items'],
   };
   const mcp = { $schema: mcpSchema, mcpServers: { unfold: { type: 'streamable-http', url } } };
+  const claudeManifest = { name: connectionPlugin, version: manifest.version, description: manifest.description, author: manifest.author, homepage: manifest.homepage, repository: manifest.repository, license: manifest.license, keywords: manifest.keywords };
+  const claudeMcp = { mcpServers: { unfold: { type: 'http', url, oauth: { clientId } } } };
   const marketplace = {
     name,
     owner: { name: owner },
@@ -66,6 +71,8 @@ export function buildMarketplace({ mcpUrl, sha, repository = defaultRepository, 
     '.claude-plugin/marketplace.json': json(marketplace),
     [`${connectionPlugin}/plugin.json`]: json(manifest),
     [`${connectionPlugin}/mcp.json`]: json(mcp),
+    [`${connectionPlugin}/.claude-plugin/plugin.json`]: json(claudeManifest),
+    [`${connectionPlugin}/.mcp.json`]: json(claudeMcp),
   };
 }
 
@@ -77,6 +84,7 @@ function main() {
       repository: { type: 'string' },
       name: { type: 'string' },
       owner: { type: 'string' },
+      'client-id': { type: 'string' },
       out: { type: 'string' },
     },
   });
@@ -87,6 +95,7 @@ function main() {
     repository: values.repository,
     name: values.name,
     owner: values.owner,
+    clientId: values['client-id'] ?? defaultClientId,
   });
   for (const [path, text] of Object.entries(files)) {
     const target = resolve(values.out, path);
