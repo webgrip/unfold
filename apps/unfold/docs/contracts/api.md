@@ -407,7 +407,7 @@ For a client that declares the extension:
 | Method | Answer |
 | --- | --- |
 | `initialize`, `server/discover` | `capabilities` also hold `resources` and `extensions: {"io.modelcontextprotocol/ui": {}}` |
-| `tools/list` | `unfold_get_work` carries `_meta: {ui: {resourceUri: "ui://unfold/work-item", visibility: ["model", "app"]}, "ui/resourceUri": "ui://unfold/work-item"}`, and `unfold_now` the same with `ui://unfold/now`. No other tool carries `_meta` |
+| `tools/list` | `unfold_get_work` carries `_meta: {ui: {resourceUri: "ui://unfold/work-item", visibility: ["model", "app"]}, "ui/resourceUri": "ui://unfold/work-item"}`, and `unfold_now` the same with `ui://unfold/now`. The list also holds `unfold_work_item_revision` with `_meta: {ui: {resourceUri: "ui://unfold/work-item", visibility: ["app"]}}`, so the host keeps it out of the model's tool list. No other tool carries `_meta` |
 | `resources/list` | The two resources, each with `mimeType: "text/html;profile=mcp-app"` and `_meta.ui: {csp: {}, prefersBorder: false}` |
 | `resources/read` with `{uri}` | `contents: [{uri, mimeType, text, _meta}]`. `text` is one HTML5 document with every script and style inline. Its own `Content-Security-Policy` meta element sets `default-src 'none'` and `connect-src 'none'`, and allows inline script and style only. An unknown URI answers `-32602` over 2026-07-28 and `-32002` over 2025 |
 
@@ -420,10 +420,27 @@ The view calls tools through the host's `tools/call` bridge, with only `name` an
 - **Note.** `unfold_add_note` is offered while the Work Item is queued or running.
 - **Approve.** `unfold_approve_work` is offered for a proposal.
 - **Refresh and open.** Refreshing, and opening a Work Item from the Now list, call `unfold_get_work`.
+- **Stay current.** The card polls `unfold_work_item_revision`, described below.
 
-Each action tool asks for the person's confirmation exactly as it does for a call the model makes. The host's MCP client answers that confirmation. The view never sends `inputResponses` or `requestState`. When an `input_required` result is handed back to the view, the view shows "not confirmed". Links open through `ui/open-link`, and only for `http:` and `https:` URLs.
+Each action tool asks for the person's confirmation exactly as it does for a call the model makes. The host's MCP client answers that confirmation. The view never sends `inputResponses` or `requestState`. When an `input_required` result is handed back to the view, the view shows "not confirmed". Links open through `ui/open-link`, and only for `http:` and `https:` URLs. A view's call reaches the server like the model's own ([ext-apps#738](https://github.com/modelcontextprotocol/ext-apps/issues/738)), so a click in the card is never taken as the person's consent.
 
-A client that does not declare the extension gets the same answers as before MCP Apps support: no `resources` capability, no `_meta` on any tool, and `-32601` for `resources/list` and `resources/read`.
+#### The live card
+
+For every client, `unfold_get_work` also answers `updatedAt`, when Ploeg last changed the Work Item, and `revision`, a 22-character token of the whole answer. The token changes whenever any other field of the answer changes.
+
+`unfold_work_item_revision` takes `{id}` and reads the Work Item through `unfold_get_work`: the same Unfold API path, the same credential and the same Team and Tenant authorization. A refusal comes back as the same error. It answers a small summary: `{id, state, terminal, reason, waitsOnQuestion, pullRequestUrl, runs: {shown, running, latest}, spend: {spentUsd, latestShiftUsd, budgetUsd}, lastUpdated, revision, demo, summary}`. Only a client that declares MCP Apps may list or call it. Any other client gets `-32602` "Unknown tool".
+
+The card polls it through the host's `tools/call` bridge:
+
+- **Pace.** One call every 20 seconds while both the document and the card are visible. The card checks the document with `visibilitychange` and itself with an `IntersectionObserver`. A call that falls due while the card is hidden runs as soon as the card is visible again.
+- **Errors.** After each failed call the wait doubles, up to 5 minutes. One success brings back the 20-second pace.
+- **Re-render.** The card calls `unfold_get_work` and re-renders only when `revision` differs from the one it shows. It keeps the text typed in its fields, and skips the check while one of its actions waits for the person.
+- **Stop.** Polling stops once the Work Item is `done` or `withdrawn`, when the host tears the view down, and when the person goes back to the Now list.
+- **Announce.** A changed state is announced in a polite live region outside the card, for example "Work Item 7 is now Ready for review." The card itself is not a live region, so a re-render is not read out in full.
+
+Every poll goes through the host. The view's Content Security Policy keeps `connect-src 'none'`, and its `_meta.ui.csp` asks the host for no domain.
+
+A client that does not declare the extension gets the same answers as before MCP Apps support: no `resources` capability, no `_meta` on any tool, no `unfold_work_item_revision`, and `-32601` for `resources/list` and `resources/read`.
 
 ## Agent host
 

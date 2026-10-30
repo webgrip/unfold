@@ -232,6 +232,95 @@ export function renderNow(doc, root, data, ui) {
   return model;
 }
 
+/** The app-only tool the card polls; hosts keep it out of the model's tool list. */
+export const revisionTool = 'unfold_work_item_revision';
+/** How long a visible card waits between checks, and the longest wait after repeated errors. */
+export const pollEveryMs = 20_000;
+export const pollAtMostMs = 300_000;
+const terminalStates = new Set(['done', 'withdrawn']);
+
+/** Whether a Work Item state is final, so its card stops checking for changes. */
+export function isTerminal(state) { return terminalStates.has(String(state ?? '')); }
+
+/**
+ * Runs `check` every `everyMs` while the page and the card are both visible. `check` resolves `'stop'` to end the
+ * polling and rejects on an error, which doubles the wait up to `atMostMs`. A check that is due while hidden runs as
+ * soon as the card is visible again. `setTimer`, `clearTimer` and `now` are the clock, so tests can drive it.
+ */
+export function createPoller({ check, setTimer, clearTimer, now, everyMs = pollEveryMs, atMostMs = pollAtMostMs }) {
+  const seen = { page: true, screen: true };
+  let timer = null;
+  let running = false;
+  let stopped = false;
+  let failures = 0;
+  let dueAt = now() + everyMs;
+  const visible = () => seen.page && seen.screen;
+  const disarm = () => { if (timer !== null) { clearTimer(timer); timer = null; } };
+  const arm = () => {
+    if (stopped || running || timer !== null || !visible()) return;
+    timer = setTimer(fire, Math.max(0, dueAt - now()));
+  };
+  async function fire() {
+    timer = null;
+    if (stopped || !visible()) return;
+    running = true;
+    try {
+      const outcome = await check();
+      failures = 0;
+      if (outcome === 'stop') stopped = true;
+    } catch { failures += 1; }
+    running = false;
+    dueAt = now() + Math.min(atMostMs, everyMs * 2 ** failures);
+    arm();
+  }
+  arm();
+  return {
+    setVisible(kind, value) { seen[kind] = Boolean(value); if (!visible()) disarm(); arm(); },
+    stop() { stopped = true; disarm(); },
+    get state() { return { stopped, running, scheduled: timer !== null, failures, visible: visible(), dueAt }; },
+  };
+}
+
+/**
+ * One check of a shown card: asks `call` for the revision tool's answer and, only when the revision differs from
+ * `card.revision`, reads `unfold_get_work` again and hands it to `refresh`, which renders it and returns the new model.
+ * It skips the check while `busy()` says an action is under way, announces a changed state, and resolves `'stop'` once
+ * the Work Item is final.
+ */
+export function revisionCheck(card, { call, refresh, announce, busy = () => false }) {
+  return async () => {
+    if (isTerminal(card.state)) return 'stop';
+    if (busy()) return 'continue';
+    const answer = await call(revisionTool, { id: card.id });
+    if (!answer.done || !answer.structured) throw new Error(answer.text || 'Unfold did not answer.');
+    const latest = answer.structured;
+    if (latest.revision !== card.revision) {
+      if (busy()) return 'continue';
+      const work = await call('unfold_get_work', { id: card.id });
+      if (!work.done || !work.structured) throw new Error(work.text || 'Unfold did not answer.');
+      const before = card.label;
+      const model = refresh(work.structured);
+      card.revision = String(work.structured.revision ?? latest.revision);
+      card.state = model.state;
+      card.label = model.label;
+      if (model.label !== before) announce(`Work Item ${card.id} is now ${model.label}.`);
+    }
+    return isTerminal(card.state) || latest.terminal === true ? 'stop' : 'continue';
+  };
+}
+
+function keepDrafts(root, render) {
+  const fields = root.querySelectorAll ? [...root.querySelectorAll('textarea')] : [];
+  const drafts = new Map(fields.filter(field => field.value).map(field => [field.name, field.value]));
+  const focused = fields.find(field => field.ownerDocument?.activeElement === field)?.name ?? null;
+  const model = render();
+  if (root.querySelectorAll) for (const field of root.querySelectorAll('textarea')) {
+    if (drafts.has(field.name)) field.value = drafts.get(field.name);
+    if (field.name === focused) field.focus();
+  }
+  return model;
+}
+
 /** Starts the view inside its host frame: the `ui/initialize` handshake, then rendering each tool result. */
 export async function boot(win) {
   const doc = win.document;
@@ -240,48 +329,74 @@ export async function boot(win) {
   const bridge = createBridge({ post: message => win.parent.postMessage(message, '*'), listen: receive => win.addEventListener('message', event => { if (event.source === win.parent) receive(event.data); }) });
   const theme = context => { if (context?.theme === 'light' || context?.theme === 'dark') doc.documentElement.dataset.theme = context.theme; };
   let showing = null;
+  let acting = 0;
+  let poller = null;
+  const seen = { page: doc.visibilityState !== 'hidden', screen: true };
+  const announcer = doc.getElementById('unfold-announce');
+  const announce = text => { if (announcer) announcer.textContent = text; };
+  const unfollow = () => { poller?.stop(); poller = null; };
+  const showCard = data => {
+    showing = keepDrafts(root, () => renderWorkItem(doc, root, data, ui));
+    addBack();
+    return showing;
+  };
+  const follow = data => {
+    unfollow();
+    if (!showing || isTerminal(showing.state)) return;
+    const card = { id: showing.id, state: showing.state, label: showing.label, revision: String(data?.revision ?? '') };
+    const check = revisionCheck(card, { call: (name, args) => callTool(bridge, name, args), refresh: showCard, announce, busy: () => acting > 0 });
+    poller = createPoller({ check, setTimer: (fire, ms) => win.setTimeout(fire, ms), clearTimer: timer => win.clearTimeout(timer), now: () => Date.now() });
+    poller.setVisible('page', seen.page);
+    poller.setVisible('screen', seen.screen);
+  };
+  doc.addEventListener('visibilitychange', () => { seen.page = doc.visibilityState !== 'hidden'; poller?.setVisible('page', seen.page); });
+  if (typeof win.IntersectionObserver === 'function') new win.IntersectionObserver(entries => { seen.screen = entries.some(entry => entry.isIntersecting); poller?.setVisible('screen', seen.screen); }).observe(root);
   const ui = {
     open(url) { const safe = safeLink(url); if (safe) bridge.request('ui/open-link', { url: safe }).catch(() => {}); },
     async show(id) {
       const answer = await callTool(bridge, 'unfold_get_work', { id }).catch(error => ({ done: false, text: String(error.message) }));
-      if (answer.done && answer.structured) { showing = renderWorkItem(doc, root, answer.structured, ui); addBack(); }
+      if (answer.done && answer.structured) { showCard(answer.structured); follow(answer.structured); }
     },
     async act(tool, args, say) {
-      const answer = await callTool(bridge, tool, args).catch(error => ({ done: false, error: true, text: String(error.message) }));
-      if (!answer.done) return say(answer.text, answer.unconfirmed ? 'attention' : 'danger');
-      const result = answer.structured ?? {};
-      if (tool === 'unfold_ask' && result.needsModel && args.use_model !== true) {
-        say(String(result.summary ?? ''), 'attention');
-        const again = doc.createElement('button');
-        again.type = 'button'; again.textContent = 'Ask a model…';
-        again.addEventListener('click', () => { again.remove(); say('Waiting for your AI client…'); ui.act('unfold_ask', { ...args, use_model: true }, say); });
-        root.querySelector('.actions [data-act="ask"]')?.append(again);
-        return;
-      }
-      if (tool === 'unfold_ask') {
-        const out = root.querySelector('.actions .answer');
-        if (out && result.untrusted?.answer) { out.textContent = String(result.untrusted.answer); out.hidden = false; }
-        return say(String(result.summary ?? ''), result.asked ? 'success' : 'attention');
-      }
-      say(String(result.summary ?? answer.text), result.done ? 'success' : 'attention');
-      if (result.done && showing) ui.show(showing.id);
+      acting += 1;
+      try { await perform(tool, args, say); } finally { acting -= 1; }
     },
+  };
+  const perform = async (tool, args, say) => {
+    const answer = await callTool(bridge, tool, args).catch(error => ({ done: false, error: true, text: String(error.message) }));
+    if (!answer.done) return say(answer.text, answer.unconfirmed ? 'attention' : 'danger');
+    const result = answer.structured ?? {};
+    if (tool === 'unfold_ask' && result.needsModel && args.use_model !== true) {
+      say(String(result.summary ?? ''), 'attention');
+      const again = doc.createElement('button');
+      again.type = 'button'; again.textContent = 'Ask a model…';
+      again.addEventListener('click', () => { again.remove(); say('Waiting for your AI client…'); ui.act('unfold_ask', { ...args, use_model: true }, say); });
+      root.querySelector('.actions [data-act="ask"]')?.append(again);
+      return;
+    }
+    if (tool === 'unfold_ask') {
+      const out = root.querySelector('.actions .answer');
+      if (out && result.untrusted?.answer) { out.textContent = String(result.untrusted.answer); out.hidden = false; }
+      return say(String(result.summary ?? ''), result.asked ? 'success' : 'attention');
+    }
+    say(String(result.summary ?? answer.text), result.done ? 'success' : 'attention');
+    if (result.done && showing) ui.show(showing.id);
   };
   let nowData = null;
   const addBack = () => {
     if (view !== 'now' || !nowData) return;
     const back = doc.createElement('button');
     back.type = 'button'; back.className = 'back'; back.textContent = '← What waits for you';
-    back.addEventListener('click', () => { showing = null; renderNow(doc, root, nowData, ui); });
+    back.addEventListener('click', () => { showing = null; unfollow(); renderNow(doc, root, nowData, ui); });
     root.prepend(back);
   };
   bridge.onNotification('ui/notifications/tool-result', result => {
     const data = result?.structuredContent;
-    if (!data || result.isError) { root.textContent = 'Unfold did not answer this call; the text answer says why.'; return; }
-    if (view === 'now') { nowData = data; showing = null; renderNow(doc, root, data, ui); } else showing = renderWorkItem(doc, root, data, ui);
+    if (!data || result.isError) { unfollow(); root.textContent = 'Unfold did not answer this call; the text answer says why.'; return; }
+    if (view === 'now') { nowData = data; showing = null; unfollow(); renderNow(doc, root, data, ui); } else { showCard(data); follow(data); }
   });
   bridge.onNotification('ui/notifications/host-context-changed', theme);
-  bridge.onRequest('ui/resource-teardown', () => ({}));
+  bridge.onRequest('ui/resource-teardown', () => { unfollow(); return {}; });
   bridge.onRequest('ping', () => ({}));
   const init = await bridge.request('ui/initialize', { protocolVersion: appProtocolVersion, appCapabilities: { availableDisplayModes: ['inline'] }, clientInfo: { name: 'unfold-view', version: '1' } });
   theme(init?.hostContext);

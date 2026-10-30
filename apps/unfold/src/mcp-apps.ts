@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 /** The MCP Apps extension identifier, under `capabilities.extensions` (MCP Apps 2026-01-26). */
@@ -35,7 +36,8 @@ ${inline(styles, 'style')}
 </style>
 </head>
 <body>
-<main id="unfold-app" aria-live="polite"><p class="muted">Loading…</p></main>
+<main id="unfold-app"><p class="muted">Loading…</p></main>
+<p id="unfold-announce" class="visually-hidden" role="status" aria-live="polite"></p>
 <script type="module">
 ${inline(script, 'script')}
 </script>
@@ -66,5 +68,66 @@ export function readMcpAppResource(uri: unknown): Json[] | undefined {
 /** The `_meta` a tool carries in `tools/list` for a capable client when it has a view: the nested key and the deprecated flat one. */
 export function mcpAppToolMeta(tool: string): Json | undefined {
   const view = views.find(entry => entry.tool === tool);
+  if (tool === cardRevisionTool) return { ui: { resourceUri: 'ui://unfold/work-item', visibility: ['app'] } };
   return view ? { ui: { resourceUri: view.uri, visibility: ['model', 'app'] }, 'ui/resourceUri': view.uri } : undefined;
+}
+
+/** The tool the Work Item card polls to stay current. Only a view may call it: hosts keep it out of the model's tool list. */
+export const cardRevisionTool = 'unfold_work_item_revision';
+
+const terminalStates = new Set(['done', 'withdrawn']);
+const nullable = (type: string) => ({ type: [type, 'null'] });
+
+/** Whether a tool is offered only to MCP Apps views, so only a client that declares the extension may list or call it. */
+export function appOnlyTool(name: unknown): boolean { return name === cardRevisionTool; }
+
+/** The `tools/list` definition of the card's revision tool, without its `run`. */
+export const cardRevisionDefinition = {
+  name: cardRevisionTool, title: 'Work Item card revision',
+  description: 'For the Work Item card only: a small summary of one Work Item and a revision token that changes whenever unfold_get_work would answer differently. The card polls it while the person can see it.',
+  inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Work Item id, or an Unfold link to it' } }, required: ['id'], additionalProperties: false },
+  outputSchema: {
+    type: 'object', additionalProperties: false,
+    required: ['id', 'state', 'terminal', 'reason', 'waitsOnQuestion', 'pullRequestUrl', 'runs', 'spend', 'lastUpdated', 'revision', 'demo', 'summary'],
+    properties: {
+      id: { type: 'string' }, state: { type: 'string' }, terminal: { type: 'boolean', description: 'True once the Work Item is done or withdrawn; the card then stops polling' },
+      reason: { ...nullable('object'), properties: { chip: { type: 'string' }, sentence: { type: 'string' }, action: { type: 'string' } } },
+      waitsOnQuestion: { type: 'boolean' }, pullRequestUrl: nullable('string'),
+      runs: { type: 'object', properties: { shown: { type: 'number' }, running: { type: 'number' }, latest: { ...nullable('object'), properties: { role: { type: 'string' }, round: { type: ['number', 'null'] }, result: { type: 'string' } } } } },
+      spend: { type: 'object', properties: { spentUsd: { type: 'number' }, latestShiftUsd: nullable('number'), budgetUsd: nullable('number') } },
+      lastUpdated: { ...nullable('string'), description: 'When Ploeg last changed the Work Item' },
+      revision: { type: 'string', description: 'The same while unfold_get_work answers the same' },
+      demo: { type: 'boolean' }, summary: { type: 'string' },
+    },
+  },
+};
+
+/** A short token for one `unfold_get_work` answer: equal answers give the same token, and any change gives another. */
+export function workRevision(work: Json): string {
+  const { revision: _revision, ...rest } = work;
+  return createHash('sha256').update(JSON.stringify(rest)).digest('base64url').slice(0, 22);
+}
+
+/** The `unfold_get_work` answer with its `revision`. */
+export function withRevision(work: Json): Json { return { ...work, revision: workRevision(work) }; }
+
+/** What the card's revision tool answers, reduced from the `unfold_get_work` answer it reads through the same path. */
+export function cardRevision(work: Json): Json {
+  const item = work.item ?? {};
+  const state = String(item.state ?? '');
+  const shifts = Array.isArray(work.shifts) ? work.shifts : [];
+  const runs = Array.isArray(work.runs) ? work.runs : [];
+  const latestShift = shifts.at(-1);
+  const latestRun = runs.at(-1);
+  const amount = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 100) / 100 : null;
+  const reason = work.reason ? { chip: String(work.reason.chip ?? ''), sentence: String(work.reason.sentence ?? ''), action: String(work.reason.action ?? work.reason.fix ?? '') } : null;
+  return {
+    id: String(item.id ?? ''), state, terminal: terminalStates.has(state), reason, waitsOnQuestion: item.waitsOnQuestion === true, pullRequestUrl: item.pullRequestUrl ? String(item.pullRequestUrl) : null,
+    runs: { shown: runs.length, running: runs.filter((run: Json) => run.state === 'running').length, latest: latestRun ? { role: String(latestRun.role ?? ''), round: typeof latestRun.round === 'number' ? latestRun.round : null, result: String(latestRun.verdict || latestRun.outcome || latestRun.state || '') } : null },
+    spend: { spentUsd: amount(shifts.reduce((sum: number, shift: Json) => sum + (Number(shift.spentUsd) || 0), 0)) ?? 0, latestShiftUsd: amount(latestShift?.spentUsd), budgetUsd: amount(latestShift?.budgetUsd) },
+    lastUpdated: typeof work.updatedAt === 'string' ? work.updatedAt : null,
+    revision: typeof work.revision === 'string' ? work.revision : workRevision(work),
+    demo: /illustrative demo/i.test(String(work.summary ?? '')),
+    summary: `Work Item ${String(item.id ?? '')} is ${state}${reason?.chip ? `: ${reason.chip}` : ''}.`,
+  };
 }

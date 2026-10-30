@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { application } from './api-support.ts';
 import { createMcpServer } from '../src/mcp.ts';
-import { mcpAppMimeType, mcpAppPolicy, mcpAppsExtension } from '../src/mcp-apps.ts';
+import { cardRevision, cardRevisionTool, mcpAppMimeType, mcpAppPolicy, mcpAppsExtension, workRevision } from '../src/mcp-apps.ts';
 // @ts-ignore The view is browser JavaScript without type declarations.
 import * as view from '../public/mcp-apps/view.js';
 
@@ -50,6 +50,7 @@ test('a client that declares MCP Apps gets the extension, two ui:// resources an
 
   const listed = (await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))?.result.tools as Json[];
   for (const tool of listed) {
+    if (tool.name === cardRevisionTool) { assert.deepEqual(tool._meta, { ui: { resourceUri: 'ui://unfold/work-item', visibility: ['app'] } }); continue; }
     if (!viewed.includes(tool.name)) { assert.equal(tool._meta, undefined, tool.name); continue; }
     const uri = tool.name === 'unfold_now' ? 'ui://unfold/now' : 'ui://unfold/work-item';
     assert.deepEqual(tool._meta, { ui: { resourceUri: uri, visibility: ['model', 'app'] }, 'ui/resourceUri': uri }, tool.name);
@@ -282,4 +283,215 @@ test('the view answers host requests and ignores replies it did not ask for', as
   host.deliver({ jsonrpc: '2.0', id: 'unknown', result: {} });
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(host.sent, [{ jsonrpc: '2.0', id: 'h2', error: { code: -32601, message: 'Method sampling/createMessage is not supported.' } }, { jsonrpc: '2.0', id: 'h1', result: {} }]);
+});
+
+test('the card revision tool is offered only to MCP Apps views, hidden from the model, and answers the revision unfold_get_work carries', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const server = createMcpServer({ url: demo.url, version: 'test' });
+  await server.handle(initialize(ui));
+  const listed = (await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))?.result.tools as Json[];
+  const tool = listed.find(entry => entry.name === cardRevisionTool)!;
+  assert.deepEqual(tool._meta.ui.visibility, ['app'], 'a host keeps it out of the model tool list');
+  assert.equal(tool.annotations.readOnlyHint, true);
+
+  const call = async (name: string, id: string) => (await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: { id } } }))!.result;
+  const work = (await call('unfold_get_work', '101')).structuredContent;
+  assert.match(work.revision, /^[\w-]{22}$/);
+  assert.equal(work.revision, workRevision(work));
+  assert.equal(typeof work.updatedAt, 'string');
+  const first = await call(cardRevisionTool, '101');
+  const second = await call(cardRevisionTool, '101');
+  assert.equal(first.isError, undefined);
+  assert.deepEqual(first.structuredContent, second.structuredContent, 'an unchanged Work Item answers the same revision');
+  const summary = first.structuredContent;
+  assert.equal(summary.revision, work.revision);
+  assert.deepEqual(summary, cardRevision(work));
+  assert.equal(summary.id, '101');
+  assert.equal(summary.state, 'needs_human');
+  assert.equal(summary.terminal, false);
+  assert.equal(summary.demo, true);
+  assert.equal(summary.lastUpdated, work.updatedAt);
+  assert.equal(typeof summary.reason.chip, 'string');
+  assert.equal(JSON.stringify(summary).length < 1200, true, 'the answer stays small');
+  assert.notEqual((await call(cardRevisionTool, '106')).structuredContent.revision, summary.revision);
+
+  const plain = createMcpServer({ url: demo.url, version: 'test' });
+  await plain.handle(initialize({}));
+  const plainTools = (await plain.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))?.result.tools as Json[];
+  assert.equal(plainTools.some(entry => entry.name === cardRevisionTool), false);
+  const refused = await plain.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: cardRevisionTool, arguments: { id: '101' } } });
+  assert.equal(refused?.error.code, -32602, 'a client without MCP Apps cannot call it');
+});
+
+test('the card revision tool reads through the same authorized path as unfold_get_work and fails the same way', async () => {
+  const seen: { url: string; authorization: string | null }[] = [];
+  const detail = { item: { id: '7', state: 'done', title: 'Ship it', team: 'delivery', updatedAt: '2026-10-30T10:00:00Z', pullRequestUrl: 'https://forge.example/pr/3' }, shifts: [{ id: '1', round: 1, budgetUsd: 2, spentUsd: 0.4567 }], runs: [{ id: '1', role: 'implementer', round: 1, state: 'finished', outcome: 'finished', usage: { costUsd: 0.45 } }], events: [] };
+  const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    seen.push({ url, authorization: new Headers(init?.headers).get('authorization') });
+    if (url.endsWith('/work-items/8')) return new Response(JSON.stringify({ error: { code: 'forbidden', message: 'no' } }), { status: 403 });
+    if (url.endsWith('/work-items/9')) return new Response('{}', { status: 404 });
+    return new Response(JSON.stringify(detail), { status: 200 });
+  }) as typeof fetch;
+  const token = `vle_${'r'.repeat(43)}`;
+  const server = createMcpServer({ url: 'https://unfold.example', token, fetch: fetcher });
+  const call = async (name: string, id: string) => (await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { id }, _meta: modernMeta(ui) } }))!.result;
+
+  const summary = (await call(cardRevisionTool, 'https://unfold.example/#work/7')).structuredContent;
+  assert.deepEqual(seen.at(-1), { url: 'https://unfold.example/api/ploeg/work-items/7', authorization: `Bearer ${token}` });
+  assert.equal(summary.terminal, true);
+  assert.equal(summary.pullRequestUrl, 'https://forge.example/pr/3');
+  assert.deepEqual(summary.spend, { spentUsd: 0.46, latestShiftUsd: 0.46, budgetUsd: 2 });
+  assert.deepEqual(summary.runs, { shown: 1, running: 0, latest: { role: 'implementer', round: 1, result: 'finished' } });
+  assert.equal(summary.lastUpdated, '2026-10-30T10:00:00Z');
+
+  for (const id of ['8', '9']) {
+    const viaCard = await call(cardRevisionTool, id);
+    const viaModel = await call('unfold_get_work', id);
+    assert.equal(viaCard.isError, true, id);
+    assert.deepEqual(viaCard.content, viaModel.content, `${id}: the same refusal as unfold_get_work`);
+  }
+});
+
+function fakeClock() {
+  let time = 0;
+  let next = 0;
+  const timers = new Map<number, { at: number; fire: () => void }>();
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  return {
+    now: () => time,
+    setTimer: (fire: () => void, ms: number) => { timers.set(++next, { at: time + ms, fire }); return next; },
+    clearTimer: (id: number) => { timers.delete(id); },
+    pending: () => timers.size,
+    async advance(ms: number) {
+      const end = time + ms;
+      for (;;) {
+        const due = [...timers.entries()].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!due) break;
+        timers.delete(due[0]);
+        time = due[1].at;
+        due[1].fire();
+        await flush();
+      }
+      time = end;
+      await flush();
+    },
+  };
+}
+
+test('the card polls every 20 seconds while visible, pauses offscreen or hidden, and catches up when shown again', async () => {
+  const clock = fakeClock();
+  let checks = 0;
+  const poller = view.createPoller({ check: async () => { checks += 1; return 'continue'; }, ...clock });
+  assert.equal(view.pollEveryMs, 20_000);
+  await clock.advance(19_999);
+  assert.equal(checks, 0);
+  await clock.advance(1);
+  assert.equal(checks, 1);
+  await clock.advance(20_000);
+  assert.equal(checks, 2);
+
+  poller.setVisible('screen', false);
+  assert.equal(clock.pending(), 0, 'nothing is scheduled while the card is scrolled away');
+  await clock.advance(120_000);
+  assert.equal(checks, 2);
+  poller.setVisible('screen', true);
+  await clock.advance(0);
+  assert.equal(checks, 3, 'a check that fell due while offscreen runs at once');
+
+  poller.setVisible('page', false);
+  await clock.advance(60_000);
+  assert.equal(checks, 3, 'nothing runs while the document is hidden');
+  poller.setVisible('screen', false);
+  poller.setVisible('page', true);
+  await clock.advance(60_000);
+  assert.equal(checks, 3, 'both must be visible');
+  poller.setVisible('screen', true);
+  await clock.advance(0);
+  assert.equal(checks, 4);
+
+  poller.stop();
+  await clock.advance(100_000);
+  assert.equal(checks, 4);
+  assert.equal(poller.state.stopped, true);
+});
+
+test('the card backs off on errors up to five minutes and stops for good once the check says stop', async () => {
+  const clock = fakeClock();
+  const at: number[] = [];
+  let fail = true;
+  const poller = view.createPoller({ check: async () => { at.push(clock.now()); if (fail) throw new Error('host refused'); return 'continue'; }, ...clock });
+  await clock.advance(20_000 + 40_000 + 80_000 + 160_000 + 300_000 + 300_000);
+  assert.deepEqual(at, [20_000, 60_000, 140_000, 300_000, 600_000, 900_000], 'waits double after each error, at most five minutes');
+  assert.equal(poller.state.failures, 6);
+  fail = false;
+  await clock.advance(300_000);
+  assert.equal(poller.state.failures, 0);
+  await clock.advance(20_000);
+  assert.deepEqual(at.slice(-2), [1_200_000, 1_220_000], 'one success brings back the normal pace');
+
+  let calls = 0;
+  const own = fakeClock();
+  const ended = view.createPoller({ check: async () => { calls += 1; return 'stop'; }, ...own });
+  await own.advance(200_000);
+  assert.equal(calls, 1);
+  assert.equal(ended.state.stopped, true);
+  assert.equal(own.pending(), 0);
+});
+
+test('a check re-renders the card only when the revision changes, announces a new state, and stops on a final one', async () => {
+  const calls: { name: string; args: Json }[] = [];
+  const answers: Record<string, Json> = {};
+  const call = async (name: string, args: Json) => { calls.push({ name, args }); return { done: true, structured: answers[name] }; };
+  const rendered: Json[] = [];
+  const announced: string[] = [];
+  let busy = false;
+  const card = { id: '7', state: 'active', label: 'Running', revision: 'r1' };
+  const check = view.revisionCheck(card, { call, refresh: (data: Json) => { rendered.push(data); return view.workItemModel(data); }, announce: (text: string) => announced.push(text), busy: () => busy });
+
+  answers[cardRevisionTool] = { revision: 'r1', state: 'active', terminal: false };
+  assert.equal(await check(), 'continue');
+  assert.equal(await check(), 'continue');
+  assert.deepEqual(calls.map(entry => entry.name), [cardRevisionTool, cardRevisionTool]);
+  assert.deepEqual(calls[0].args, { id: '7' });
+  assert.equal(rendered.length, 0, 'an unchanged revision never re-renders');
+
+  answers[cardRevisionTool] = { revision: 'r2', state: 'active', terminal: false };
+  answers.unfold_get_work = { item: { id: '7', state: 'active' }, revision: 'r2' };
+  assert.equal(await check(), 'continue');
+  assert.equal(rendered.length, 1);
+  assert.equal(card.revision, 'r2');
+  assert.deepEqual(announced, [], 'the same state is not announced again');
+
+  busy = true;
+  answers[cardRevisionTool] = { revision: 'r3', state: 'awaiting_review', terminal: false };
+  assert.equal(await check(), 'continue');
+  assert.equal(rendered.length, 1, 'no re-render while an action waits for the person');
+  busy = false;
+
+  answers.unfold_get_work = { item: { id: '7', state: 'awaiting_review' }, revision: 'r3' };
+  assert.equal(await check(), 'continue');
+  assert.deepEqual(announced, ['Work Item 7 is now Ready for review.']);
+
+  answers[cardRevisionTool] = { revision: 'r4', state: 'done', terminal: true };
+  answers.unfold_get_work = { item: { id: '7', state: 'done' }, revision: 'r4' };
+  assert.equal(await check(), 'stop');
+  assert.equal(announced.at(-1), 'Work Item 7 is now Done.');
+  const before = calls.length;
+  assert.equal(await check(), 'stop');
+  assert.equal(calls.length, before, 'a final Work Item is not asked again');
+
+  const failing = view.revisionCheck({ id: '8', state: 'active', label: 'Running', revision: 'x' }, { call: async () => ({ done: false, error: true, text: 'Not found, or outside the Teams your Unfold user may read.' }), refresh: () => { throw new Error('never'); }, announce() {} });
+  await assert.rejects(failing(), /Not found/, 'an error reaches the poller, which backs off');
+  assert.equal(view.isTerminal('withdrawn'), true);
+});
+
+test('the view announces changes in a polite live region outside the card, and the card itself is not live', async () => {
+  const server = createMcpServer({ url: 'http://127.0.0.1:9' });
+  await server.handle(initialize(ui));
+  const html = (await server.handle({ jsonrpc: '2.0', id: 1, method: 'resources/read', params: { uri: 'ui://unfold/work-item' } }))?.result.contents[0].text as string;
+  assert.match(html, /<main id="unfold-app">/);
+  assert.match(html, /<p id="unfold-announce" class="visually-hidden" role="status" aria-live="polite"><\/p>/);
+  assert.match(html, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(html, /text-overflow:\s*ellipsis/);
 });
