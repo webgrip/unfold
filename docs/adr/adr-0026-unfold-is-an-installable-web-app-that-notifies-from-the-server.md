@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-05
+status: accepted
+date: 2026-10-30
 decision-makers: Ryan Grippeling
 ---
 
@@ -35,10 +35,10 @@ This covers the Unfold web application. Design detail is in [RFC-0004](../design
 
 Chosen option: "**An installable web app with server-side notifications, and a native shell only on a measured need**". It reuses all of `public/`, needs no store, and solves the notification gap that actually costs time.
 
-* `public/sw.js` caches the shell and serves API reads network-first. It never queues a mutation offline.
+* The shell cache and offline behaviour moved to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md), which is still proposed. `public/sw.js` here only receives and shows pushed notifications.
 * A server-side notifier sends one notification per Work Item state change that needs a person: Needs you, proposed and awaiting approval, pull request ready, and a long capacity wait. It sends only to people who can read that Team.
 * Delivery is ntfy first, because it is already deployed and reachable off-LAN, and Web Push second.
-* A narrow triage view serves phones. It does not merge, because Unfold never merges.
+* The phone triage view moved to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md).
 * Rust enters only as the host of a Tauri shell, if Phase 2 of RFC-0004 is ever triggered. The server and frontend are not rewritten.
 
 Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
@@ -53,10 +53,7 @@ Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 
 ### Confirmation
 
-* `mise run verify` includes a browser check (`npm run test:browser`) that:
-  * registers `public/sw.js`;
-  * loads the shell offline;
-  * proves an approve request made offline fails visibly and is not retried later.
+* The offline browser check belongs to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md).
 * A notifier test proves one notification per Work Item state change, and none for a person without read access to the Team.
 * `apps/unfold/package.json` keeps `ws` as its only runtime dependency, and the frontend has no build step. Review rejects a change that breaks either.
 
@@ -84,3 +81,4 @@ Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 * Re-open with a native shell when biometric approval, deep links, a tray, or iOS push without Add to Home Screen is asked for twice.
 * 2026-10-05: proposed with [RFC-0004](../design/rfc-0004-unfold-on-phones-and-desktops.md).
 * 2026-10-30: the server-side notifier is built behind the `notifications.push` flag, off by default ([Get notified](../../apps/unfold/docs/operations/notifications.md)): ntfy and Web Push as adapters in one channel registry, per-person opt-in with quiet hours, and `public/sw.js` for push only. The shell cache, the offline browser check and the triage view are not built, so the record stays proposed.
+* 2026-10-30: accepted by the owner for the server-side notifier and its delivery. The shell cache, the offline check and the phone triage view moved to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md), proposed.

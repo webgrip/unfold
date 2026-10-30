@@ -341,7 +341,7 @@ export function deliveriesMarkup(view, windowName, demo, helpers) {
   }));
   const table = ui.table({ caption: `Deliveries, last ${windowName}`, columns, rows, rowHeader: true, region: false, className: 'insights-table', empty: escape(`No Work Item was attempted in the last ${windowName}.`) });
   const extra = ledger.calendar.nonWorkingDates.length ? `, less ${plural(ledger.calendar.nonWorkingDates.length, 'configured date')}` : '';
-  const note = `A Work Item is accepted when its pull request merged, a person approved it, or nobody decided for ${ledger.calendar.silentAfterWorkingDays} working days after the agents' last writing Run; Ploeg records no ready-for-review moment, so that Run stands in for it. Working days are Monday to Friday${extra}; this calendar is proposed. The Token Charge base is the settled cost of every attempt, failed Runs included, before any Markup. These are figures only: nothing is charged, and Credits, the Delivery Fee and invoices are not built.`;
+  const note = `A Work Item is accepted when its pull request merged, a person approved it, or nobody decided for ${ledger.calendar.silentAfterWorkingDays} working days after the agents' last writing Run; Ploeg records no ready-for-review moment, so that Run stands in for it. Working days are Monday to Friday${extra}. The Token Charge base is the settled cost of every attempt, failed Runs included, before any Markup. These are figures only: nothing is charged, and Credits, the Delivery Fee and invoices are not built.`;
   return `<p class="meta">${escape(summary)}</p><div class="card flush insights-deliveries">${table}</div><p class="meta insights-deliveries-note">${escape(note)}</p>`;
 }
 

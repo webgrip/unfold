@@ -598,7 +598,7 @@ test('the infrastructure step is said once per Work Item, naming each failure wh
 test('Insights lists Deliveries with Acceptance, Token Charge base and unsettled spend, and the demo shows no amounts', () => {
   const deliveries = {
     demo: false, window: '30d', scanned: 3, truncated: false,
-    calendar: { workingDays: 'monday-friday', nonWorkingDates: ['2026-12-25'], silentAfterWorkingDays: 10, timeZone: 'UTC', proposed: true },
+    calendar: { workingDays: 'monday-friday', nonWorkingDates: ['2026-12-25'], silentAfterWorkingDays: 10, timeZone: 'UTC' },
     totals: { kinds: { merged: 1, approved: 0, silent: 1, closed_without_acceptance: 0, open: 1 }, tokenChargeBaseUsd: 3.5, unsettledUsd: 0.2, unsettledRuns: 1, unknownRuns: 1 },
     rows: [
       { workItemId: '41', externalRef: 'VIK-41', title: 'Round <totals>', team: 'delivery', state: 'done', acceptance: { kind: 'merged', at: '2026-10-05T09:00:00Z', pullRequestUrl: null }, readyForReviewAt: null, silentDueAt: null, tokenChargeBaseUsd: 1.25, unsettled: { runs: 0, usd: 0 }, unknownRuns: 0, runsTruncated: false },
@@ -612,7 +612,7 @@ test('Insights lists Deliveries with Acceptance, Token Charge base and unsettled
   assert.match(html, /<td>Accepted by silence<\/td><td>17-10-2026<\/td><td class="num">US\$\s2,25<\/td><td class="num">1 Run not reported<\/td>/);
   assert.match(html, /<td>Open<\/td><td>Silent on 10-11-2026<\/td><td class="num">US\$\s0,00<\/td><td class="num">US\$\s0,20 · 1 Run<\/td>/);
   assert.match(html, /1 merged · 1 accepted by silence · 1 open · Token Charge base US\$\s3,50 · US\$\s0,20 unsettled/);
-  assert.match(html, /Monday to Friday, less 1 configured date; this calendar is proposed/);
+  assert.match(html, /Monday to Friday, less 1 configured date\./);
   assert.match(html, /nothing is charged, and Credits, the Delivery Fee and invoices are not built/);
   assert.doesNotMatch(html, /<svg|<canvas|role="region"/);
   assert.match(deliveriesCsvLink({ deliveries }, '30d', false, helpers), /href="\/api\/ploeg\/deliveries\?window=30d&amp;format=csv" download>Download CSV</);

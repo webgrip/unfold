@@ -39,7 +39,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0023](adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) | Unfold measures happiness and confusion with first-party events, surveys and bug reports | accepted | 2026-10-05 |
 | [ADR-0024](adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md) | Bug reports are filed by Unfold into the tenant's own tracker | accepted | 2026-10-05 |
 | [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) | Unfold asks one ease question on anomalies and a random baseline | accepted | 2026-10-05 |
-| [ADR-0026](adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) | Unfold is an installable web app that notifies from the server | proposed | 2026-10-05 |
+| [ADR-0026](adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) | Unfold is an installable web app that notifies from the server | accepted | 2026-10-30 |
 | [ADR-0027](adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md) | Unfold checks its Ploeg client against Ploeg's published schemas | proposed | 2026-10-05 |
 | [ADR-0028](adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md) | Unfold owns the Run card and collects its inputs itself | superseded by ADR-0030 | 2026-10-10 |
 | [ADR-0029](adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | superseded by ADR-0030 | 2026-10-10 |
@@ -53,7 +53,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0037](adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | accepted | 2026-10-17 |
 | [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | accepted | 2026-10-18 |
 | [ADR-0039](adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) | Unfold depends on a released Ploeg through its contract bundle and Go module | accepted | 2026-10-18 |
-| [ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md) | Unfold's production runs on a rented EU Talos cluster, and the homelab is staging | accepted | 2026-10-18 |
+| [ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md) | Unfold's production runs on a rented EU Talos cluster, and the homelab is staging | accepted | 2026-10-30 |
 | [ADR-0041](adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md) | A Ploeg release opens Unfold's pin pull request by running Unfold's recipe | accepted | 2026-10-18 |
 | [ADR-0042](adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md) | A self-hosted decider reads what agents do and starts as a shadow tripwire | proposed | 2026-10-18 |
 | [ADR-0043](adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md) | An Unfold release is one chart that carries the Ploeg it was tested with | accepted | 2026-10-19 |
@@ -64,3 +64,5 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0048](adr-0048-projects-share-accounts-and-repositories-within-a-tenant-and-a-work-item-has-one-origin.md) | Projects share accounts and repositories within a Tenant, and a Work Item has one origin | proposed | 2026-10-29 |
 | [ADR-0049](adr-0049-a-client-sign-off-is-input-to-acceptance-bound-to-the-head-commit-and-each-client-has-an-approver.md) | A Client Sign-off is input to Acceptance, bound to the head commit and the whole change minus the Agency's exclusions, and each Client has an Approver | proposed | 2026-10-29 |
 | [ADR-0050](adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md) | Unfold integrates through open standards and registries and never locks a customer in | accepted | 2026-10-30 |
+| [ADR-0051](adr-0051-an-unowned-work-item-belongs-to-the-default-tenant-and-delegated-credentials-keep-shared-memberships.md) | A Work Item without a known owner belongs to the default Tenant, and a delegated credential keeps only memberships held twice | accepted | 2026-10-30 |
+| [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md) | Unfold works as an offline shell and offers a phone triage view | proposed | 2026-10-30 |

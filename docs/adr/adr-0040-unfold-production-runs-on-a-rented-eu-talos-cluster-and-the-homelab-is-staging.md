@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-10-18
+date: 2026-10-30
 decision-makers: Ryan Grippeling
 ---
 
@@ -38,9 +38,9 @@ Chosen option: "Rent one production cluster now, with the homelab as staging", b
 * **Accepted dependency.** The owner's own production work still reads Vikunja and Forgejo on the homelab, and CI runners on the bare-metal worker reach Forgejo there. During a homelab outage, production keeps serving and reconciling, and intake and CI stop. Clients' trackers and forges are their own.
 * **Demo.** A separate, read-only Unfold fed from a separate public Vikunja board, showing real Runs and their real euros, at `unfoldhq.dev`. This is a live view of real work, not [ADR-0015](adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)'s recorded replay of the deterministic demo; both keep ADR-0015's rule that a demo never pretends: the live demo shows real Runs only, never an invented one.
 * **Site.** The marketing site stays on Cloudflare ([ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md)).
-* **Gate.** Building starts only after the P0 items of the remediation epic (VIK-1714) have merged.
+* **Gate.** Staging may run on the cluster now ([unfold-cluster ADR-0017](https://forgejo.webgrip.dev/webgrip/unfold-cluster/src/branch/main/docs/adr/0017-staging-runs-here-with-agents-under-gvisor-on-the-hub.md)). Production (the owner's own production Unfold, the install proof, the webhook endpoint, nightly qualification and the demo) starts only after the P0 items of the remediation epic (VIK-1714) have merged, including [VIK-1732](https://vikunja.webgrip.dev/tasks/1732) (delivery facts come from the forge) and [VIK-1740](https://vikunja.webgrip.dev/tasks/1740) (people see only the sources and repositories they are entitled to).
 
-Not implemented yet: the repository and its infrastructure code exist (`webgrip/unfold-cluster`), no server is created.
+Staging runs on the cluster; production does not yet.
 
 ### Consequences
 
@@ -80,3 +80,4 @@ Not implemented yet: the repository and its infrastructure code exist (`webgrip/
 * 2026-10-18 — The owner raised the cap to €185 for a bare-metal Kata worker, dedicated the cloud worker to Unfold, put CI on the bare-metal worker under Kata, and chose the static seal, the GitHub mirror and the three-item secrets floor.
 * 2026-10-18 — Proposed.
 * 2026-10-18 — Accepted by the owner. `webgrip/unfold-cluster` now holds the OpenTofu, Talos inventory and workflow for this cluster.
+* 2026-10-30 — The owner split the gate: staging may run on the cluster before VIK-1714's P0 items merge, production may not.
