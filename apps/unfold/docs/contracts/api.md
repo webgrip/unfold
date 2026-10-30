@@ -651,6 +651,15 @@ Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](.
 | `POST /api/ofrep/v1/evaluate/flags` | OFREP 0.4.0 bulk evaluation for the signed-in person or editor: `{context}` → `{flags: [{key, value, reason, variant, metadata}]}` with an `ETag`; `If-None-Match` with that ETag answers 304. Only browser-visible flags are listed. The context's identity attributes (`targetingKey`, `userId`, `role`, `teams`, `tenantId`, `mode`, `labs`, `labsOff`, `flagVariants`) come from the session, and a client may add up to 32 scalar attributes of its own. Needs no `X-Unfold-Request` header |
 | `POST /api/ofrep/v1/evaluate/flags/:key` | OFREP single evaluation: 200 `{key, value, reason, variant, metadata}`, 404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed |
 
+## Security audit
+
+Unfold records security-relevant events as OCSF 1.9.0 in one hash chain per Tenant ([Send Unfold's audit to your SIEM](../operations/audit-siem.md)). Both routes need the Admin account role and an Admin membership of the Tenant asked for; `tenant` may be left out by someone who administers exactly one Tenant (400 `audit_tenant` otherwise, 403 `audit_tenant_forbidden` for a Tenant the caller does not administer).
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/admin/audit?tenant=&since=&cursor=&limit=` | `application/x-ndjson`: one OCSF event per line, oldest first, after sequence `cursor` (default 0) and from ISO time `since`, at most `limit` (1 to 1000, default 500). Headers: `X-Unfold-Audit-Tenant`, `X-Unfold-Audit-Head` (`<sequence>:<sha256>`), and when more follow `X-Unfold-Audit-Next-Cursor` and `Link: <…>; rel="next"`. 404 `audit_export_off` while the Tenant's `audit.export` flag is off; 400 `audit_since`, `audit_cursor` or `audit_limit` for a malformed value. Each read is itself recorded |
+| `GET /api/admin/audit/verify?tenant=` | `{tenant, ok, checked, anchor, head, break}`: the chain checked from its newest retention anchor; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. Answers whatever the flag says |
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.
