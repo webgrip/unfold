@@ -93,6 +93,16 @@ function json(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value));
 }
 
+/** Where the OpenAPI description of this API lives, served read-only at `GET /api/openapi.yaml`. */
+export const openApiDocument = new URL('../docs/contracts/openapi.yaml', import.meta.url);
+
+function sendOpenApi(res: ServerResponse): void {
+  let document: Buffer;
+  try { document = readFileSync(openApiDocument); } catch { return fault(404, 'not_found', 'This build carries no OpenAPI description.'); }
+  res.writeHead(200, { 'Content-Type': 'application/yaml; charset=utf-8', 'Cache-Control': 'no-cache' });
+  res.end(document);
+}
+
 const parsedBodies = new WeakMap<IncomingMessage, Record<string, unknown>>();
 
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -359,6 +369,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         res.setHeader('Set-Cookie', result.cookie);
         return json(res, 200, { user: result.user });
       }
+      if (method === 'GET' && path === '/api/openapi.yaml') return sendOpenApi(res);
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: localLoginEnabled(config), oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
         const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
