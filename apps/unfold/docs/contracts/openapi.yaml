@@ -4064,6 +4064,7 @@ paths:
               properties:
                 channels: { type: array, items: { type: string } }
                 triggers: { type: array, items: { type: string } }
+                handedOff: { type: boolean, description: 'Notices about work the person handed off; on unless false.' }
                 quietHours:
                   oneOf:
                     - type: 'null'
@@ -5685,7 +5686,7 @@ components:
               enabled: { type: boolean }
               demo: { type: boolean }
               triggers: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string }, detectedFrom: { type: string } } } }
-              preferences: { type: object, properties: { channels: { type: array, items: { type: string } }, triggers: { type: array, items: { type: string } }, quietHours: {} } }
+              preferences: { type: object, properties: { channels: { type: array, items: { type: string } }, triggers: { type: array, items: { type: string } }, quietHours: {}, handedOff: { type: boolean, const: false } } }
               channels: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string }, available: { type: boolean } } } }
               recent: { type: array, items: { type: object } }
               result: {}

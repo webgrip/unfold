@@ -3,14 +3,14 @@ type: how-to
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation: src/notify/ (settings.ts, channels.ts, web-push.ts, slack.ts, teams.ts, service.ts, store.ts, triggers.ts, preferences.ts), public/sw.js and public/views/notifications.js. test/notify-web-push.test.ts reproduced the RFC 8291 section 5 message and verified the RFC 8292 section 2.4 token; test/notifications.test.ts published to a local HTTP server standing in for ntfy; test/notify-slack-teams.test.ts drove local HTTP servers standing in for the Slack Web API and a Teams workflow. Slack and Teams request shapes were checked against docs.slack.dev and learn.microsoft.com on 2026-10-30. Not checked: a real ntfy server, delivery through a real browser push service, a real Slack workspace and a real Teams workflow."
+verified_by: "Written with the implementation: src/notify/ (settings.ts, channels.ts, web-push.ts, slack.ts, teams.ts, service.ts, store.ts, triggers.ts, preferences.ts, handed-off.ts), public/sw.js and public/views/notifications.js. test/notify-web-push.test.ts reproduced the RFC 8291 section 5 message and verified the RFC 8292 section 2.4 token; test/notify-handed-off.test.ts covers notices about handed-off work and their dedupe; test/notifications.test.ts published to a local HTTP server standing in for ntfy; test/notify-slack-teams.test.ts drove local HTTP servers standing in for the Slack Web API and a Teams workflow. Slack and Teams request shapes were checked against docs.slack.dev and learn.microsoft.com on 2026-10-30. Not checked: a real ntfy server, delivery through a real browser push service, a real Slack workspace and a real Teams workflow."
 ---
 
 # Get notified (ntfy, Web Push, Slack and Microsoft Teams)
 
 Unfold can tell people when something waits for them, while Unfold is closed. It sends from the server over two open channels you can host yourself, [ntfy](https://docs.ntfy.sh/) and Web Push ([RFC 8030](https://www.rfc-editor.org/rfc/rfc8030), encrypted with [RFC 8291](https://www.rfc-editor.org/rfc/rfc8291) and signed with [VAPID, RFC 8292](https://www.rfc-editor.org/rfc/rfc8292)), and over the two chat tools agencies and their clients already use: [Slack](#slack) and [Microsoft Teams](#microsoft-teams). This builds the notifier of [system ADR-0026](../../../../docs/adr/adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md), which is still proposed.
 
-It is off twice over: the `notifications.push` [feature flag](feature-flags.md) is off for everyone, and a person whose flag is on still gets nothing until they choose a channel and at least one moment under **Settings › Notifications**. Slack and Teams each have one more flag, `notifications.slack` and `notifications.teams`, also off for everyone.
+It is off twice over: the `notifications.push` [feature flag](feature-flags.md) is off for everyone, and a person whose flag is on still gets nothing until they choose a channel under **Settings › Notifications**. With a channel chosen, notices about work they handed off are on until they turn them off; every other moment is off until they choose it. Slack and Teams each have one more flag, `notifications.slack` and `notifications.teams`, also off for everyone.
 
 ## What tells a person
 
@@ -21,10 +21,21 @@ It is off twice over: the `notifications.push` [feature flag](feature-flags.md) 
 | A pull request is ready for review | `work_item.awaiting_review` | Readers of the Work Item |
 | A Client Sign-off was recorded | A current Client Sign-off is stored | Readers of the Work Item |
 | A budget threshold was crossed | After a Run's outcome, the latest Shift's spent and held money reaches 80 % or 100 % of its budget (`notifications.budgetThresholds`) | Readers of the Work Item, once per Shift and share |
+| Work I handed off (**Notify me about work I handed off**, on unless turned off) | A Work Item the person handed off starts needing a person (`work_item.needs_human` or `work_item.stale`) or reaches `work_item.awaiting_review` | The people whose latest hand-off of it, through any channel, still stands and who read it; once per transition |
 
 "Readers" means people whose Teams include the Work Item's Team and, while `tenancy.enforce` is on, whose Tenant or Client membership reaches it (system ADR-0017).
 
 A notice carries a fixed headline, the Work Item's number and its title with secrets masked, and a link into Unfold when `baseUrl` is set. It never carries a price, a spend figure, a Ploeg reason, a note, a question's text or a tool's arguments. A budget notice names the share, not the amount.
+
+## Work a person handed off
+
+Unfold finds who handed a Work Item off in the Action Records ([system ADR-0037](../../../../docs/adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md)): a tracker task handed to the Work Item's Team from a task connection of its tracker, or a Linked Session's Work Item handed to Ploeg, from the browser, an editor credential or `unfold-mcp`. A later take-back cancels a person's hand-off. A hand-off made in the tracker itself names no Unfold person, so nobody gets these notices for it.
+
+* **One per transition.** Unfold keeps the last moment it notified about per Work Item: needs you or ready for review. The same moment again, such as `work_item.stale` after `work_item.needs_human`, notifies nobody. A finished Run (`run.finished`), an approval, a new hand-off or `work_item.done` clears it, so needing the person again after the agent ran is a new notice. Each notice is also keyed by its Ploeg event, so reading an event twice queues nothing new.
+* **Instead of, not as well as.** The person who handed the Work Item off gets the hand-off notice ("Work you handed off needs you", "… asks you a question", "… has a pull request ready") in place of the general one for that event, also when they chose that trigger.
+* **Their choice holds.** Turning **Notify me about work I handed off** off drops notices already waiting. Quiet hours, the channel flags and the reader rules apply as for every notice, and the notice carries the same fields: the Work Item's number, its title with secrets masked and cut to 120 characters, and its link.
+
+The person's own view of what they handed off is the **Handed off by you** card on Now, read from `GET /api/handoffs` ([Follow the work you handed off](../../../../docs/how-to/follow-handed-off-work.md)).
 
 ## How delivery behaves
 

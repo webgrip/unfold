@@ -23,9 +23,10 @@ export function isTrigger(value: unknown): value is TriggerId { return typeof va
 export type NoticeSubject = { kind: 'permission'; sessionId: string; requestId: string };
 /**
  * What a channel sends: a headline, one line of body, where a click goes, a tag that collapses repeats of the same
- * notice, and optionally what it is about, for a channel that offers an action on it.
+ * notice, and optionally what it is about, for a channel that offers an action on it. `about` is `handed_off` when
+ * the notice goes to the person who handed the Work Item off, under their "work I handed off" choice instead of the trigger.
  */
-export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string; subject?: NoticeSubject };
+export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string; subject?: NoticeSubject; about?: 'handed_off' };
 
 const headlines: Record<Exclude<TriggerId, 'budget'>, string> = {
   needs_you: 'A Work Item needs you',
@@ -50,6 +51,20 @@ export function workItemMessage(trigger: TriggerId, workItem: { id: string; titl
   const title = trigger === 'budget' ? `A Work Item used ${Math.round((share ?? 1) * 100)} % of its budget` : headlines[trigger];
   const name = noticeTitle(workItem.title);
   return { trigger, title, body: name ? `#${workItem.id} ${name}` : `Work Item #${workItem.id}`, url: link(baseUrl, `work/${encodeURIComponent(workItem.id)}`), tag: `${trigger}-${workItem.id}` };
+}
+
+const handedHeadlines: Record<'needs_you' | 'question' | 'review', string> = {
+  needs_you: 'Work you handed off needs you',
+  question: 'Work you handed off asks you a question',
+  review: 'Work you handed off has a pull request ready',
+};
+
+/**
+ * The notice to the person who handed a Work Item off, when it starts needing them or its pull request becomes ready:
+ * a fixed headline, the Work Item's number and clipped title, and a link to its page, where its question is answered.
+ */
+export function handedOffMessage(trigger: 'needs_you' | 'question' | 'review', workItem: { id: string; title: string }, baseUrl?: string): NotificationMessage {
+  return { ...workItemMessage(trigger, workItem, baseUrl), title: handedHeadlines[trigger], about: 'handed_off' };
 }
 
 /** The notice for a tool-permission request in the person's own agent session. It never carries the tool or its arguments. */

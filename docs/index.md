@@ -35,6 +35,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | See how each delivered change is recorded on a card, and what that means for privacy | [Run Cards](concepts/run-cards.md) (mostly proposed) · [Works council and DPIA pack](reference/run-cards-works-council-pack.md) |
 | Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
+| See everything you handed off from any app in one place, and get a phone notice when it needs you | [Follow the work you handed off](how-to/follow-handed-off-work.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Run Unfold and Ploeg on your own Kubernetes cluster, from an empty cluster to backups and upgrades | [Self-host the whole stack in the EU](how-to/self-host-the-whole-stack.md) |
 | Run agent pods under Kata or gVisor, and pick between them and Firecracker | [Run agent code in a sandbox runtime](how-to/run-agent-code-in-a-sandbox-runtime.md) · [Sandbox runtimes](reference/sandbox-runtimes.md) |

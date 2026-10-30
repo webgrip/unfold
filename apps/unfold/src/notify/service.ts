@@ -7,10 +7,10 @@ import { ploegEventType } from '../outbound/catalogue.ts';
 import { ChannelRegistry, NtfyChannel, WebPushChannel, type NotificationChannel, type SendOutcome, type Transport } from './channels.ts';
 import { SlackChannel, type SlackPermissions } from './slack.ts';
 import { TeamsChannel } from './teams.ts';
-import { NotifyError, parsePreferences, quietUntil, refuse, type Preferences } from './preferences.ts';
+import { NotifyError, followsHandedOff, parsePreferences, quietUntil, refuse, type Preferences } from './preferences.ts';
 import { defaultBudgetThresholds, type NotificationSettings } from './settings.ts';
 import { NotifyStore, type OutboxEntry } from './store.ts';
-import { permissionMessage, testMessage, triggers, workItemMessage, type NotificationMessage, type TriggerId } from './triggers.ts';
+import { handedOffMessage, permissionMessage, testMessage, triggers, workItemMessage, type NotificationMessage, type TriggerId } from './triggers.ts';
 
 export { NotifyError };
 
@@ -24,6 +24,7 @@ const ploegCursor = 'ploeg-events';
 const publicPrefix = '/api/notifications/channels/';
 const permissionCursor = 'linked-permissions';
 const signOffCursor = 'client-sign-offs';
+const movedOn = new Set(['run.finished', 'work_item.approved', 'work_item.handed_off', 'work_item.done']);
 
 /** What the notifier needs from Ploeg's operator API, in the consumer's scope. */
 export type NotifyPloeg = {
@@ -41,6 +42,11 @@ export type NotificationsOptions = {
   flagOn?: (user: User, flag: string) => Promise<boolean>;
   /** The tool-permission answers a chat channel may give for a session's owner. */
   permissions?: SlackPermissions;
+  /**
+   * The people who handed this Work Item off before `before`, through any channel. Absent, nobody gets notices about
+   * work they handed off.
+   */
+  handedOffBy?: (workItem: { id: string; team: string; provider: string; externalId: string }, before: string) => string[];
   /** Whether a person may read a Work Item of `team` with `target`: its Team in their scope and its owner within their reach. */
   canRead: (user: User, team: string, target: TaskTarget | null) => boolean;
   ploeg?: NotifyPloeg;
@@ -59,7 +65,8 @@ const reasonOf = (facts: WorkItemFacts | undefined) => facts?.shifts.at(-1)?.clo
  * Tells people that something waits for them, over the channels they chose. It reads Ploeg's audit events, the
  * Linked Session permission requests and the Client Sign-offs, queues one notice per person, channel, target and
  * trigger occurrence in a durable outbox, and delivers it outside the person's quiet hours, retrying with backoff.
- * In the demo it follows nothing and sends nothing.
+ * The person who handed a Work Item off gets one notice per transition, when it starts needing a person or its pull
+ * request becomes ready, in place of the general notice for that event. In the demo it follows nothing and sends nothing.
  */
 export class Notifications {
   readonly store: NotifyStore;
@@ -176,13 +183,32 @@ export class Notifications {
     return share === undefined ? undefined : { shiftId: shift.id, share };
   }
 
+  /** The subscribers who handed this Work Item off and still want notices about it, may read it and have the flag on. */
+  private async handers(event: PloegEvent, facts: WorkItemFacts | undefined, readers: (user: User) => boolean): Promise<Recipient[]> {
+    const item = facts?.workItem;
+    if (!item || !this.options.handedOffBy) return [];
+    const ids = new Set(this.options.handedOffBy({ id: event.workItemId, team: item.team, provider: item.provider, externalId: item.externalId }, event.at));
+    const found: Recipient[] = [];
+    for (const { userId, preferences } of this.store.subscribers()) {
+      if (!ids.has(userId) || !followsHandedOff(preferences)) continue;
+      const user = this.userOf(userId);
+      if (!user || !readers(user) || !await this.options.enabled(user).catch(() => false)) continue;
+      found.push({ user, preferences, channels: await this.usable(user) });
+    }
+    return found;
+  }
+
   private async fromPloeg(event: PloegEvent, cache: Map<string, WorkItemFacts | undefined>): Promise<number> {
-    const wanted = new Set(this.store.subscribers().flatMap(entry => entry.preferences.triggers));
+    const subscribers = this.store.subscribers();
+    const wanted = new Set(subscribers.flatMap(entry => entry.preferences.triggers));
     const type = ploegEventType(event);
     const outcome = type === 'run.finished';
     const parked = type === 'work_item.needs_you';
     const review = type === 'work_item.ready_for_review';
-    if (!(outcome && wanted.has('budget')) && !(parked && (wanted.has('needs_you') || wanted.has('question'))) && !(review && wanted.has('review'))) return 0;
+    const following = Boolean(this.options.handedOffBy) && subscribers.some(entry => followsHandedOff(entry.preferences));
+    if (following && type && movedOn.has(type)) this.store.clearHandedTransition(event.workItemId);
+    const handed = following && (parked || review);
+    if (!(outcome && wanted.has('budget')) && !(parked && (wanted.has('needs_you') || wanted.has('question'))) && !(review && wanted.has('review')) && !handed) return 0;
     const facts = await this.factsFor(event.workItemId, cache);
     const item = { id: event.workItemId, title: facts?.workItem.title ?? '' };
     const readers = this.readersOf(facts, event.team);
@@ -192,8 +218,20 @@ export class Notifications {
       const message = workItemMessage('budget', item, this.options.baseUrl, crossed.share);
       return this.queue(await this.recipients('budget', readers), `budget:${crossed.shiftId}:${crossed.share}`, message);
     }
-    const trigger: TriggerId = review ? 'review' : event.action === 'work_item.needs_human' && reasonOf(facts).startsWith('question_for_person') ? 'question' : 'needs_you';
-    return this.queue(await this.recipients(trigger, readers), `${trigger}:ploeg-${event.id}`, workItemMessage(trigger, item, this.options.baseUrl));
+    const trigger = review ? 'review' : event.action === 'work_item.needs_human' && reasonOf(facts).startsWith('question_for_person') ? 'question' : 'needs_you';
+    let queued = 0;
+    const covered = new Set<string>();
+    if (handed) {
+      const kind = review ? 'review' : 'needs_you';
+      const repeat = this.store.handedTransition(event.workItemId) === kind;
+      if (!repeat) this.store.setHandedTransition(event.workItemId, kind, event.id, this.now());
+      const handers = await this.handers(event, facts, readers);
+      for (const recipient of handers) covered.add(recipient.user.id);
+      if (!repeat) queued += this.queue(handers, `handed:${event.workItemId}:${kind}:ploeg-${event.id}`, handedOffMessage(trigger, item, this.options.baseUrl));
+    }
+    if (!wanted.has(trigger)) return queued;
+    const others = (await this.recipients(trigger, readers)).filter(recipient => !covered.has(recipient.user.id));
+    return queued + this.queue(others, `${trigger}:ploeg-${event.id}`, workItemMessage(trigger, item, this.options.baseUrl));
   }
 
   /**
@@ -267,7 +305,7 @@ export class Notifications {
     const preferences = this.store.preferences(entry.userId);
     const channel = this.registry.get(entry.channel);
     const target = this.store.target(entry.targetId);
-    if (!channel || !target || (entry.message.trigger !== 'test' && !preferences.channels.includes(entry.channel))) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'not_chosen' });
+    if (!channel || !target || (entry.message.trigger !== 'test' && !preferences.channels.includes(entry.channel)) || (entry.message.about === 'handed_off' && !followsHandedOff(preferences))) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'not_chosen' });
     if (channel.flag) {
       const user = this.userOf(entry.userId);
       if (!user || !(await this.usable(user)).has(channel.id)) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'channel_off' });

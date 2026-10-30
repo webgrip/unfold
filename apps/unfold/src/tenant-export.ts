@@ -132,6 +132,7 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'intake_deliveries', reason: 'Deduplication: the delivery ids each intake source already received and their outcome, kept for a few hours.' },
   { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy, Web Push, Slack and Microsoft Teams.' },
   { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
+  { table: 'notify_handed_transitions', reason: 'Operational: the last moment each handed-off Work Item notified about, so a repeat notifies nobody. It holds Work Item and Ploeg event ids, no person.' },
   { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },
   { table: 'outbound_sign_off_changes', reason: 'Operational: Client Sign-off changes waiting to become webhook events. The sign-offs are exported as client-sign-offs.' },
 ];

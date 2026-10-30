@@ -839,3 +839,8 @@
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
 }
+
+.now-handed .now-facts-list > span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
