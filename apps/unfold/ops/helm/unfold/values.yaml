@@ -188,8 +188,8 @@ config:
   repositories: []
   taskSources: []
   # trustedProxies (optional, none when absent): IP addresses and CIDR ranges of the reverse proxies in front of
-  # Unfold, whose X-Forwarded-For names the client. The sign-in throttles, the Request intake rate limit and the
-  # security audit's source address key on that address.
+  # Unfold, whose X-Forwarded-For names the client. The sign-in throttles, the Request intake rate limit, the
+  # per-address rateLimits and the security audit's source address key on that address.
   # trustedProxies: ["10.42.0.0/16"]
   # hsts (optional): Strict-Transport-Security, sent only when baseUrl is https. The default is below; false turns it
   # off. preload stays off unless set, because the preload list binds every host under the domain.
@@ -197,6 +197,16 @@ config:
   # intake.rateLimit (optional): token buckets of the public Request intake; these are the defaults.
   # intake:
   #   rateLimit: {client: {perMinute: 60, burst: 30}, source: {perMinute: 300, burst: 60}, failureCost: 5}
+  # rateLimits (optional): token buckets per person (mutation, ask, export) and per client address (scim, mcp, webhook,
+  # signIn), each {perMinute, burst}; a refused request gets 429 with Retry-After. These are the defaults.
+  # rateLimits:
+  #   mutation: {perMinute: 300, burst: 120}
+  #   ask: {perMinute: 20, burst: 10}
+  #   export: {perMinute: 20, burst: 10}
+  #   scim: {perMinute: 600, burst: 300}
+  #   mcp: {perMinute: 300, burst: 120}
+  #   webhook: {perMinute: 120, burst: 60}
+  #   signIn: {perMinute: 30, burst: 60}
   # tenancy.enforce (optional, off when absent): limit each person to what their Tenant and Client memberships reach.
   # tenancy:
   #   enforce: true

@@ -10,6 +10,7 @@ import type { Membership } from './tenancy.ts';
 import type { IntakeConfig } from './intake/limiter.ts';
 import type { OpenBaoSettings } from './audit/signer.ts';
 import type { ObjectStoreSettings } from './audit/object-store.ts';
+import type { RateLimits } from './rate-limits.ts';
 import type { HstsSettings } from './security-headers.ts';
 import type { IdentitySettings } from './identity/settings.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
@@ -97,6 +98,8 @@ export type AppConfig = {
   hsts?: HstsSettings;
   /** The Request intake's rate limit. */
   intake?: IntakeConfig;
+  /** The per-person and per-address rate limits of the HTTP surface. Absent, the defaults apply. */
+  rateLimits?: RateLimits;
   /** Where accepted Work Items are written as billing lines: the exporter and its settings. Absent means billing is off. */
   billing?: BillingSettings;
   /** SCIM provisioning and the Shared Signals receiver (`identity`), each behind its own flag. */

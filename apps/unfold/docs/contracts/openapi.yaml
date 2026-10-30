@@ -26,6 +26,9 @@ info:
       also needs a Tenant membership or object access says so in its description.
     * `x-unfold-requires` names configuration a route needs: `oidc` (single sign-on configured) or
       `connected-ploeg` (a live, non-demo Ploeg). Without it the route is not served or answers 503.
+    * Every signed-in mutation, every Ask and every export counts against per-person token buckets, and the sign-in,
+      SCIM, `unfold-mcp` and public webhook routes against per-address ones (`rateLimits`). An empty bucket answers
+      429 `rate_limited` with `Retry-After` and the limit's name; the HTTP contract lists the limits.
     * Any route that calls Ploeg answers 503 `ploeg_contract_incompatible` while the connected Ploeg does not serve
       a contract major this Unfold requires.
     * A response schema lists the fields clients rely on; responses may carry more fields. Additive fields are not
@@ -5753,6 +5756,10 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     TooManyRequests:
       description: 'A rate or connection limit; `code` names it.'
+      headers:
+        Retry-After:
+          description: 'Whole seconds until the limit admits one more request, when the limit is a token bucket.'
+          schema: { type: integer, minimum: 1 }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
