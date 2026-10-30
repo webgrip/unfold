@@ -292,6 +292,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0058](../../apps/unfold/docs/adrs/0058-an-acp-editor-uses-unfold-as-the-agent-unfold-which-follows-one-work-item.md) | An ACP editor uses Unfold as the agent `unfold`, which follows one Work Item | 2026-10-30 | unknown | — |
 | Unfold | [0059](../../apps/unfold/docs/adrs/0059-the-identity-provider-provisions-and-deprovisions-people-through-scim-and-pushed-shared-signals.md) | The identity provider provisions and deprovisions people through SCIM and pushed Shared Signals | 2026-10-30 | unknown | — |
 | Unfold | [0061](../../apps/unfold/docs/adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) | Unfold signs the audit chain head with OpenBao Transit and copies it to a locked bucket daily | 2026-10-30 | unknown | — |
+| Unfold | [0062](../../apps/unfold/docs/adrs/0062-background-work-runs-through-one-durable-job-queue-in-the-workbench-database.md) | Background work runs through one durable job queue in the workbench database | 2026-10-30 | unknown | — |
 
 ## Other statuses
 
