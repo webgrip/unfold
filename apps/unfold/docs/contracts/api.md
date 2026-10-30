@@ -651,6 +651,22 @@ Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](.
 | `POST /api/ofrep/v1/evaluate/flags` | OFREP 0.4.0 bulk evaluation for the signed-in person or editor: `{context}` → `{flags: [{key, value, reason, variant, metadata}]}` with an `ETag`; `If-None-Match` with that ETag answers 304. Only browser-visible flags are listed. The context's identity attributes (`targetingKey`, `userId`, `role`, `teams`, `tenantId`, `mode`, `labs`, `labsOff`, `flagVariants`) come from the session, and a client may add up to 32 scalar attributes of its own. Needs no `X-Unfold-Request` header |
 | `POST /api/ofrep/v1/evaluate/flags/:key` | OFREP single evaluation: 200 `{key, value, reason, variant, metadata}`, 404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed |
 
+## Outbound webhooks
+
+Administrators subscribe receivers to Unfold's product events ([Outbound webhooks](../operations/outbound-events.md), [AsyncAPI](events.asyncapi.yaml), [CloudEvent schema](cloudevent.v1.schema.json)). Every route is for administrators only (403 `forbidden` otherwise); while `tenancy.enforce` is on, a subscription is visible only to an administrator holding the Admin Access Role in its Tenant, and any other answers 404 `webhook_not_found`. A subscription is `{id, tenant, client, url, types, description, active, disabledReason, createdAt, createdBy, updatedAt, deliveries: {pending, delivered, dead}}`; no answer except creation and rotation carries its secret.
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/admin/webhooks` | `{demo, sources, tenants, eventTypes, allowedPrivateTargets, subscriptions}`: `tenants` lists the Tenants the caller administers, each `{tenant, enabled}` with the `events.webhooks` flag's value; `eventTypes` every type Unfold publishes, `{type, title, summary}` |
+| `POST /api/admin/webhooks` | `{url, types, tenant?, client?, description?}` → 201 `{subscription, secret}`. `secret` (`whsec_…`) is shown this once. `types` is 1 to 50 published types or prefixes ending in `.*`, such as `dev.unfold.work_item.*` (400 `webhook_types`). `tenant` defaults to `default`; a `client` limits the subscription to that Client's events (400 `webhook_scope`). `url` must be `https` and resolve only to public addresses unless `outboundEvents.allowedPrivateTargets` names it: 400 `webhook_url`, `webhook_url_scheme`, `webhook_target_private` or `webhook_target_unresolved`. 409 `webhooks_off` while the Tenant's flag is off, 409 `webhook_limit` beyond 100 subscriptions |
+| `GET /api/admin/webhooks/:id` | `{subscription}` |
+| `PATCH /api/admin/webhooks/:id` | Any of `{url, types, description, active}` → `{subscription}`, checked as on creation. `active: true` clears a `disabledReason`, such as the one a 410 answer set |
+| `DELETE /api/admin/webhooks/:id` | `{deleted}`. Removes the subscription, its deliveries and its secret |
+| `POST /api/admin/webhooks/:id/rotate-secret` | `{subscription, secret, previousSignsUntil}`: a new secret; the old one keeps signing next to it for 24 hours |
+| `POST /api/admin/webhooks/:id/test` | 202 `{queued}`: queues a `dev.unfold.webhook.test` event to this subscription only |
+| `GET /api/admin/webhooks/:id/deliveries` | `{deliveries}`: the newest 100, each `{id, subscriptionId, eventId, eventType, status, attempts, nextAttemptAt, lastStatus, lastError, deliveredAt, createdAt}` with `status` `pending`, `delivered` or `dead` |
+| `POST /api/admin/webhooks/:id/deliveries/:delivery/resend` | 202 `{delivery}`: puts a dead delivery back in the queue with a fresh attempt count. 409 `webhook_delivery_not_dead` otherwise |
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.

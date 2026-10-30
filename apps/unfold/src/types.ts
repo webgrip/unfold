@@ -78,6 +78,8 @@ export type AppConfig = {
   acceptanceCalendar?: AcceptanceCalendar;
   /** Whether Tenant and Client memberships limit what people reach (system ADR-0017). Absent means not enforced. */
   tenancy?: { enforce: boolean };
+  /** The non-public hosts, addresses and CIDR ranges outbound webhooks may still reach. Absent, only public targets. */
+  outboundEvents?: { allowedPrivateTargets: string[] };
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
