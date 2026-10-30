@@ -49,12 +49,14 @@
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
     "html-to-image": "1.11.13",
+    "hyparquet": "1.31.5",
     "playwright": "1.64.1",
     "three": "0.186.1",
     "typescript": "7.0.2",
     "yaml": "2.9.1"
   },
   "dependencies": {
+    "hyparquet-writer": "0.17.0",
     "ws": "8.22.0"
   }
 }

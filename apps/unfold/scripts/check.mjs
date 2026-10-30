@@ -43,7 +43,7 @@ if (Number(process.versions.node.split('.')[0]) !== 24) failures.push('Node 24 i
 walk(root);
 const packagePath = resolve(root, 'package.json');
 const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
-const decidedRuntimeDependencies = { ws: 'docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md' };
+const decidedRuntimeDependencies = { ws: 'docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md', 'hyparquet-writer': 'docs/adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md' };
 for (const [name, version] of Object.entries(manifest.dependencies || {})) {
   if (!Object.hasOwn(decidedRuntimeDependencies, name)) fail(packagePath, `production npm dependency ${name} requires an architecture decision`);
   else if (!existsSync(resolve(root, decidedRuntimeDependencies[name]))) fail(packagePath, `production npm dependency ${name} names ${decidedRuntimeDependencies[name]}, which is missing`);

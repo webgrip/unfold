@@ -133,7 +133,7 @@ While Tenant checks are enforced, each entity's manifest entry names its rule:
 
 ### Why JSON Lines and not Parquet
 
-ADR-0050 names Parquet for large tables. Node.js has no Parquet writer, and Unfold has one runtime dependency; adding a Parquet library for one export path is not worth its supply-chain and licence review while JSON Lines converts to Parquet in one command (below). Parquet output is a later addition, not part of version 1.
+ADR-0050 names Parquet for large tables. The Tenant export is many tables of differently shaped records, each with a JSON Schema; JSON Lines keeps them as they are and converts to Parquet in one command (below). Unfold writes Parquet only for the [FOCUS cost export](focus-cost-export.md), one flat table with fixed column types ([ADR 0060](../adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md)). Parquet for this export is a later addition, not part of version 1.
 
 ## Data Ploeg holds
 

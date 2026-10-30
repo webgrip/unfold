@@ -26,7 +26,7 @@ Application: `apps/unfold`. Ticket: none yet.
 
 ## Non-goals
 
-- Parquet output (design.md says why).
+- Parquet output, at first; the owner decided on 2026-10-30 to add it (design.md).
 - Pushing the file to a FinOps tool, a schedule, or FOCUS Metadata.
 - Pricing Unfold's own work, Credits, Markup or invoices.
 - Knowing the model or provider per Run: Ploeg's facts carry neither.

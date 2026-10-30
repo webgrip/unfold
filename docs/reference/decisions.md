@@ -142,6 +142,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0042](../../apps/unfold/docs/adrs/0042-unfold-reports-errors-and-failed-asks-to-any-error-tracker.md) | Unfold reports errors and failed Asks to any error tracker | 2026-10-13 | — |
 | Unfold | [0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md) | Unfold records the Run card rules it computes | 2026-10-14 | — |
 | Unfold | [0050](../../apps/unfold/docs/adrs/0050-people-write-on-the-blackboard-and-unfold-shows-questions-disagreements-and-finding-answers.md) | People write on the blackboard, and Unfold shows the questions, disagreements and finding answers waiting for them | 2026-10-18 | — |
+| Unfold | [0060](../../apps/unfold/docs/adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md) | The FOCUS cost export writes Parquet through `hyparquet-writer` | 2026-10-30 | — |
 
 ## Proposed
 

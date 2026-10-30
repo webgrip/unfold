@@ -26,6 +26,12 @@ Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
 contributors, licensed under the MIT License. Its licence text is
 node_modules/ws/LICENSE and travels with the package.
 
+The container image includes hyparquet-writer 0.17.0 (node_modules/hyparquet-writer/)
+and its dependency hyparquet 1.31.5 (node_modules/hyparquet/), by Hyperparam,
+both licensed under the MIT License. Their licence texts are
+node_modules/hyparquet-writer/LICENSE and node_modules/hyparquet/LICENSE and
+travel with the packages.
+
 The Claude Code plugin (extensions/claude-code/) bundles unchanged copies of
 the Agent Plugins 1.0.0 manifest and MCP configuration schemas
 (extensions/claude-code/schemas/agent-plugins/1.0.0/plugin.schema.json and

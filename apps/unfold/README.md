@@ -8,7 +8,7 @@ Unfold sits beside [Ploeg](https://github.com/ploeg-hq/ploeg). The tracker owns 
 
 ## Try it in ten minutes
 
-Requirements: Node **24**, Git and a modern browser. `mise install` selects the pinned tools if you use mise. No provider account or Kubernetes cluster is needed for this demonstration. `npm ci --omit=dev` installs the server's one runtime dependency, `ws`.
+Requirements: Node **24**, Git and a modern browser. `mise install` selects the pinned tools if you use mise. No provider account or Kubernetes cluster is needed for this demonstration. `npm ci --omit=dev` installs the server's runtime dependencies, `ws` and `hyparquet-writer`.
 
 ```sh
 npm ci --omit=dev

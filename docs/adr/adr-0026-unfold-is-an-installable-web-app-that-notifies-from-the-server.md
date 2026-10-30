@@ -55,7 +55,7 @@ Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 
 * The offline browser check belongs to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md).
 * A notifier test proves one notification per Work Item state change, and none for a person without read access to the Team.
-* `apps/unfold/package.json` keeps `ws` as its only runtime dependency, and the frontend has no build step. Review rejects a change that breaks either.
+* `apps/unfold/package.json` adds no runtime dependency for notifications, and the frontend has no build step. Review rejects a change that breaks either. Each runtime dependency has its own Unfold ADR: `ws` ([0036](../../apps/unfold/docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md)) and `hyparquet-writer` ([0060](../../apps/unfold/docs/adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md)).
 
 ## Pros and Cons of the Options
 
@@ -82,3 +82,4 @@ Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 * 2026-10-05: proposed with [RFC-0004](../design/rfc-0004-unfold-on-phones-and-desktops.md).
 * 2026-10-30: the server-side notifier is built behind the `notifications.push` flag, off by default ([Get notified](../../apps/unfold/docs/operations/notifications.md)): ntfy and Web Push as adapters in one channel registry, per-person opt-in with quiet hours, and `public/sw.js` for push only. The shell cache, the offline browser check and the triage view are not built, so the record stays proposed.
 * 2026-10-30: accepted by the owner for the server-side notifier and its delivery. The shell cache, the offline check and the phone triage view moved to [ADR-0052](adr-0052-unfold-works-as-an-offline-shell-and-offers-a-phone-triage-view.md), proposed.
+* 2026-10-30: the Confirmation no longer holds `ws` as Unfold's only runtime dependency, after the owner's decision to write FOCUS Parquet with `hyparquet-writer` (Unfold [ADR 0060](../../apps/unfold/docs/adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md)). Notifications still add none.
