@@ -18,6 +18,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 ## Operate
 
 - [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
+- [Configuration reference](operations/configuration.md): every configuration key and environment variable, generated from the schema Unfold checks at startup
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Bill accepted tickets through Simplicate](operations/billing-simplicate.md): one line per accepted Work Item in your own billing tool

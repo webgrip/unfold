@@ -45,10 +45,10 @@ test('docker and kubernetes placements require their configuration blocks and th
   assert.deepEqual(placements(config).map(item => [item.id, item.default]), [['docker', true], ['local', false]]);
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 } }), /docker\.image/);
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['kubernetes'], timeoutMs: 60000 } }), /kubernetes configuration block/);
-  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['cloud'], timeoutMs: 60000 } }), /runtime\.backends/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['cloud'], timeoutMs: 60000 } }), /\/runtime\/backends\/0: must be one of docker, kubernetes, local/);
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['LITELLM_MASTER_KEY'] } }), /must not pass LITELLM_MASTER_KEY/);
-  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['lower'] } }), /uppercase/);
-  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 }, docker: { image: 'unfold-agent:1.18.30', user: 'root' } }), /docker\.user/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['local'], timeoutMs: 60000, agentEnvironment: ['lower'] } }), /\/runtime\/agentEnvironment\/0: must match/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backends: ['docker'], timeoutMs: 60000 }, docker: { image: 'unfold-agent:1.18.30', user: 'root' } }), /\/docker\/user: must match/);
 });
 
 test('gatewayPolicy lists providers and regions as lowercase names', async () => {
@@ -147,7 +147,7 @@ test('a repository opts into gateway MCP tools with one LiteLLM team and its acc
   const config = await load(t, { runtime, litellm: gateway, repositories: [{ ...base.repositories[0], mcp }] });
   assert.deepEqual(config.repositories[0].mcp, mcp);
   for (const invalid of [{}, { litellmTeamId: 'agents-orders' }, { ...mcp, accessGroups: [] }, { ...mcp, accessGroups: ['a', 'a'] }, { ...mcp, accessGroups: ['bad group'] }, { ...mcp, litellmTeamId: '' }, { ...mcp, tools: ['*'] }, ['agents-orders']]) {
-    await assert.rejects(load(t, { runtime, litellm: gateway, repositories: [{ ...base.repositories[0], mcp: invalid }] }), /mcp requires litellmTeamId/);
+    await assert.rejects(load(t, { runtime, litellm: gateway, repositories: [{ ...base.repositories[0], mcp: invalid }] }), /\/repositories\/0\/mcp/);
   }
   if (!process.env.LITELLM_BASE_URL) await assert.rejects(load(t, { runtime, repositories: [{ ...base.repositories[0], mcp }] }), /LiteLLM gateway base URL/);
 });
@@ -159,24 +159,24 @@ test('kubernetes git rewrites are HTTP(S) URL prefixes ending in a slash, withou
   assert.deepEqual((await load(t, { runtime, kubernetes: { ...kubernetes, gitRewrites: [rewrite] } })).kubernetes?.gitRewrites, [rewrite]);
   assert.equal((await load(t, { runtime, kubernetes })).kubernetes?.gitRewrites, undefined);
   for (const gitRewrites of [{}, [{ ...rewrite, insteadOf: 'https://forge.example' }], [{ ...rewrite, url: 'file:///srv/git/' }], [{ ...rewrite, url: 'http://user:pass@forge/' }], [{ ...rewrite, extra: true }], [{ url: rewrite.url, insteadOf: rewrite.url }], [rewrite.url]])
-    await assert.rejects(load(t, { runtime, kubernetes: { ...kubernetes, gitRewrites } }), /kubernetes\.gitRewrites/);
+    await assert.rejects(load(t, { runtime, kubernetes: { ...kubernetes, gitRewrites } }), /kubernetes[./]gitRewrites/);
 });
 
 test('a kubernetes workspace reservation is a Kubernetes quantity and is kept apart from its limits', async t => {
   const kubernetes = { namespace: 'workspaces', image: 'unfold-agent:1', storageSize: '8Gi', cpu: '1', memory: '2Gi', cpuRequest: '500m', memoryRequest: '1Gi', transport: 'publish' };
   const config = await load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes });
   assert.deepEqual([config.kubernetes?.cpu, config.kubernetes?.cpuRequest, config.kubernetes?.memory, config.kubernetes?.memoryRequest], ['1', '500m', '2Gi', '1Gi']);
-  await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes: { ...kubernetes, memoryRequest: 'a lot' } }), /kubernetes\.memoryRequest must be a Kubernetes quantity/);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes: { ...kubernetes, memoryRequest: 'a lot' } }), /\/kubernetes\/memoryRequest: must match/);
 });
 
 test('auth.agentHostOrigins lists the page origins the agent host accepts, and refuses anything that is not an origin', async t => {
   assert.equal((await load(t, {})).auth.agentHostOrigins, undefined);
   assert.deepEqual((await load(t, { auth: { agentHostOrigins: ['vscode-file://vscode-app', 'https://vscode.dev/'] } })).auth.agentHostOrigins, ['vscode-file://vscode-app', 'https://vscode.dev']);
-  await assert.rejects(load(t, { auth: { agentHostOrigins: 'https://vscode.dev' } }), /auth\.agentHostOrigins must list/);
-  await assert.rejects(load(t, { auth: { agentHostOrigins: ['https://vscode.dev/path'] } }), /auth\.agentHostOrigins must list/);
+  await assert.rejects(load(t, { auth: { agentHostOrigins: 'https://vscode.dev' } }), /\/auth\/agentHostOrigins: must be a list/);
+  await assert.rejects(load(t, { auth: { agentHostOrigins: ['https://vscode.dev/path'] } }), /\/auth\/agentHostOrigins\/0: must match/);
   assert.equal((await load(t, {})).auth.agentHostOriginMode, 'report', 'unlisted origins are reported, not refused, by default');
   assert.equal((await load(t, { auth: { agentHostOriginMode: 'enforce' } })).auth.agentHostOriginMode, 'enforce');
-  await assert.rejects(load(t, { auth: { agentHostOriginMode: 'strict' } }), /auth\.agentHostOriginMode must be "report" or "enforce"/);
+  await assert.rejects(load(t, { auth: { agentHostOriginMode: 'strict' } }), /\/auth\/agentHostOriginMode: must be one of report, enforce/);
 });
 
 test('local password sign-in is on by default and turned off by auth.localLogin or UNFOLD_LOCAL_LOGIN, never without single sign-on', async t => {
@@ -187,7 +187,7 @@ test('local password sign-in is on by default and turned off by auth.localLogin 
   assert.equal((await load(t, {})).auth.localLogin, true);
   assert.equal((await load(t, { auth: { oidc, localLogin: false } })).auth.localLogin, false);
   await assert.rejects(load(t, { auth: { localLogin: false } }), /Local password sign-in is turned off .* auth\.oidc is not configured, so nobody could sign in/);
-  await assert.rejects(load(t, { auth: { oidc, localLogin: 'no' } }), /auth.localLogin must be true or false/);
+  await assert.rejects(load(t, { auth: { oidc, localLogin: 'no' } }), /\/auth\/localLogin: must be true or false/);
   process.env.UNFOLD_LOCAL_LOGIN = 'false';
   assert.equal((await load(t, { auth: { oidc, localLogin: true } })).auth.localLogin, false);
   await assert.rejects(load(t, {}), /nobody could sign in/);
@@ -205,6 +205,6 @@ test('hsts defaults to two years with subdomains for an https baseUrl, is off fo
   await assert.rejects(load(t, { baseUrl: 'http://unfold.example', hsts: true }), /hsts needs an https baseUrl/);
   await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { preload: true, maxAge: 300 } }), /hsts.preload needs includeSubDomains/);
   await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { preload: true, includeSubDomains: false } }), /hsts.preload needs includeSubDomains/);
-  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { maxAge: -1 } }), /hsts.maxAge/);
-  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { subdomains: true } }), /hsts is true, false/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { maxAge: -1 } }), /\/hsts\/maxAge: must be at least 0/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { subdomains: true } }), /\/hsts\/subdomains: unknown key/);
 });

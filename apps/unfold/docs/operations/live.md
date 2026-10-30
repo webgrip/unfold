@@ -55,6 +55,8 @@ This is the `runtime` object, not a full configuration file, and it enables exac
 
 Supply credentials through the deployment's secret mechanism or a short-lived shell environment populated from the vault. Keep secret values out of configuration files. The application supports loading `.env`, but Webgrip's operating policy keeps originals in OpenBao; use the [estate secrets model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0055-one-secrets-model-six-levels.md).
 
+The [configuration reference](configuration.md) lists every configuration key and environment variable with its type and default. The table below covers the ones a live deployment sets.
+
 | Setting | Purpose |
 | --- | --- |
 | `UNFOLD_CONFIG` or `--config` | Configuration file path |
