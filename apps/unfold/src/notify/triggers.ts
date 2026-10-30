@@ -19,8 +19,13 @@ export const triggers: readonly TriggerSpec[] = [
 /** Whether `value` names a trigger. */
 export function isTrigger(value: unknown): value is TriggerId { return typeof value === 'string' && (triggerIds as readonly string[]).includes(value); }
 
-/** What a channel sends: a headline, one line of body, where a click goes, and a tag that collapses repeats of the same notice. */
-export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string };
+/** What a notice is about when a channel may offer an action on it: a tool-permission request of a person's own session. */
+export type NoticeSubject = { kind: 'permission'; sessionId: string; requestId: string };
+/**
+ * What a channel sends: a headline, one line of body, where a click goes, a tag that collapses repeats of the same
+ * notice, and optionally what it is about, for a channel that offers an action on it.
+ */
+export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string; subject?: NoticeSubject };
 
 const headlines: Record<Exclude<TriggerId, 'budget'>, string> = {
   needs_you: 'A Work Item needs you',
@@ -48,8 +53,11 @@ export function workItemMessage(trigger: TriggerId, workItem: { id: string; titl
 }
 
 /** The notice for a tool-permission request in the person's own agent session. It never carries the tool or its arguments. */
-export function permissionMessage(sessionId: string, baseUrl?: string): NotificationMessage {
-  return { trigger: 'question', title: 'A tool permission waits for you', body: 'Your agent session asks before it runs a tool.', url: link(baseUrl, `linked-session/${encodeURIComponent(sessionId)}`), tag: `permission-${sessionId}` };
+export function permissionMessage(sessionId: string, baseUrl?: string, requestId?: string): NotificationMessage {
+  return {
+    trigger: 'question', title: 'A tool permission waits for you', body: 'Your agent session asks before it runs a tool.', url: link(baseUrl, `linked-session/${encodeURIComponent(sessionId)}`), tag: `permission-${sessionId}`,
+    ...(requestId ? { subject: { kind: 'permission' as const, sessionId, requestId } } : {}),
+  };
 }
 
 /** The test notice a person sends themselves from the Notifications page. */

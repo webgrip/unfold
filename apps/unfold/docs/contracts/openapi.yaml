@@ -61,7 +61,7 @@ tags:
   - name: Linked accounts
     description: 'A person''s own GitLab and ClickUp links.'
   - name: Notifications
-    description: 'A person''s own notifications over ntfy and Web Push.'
+    description: 'A person''s own notifications over ntfy, Web Push, Slack and Microsoft Teams.'
   - name: Billing
     description: 'One billing line per accepted Work Item, written into the Agency''s own billing tool.'
   - name: Request intake
@@ -4139,6 +4139,123 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/me/notifications/channels/slack/link:
+    post:
+      tags: [Notifications]
+      operationId: linkSlackAccount
+      summary: 'Ask a Slack account to link to the person'
+      description: 'Finds the Slack account with `users.lookupByEmail`, opens a direct message with `conversations.open` and posts a Link to Unfold button there; the link exists only once that Slack account presses it, within 15 minutes. 400 `slack_email`; 404 `slack_user_not_found`, or `not_found` while `notifications.push` or `notifications.slack` is off for the person; 403 `slack_workspace`; 409 `notify_unavailable`, `slack_user_linked` (linked to someone else) or `slack_failed`; 429 `slack_link_wait` within a minute of the last request.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { $ref: '#/components/responses/NotificationsView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      tags: [Notifications]
+      operationId: unlinkSlackAccount
+      summary: 'Unlink the person''s Slack account'
+      description: 'Deletes the link, the direct-message target and any waiting link request. 404 `not_found` while `notifications.push` or `notifications.slack` is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/me/notifications/channels/teams/webhooks:
+    post:
+      tags: [Notifications]
+      operationId: addTeamsWebhook
+      summary: 'Add a Microsoft Teams workflow webhook'
+      description: 'The URL must be HTTPS on a host ending in one of `notifications.teams.allowedHosts` (400 `teams_webhook`). The view shows only its host and label, never the URL. A person keeps at most 5, the oldest goes first. 409 `notify_unavailable` when Teams is not configured; 404 `not_found` while `notifications.push` or `notifications.teams` is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri }
+                label: { type: string, maxLength: 60 }
+      responses:
+        '201': { $ref: '#/components/responses/NotificationsView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/me/notifications/channels/teams/webhooks/{teamsWebhookId}:
+    parameters:
+      - name: teamsWebhookId
+        in: path
+        required: true
+        schema: { type: string }
+        example: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+    delete:
+      tags: [Notifications]
+      operationId: removeTeamsWebhook
+      summary: 'Remove one of the person''s Teams workflow webhooks'
+      description: '404 `not_found` for a webhook that is not the person''s, or while a flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/notifications/channels/slack/interactions:
+    post:
+      tags: [Notifications]
+      operationId: receiveSlackInteraction
+      summary: 'Slack delivers a button press'
+      description: |
+        Slack's interactivity Request URL. Needs no sign-in, no `X-Unfold-Request` header and no same-origin check: the
+        Slack request signature proves the request instead (`X-Slack-Signature`, `v0` HMAC-SHA256 of
+        `v0:<X-Slack-Request-Timestamp>:<body>` with the signing secret, timestamp within 5 minutes). The body is
+        Slack's `application/x-www-form-urlencoded` `payload`, at most 256 KiB. Only `block_actions` with the action ids
+        `unfold.open`, `unfold.link.confirm`, `unfold.permission.review`, `unfold.permission.allow` and
+        `unfold.permission.deny` act; every other action is refused through the payload's `response_url`. Answers 200
+        to every verified interaction, as Slack expects. 404 while Slack is not configured, and in the demo.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { type: string, description: 'The interaction payload as JSON.' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: '`slack_signature`: the signature is missing, does not verify, or its timestamp is more than 5 minutes from now.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
 
   /api/billing:
     get:

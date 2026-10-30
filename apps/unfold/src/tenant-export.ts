@@ -110,10 +110,11 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'intake-requests', table: 'intake_requests', scope: byTenant('tenant'), json: ['body'], collect: 'id', description: 'Requests received through intake, with their state.' },
   { entity: 'intake-messages', table: 'intake_messages', scope: { by: 'parent', parent: 'intake-requests', column: 'request_id' }, description: 'Which mail message belongs to which Request, so replies stay on their Request.' },
   { entity: 'notify-preferences', table: 'notify_preferences', scope: person('user_id'), json: ['body'], description: 'The channels and triggers each person chose to be notified on.' },
-  { entity: 'notify-targets', table: 'notify_targets', scope: person('user_id'), drop: ['address_key', 'address'], description: 'Which ntfy topics and Web Push subscriptions each person has, by channel and date. The topic, the push endpoint and its keys are secrets and left out; people subscribe again at the destination.' },
+  { entity: 'notify-targets', table: 'notify_targets', scope: person('user_id'), drop: ['address_key', 'address'], description: 'Which notification targets each person has (ntfy, Web Push, Slack and Microsoft Teams), by channel and date. The ntfy topic, the push endpoint and its keys, the Slack direct-message id and the Teams workflow URL are left out; people subscribe again at the destination.' },
   { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], credentialUrls: ['url'], collect: 'id', description: 'Outbound webhook subscriptions: the origin of the receiver URL with a SHA-256 fingerprint of the full URL, the event types and whether each is active. No signing secret, and no URL path or query, which receivers such as Slack and Power Automate use as a credential.' },
   { entity: 'outbound-events', table: 'outbound_events', scope: byTenant('tenant'), json: ['body'], description: 'Webhook events still in the outbox, as the CloudEvents they are sent as. They are signed when sent, so no secret is stored with them.' },
   { entity: 'outbound-deliveries', table: 'outbound_deliveries', scope: { by: 'parent', parent: 'outbound-subscriptions', column: 'subscription_id' }, description: 'Each webhook delivery to a subscription still in the delivery log: its status, attempts and the receiver\'s last answer.' },
+  { entity: 'notify-slack-links', table: 'notify_slack_links', scope: person('user_id'), description: 'The Slack account each person linked for notifications: workspace and member id. No token.' },
 ];
 
 /** Every table Unfold keeps that the bundle leaves out. Secrets are never exported. */
@@ -124,10 +125,11 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'linked_session_notice_snapshots', reason: 'Cache: the last notice check of each Linked Session, rebuilt on the next check.' },
   { table: 'card_import', reason: 'Operational: progress of the one-time import of card records from Ploeg.' },
   { table: 'sqlite_sequence', reason: 'SQLite internal: the next AUTOINCREMENT value of each table.' },
+  { table: 'notify_slack_pending', reason: 'Operational: Slack link requests waiting for their confirmation, with the hash of a one-time code, kept 15 minutes.' },
   { table: 'audit_exports', reason: 'Operational: how far the audit trail of each Tenant was sent to its log collector.' },
   { table: 'ssf_seen', reason: 'Deduplication: the ids of Shared Signals events already handled, forgotten after a while.' },
   { table: 'intake_deliveries', reason: 'Deduplication: the delivery ids each intake source already received and their outcome, kept for a few hours.' },
-  { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy and Web Push.' },
+  { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy, Web Push, Slack and Microsoft Teams.' },
   { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
   { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },
   { table: 'outbound_sign_off_changes', reason: 'Operational: Client Sign-off changes waiting to become webhook events. The sign-offs are exported as client-sign-offs.' },

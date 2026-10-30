@@ -28,6 +28,7 @@ const refused: [string, Record<string, unknown>, RegExp][] = [
   ['links', { links: { gitlab: { baseUrl: 'https://gitlab.example', clientId: 'unfold-gitlab-app' } } }, /cannot use links: a GitLab or ClickUp account one visitor links would act for every visitor/],
   ['a task source token', { taskSources: [{ ...vikunja, tokenEnv: 'UNFOLD_TASK_VIKUNJA_TOKEN' }] }, /cannot use the token of task source board \(tokenEnv\)/],
   ['a reports connection', { reports: { provider: 'forgejo', baseUrl: 'https://forge.example', project: 'webgrip/unfold', tokenEnv: 'UNFOLD_REPORTS_TOKEN' } }, /cannot use reports\.tokenEnv/],
+  ['a Slack app', { notifications: { slack: { tokenEnv: 'UNFOLD_SLACK_BOT_TOKEN', signingSecretEnv: 'UNFOLD_SLACK_SIGNING_SECRET' } } }, /cannot use notifications\.slack: its bot token and signing secret would act in a real Slack workspace for every visitor\. Remove notifications\.slack, or set mode: live$/],
   ['a flag provider credential', { flags: { providers: [{ kind: 'ofrep', url: 'https://flags.example', apiKeyEnv: 'UNFOLD_FLAGS_KEY' }] } }, /cannot use a flag provider credential/],
 ];
 

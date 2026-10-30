@@ -116,6 +116,11 @@ function codeRoutes(): CodeRoute[] {
   assert(notify.includes("path.slice('/api/me/notifications'.length)") && notify.includes("rest[0] === 'test'") && notify.includes("rest[0] === 'channels'"), 'src/notify/service.ts no longer routes /api/me/notifications by the path parts this test knows; update codeRoutes');
   assert(channels.includes("readonly id = 'ntfy'") && channels.includes("rest.join('/') !== 'topic'") && channels.includes("readonly id = 'web-push'") && channels.includes("rest[0] !== 'subscriptions' || rest.length > 2"), 'the notification channels changed their routes; update codeRoutes');
   byTemplate('src/notify', ['/api/me/notifications/test', '/api/me/notifications/channels/ntfy/topic', '/api/me/notifications/channels/web-push/subscriptions', `/api/me/notifications/channels/web-push/subscriptions/${param}`]);
+  const slack = source('src/notify/slack.ts');
+  const teams = source('src/notify/teams.ts');
+  assert(slack.includes("readonly id = 'slack'") && slack.includes("rest.join('/') !== 'link'") && slack.includes("request.rest.join('/') !== 'interactions'") && teams.includes("readonly id = 'teams'") && teams.includes("rest[0] !== 'webhooks' || rest.length > 2"), 'the Slack or Teams channel changed its routes; update codeRoutes');
+  assert(http.includes('notifications.handlesPublic(path)') && notify.includes("const publicPrefix = '/api/notifications/channels/'"), 'the public channel routes moved; update codeRoutes');
+  byTemplate('src/notify', ['/api/me/notifications/channels/slack/link', '/api/me/notifications/channels/teams/webhooks', `/api/me/notifications/channels/teams/webhooks/${param}`, '/api/notifications/channels/slack/interactions']);
   const intake = source('src/intake/routes.ts');
   assert(http.includes("path.startsWith('/api/intake/') && await intakeRoute(") && intake.includes("['templates', 'sources', 'requests'].includes(parts[0]") && intake.includes("parts[2] === 'secret'"), 'src/intake/routes.ts no longer routes by the path parts this test knows; update codeRoutes');
   byTemplate('src/intake/routes.ts', [`/api/intake/${param}`, '/api/intake/templates', '/api/intake/sources', `/api/intake/sources/${param}`, `/api/intake/sources/${param}/secret`, '/api/intake/requests', `/api/intake/requests/${param}`]);
@@ -204,7 +209,7 @@ test('http.ts hands requests only to the route modules this test reads', () => {
 test('each operation names its role, its credentials and the mutation header the code requires', () => {
   const ids = new Set<string>();
   const problems: string[] = [];
-  const exempt = new Set(['/api/auth/editor', '/api/auth/editor/{code}', '/api/ofrep/v1/evaluate/flags', '/api/ofrep/v1/evaluate/flags/{ofrepKey}', '/api/intake/{intakeSourceId}']);
+  const exempt = new Set(['/api/auth/editor', '/api/auth/editor/{code}', '/api/ofrep/v1/evaluate/flags', '/api/ofrep/v1/evaluate/flags/{ofrepKey}', '/api/intake/{intakeSourceId}', '/api/notifications/channels/slack/interactions']);
   for (const { path, method, operation } of operations()) {
     const name = `${method.toUpperCase()} ${path}`;
     if (!operation.operationId || ids.has(operation.operationId)) problems.push(`${name}: operationId missing or repeated`);
@@ -226,13 +231,16 @@ test('each operation names its role, its credentials and the mutation header the
 });
 
 test('the server answers exactly the methods the OpenAPI description declares, and asks for the mutation header where it says so', { timeout: testTimeout(120_000) }, async t => {
+  process.env.UNFOLD_PROBE_SLACK_TOKEN = 'xoxb-probe';
+  process.env.UNFOLD_PROBE_SLACK_SECRET = 'probe-signing-secret';
   const server = await application('demo', config => {
     config.auth.oidc = { issuer: 'http://127.0.0.1:9/openapi-probe', clientId: 'unfold', scopes: ['openid'], displayName: 'Probe', roleClaim: 'role', groupsClaim: 'groups', roles: { admin: [], operator: [], viewer: [] } };
     config.taskSources = [{ id: 'probe-tasks', name: 'Probe tasks', provider: 'demo', baseUrl: 'https://demo.invalid', project: 'order-service', repositoryId: 'order-service', executionOwner: 'interactive' }];
-    config.flags = { document: { flags: { 'intake.requests': { defaultVariant: 'on' }, 'notifications.push': { defaultVariant: 'on' }, 'events.webhooks': { defaultVariant: 'on' } } }, unknown: [] };
+    config.flags = { document: { flags: { 'intake.requests': { defaultVariant: 'on' }, 'notifications.push': { defaultVariant: 'on' }, 'notifications.slack': { defaultVariant: 'on' }, 'notifications.teams': { defaultVariant: 'on' }, 'events.webhooks': { defaultVariant: 'on' } } }, unknown: [] };
+    config.notifications = { budgetThresholds: [1], teams: { allowedHosts: ['logic.azure.com'] }, slack: { tokenEnv: 'UNFOLD_PROBE_SLACK_TOKEN', signingSecretEnv: 'UNFOLD_PROBE_SLACK_SECRET', apiUrl: 'http://127.0.0.1:9/slack', permissionAnswers: false } };
     config.outboundEvents = { allowedPrivateTargets: ['127.0.0.1'] };
   });
-  t.after(() => server.close());
+  t.after(() => { delete process.env.UNFOLD_PROBE_SLACK_TOKEN; delete process.env.UNFOLD_PROBE_SLACK_SECRET; return server.close(); });
   const session = await createSession(server.url);
   const subscribe = async () => {
     const created = await request(server.url, '/api/admin/webhooks', { method: 'POST', body: { url: 'http://127.0.0.1:9/openapi-probe', types: ['dev.unfold.webhook.test'] } });

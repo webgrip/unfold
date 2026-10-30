@@ -3,14 +3,14 @@ type: how-to
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation on branch feat/notifications: src/notify/ (settings.ts, channels.ts, web-push.ts, service.ts, store.ts, triggers.ts, preferences.ts), public/sw.js and public/views/notifications.js. test/notify-web-push.test.ts reproduced the RFC 8291 section 5 message and verified the RFC 8292 section 2.4 token; test/notifications.test.ts published to a local HTTP server standing in for ntfy. Not checked: a real ntfy server, and delivery through a real browser push service."
+verified_by: "Written with the implementation: src/notify/ (settings.ts, channels.ts, web-push.ts, slack.ts, teams.ts, service.ts, store.ts, triggers.ts, preferences.ts), public/sw.js and public/views/notifications.js. test/notify-web-push.test.ts reproduced the RFC 8291 section 5 message and verified the RFC 8292 section 2.4 token; test/notifications.test.ts published to a local HTTP server standing in for ntfy; test/notify-slack-teams.test.ts drove local HTTP servers standing in for the Slack Web API and a Teams workflow. Slack and Teams request shapes were checked against docs.slack.dev and learn.microsoft.com on 2026-10-30. Not checked: a real ntfy server, delivery through a real browser push service, a real Slack workspace and a real Teams workflow."
 ---
 
-# Get notified (ntfy and Web Push)
+# Get notified (ntfy, Web Push, Slack and Microsoft Teams)
 
-Unfold can tell people when something waits for them, while Unfold is closed. It sends from the server over two open channels you can host yourself: [ntfy](https://docs.ntfy.sh/) and Web Push ([RFC 8030](https://www.rfc-editor.org/rfc/rfc8030), encrypted with [RFC 8291](https://www.rfc-editor.org/rfc/rfc8291) and signed with [VAPID, RFC 8292](https://www.rfc-editor.org/rfc/rfc8292)). This builds the notifier of [system ADR-0026](../../../../docs/adr/adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md), which is still proposed.
+Unfold can tell people when something waits for them, while Unfold is closed. It sends from the server over two open channels you can host yourself, [ntfy](https://docs.ntfy.sh/) and Web Push ([RFC 8030](https://www.rfc-editor.org/rfc/rfc8030), encrypted with [RFC 8291](https://www.rfc-editor.org/rfc/rfc8291) and signed with [VAPID, RFC 8292](https://www.rfc-editor.org/rfc/rfc8292)), and over the two chat tools agencies and their clients already use: [Slack](#slack) and [Microsoft Teams](#microsoft-teams). This builds the notifier of [system ADR-0026](../../../../docs/adr/adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md), which is still proposed.
 
-It is off twice over: the `notifications.push` [feature flag](feature-flags.md) is off for everyone, and a person whose flag is on still gets nothing until they choose a channel and at least one moment under **Settings › Notifications**.
+It is off twice over: the `notifications.push` [feature flag](feature-flags.md) is off for everyone, and a person whose flag is on still gets nothing until they choose a channel and at least one moment under **Settings › Notifications**. Slack and Teams each have one more flag, `notifications.slack` and `notifications.teams`, also off for everyone.
 
 ## What tells a person
 
@@ -107,8 +107,144 @@ upstream-base-url: "https://ntfy.sh"
 
 ## Personal data
 
-Preferences, the ntfy topic and Web Push subscriptions are a person's personal data: they belong in a Tenant export once one exists, and **Turn everything off** deletes them. The VAPID keys and the ntfy token are deployment secrets and are never exported.
+Preferences, the ntfy topic, Web Push subscriptions, the Slack link and Teams workflows are a person's personal data, and **Turn everything off** deletes them. The Tenant export carries the preferences and the Slack link (workspace and member id); topics, subscriptions, Slack direct-message targets and Teams workflow URLs are secrets and stay out. The VAPID keys, the ntfy token, the Slack bot token and the Slack signing secret are deployment secrets and are never exported.
+
+## Slack
+
+Each person gets their notices as direct messages from an Unfold Slack app. A message is Block Kit: the headline and the Work Item's number and masked title as plain text, so a title cannot inject Slack formatting, and an **Open in Unfold** button (**Answer in Unfold** for a question) that links to the page. It carries nothing more than the other channels: no price, spend, note or question text.
+
+### Create the Slack app
+
+At [api.slack.com/apps](https://api.slack.com/apps), choose **Create New App › From an app manifest**, pick the workspace and paste this, with your own host in the request URL. The fields follow Slack's [app manifest reference](https://docs.slack.dev/reference/app-manifest).
+
+```yaml
+display_information:
+  name: Unfold
+  description: Tells you when a Work Item, a review or a question waits for you.
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: unfold
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - im:write
+      - users:read.email
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
+  interactivity:
+    is_enabled: true
+    request_url: https://unfold.example.org/api/notifications/channels/slack/interactions
+```
+
+What each scope is for, per Slack's method reference:
+
+| Scope | Method | Why |
+| --- | --- | --- |
+| `users:read.email` | [`users.lookupByEmail`](https://docs.slack.dev/reference/methods/users.lookupByEmail) | Find the Slack account of the email address a person gives when they link |
+| `im:write` | [`conversations.open`](https://docs.slack.dev/reference/methods/conversations.open) | Open the direct message with that account |
+| `chat:write` | [`chat.postMessage`](https://docs.slack.dev/reference/methods/chat.postMessage) | Post the link request and the notices |
+
+[`views.open`](https://docs.slack.dev/reference/methods/views.open) and [`views.update`](https://docs.slack.dev/reference/methods/views.update), used to review a tool prompt, need no scope.
+
+Then **Install to Workspace**. Installing runs Slack's OAuth v2 flow for you and shows the **Bot User OAuth Token** (`xoxb-…`) under **OAuth & Permissions**; copy it. Copy the **Signing Secret** from **Basic Information › App Credentials**. Unfold serves one workspace this way; it runs no install flow of its own for other workspaces.
+
+### Configure Slack in Unfold
+
+```json
+{
+  "notifications": {
+    "slack": {
+      "tokenEnv": "UNFOLD_SLACK_BOT_TOKEN",
+      "signingSecretEnv": "UNFOLD_SLACK_SIGNING_SECRET",
+      "teamId": "T012AB3C4",
+      "permissionAnswers": false
+    }
+  }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `slack.tokenEnv` | The variable holding the bot token |
+| `slack.signingSecretEnv` | The variable holding the signing secret. Slack is unavailable while either variable is empty, because linking needs a signed confirmation |
+| `slack.teamId` | Optional. The one workspace Unfold accepts links and button presses from |
+| `slack.permissionAnswers` | Optional, default `false`. See [Answering a tool prompt from Slack](#answering-a-tool-prompt-from-slack) |
+| `slack.apiUrl` | Optional, default `https://slack.com/api`. Only tests change it |
+
+Put both values in the `unfold-notifications` Secret next to the others and pass them with `extraEnv`, as above. Unfold masks the bot token and the signing secret wherever it masks its other secrets. The demo refuses a `notifications.slack` block, because every demo visitor is an administrator.
+
+Turn `notifications.slack` on for the people who may use it, the same way as `notifications.push`.
+
+### Link a Slack account
+
+On **Settings › Notifications** a person gives the email address of their Slack account and presses **Link Slack**. Unfold looks the account up, opens a direct message with it and posts **Link to Unfold** there. The link exists only when that same Slack account presses the button within 15 minutes: Unfold checks the request signature, that the presser is the account it asked, and that the one-time code (kept only as a hash) matches. A Slack account links to one Unfold person. **Unlink** removes it.
+
+### Button presses
+
+Slack sends every button press to the request URL as a signed, form-encoded `payload` ([handling user interaction](https://docs.slack.dev/interactivity/handling-user-interaction)); a link button sends one too ([button element](https://docs.slack.dev/reference/block-kit/block-elements/button-element)). Unfold checks the [request signature](https://docs.slack.dev/authentication/verifying-requests-from-slack) before it reads anything: the hex HMAC-SHA256, keyed with the signing secret, of `v0:<X-Slack-Request-Timestamp>:<raw body>`, prefixed `v0=` and compared in constant time with `X-Slack-Signature`. A timestamp more than five minutes from Unfold's clock is refused as stale. Unfold acts on these `action_id`s and no others:
+
+| Action | What it does |
+| --- | --- |
+| `unfold.open` | Nothing; the browser opens Unfold |
+| `unfold.link.confirm` | Confirms a link request, as above |
+| `unfold.permission.review` | Opens the review of a tool prompt, when `permissionAnswers` is on |
+| `unfold.permission.allow`, `unfold.permission.deny` | Answers that prompt from the review, when `permissionAnswers` is on |
+
+Every other action is refused with a short reply only the presser sees, sent to the payload's `response_url` when that is on `hooks.slack.com`. Nothing that spends money (retrying, approving, raising a budget, asking a model) is ever a button in Slack: a person opens Unfold for that.
+
+### Answering a tool prompt from Slack
+
+With `permissionAnswers: true`, the notice for a tool-permission prompt in a person's own Linked Session gets a second button, **Review and answer**. It works only for the Slack account linked to the session's owner, only while the session turned on remote approval, and only while the prompt waits. It opens a Slack modal, visible to that person alone, with the tool and the summary the plugin wrote (redacted again by Unfold) and two buttons, **Allow once** and **Deny**. Each asks for a confirmation in Slack before it acts, so the person reads the prompt and confirms it, as `unfold_answer_permission` asks of unfold-mcp. Unfold answers once, never "always allow", and records the answer as the person's. The notice itself never carries the tool or its summary; only the modal does. Leave `permissionAnswers` off if tool summaries should never reach Slack.
+
+Unfold sends the modal as a JSON object in a JSON body. Slack's method pages describe `view` as "a JSON-encoded string"; that a JSON body may carry it as an object is **not verified** against a real workspace.
+
+### Slack delivery
+
+Unfold treats an HTTP 429 or Slack's `ratelimited` error as retry-later and honours `Retry-After` ([rate limits](https://docs.slack.dev/apis/web-api/rate-limits)); Slack's `internal_error`, `fatal_error`, `service_unavailable` and `request_timeout` are retried too. `channel_not_found`, `is_archived`, `user_disabled`, `user_not_found` and `cannot_dm_bot` mean the direct message is gone: Unfold deletes the target and the person links again. Any other error, such as `invalid_auth` or `token_revoked`, gives the notice up.
+
+## Microsoft Teams
+
+Office 365 Connectors in Teams, including connector-based Incoming Webhooks, were retired in May 2026; Microsoft's replacement is a webhook in the Teams **Workflows** app, powered by Power Automate ([Create an Incoming Webhook](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook), checked 2026-10-30). Unfold posts to such a workflow. It needs no Azure registration and no bot.
+
+A notice is an Adaptive Card in a `message` with one `application/vnd.microsoft.card.adaptive` attachment, the body the [Teams webhook trigger](https://learn.microsoft.com/en-us/connectors/teams/#microsoft-teams-webhook) expects. The headline and the Work Item's number and masked title are `TextRun`s in `RichTextBlock`s, which [render no Markdown](https://learn.microsoft.com/en-us/adaptive-cards/authoring-cards/text-features), so a title cannot add a link; the only action is `Action.OpenUrl` into Unfold. The cards carry nothing Unfold answers.
+
+### Add a workflow
+
+1. In Teams, open the chat or channel that should get the notices, choose **Workflows** and pick the template **Send webhook alerts to a chat** or **Send webhook alerts to a channel**. A personal chat suits one person; a channel suits a team, and everyone who reads it sees the notices.
+2. Let **Anyone** trigger the flow. Unfold sends no Microsoft sign-in token, and the trigger refuses a request without one under the other two choices.
+3. Save and copy the webhook URL.
+4. On **Settings › Notifications**, paste it under **Microsoft Teams**, give it a name and press **Add workflow**, then **Send a test notice**.
+
+The URL is the only secret: whoever holds it can post to that chat or channel. Unfold keeps it in its target table, never shows it back (only its host), never exports it, and posts to it only over HTTPS to a public address. A person keeps up to five.
+
+### Configure Teams in Unfold
+
+```json
+{
+  "notifications": {
+    "teams": { "allowedHosts": ["logic.azure.com", "api.powerplatform.com"] }
+  }
+}
+```
+
+`teams.allowedHosts` (optional, the default shown) lists the host suffixes a workflow URL may end in. Microsoft's connector reference shows `https://xxxxx.logic.azure.com:443/…`; newer workflows use `…environment.api.powerplatform.com`, which is **not verified** against a Microsoft document. Turn `notifications.teams` on for the people who may use it.
+
+### Teams delivery
+
+Unfold treats 2xx as delivered, 404 and 410 as a deleted workflow whose target goes (**not verified**: which status a deleted or turned-off workflow answers), and 408, 429 and 5xx as retry-later. Microsoft documents throttling above four requests a second per webhook and a 28 KB message limit; one notice is far below it.
+
+### Interactive cards: a follow-up
+
+Buttons that answer from Teams need a Teams app with a bot: a Microsoft Entra app registration and an Azure Bot resource, the Bot Framework or Microsoft 365 Agents SDK to receive `Action.Execute` invokes with a validated Bot Framework token, and Microsoft Graph or a proactive message to reach a person. That is an Azure registration per installation and a token check of its own, so phase 1 offers Open links only. When it is built it keeps the Slack rules: only the linked owner, a review and a confirmation, nothing that spends money.
 
 ## Adding a channel
 
-Channels are adapters in one registry (`NotificationChannel` in `src/notify/channels.ts`). A Slack or Microsoft Teams adapter registers its own id, stores each person's target (a member id, a webhook) through the same target table, sends through the same outbox and retries, and serves its linking routes under `/api/me/notifications/channels/<id>/`.
+Channels are adapters in one registry (`NotificationChannel` in `src/notify/channels.ts`). An adapter registers its own id and optional flag, stores each person's target (an ntfy topic, a push subscription, a Slack direct message, a Teams workflow URL) through the same target table, sends through the same outbox, retries, quiet hours and recipient scoping, and serves its routes under `/api/me/notifications/channels/<id>/`. A route its provider calls without an Unfold sign-in, such as Slack's interactions, goes under `/api/notifications/channels/<id>/` and verifies the provider itself.

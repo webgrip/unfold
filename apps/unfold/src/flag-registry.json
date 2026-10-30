@@ -287,6 +287,34 @@
         "labs": false
       }
     },
+    "notifications.slack": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Notifications in Slack",
+        "description": "Lets a person whose notifications.push flag is on link their Slack account and get their notices as Slack direct messages with an Open link (docs/operations/notifications.md#slack). With notifications.slack.permissionAnswers set, the owner of a tool-permission prompt may review and answer it from Slack after a confirmation; nothing that spends money is ever offered there. Needs a notifications.slack block with the bot token and signing secret. Evaluated per person on the server. The demo refuses a Slack block.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "notifications.teams": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Notifications in Microsoft Teams",
+        "description": "Lets a person whose notifications.push flag is on add a Power Automate Workflows webhook and get their notices as Adaptive Cards with an Open link in the Teams chat or channel that workflow posts to (docs/operations/notifications.md#microsoft-teams). The cards offer no action. Needs a notifications.teams block. Evaluated per person on the server. The demo sends nothing.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

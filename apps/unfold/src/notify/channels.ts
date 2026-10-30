@@ -17,6 +17,10 @@ export type HttpResult = { status: number; retryAfterMs?: number } | { error: st
 export type Transport = (url: URL, headers: Record<string, string>, body: Buffer, publicOnly: boolean) => Promise<HttpResult>;
 /** A channel's answer to one of its own routes under `/api/me/notifications/channels/<id>/`. */
 export type ChannelAnswer = { status: number; body: unknown };
+/** An unauthenticated request to a channel's public route under `/api/notifications/channels/<id>/`: its headers and raw body. */
+export type PublicRequest = { method: string; rest: string[]; headers: Record<string, string | string[] | undefined>; rawBody: Buffer; at: string };
+/** What a channel's public route may ask of Unfold: whether notifications and the channel's flag are on for a person. */
+export type PublicContext = { allowed: (userId: string) => Promise<boolean> };
 
 /**
  * A notification channel adapter. Unfold knows channels only through this interface and the registry: a new
@@ -37,6 +41,12 @@ export interface NotificationChannel {
   describe(userId: string): Record<string, unknown>;
   /** Answers the channel's own routes, such as subscribing a browser. */
   route?(userId: string, method: string, rest: string[], readBody: () => Promise<unknown>, at: string): Promise<ChannelAnswer>;
+  /** The feature flag that must be on for a person, besides `notifications.push`, before they may use this channel. */
+  readonly flag?: string;
+  /** Answers a request the channel's provider sends without an Unfold sign-in, such as a signed Slack interaction. */
+  publicRoute?(request: PublicRequest, context: PublicContext): Promise<ChannelAnswer>;
+  /** Forgets what the channel keeps about a person outside the target table, such as a linked chat account. */
+  forget?(userId: string): void;
 }
 
 /** The registered channels, by id. */

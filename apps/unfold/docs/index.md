@@ -22,7 +22,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Task connections](operations/task-connections.md)
 - [Bill accepted tickets through Simplicate](operations/billing-simplicate.md): one line per accepted Work Item in your own billing tool
 - [Export AI cost per Client (FinOps FOCUS)](operations/focus-cost-export.md): model cost per Run or Work Item as a FOCUS 1.4 file for any FinOps tool
-- [Get notified (ntfy and Web Push)](operations/notifications.md)
+- [Get notified (ntfy, Web Push, Slack and Microsoft Teams)](operations/notifications.md)
 - [Provision and deprovision people](operations/provision-and-deprovision-people.md): SCIM provisioning and the Shared Signals receiver
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
 - [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export

@@ -122,6 +122,17 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   return parsed;
 }
 
+async function rawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) fault(413, 'body_too_large', 'Request is too large.');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   if (!req.headers['content-type']?.startsWith('application/json')) fault(415, 'content_type', 'Use application/json.');
   const chunks: Buffer[] = [];
@@ -306,7 +317,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
-  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
+  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), flagOn: (user, flag) => flags.getBooleanValue(flag, false, flagContext(user)), permissions, canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
   notifications.start();
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
@@ -393,6 +404,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
       if (lifecycle.handles(path)) return await lifecycle.handle(req, res, url);
+      if (notifications.handlesPublic(path)) { const answer = await notifications.publicRoute(method, path, req.headers, await rawBody(req, 262_144)); return json(res, answer.status, answer.body); }
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
       if (path.startsWith('/api/intake/') && await intakeRoute(req, res, path, url.searchParams, { service: intake, user: () => auth.user(req), guard: () => mutationGuard(req, config), readJson: () => body(req), enabledFor: user => flags.getBooleanValue('intake.requests', false, flagContext(user)), baseUrl: config.baseUrl ?? `http://${req.headers.host}`, trustedProxies: config.trustedProxies, send: (status, value) => json(res, status, sanitize(value)) })) return;
