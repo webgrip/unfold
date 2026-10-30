@@ -194,6 +194,7 @@ jobs:
     name: Unfold - Publish VS Code extension
     needs: [parse-release-tag]
     runs-on: docker
+    enable-openid-connect: true
     permissions:
       contents: read
     steps:
@@ -260,6 +261,18 @@ jobs:
         run: |
           python3 scripts/restore_extension_asset.py "$VERSION"
           npm --prefix apps/unfold run extension:verify
+      - name: Sign the canonical VSIX and attest its provenance through OpenBao
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: python3 scripts/sign_extension_asset.py sign "$VERSION"
+      - name: Verify the released VSIX checksum, signature and provenance with cosign verify-blob
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: python3 scripts/sign_extension_asset.py verify "$VERSION"
       - name: Publish to Open VSX
         shell: bash
         env:
@@ -269,10 +282,12 @@ jobs:
           set -euo pipefail
           cd apps/unfold/extensions/vscode
           if [ -z "${OVSX_PAT:-}" ]; then
-            echo "OVSX_PAT is required for the public extension release." >&2
+            echo "::error::OVSX_PAT is required for the public extension release. Open VSX Trusted Publishing accepts only GitHub Actions; see apps/unfold/docs/operations/release.md#registry-credentials."
+            echo "- Open VSX: **failed**, OVSX_PAT is not set" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             exit 1
           fi
           npx --no-install ovsx publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
+          echo "- Open VSX: published \`webgrip.unfold\` ${VERSION} with the namespace-scoped OVSX_PAT" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       - name: Publish to the Visual Studio Marketplace
         shell: bash
         env:
@@ -283,17 +298,38 @@ jobs:
         run: |
           set -euo pipefail
           cd apps/unfold/extensions/vscode
+          retired=2026-12-01
+          guide=apps/unfold/docs/operations/release.md#registry-credentials
+          summary() { printf -- '- Visual Studio Marketplace: %s\n' "$1" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"; }
           if [[ "$VERSION" == *-* ]]; then
             echo "::notice::${VERSION} is a pre-release version. The Visual Studio Marketplace accepts only major.minor.patch; Open VSX carries this build."
+            summary "**skipped**, ${VERSION} is a pre-release and the Marketplace accepts only major.minor.patch (ADR 0021); Open VSX carries it"
             exit 0
           fi
-          if [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_TENANT_ID:-}" ]; then
+          if [ -n "${AZURE_CLIENT_ID:-}" ] || [ -n "${AZURE_TENANT_ID:-}" ]; then
+            if [ -z "${AZURE_CLIENT_ID:-}" ] || [ -z "${AZURE_TENANT_ID:-}" ]; then
+              echo "::error::Only one of MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID is set. Set both for the Entra credential; see ${guide}."
+              summary "**failed**, the Entra credential is half configured"
+              exit 1
+            fi
+            [ -z "${VSCE_PAT:-}" ] || echo "::warning::VSCE_PAT is set but unused: the Entra credential publishes. Delete the VSCE_PAT secret."
             npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate --azure-credential
-          elif [ -n "${VSCE_PAT:-}" ]; then
-            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
-          else
-            echo "::notice::No Marketplace credential is configured. ${VERSION} ships to Open VSX only, by decision; see docs/adrs/0021-the-extension-ships-through-open-vsx-first.md."
+            summary "published ${VERSION} with the Entra credential"
+            exit 0
           fi
+          if [ -n "${VSCE_PAT:-}" ]; then
+            if [[ ! "$(date -u +%F)" < "$retired" ]]; then
+              echo "::error::Only VSCE_PAT is set, and Azure DevOps retired global personal access tokens on ${retired}, so the Marketplace no longer accepts it. Fix: add an Entra managed identity to the WebGrip publisher, set MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID, then delete VSCE_PAT; see ${guide}."
+              summary "**failed**, VSCE_PAT is a global PAT and those were retired on ${retired}"
+              exit 1
+            fi
+            echo "::warning::VSCE_PAT is an Azure DevOps global personal access token, and those stop working on ${retired}. From that date this step fails until MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID are set; see ${guide}."
+            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
+            summary "published ${VERSION} with VSCE_PAT, which stops working on ${retired}"
+            exit 0
+          fi
+          echo "::warning::No Marketplace credential is configured, so stable ${VERSION} ships to Open VSX only (ADR 0021)."
+          summary "**skipped**, no credential is configured; ${VERSION} ships to Open VSX only (ADR 0021)"
 
   unfold-release-distribute:
     name: Unfold - Verify and publish all destinations
