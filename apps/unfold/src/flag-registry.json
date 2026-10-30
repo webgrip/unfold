@@ -315,6 +315,20 @@
         "labs": false
       }
     },
+    "mcp.tasks": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Follow a hand-off as an MCP task",
+        "description": "Lets unfold-mcp over HTTPS answer a confirmed unfold_hand_off with an MCP task (Tasks extension 2026-07-28) to a client that declares the extension on that request, such as Claude Code, which then follows it in its tasks panel: working with the reason it waits, the agent's questions to answer there, and the pull request or the end as the result. Cancelling the task only stops following; the Work Item keeps running. Advertised in server/discover and served by tasks/get, tasks/update and tasks/cancel only while on. Evaluated per person on the server. Stdio and 2025 clients always get the synchronous result.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

@@ -84,10 +84,11 @@ async function post(url: string, message: Record<string, any>, options: { token?
   return { status: response.status, headers: response.headers, json, text };
 }
 
-async function served(t: test.TestContext, extra: Partial<McpHttpSettings> = {}) {
+async function served(t: test.TestContext, extra: Partial<McpHttpSettings> = {}, configure: (config: any) => void = () => undefined) {
   const rsa = rsaSigner();
   const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
   const unfold = await application('live', config => {
+    configure(config);
     config.baseUrl = undefined;
     (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } };
     config.mcp = settingsFor(idp.issuer, extra);
@@ -655,4 +656,27 @@ test('over HTTP, MCP Apps reaches only clients that declare it: per request for 
   await legacy(10, 'initialize', 'host-a', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'host-a', version: '1' } });
   assert.equal(viewOf(await legacy(11, 'tools/list', 'host-a')), undefined, 'initializing without the extension forgets it');
   assert.equal((await legacy(12, 'resources/list', 'host-a')).json.error.code, -32601);
+});
+
+test('over HTTP, the Tasks extension follows the person\'s mcp.tasks flag, and a task request must name its task in Mcp-Name', async t => {
+  const tasks = { extensions: { 'io.modelcontextprotocol/tasks': {} } };
+  const off = await served(t);
+  const hidden = await post(off.unfold.url, { jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta(tasks) } }, { token: off.token() });
+  assert.equal(hidden.json.result.capabilities.extensions, undefined, 'off by default');
+  const unserved = await post(off.unfold.url, { jsonrpc: '2.0', id: 2, method: 'tasks/get', params: { taskId: 'abc', _meta: meta(tasks) } }, { token: off.token() });
+  assert.equal(unserved.status, 404);
+  assert.equal(unserved.json.error.code, -32601);
+
+  const on = await served(t, {}, config => { config.flags = { document: { flags: { 'mcp.tasks': { defaultVariant: 'on' } } }, unknown: [] }; });
+  const shown = await post(on.unfold.url, { jsonrpc: '2.0', id: 3, method: 'server/discover', params: { _meta: meta(tasks) } }, { token: on.token() });
+  assert.deepEqual(shown.json.result.capabilities.extensions, { 'io.modelcontextprotocol/tasks': {} });
+  const unknown = await post(on.unfold.url, { jsonrpc: '2.0', id: 4, method: 'tasks/get', params: { taskId: 'abc', _meta: meta(tasks) } }, { token: on.token(), headers: { 'mcp-name': 'abc' } });
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.json.error.code, -32602);
+  assert.ok(on.unfold.app.store.getSecret('mcp:task-keys'), 'the key ring lives in Unfold\'s encrypted state');
+  const mismatched = await post(on.unfold.url, { jsonrpc: '2.0', id: 5, method: 'tasks/cancel', params: { taskId: 'abc', _meta: meta(tasks) } }, { token: on.token(), headers: { 'mcp-name': 'other' } });
+  assert.equal(mismatched.json.error.code, -32020);
+  const undeclared = await post(on.unfold.url, { jsonrpc: '2.0', id: 6, method: 'tasks/get', params: { taskId: 'abc', _meta: meta() } }, { token: on.token() });
+  assert.equal(undeclared.json.error.code, -32021);
+  assert.deepEqual(undeclared.json.error.data, { requiredCapabilities: { extensions: { 'io.modelcontextprotocol/tasks': {} } } });
 });

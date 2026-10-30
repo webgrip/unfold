@@ -30,7 +30,7 @@ import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
 import { FocusQueryError, focusExportQuery, focusFile, readFocusExport } from './focus-export.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { TenantScope } from './tenant-scope.ts';
-import { membershipsFromGroups } from './tenancy.ts';
+import { membershipsFromGroups, ownership } from './tenancy.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
@@ -53,6 +53,7 @@ import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
 import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
+import { taskKeyRing } from './mcp-tasks.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
@@ -383,6 +384,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     trustedProxies: config.trustedProxies,
     audit: entry => audit.mcp(entry),
     version: applicationVersion,
+    tasks: {
+      enabled: user => flags.getBooleanValue('mcp.tasks', false, flagContext(user)),
+      keys: () => taskKeyRing(store, Date.now()),
+      tenantOf: (user, id) => { const source = tenants.source(user, id); return source ? ownership(source).tenant : undefined; },
+    },
   }) : undefined;
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);

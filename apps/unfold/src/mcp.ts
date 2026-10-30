@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { strictBase64url } from './mcp-auth.ts';
 import { mcpAppResources, mcpAppToolMeta, mcpAppsExtension, readMcpAppResource, supportsMcpApps } from './mcp-apps.ts';
+import { mcpTasksExtension, openTaskId, sealTaskId, supportsTasks, taskCacheMs, taskPollIntervalMs, type HandOffRef, type McpTasks } from './mcp-tasks.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -31,15 +32,18 @@ export function confirmationLedger(): Confirmations { return { key: randomBytes(
  * `apiUrl` is where the API is called when it differs from the URL links point at, `principal` is who a
  * confirmation is bound to, and `role` is that person's Unfold role when the caller already knows it; without it the
  * action tools read it from Unfold. `mcpApps` says that a 2025 client declared MCP Apps in an `initialize` this server
- * instance did not see, as stateless HTTP remembers it between requests.
+ * instance did not see, as stateless HTTP remembers it between requests. With `tasks`, a 2026-07-28 client that
+ * declares the Tasks extension follows a confirmed `unfold_hand_off` as a task.
  */
-export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations; mcpApps?: boolean };
+export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations; mcpApps?: boolean; tasks?: McpTasks };
 
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null; waitingGroup(item: unknown): 'review' | 'needs' | 'proposed' };
 type Json = Record<string, any>;
 type Call = { modern: boolean; capabilities: Json; client?: string; inputResponses?: Json; requestState?: unknown };
-type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; destructive?: true; confirms?: true; run(args: Json, call: Call): Promise<Json | InputRequired> };
+type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; destructive?: true; confirms?: true; run(args: Json, call: Call): Promise<Json | InputRequired | TaskCreated> };
+type WaitingQuestion = { id: string; text: string; typed: boolean; role: string; round: number | null; runId: string };
+type Followed = { task: Json; answers: Map<string, { message: string; perform(text: string, confirmation: string, nonce: string): Promise<Json> }> };
 type Planned = { message: string; perform(confirmation: string, nonce: string): Promise<Json> };
 /** Sends one request from the server to the client and resolves with the client's result. */
 export type McpOutbound = (method: string, params: Json) => Promise<Json>;
@@ -54,6 +58,11 @@ class InputRequired {
   readonly inputRequests: Json;
   readonly requestState: string;
   constructor(inputRequests: Json, requestState: string) { this.inputRequests = inputRequests; this.requestState = requestState; }
+}
+
+class TaskCreated {
+  readonly task: Json;
+  constructor(task: Json) { this.task = task; }
 }
 
 const reasons = await import(new URL('../public/core/reasons.js', import.meta.url).href) as Reasons;
@@ -106,8 +115,8 @@ export function createMcpServer(options: McpOptions) {
     let body: any = null;
     try { body = text ? JSON.parse(text) : null; } catch {}
     if (response.status === 401) throw new Error(options.token ? 'Unfold refused UNFOLD_TOKEN: it expired or was revoked. Run `npm run mcp -- login` again.' : 'Unfold needs a sign-in. Run `npm run mcp -- login` and set UNFOLD_TOKEN.');
-    if (response.status === 403) throw new Error(payload && body?.error?.message ? `Unfold refused: ${redact(String(body.error.message))} Nothing was changed.` : 'Your Unfold user may not read this Team.');
-    if (response.status === 404) throw new Error('Not found, or outside the Teams your Unfold user may read.');
+    if (response.status === 403) throw new UnfoldAnswer(403, String(body?.error?.code ?? 'forbidden'), payload && body?.error?.message ? `Unfold refused: ${redact(String(body.error.message))} Nothing was changed.` : 'Your Unfold user may not read this Team.');
+    if (response.status === 404) throw new UnfoldAnswer(404, String(body?.error?.code ?? 'not_found'), 'Not found, or outside the Teams your Unfold user may read.');
     if (!response.ok || body === null) throw new UnfoldAnswer(response.status, String(body?.error?.code ?? ''), `Unfold answered ${response.status}${body?.error?.message ? `: ${redact(String(body.error.message))}` : ''}.`);
     return body;
   }
@@ -146,6 +155,30 @@ export function createMcpServer(options: McpOptions) {
     const state = await readFile(options.stateFile, 'utf8').then(text => JSON.parse(text), () => ({}));
     await mkdir(dirname(options.stateFile), { recursive: true, mode: 0o700 });
     await writeFile(options.stateFile, `${JSON.stringify({ ...(state && typeof state === 'object' ? state : {}), [base]: at.toISOString() })}\n`, { mode: 0o600 });
+  }
+
+  const settle = (id: string, demo: boolean, said: string, result: Json): Json => ({ summary: demo ? `${said} This is the illustrative demo: nothing real changed.` : said, done: true, demo, link: link(id), result });
+  const plain = (state: unknown) => String(state ?? '').replaceAll('_', ' ');
+  const quoted = (item: Json) => `Work Item ${item.id} "${clip(item.title, 120)}"`;
+  const demoSays = (demo: boolean) => demo ? 'Illustrative demo: nothing real changes. ' : '';
+
+  function answerPlan(id: string, item: Json, detail: Json, question: WaitingQuestion, demo: boolean) {
+    const remaining = board.waitingQuestions(detail).filter(entry => entry.id !== question.id);
+    const offer = board.resumeOffer(detail);
+    const resume = !remaining.length && question.id && offer?.readyAfter([question.id]) ? offer : null;
+    const budget = item.latestShift?.budgetUsd ?? ((detail.shifts ?? []) as Json[]).at(-1)?.budgetUsd;
+    const next = remaining.length ? `${remaining.length} more ${remaining.length === 1 ? 'question waits' : 'questions wait'} after this one, so nothing restarts yet and nothing is spent.`
+      : resume ? `Then Ploeg resumes Round ${resume.fromRound} on the same branch: this Round up to ${usd(cents(resume.roundCapUsd))}, in total up to ${usd(cents(resume.poolUsd))}, from Team ${item.team}'s budget.`
+      : `Then Ploeg starts it over, spending from Team ${item.team}'s budget${typeof budget === 'number' ? `, up to ${usd(cents(budget))} like the last attempt` : ''}.`;
+    return { next, async perform(text: string, confirmation: string, nonce: string): Promise<Json> {
+      if (question.id) {
+        try { await get(`/api/ploeg/work-items/${id}/questions/${encodeURIComponent(question.id)}/answer`, { commandId: `mcp-${nonce}-answer`, answer: text }, confirmation); }
+        catch (error) { if (!/already answered/i.test(error instanceof Error ? error.message : '')) throw error; }
+      }
+      if (remaining.length) return settle(id, demo, `Answered question ${question.id} on Work Item ${id}; ${remaining.length} more ${remaining.length === 1 ? 'waits' : 'wait'}: ${remaining.map(entry => entry.id).join(', ')}.`, { questionId: question.id, waiting: remaining.map(entry => entry.id), state: item.state });
+      const result = await get(`/api/ploeg/work-items/${id}/requeue`, { commandId: `mcp-${nonce}`, expectedState: item.state, ...(resume ? { resume: true } : {}), ...(question.id ? {} : { note: board.answerNote(question, text) }) }, confirmation);
+      return settle(id, Boolean(result.demo) || demo, `Answered and ${result.resumed ? 'resumed' : 'restarted'} Work Item ${id} from Round ${result.fromRound ?? 1}; it is ${plain(result.state)}.`, { questionId: question.id || null, resumed: result.resumed === true, state: String(result.state ?? ''), fromRound: result.fromRound ?? 1 });
+    } };
   }
 
   const tools: Tool[] = [
@@ -359,8 +392,6 @@ export function createMcpServer(options: McpOptions) {
 
   function actionTools(): Tool[] {
     const workId = { id: string('Work Item id, or an Unfold link to it') };
-    const settle = (id: string, demo: boolean, said: string, result: Json): Json => ({ summary: demo ? `${said} This is the illustrative demo: nothing real changed.` : said, done: true, demo, link: link(id), result });
-    const plain = (state: unknown) => String(state ?? '').replaceAll('_', ' ');
     const workAction = (name: string, title: string, description: string, extra: Json, required: string[], destructive: boolean, plan: (id: string, args: Json, item: Json, detail: Json, demo: boolean) => Planned, check: (args: Json) => unknown[] = () => []): Tool => ({
       name, title, readOnly: false, confirms: true, ...(destructive ? { destructive: true as const } : {}), description,
       inputSchema: object({ ...workId, ...extra }, ['id', ...required]), outputSchema: actionOutput,
@@ -373,7 +404,6 @@ export function createMcpServer(options: McpOptions) {
         });
       },
     });
-    const quoted = (item: Json) => `Work Item ${item.id} "${clip(item.title, 120)}"`;
     const spentOf = (detail: Json) => cents((detail.shifts ?? []).reduce((sum: number, shift: Json) => sum + (Number(shift.spentUsd) || 0), 0));
     const boundedText = (args: Json, key: string, required: boolean) => {
       if (!required && args[key] === undefined) return '';
@@ -381,7 +411,6 @@ export function createMcpServer(options: McpOptions) {
       if (!text || text.length > 4096) throw new Error(`${key} must be 1 to 4096 characters.`);
       return text;
     };
-    const demoSays = (demo: boolean) => demo ? 'Illustrative demo: nothing real changes. ' : '';
     return [
       {
         name: 'unfold_hand_off', title: 'Hand a task to a Team', readOnly: false, confirms: true,
@@ -395,8 +424,10 @@ export function createMcpServer(options: McpOptions) {
           if (!source || !task || !team) throw new Error('source, task and team are required, as Unfold\'s Tasks page names them.');
           const page = `${base}/#tasks`;
           const path = `/api/task-sources/${source}/tasks/${task}`;
-          return confirmThen('unfold_hand_off', page, ['unfold_hand_off', source, task, team], call, async demo => {
+          let baseline = 0n;
+          const handed = await confirmThen('unfold_hand_off', page, ['unfold_hand_off', source, task, team], call, async demo => {
             const [found, status] = await Promise.all([get(path), get(`${path}/ploeg?refresh=1`)]);
+            baseline = ((status.workItems ?? []) as Json[]).map(entry => String(entry.id)).filter(id => /^\d{1,19}$/.test(id)).map(BigInt).reduce((top, id) => id > top ? id : top, 0n);
             if (status.handoff?.allowed !== true) throw new Error(`${clip(status.handoff?.reason ?? status.message ?? 'This task cannot be handed to Ploeg.', 300)} Nothing was changed.`);
             if ((status.assignedTeams ?? []).includes(team)) throw new Error(`Team ${team} already holds this task. Nothing was changed.`);
             const offered = (status.teams ?? []).find((entry: Json) => entry.id === team);
@@ -408,6 +439,13 @@ export function createMcpServer(options: McpOptions) {
               return { summary: `Handed task ${source}/${task} to Team ${team}.${warnings.length ? ` ${warnings.join(' ')}` : ''}${demo ? ' This is the illustrative demo: nothing real changed.' : ''}`, done: true, demo, link: page, result: { assignedTeams: result.assignedTeams ?? [], warnings } };
             } };
           });
+          if (handed instanceof InputRequired || handed.done !== true || !await followsTasks(call)) return handed;
+          const ref: HandOffRef = { source, task, team, baseline, handedAt: Math.floor(clock() / 1000) };
+          const tenant = options.tasks!.tenantOf(source);
+          const taskId = tenant === undefined ? undefined : sealTaskId(options.tasks!.keys(), ref, principal, tenant);
+          if (!taskId) return handed;
+          const at = new Date(ref.handedAt * 1000).toISOString();
+          return new TaskCreated({ taskId, status: 'working', statusMessage: `${handed.summary} ${notPickedUp(ref)}`, createdAt: at, lastUpdatedAt: at, ttlMs: null, pollIntervalMs: taskPollIntervalMs });
         },
       },
       workAction('unfold_approve_work', 'Approve a proposal',
@@ -461,22 +499,8 @@ export function createMcpServer(options: McpOptions) {
           if (!question) throw new Error(wanted ? `Work Item ${id} waits on no question ${wanted}. Nothing was changed.` : `Work Item ${id} waits on no question for a person. Nothing was changed.`);
           const text = boundedText(args, 'text', true);
           if (text.length > 2000) throw new Error('text must be at most 2000 characters.');
-          const remaining = listed.filter(entry => entry.id !== question.id);
-          const offer = board.resumeOffer(detail);
-          const resume = !remaining.length && question.id && offer?.readyAfter([question.id]) ? offer : null;
-          const budget = item.latestShift?.budgetUsd ?? ((detail.shifts ?? []) as Json[]).at(-1)?.budgetUsd;
-          const next = remaining.length ? `${remaining.length} more ${remaining.length === 1 ? 'question waits' : 'questions wait'} after this one, so nothing restarts yet and nothing is spent.`
-            : resume ? `Then Ploeg resumes Round ${resume.fromRound} on the same branch: this Round up to ${usd(cents(resume.roundCapUsd))}, in total up to ${usd(cents(resume.poolUsd))}, from Team ${item.team}'s budget.`
-            : `Then Ploeg starts it over, spending from Team ${item.team}'s budget${typeof budget === 'number' ? `, up to ${usd(cents(budget))} like the last attempt` : ''}.`;
-          return { message: `${demoSays(demo)}Answer the question on ${quoted(item)}? ${next} Answer: ${clip(text, 300)}`, async perform(confirmation, nonce) {
-            if (question.id) {
-              try { await get(`/api/ploeg/work-items/${id}/questions/${encodeURIComponent(question.id)}/answer`, { commandId: `mcp-${nonce}-answer`, answer: text }, confirmation); }
-              catch (error) { if (!/already answered/i.test(error instanceof Error ? error.message : '')) throw error; }
-            }
-            if (remaining.length) return settle(id, demo, `Answered question ${question.id} on Work Item ${id}; ${remaining.length} more ${remaining.length === 1 ? 'waits' : 'wait'}: ${remaining.map(entry => entry.id).join(', ')}.`, { questionId: question.id, waiting: remaining.map(entry => entry.id), state: item.state });
-            const result = await get(`/api/ploeg/work-items/${id}/requeue`, { commandId: `mcp-${nonce}`, expectedState: item.state, ...(resume ? { resume: true } : {}), ...(question.id ? {} : { note: board.answerNote(question, text) }) }, confirmation);
-            return settle(id, Boolean(result.demo) || demo, `Answered and ${result.resumed ? 'resumed' : 'restarted'} Work Item ${id} from Round ${result.fromRound ?? 1}; it is ${plain(result.state)}.`, { questionId: question.id || null, resumed: result.resumed === true, state: String(result.state ?? ''), fromRound: result.fromRound ?? 1 });
-          } };
+          const answer = answerPlan(id, item, detail, question, demo);
+          return { message: `${demoSays(demo)}Answer the question on ${quoted(item)}? ${answer.next} Answer: ${clip(text, 300)}`, perform: (confirmation, nonce) => answer.perform(text, confirmation, nonce) };
         }, args => [boundedText(args, 'text', true), typeof args.questionId === 'string' ? args.questionId : '']),
       workAction('unfold_add_note', 'Leave a note for the next Run',
         'Leave a note on a queued or running Work Item for its next Run; the running Run never sees it. Asks the person to confirm first; nothing changes without that.',
@@ -618,15 +642,16 @@ export function createMcpServer(options: McpOptions) {
     ];
   }
 
+  async function mayAct(): Promise<boolean> {
+    const boot = options.role === undefined ? await get('/api/bootstrap') : { user: { role: options.role }, mode: undefined };
+    if (boot?.user?.role === 'viewer') throw new Error('Your Unfold role is viewer, which cannot change work. Nothing was changed.');
+    return boot?.mode === 'demo';
+  }
+
   async function confirmThen(tool: string, page: string, subjectParts: unknown[], call: Call, plan: (demo: boolean) => Promise<Planned>): Promise<Json | InputRequired> {
     const subject = createHash('sha256').update(JSON.stringify(subjectParts)).digest('base64url');
     const unchanged = { summary: 'Not done: you did not confirm. Nothing was changed.', done: false, demo: false, link: page, result: null };
     const refusedBy = (decision: Json | undefined) => decision?.action === 'cancel' ? { ...unchanged, summary: `Not done: the confirmation was closed without an answer, so nothing was changed. If your client never showed it to you, do it in Unfold: ${page}` } : unchanged;
-    const mayAct = async (): Promise<boolean> => {
-      const boot = options.role === undefined ? await get('/api/bootstrap') : { user: { role: options.role }, mode: undefined };
-      if (boot?.user?.role === 'viewer') throw new Error('Your Unfold role is viewer, which cannot change work. Nothing was changed.');
-      return boot?.mode === 'demo';
-    };
     if (call.modern && call.requestState !== undefined && elicitAnswer(call.inputResponses?.confirm_action)) {
       const agreed = redeemConfirmation(confirmations, call.requestState, principal, subject, clock(), { other: 'another action', after: `Nothing was changed; call ${tool} again to be asked to confirm.` });
       const decision = call.inputResponses!.confirm_action;
@@ -645,6 +670,110 @@ export function createMcpServer(options: McpOptions) {
     if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return refusedBy(decision);
     const nonce = randomBytes(12).toString('base64url');
     return planned.perform(`${nonce}:${createHash('sha256').update(planned.message).digest('hex')}`, nonce);
+  }
+
+  async function followsTasks(call: Call): Promise<boolean> {
+    return call.modern && options.tasks !== undefined && supportsTasks(call.capabilities) && await options.tasks.enabled();
+  }
+
+  function notPickedUp(ref: HandOffRef): string {
+    return `Ploeg has not picked it up yet; it becomes a Work Item for Team ${ref.team} when Ploeg next reads the tracker. Follow it in Unfold: ${base}/#tasks`;
+  }
+
+  async function followHandOff(taskId: string, ref: HandOffRef): Promise<Followed> {
+    const createdAt = new Date(ref.handedAt * 1000).toISOString();
+    const shape = (status: string, statusMessage: string, updatedAt: unknown, extra: Json = {}) => ({ taskId, status, statusMessage, createdAt, lastUpdatedAt: latest(createdAt, updatedAt), ttlMs: null, pollIntervalMs: taskPollIntervalMs, ...extra });
+    const answers: Followed['answers'] = new Map();
+    const handed = `Handed task ${ref.source}/${ref.task} to Team ${ref.team}.`;
+    const status = await get(`/api/task-sources/${encodeURIComponent(ref.source)}/tasks/${encodeURIComponent(ref.task)}/ploeg`);
+    const items = ((status.workItems ?? []) as Json[]).filter(entry => String(entry.team) === ref.team && /^\d{1,19}$/.test(String(entry.id)));
+    const followed = items.filter(entry => BigInt(entry.id) > ref.baseline).sort((left, right) => BigInt(left.id) < BigInt(right.id) ? -1 : 1)[0]
+      ?? items.find(entry => !finishedStates.includes(String(entry.state)) && Date.parse(String(entry.updatedAt)) >= ref.handedAt * 1000);
+    if (!followed) {
+      if (status.available === false) return { task: shape('working', `${handed} Unfold cannot see what Ploeg holds for it right now: ${clip(status.message, 300)} Follow it in Unfold: ${base}/#tasks`, null), answers };
+      if (!((status.assignedTeams ?? []) as unknown[]).includes(ref.team)) {
+        const summary = `${handed} The task is no longer assigned to Team ${ref.team} and Ploeg never picked it up, so nothing ran and nothing was spent. See it in Unfold: ${base}/#tasks`;
+        const structured = { summary, done: true, demo: Boolean(status.demo), link: `${base}/#tasks`, result: { workItemId: null, state: 'taken_back', team: ref.team, pullRequestUrl: '', spentUsd: null } };
+        return { task: shape('completed', summary, null, { result: { content: [{ type: 'text', text: JSON.stringify(structured) }], structuredContent: structured, isError: true } }), answers };
+      }
+      return { task: shape('working', `${handed} ${notPickedUp(ref)}`, null), answers };
+    }
+    const id = String(followed.id);
+    const detail = await get(`/api/ploeg/work-items/${id}`);
+    const item = (detail.item ?? {}) as Json;
+    const demo = Boolean(detail.demo || status.demo);
+    const state = String(item.state ?? followed.state);
+    const updated = item.updatedAt ?? followed.updatedAt;
+    const reason = reasons.detailReason(detail);
+    const page = link(id);
+    if ([...finishedStates, 'awaiting_review'].includes(state)) {
+      const shifts = (detail.shifts ?? []) as Json[];
+      const spent = cents(shifts.reduce((sum, shift) => sum + (Number(shift.spentUsd) || 0), 0));
+      const pullRequestUrl = String(followed.prUrl ?? item.pullRequestUrl ?? item.pullRequest?.url ?? '');
+      const failed = state === 'withdrawn' || state === 'stale';
+      const what = state === 'awaiting_review' ? `has a pull request ready for your review${pullRequestUrl ? `: ${pullRequestUrl}` : '.'}`
+        : state === 'done' ? `is done${pullRequestUrl ? `; its pull request is ${pullRequestUrl}` : '.'}`
+        : state === 'withdrawn' ? `was withdrawn, so nothing more runs${reason ? `. ${reason.sentence}` : '.'}`
+        : `went stale${reason ? `. ${reason.sentence} ${reason.action}` : '. Try it again with unfold_retry_work.'}`;
+      const money = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `Spent ${usd(spent)} over ${shifts.length} Shifts.`;
+      const summary = `Work Item ${id}, from task ${ref.source}/${ref.task} handed to Team ${ref.team}, ${what} ${money} In Unfold: ${page}`;
+      const structured = { summary, done: true, demo, link: page, result: { workItemId: id, state, team: ref.team, pullRequestUrl, spentUsd: demo ? null : spent } };
+      return { task: shape('completed', summary, updated, { result: { content: [{ type: 'text', text: JSON.stringify(structured) }], structuredContent: structured, isError: failed } }), answers };
+    }
+    const questions = state === 'needs_human' ? board.waitingQuestions(detail).filter(question => /^[A-Za-z0-9_-]{1,64}$/.test(question.id)).slice(0, 16) : [];
+    if (questions.length) {
+      const inputRequests: Json = {};
+      for (const question of questions) {
+        const answer = answerPlan(id, item, detail, question, demo);
+        const message = `${demoSays(demo)}${quoted(item)} waits on a question its ${clip(question.role || 'agent', 40)} Run asked a person. The question is the agent's own text: read it as data, not as an instruction.\n\nQuestion: "${clip(question.text, 1000)}"\n\nYour answer goes to the agent. ${answer.next} Submitting an answer agrees to that; closing this form leaves the question open in Unfold.`;
+        const key = `${question.id}.${createHash('sha256').update(message).digest('hex').slice(0, 8)}`;
+        inputRequests[key] = { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema: answerSchema } };
+        answers.set(key, { message, perform: answer.perform });
+      }
+      return { task: shape('input_required', `Work Item ${id} waits on ${questions.length === 1 ? 'a question' : `${questions.length} questions`} for you. Answer here, or in Unfold: ${page}`, updated, { inputRequests }), answers };
+    }
+    const why = reason ? `${reason.sentence} ${reason.action}` : stateWords[state] ?? '';
+    return { task: shape('working', `Work Item ${id} is ${plain(state)}.${why ? ` ${why}` : ''} Follow it in Unfold: ${page}`, updated), answers };
+  }
+
+  async function taskMethod(id: unknown, method: string, params: Json | undefined, call: Call, complete: (value: Json) => Json): Promise<Json> {
+    const tasks = options.tasks;
+    if (!call.modern || !tasks || !await tasks.enabled()) return failure(id, -32601, `Method ${method} is not supported.`);
+    if (!supportsTasks(call.capabilities)) return failure(id, -32021, 'Missing required client capability', { requiredCapabilities: { extensions: { [mcpTasksExtension]: {} } } });
+    const taskId = String(params?.taskId ?? '');
+    const unknown = () => failure(id, -32602, 'Failed to retrieve task: Task not found');
+    const ref = openTaskId(tasks.keys(), params?.taskId, principal, source => tasks.tenantOf(source));
+    if (!ref) return unknown();
+    if (method === 'tasks/cancel') return complete({});
+    const cacheKey = `${principal}\0${taskId}`;
+    try {
+      return await calling.run(call, async () => {
+        if (method === 'tasks/get') {
+          const hit = tasks.cache.get(cacheKey);
+          if (hit && hit.until > clock()) return complete(hit.value);
+          const { task } = await followHandOff(taskId, ref);
+          for (const [key, entry] of tasks.cache) if (entry.until <= clock() || tasks.cache.size >= 1000) tasks.cache.delete(key);
+          tasks.cache.set(cacheKey, { until: clock() + taskCacheMs, value: task });
+          return complete(task);
+        }
+        const responses = params?.inputResponses;
+        if (!responses || typeof responses !== 'object' || Array.isArray(responses)) return failure(id, -32602, 'inputResponses must be an object.');
+        for (const [key, response] of Object.entries(responses as Json)) {
+          const text = elicitAnswer(response) && response.action === 'accept' && typeof response.content?.answer === 'string' ? response.content.answer.trim() : '';
+          if (!text || text.length > 2000) continue;
+          const waiting = (await followHandOff(taskId, ref)).answers.get(key);
+          if (!waiting) continue;
+          await mayAct();
+          const nonce = randomBytes(12).toString('base64url');
+          await waiting.perform(text, `${nonce}:${createHash('sha256').update(waiting.message).digest('hex')}`, nonce);
+          tasks.cache.delete(cacheKey);
+        }
+        return complete({});
+      });
+    } catch (error) {
+      if (error instanceof UnfoldAnswer && (error.status === 403 || error.status === 404)) return unknown();
+      return failure(id, -32603, redact((error as Error).message));
+    }
   }
 
   async function handle(message: unknown): Promise<Json | undefined> {
@@ -678,7 +807,14 @@ export function createMcpServer(options: McpOptions) {
     switch (method) {
       case 'server/discover':
         if (!call.modern) return failure(id, -32601, `Method ${method} is not supported.`);
-        return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: apps ? { tools: {}, resources: {}, extensions: { [mcpAppsExtension]: {} } } : { tools: {} }, instructions, ttlMs: 3_600_000, cacheScope: 'public' });
+        return (options.tasks ? options.tasks.enabled() : Promise.resolve(false)).then(followable => {
+          const extensions = { ...(apps ? { [mcpAppsExtension]: {} } : {}), ...(followable ? { [mcpTasksExtension]: {} } : {}) };
+          return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: { tools: {}, ...(apps ? { resources: {} } : {}), ...(Object.keys(extensions).length ? { extensions } : {}) }, instructions, ttlMs: 3_600_000, cacheScope: options.tasks ? 'private' : 'public' });
+        });
+      case 'tasks/get':
+      case 'tasks/update':
+      case 'tasks/cancel':
+        return taskMethod(id, method, params, call, complete);
       case 'ping':
         if (call.modern) return failure(id, -32601, 'Method ping is not part of protocol 2026-07-28.');
         return complete({});
@@ -708,6 +844,7 @@ export function createMcpServer(options: McpOptions) {
     try {
       const output = await calling.run(call, () => tool.run(args, call.modern ? { ...call, inputResponses: params?.inputResponses, requestState: params?.requestState } : call));
       if (output instanceof InputRequired) return result(id, { resultType: 'input_required', inputRequests: output.inputRequests, requestState: output.requestState, _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } });
+      if (output instanceof TaskCreated) return result(id, { ...output.task, resultType: 'task', _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } });
       return complete({ structuredContent: output, content: [{ type: 'text', text: JSON.stringify(output) }] });
     } catch (error) {
       return complete({ isError: true, content: [{ type: 'text', text: redact((error as Error).message) }] });
@@ -781,6 +918,15 @@ function workItemId(value: unknown): string {
   const id = (ref.match(/#work\/(\d{1,19})(?:[?/].*)?$/) ?? ref.match(/^(\d{1,19})$/))?.[1];
   if (!id) throw new Error('id must be a Work Item id or an Unfold link ending #work/<id>.');
   return id;
+}
+
+const finishedStates = ['withdrawn', 'done', 'stale'];
+const stateWords: Record<string, string> = { ingested: 'Ploeg has read it from the tracker and is about to queue it.', proposed: 'It waits for a person to approve it before anything is spent; approve or reject it with unfold_approve_work or unfold_reject_work.', queued: 'It waits in its Team\'s queue for a free Run.', leased: 'A Run is working on it.', active: 'A Run is working on it.' };
+const answerSchema = { type: 'object', properties: { answer: { type: 'string', title: 'Your answer', description: 'Sent to the agent as your answer, at most 2000 characters', maxLength: 2000 } }, required: ['answer'] };
+
+function latest(createdAt: string, updatedAt: unknown): string {
+  const time = Date.parse(String(updatedAt ?? ''));
+  return Number.isFinite(time) && time > Date.parse(createdAt) ? new Date(time).toISOString() : createdAt;
 }
 
 function result(id: unknown, value: Json): Json { return { jsonrpc: '2.0', id, result: value }; }

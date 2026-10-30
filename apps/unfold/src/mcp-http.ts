@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccessTokenVerifier, KeysUnavailable, TokenRefused, challenge, metadataPath, resourceMetadata, type AccessToken, type McpHttpSettings } from './mcp-auth.ts';
 import { confirmationLedger, createMcpServer, mcpModernProtocolVersions, mcpProtocolVersions } from './mcp.ts';
+import type { McpTasks, TaskKeyRing } from './mcp-tasks.ts';
 import { lowerRole, subjectUserId } from './oidc.ts';
 import { narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
@@ -31,6 +32,12 @@ export type McpHttpOptions = {
   trustedProxies?: readonly string[];
   /** Receives each authenticated request, and each refused token or account, for the security audit. */
   audit?(entry: McpAuditEntry): void;
+  /**
+   * Lets a 2026-07-28 client that declares the Tasks extension follow a hand-off as a task: `enabled` evaluates the
+   * `mcp.tasks` flag for a person, `keys` reads the task id key ring, and `tenantOf` names the Tenant owning a task
+   * connection the person reaches.
+   */
+  tasks?: { enabled(user: User): Promise<boolean>; keys(): TaskKeyRing; tenantOf(user: User, source: string): string | undefined };
 };
 
 const maxBodyBytes = 1_048_576;
@@ -87,6 +94,7 @@ export function createMcpHttp(options: McpHttpOptions) {
   const metadataPaths = new Set(['/.well-known/oauth-protected-resource', metadataPath(endpoint)]);
   const verifier = new AccessTokenVerifier(settings, { ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
   const confirmations = confirmationLedger();
+  const taskCache: McpTasks['cache'] = new Map();
   const metadata = resourceMetadata(settings);
   const appClients = new Map<string, number>();
   const now = () => options.now?.() ?? Date.now();
@@ -150,12 +158,16 @@ export function createMcpHttp(options: McpHttpOptions) {
         const named = method === 'tools/call' ? params?.name : params?.uri;
         if (name === undefined || decodeHeader(name) !== named) return rpcError(res, 400, id, -32020, `Header mismatch: Mcp-Name is missing or does not match the ${method === 'tools/call' ? 'tool name' : 'resource URI'}.`);
       }
+      const taskName = typeof method === 'string' && method.startsWith('tasks/') ? header(req, 'mcp-name') : undefined;
+      if (taskName !== undefined && decodeHeader(taskName) !== params?.taskId) return rpcError(res, 400, id, -32020, 'Header mismatch: Mcp-Name does not match the task id.');
     }
     const delegated = options.delegate(user, delegationMs, { source: 'request', userId: user.id, accessToken: authorization[1], subject: token.subject, expiresAt: token.expiresAt });
     const appsKey = JSON.stringify([user.id, token.client ?? '', header(req, 'user-agent') ?? '']);
     let answer: any;
     try {
-      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations, ...(!modern && declaredApps(appsKey) ? { mcpApps: true } : {}) });
+      const follow = options.tasks;
+      const tasks: McpTasks | undefined = follow ? { enabled: () => follow.enabled(user), keys: () => follow.keys(), tenantOf: source => follow.tenantOf(user, source), cache: taskCache } : undefined;
+      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations, ...(!modern && declaredApps(appsKey) ? { mcpApps: true } : {}), ...(tasks ? { tasks } : {}) });
       answer = await server.handle(message);
       if (!modern && method === 'initialize' && answer?.result) rememberApps(appsKey, server.declaredMcpApps());
     } finally { delegated.revoke(); }
