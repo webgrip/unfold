@@ -18,6 +18,7 @@ import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameO
 import { tenancySettings } from './tenant-scope.ts';
 import { auditSettings } from './audit/settings.ts';
 import { outboundEventsSettings } from './outbound/address.ts';
+import { intakeConfig, trustedProxySettings } from './intake/limiter.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -588,5 +589,8 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);
   if (raw.outboundEvents !== undefined) config.outboundEvents = outboundEventsSettings(raw.outboundEvents);
+  const proxies = trustedProxySettings(raw.trustedProxies);
+  if (proxies) config.trustedProxies = proxies;
+  config.intake = intakeConfig(raw.intake);
   return config;
 }
