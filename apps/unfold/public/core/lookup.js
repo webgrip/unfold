@@ -3,7 +3,7 @@ import { sessionStatuses, sessionStatus } from './states.js';
 
 /** Plain-language names for each session status, from the shared state vocabulary. */
 export const labels = Object.fromEntries(['queued', 'running', 'exporting', 'waiting_input', 'paused', 'completed', 'failed', 'cancelled', 'interrupted'].map(key => [key, sessionStatuses[key].label]));
-const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', demo: 'Demo fixture' };
+const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', jira: 'Jira', demo: 'Demo fixture' };
 /** Display names for the providers that link a personal account. */
 export const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
 

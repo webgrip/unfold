@@ -37,9 +37,9 @@ const readBody = async (request: IncomingMessage): Promise<Buffer> => { const ch
 const reply = (response: ServerResponse, status: number, value: unknown) => { response.writeHead(status, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)); };
 
 test('every registry refuses a provider no adapter registered', async () => {
-  assert.throws(() => validateTaskSources([{ id: 'jira', name: 'Jira', provider: 'jira', baseUrl: 'https://jira.example/api/v1', project: '1', repositoryId: 'orders', executionOwner: 'interactive' }], repositories, 'live'), /Unsupported task source provider/);
+  assert.throws(() => validateTaskSources([{ id: 'bugzilla', name: 'Bugzilla', provider: 'bugzilla', baseUrl: 'https://bugzilla.example/api/v1', project: '1', repositoryId: 'orders', executionOwner: 'interactive' }], repositories, 'live'), /Unsupported task source provider/);
   assert.throws(() => validateTaskSources([{ id: 'proto', name: 'Proto', provider: '__proto__', baseUrl: 'https://x.example/api/v1', project: '1', repositoryId: 'orders', executionOwner: 'interactive' }], repositories, 'live'), /Unsupported task source provider/);
-  assert.throws(() => taskProvider('jira'), /Unsupported task source provider/);
+  assert.throws(() => taskProvider('bugzilla'), /Unsupported task source provider/);
   assert.throws(() => registerTaskProvider(taskProvider('vikunja')), /already registered/);
   assert.throws(() => registerTaskProvider({ ...taskProvider('vikunja'), name: 'Not A Slug' }), /lowercase slugs/);
 
@@ -68,6 +68,7 @@ test('each task provider adapter declares its capabilities and the shared code h
     gitlab: { handoff: false, issues: false, html: false, link: 'gitlab', routes: false, fixture: false },
     vikunja: { handoff: true, issues: true, html: true, reference: 'VIK-7', routes: true, fixture: false },
     clickup: { handoff: true, issues: false, html: false, link: 'clickup', routes: false, fixture: false },
+    jira: { handoff: false, issues: true, html: true, routes: false, fixture: false },
     demo: { handoff: false, issues: false, html: false, routes: false, fixture: true },
   };
   assert.deepEqual(taskProviders().map(adapter => adapter.name), Object.keys(expected), 'registration order fixes the order of every generated message');
@@ -87,6 +88,7 @@ test('each task provider adapter declares its capabilities and the shared code h
   }
   assert.equal(describeIssueTarget(sourceOf('forgejo'), 'team/orders'), 'Forgejo · team/orders');
   assert.equal(describeIssueTarget(sourceOf('vikunja'), '30'), 'Vikunja · project 30');
+  assert.equal(describeIssueTarget(sourceOf('jira'), 'OPS'), 'Jira · project OPS');
   assert.equal(linkProviderLabel('gitlab'), 'GitLab');
   assert.equal(linkProviderLabel('clickup'), 'ClickUp');
 });
@@ -96,6 +98,8 @@ test('a tracker reference is the adapter\'s format: Vikunja keeps its prefix, Pl
   assert.equal(trackerReference('', '2051'), undefined, 'outside Ploeg records an empty provider is no tracker');
   assert.equal(ploegTrackerReference('', '2051'), 'VIK-2051');
   assert.equal(trackerReference('github', '12'), undefined);
+  assert.equal(trackerReference('jira', 'OPS-12'), 'OPS-12', 'a Jira issue key is its own reference');
+  assert.equal(trackerReference('jira', '12'), undefined, 'a bare number is no Jira key');
   assert.equal(itemRef('vikunja', '12'), 'VIK-12');
   assert.equal(itemRef('', '12'), 'VIK-12');
   assert.equal(itemRef('github', '12'), 'github-12');
@@ -304,8 +308,8 @@ test('Report a problem files into a third registered tracker that declares issue
 
   const source: TaskSourceConfig = { id: 'desk-feedback', name: 'Feedback', provider: 'desk', baseUrl: `${server.origin}/rest`, project: 'ops', repositoryId: 'orders', executionOwner: 'interactive', token: 'desk-token' };
   assert.deepEqual(reportSettings(undefined, [source], 'live'), { source, project: 'ops' }, 'a registered tracker that files issues can be the default target');
-  assert.throws(() => reportSettings({ source: 'nope' }, [source], 'live'), /must name a Forgejo, Vikunja or Desk task source/);
-  assert.throws(() => reportSettings({ provider: 'github', baseUrl: 'https://api.github.com', project: 'a/b', tokenEnv: 'X' }, [], 'live'), /reports.provider must be forgejo, vikunja or desk/);
+  assert.throws(() => reportSettings({ source: 'nope' }, [source], 'live'), /must name a Forgejo, Vikunja, Jira or Desk task source/);
+  assert.throws(() => reportSettings({ provider: 'github', baseUrl: 'https://api.github.com', project: 'a/b', tokenEnv: 'X' }, [], 'live'), /reports.provider must be forgejo, vikunja, jira or desk/);
 
   const store = new Store(':memory:');
   t.after(() => store.close());
@@ -332,7 +336,7 @@ test('Report a problem files into a third registered tracker that declares issue
 test('no closed provider union, provider comparison or Vikunja reference appears outside an adapter', async () => {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const adapters = ['src/task-providers/', 'src/link-providers/', 'src/delivery-publishers/'];
-  const vendor = '(?:forgejo|github|gitlab|clickup|vikunja)';
+  const vendor = '(?:forgejo|github|gitlab|clickup|vikunja|jira)';
   const rules: [string, RegExp][] = [
     ['a union of provider names', new RegExp(`'${vendor}'\\s*\\|\\s*'[a-z-]+'|'[a-z-]+'\\s*\\|\\s*'${vendor}'`)],
     ['a comparison with a provider name', new RegExp(`(?:===|!==)\\s*'${vendor}'|'${vendor}'\\s*(?:===|!==)`)],

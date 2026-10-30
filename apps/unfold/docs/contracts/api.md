@@ -252,7 +252,7 @@ A message is `{id, kind, text, createdAt, createdBy, fromOwner, deliveredAt}`. `
 
 ## Linked tasks
 
-Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp and Vikunja share the same read API. Only hand-off to Ploeg writes to a tracker, and only to Vikunja and ClickUp. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
+Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab, ClickUp, Vikunja and Jira share the same read API. Only hand-off to Ploeg writes to a tracker, and only to Vikunja and ClickUp. A source maps one tracker project or list to a configured repository. Task content cannot supply a repository URL, model credential, runtime command or execution owner. All authenticated users of this pilot deployment can browse its registered sources; source-level team authorization is a later feature.
 
 | Method and path | Behavior |
 | --- | --- |

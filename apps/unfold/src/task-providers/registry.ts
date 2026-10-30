@@ -44,8 +44,10 @@ export interface TaskHandoff {
 export interface IssueFiling {
   /** The body format the tracker renders. */
   readonly bodyFormat: 'markdown' | 'html';
-  /** The field of `GET /user` that holds the token's own login. */
+  /** The field of the token's own user record that holds its login. */
   readonly loginField: string;
+  /** Where the token's own user record is read; `/user` when absent. */
+  readonly loginPath?: string;
   /** How the report dialog names the target. */
   describe(project: string): string;
   create(source: TaskSourceConfig, project: string, title: string, body: string, call: FileRequest): Promise<FiledIssue>;
@@ -57,8 +59,8 @@ export interface IssueFiling {
   comment(source: TaskSourceConfig, project: string, issue: FiledIssue, body: string, call: FileRequest): Promise<void>;
 }
 
-/** A tracker's reference format: `prefix` and the native id, such as `ABC-12` for prefix `ABC`. */
-export type ReferenceFormat = { prefix: string; ploegDefault?: true };
+/** A tracker's reference format: `prefix` and the native id, such as `ABC-12` for prefix `ABC`, or `native` when the native id is already the reference people write, such as a Jira issue key. */
+export type ReferenceFormat = { prefix: string; ploegDefault?: true } | { native: true };
 
 /** One task tracker. Code outside an adapter asks for a capability and never names a provider. */
 export interface TaskProviderAdapter {
@@ -117,7 +119,7 @@ export function taskProviders(): TaskProviderAdapter[] { return [...adapters.val
 /** The adapter whose reference prefix is `prefix`, ignoring case. */
 export function providerByPrefix(prefix: string): TaskProviderAdapter | undefined {
   const wanted = prefix.toLowerCase();
-  return taskProviders().find(adapter => adapter.reference?.prefix.toLowerCase() === wanted);
+  return taskProviders().find(adapter => adapter.reference && 'prefix' in adapter.reference && adapter.reference.prefix.toLowerCase() === wanted);
 }
 
 /** `A`, `A and B`, `A, B and C`. */

@@ -351,7 +351,7 @@ function trackerLogin(source: TaskSourceConfig): Promise<string> {
   const key = `${source.baseUrl}\u0000${source.token ?? ''}`;
   let login = trackerLogins.get(key);
   if (!login) {
-    login = fileRequest(source, 'GET', '/user').then(value => String(record(value)[filing(source).loginField] ?? ''));
+    login = fileRequest(source, 'GET', filing(source).loginPath ?? '/user').then(value => String(record(value)[filing(source).loginField] ?? ''));
     login.catch(() => trackerLogins.delete(key));
     trackerLogins.set(key, login);
   }

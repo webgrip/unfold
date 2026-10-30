@@ -4,12 +4,15 @@ import { github } from './github.ts';
 import { gitlab } from './gitlab.ts';
 import { vikunja } from './vikunja.ts';
 import { clickup } from './clickup.ts';
+import { jira } from './jira.ts';
 import { demo } from './demo.ts';
 
-for (const adapter of [forgejo, github, gitlab, vikunja, clickup, demo]) registerTaskProvider(adapter);
+for (const adapter of [forgejo, github, gitlab, vikunja, clickup, jira, demo]) registerTaskProvider(adapter);
 
 function reference(adapter: TaskProviderAdapter | undefined, externalId: string): string | undefined {
-  return adapter?.reference ? `${adapter.reference.prefix}-${externalId}` : undefined;
+  if (!adapter?.reference) return undefined;
+  if (!('prefix' in adapter.reference)) return adapter.taskId.test(externalId) ? externalId : undefined;
+  return `${adapter.reference.prefix}-${externalId}`;
 }
 
 /** The reference people write for a tracker task, the adapter's prefix and the native id, or undefined when the provider supplies no reference format. */
@@ -17,12 +20,12 @@ export function trackerReference(provider: string, externalId: string): string |
 
 /** `trackerReference` for a Ploeg Work Item, where an empty provider is the tracker Ploeg defaults to. */
 export function ploegTrackerReference(provider: string, externalId: string): string | undefined {
-  return reference(provider === '' ? taskProviders().find(adapter => adapter.reference?.ploegDefault) : findTaskProvider(provider), externalId);
+  return reference(provider === '' ? taskProviders().find(adapter => adapter.reference && 'prefix' in adapter.reference && adapter.reference.ploegDefault) : findTaskProvider(provider), externalId);
 }
 
-/** Every reference prefix, lowercase, with the provider it names. */
+/** Every reference prefix, lowercase, with the provider it names. A tracker whose native id is the reference supplies none. */
 export function referencePrefixes(): Readonly<Record<string, string>> {
-  return Object.fromEntries(taskProviders().filter(adapter => adapter.reference).map(adapter => [adapter.reference!.prefix.toLowerCase(), adapter.name]));
+  return Object.fromEntries(taskProviders().flatMap(adapter => adapter.reference && 'prefix' in adapter.reference ? [[adapter.reference.prefix.toLowerCase(), adapter.name]] : []));
 }
 
 /** Whether a provider sends task descriptions as HTML. */

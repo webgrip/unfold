@@ -80,6 +80,16 @@
       "repositoryId": "application",
       "tokenEnv": "UNFOLD_TASK_VIKUNJA_TOKEN",
       "executionOwner": "interactive"
+    },
+    {
+      "id": "jira-application",
+      "name": "Application · Jira",
+      "provider": "jira",
+      "baseUrl": "https://example.atlassian.net/rest/api/3",
+      "project": "APP",
+      "repositoryId": "application",
+      "tokenEnv": "UNFOLD_TASK_JIRA_TOKEN",
+      "executionOwner": "interactive"
     }
   ],
   "litellm": {

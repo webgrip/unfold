@@ -11,7 +11,7 @@ compare a provider name or declare a union of provider names.
 
 #### Scenario: An unknown task provider
 
-- **WHEN** a task source names `provider: jira` and no adapter registered `jira`
+- **WHEN** a task source names `provider: bugzilla` and no adapter registered `bugzilla`
 - **THEN** Unfold refuses the configuration with "Unsupported task source provider"
 
 ### Requirement: Capabilities come from the adapter
