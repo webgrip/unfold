@@ -27,8 +27,10 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'agents-check', 'checks', 'gate', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'agents-check', 'build-contexts', 'checks', 'checks-unfold', 'gate', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
+  assert.deepEqual(pr.jobs['build-contexts'], source.jobs['build-contexts']);
+  assert.deepEqual(pr.jobs['checks-unfold'], source.jobs['checks-unfold']);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
   assert.deepEqual(pr.jobs['release-policy'].container, train.jobs.release.container);
@@ -162,7 +164,7 @@ test('a pull request and a release need the pinned Ploeg to be a published relea
 test('a push checks the head it lands on, supersedes an older development run and no longer versions Unfold', () => {
   for (const ref of ['refs/heads/development', 'refs/heads/topic']) assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref } }), true, ref);
   assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref: 'refs/heads/main' } }), false, 'a main push releases the site, so a newer main push queues behind it');
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'site-release', 'warnings']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['build-contexts', 'checks', 'checks-unfold', 'ploeg-pin', 'site-release', 'warnings']);
   assert.doesNotMatch(JSON.stringify(source), /"package-name":"unfold"/);
 });
 
@@ -172,7 +174,7 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
   assert.match(train.on.schedule[0].cron, /^\d+ \* \* \* \*$/, 'every hour');
   assert.deepEqual(train.concurrency, { group: 'release-train', 'cancel-in-progress': false });
   assert.ok(Object.values(workflows).every(other => other === train || other.concurrency?.group !== train.concurrency.group), 'no other workflow shares the train\'s queue');
-  assert.deepEqual(Object.keys(train.jobs).sort(), ['checks', 'merge-pin', 'pending', 'ploeg-pin', 'release', 'site-release']);
+  assert.deepEqual(Object.keys(train.jobs).sort(), ['build-contexts', 'checks', 'checks-unfold', 'merge-pin', 'pending', 'ploeg-pin', 'release', 'site-release']);
   const pending = train.jobs.pending;
   assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'the train reads the branch head when it starts, not the commit it was queued for');
   assert.equal(pending.steps.at(-1).run, 'sh scripts/release-train.sh pending');
@@ -187,7 +189,7 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
       }
     }
   }
-  for (const name of ['checks', 'ploeg-pin']) {
+  for (const name of ['checks', 'checks-unfold', 'build-contexts', 'ploeg-pin']) {
     const job = train.jobs[name];
     assert.deepEqual(job.needs, ['pending'], name);
     for (const unreleased of ['true', 'false', '']) assert.equal(evaluate(job.if, { needs: { pending: { outputs: { unreleased } } } }), unreleased === 'true', `${name} ${unreleased}`);
@@ -197,7 +199,7 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
     assert.deepEqual(same, pushed, `${name} runs what a push runs`);
   }
   const job = train.jobs.release;
-  assert.deepEqual(job.needs, ['pending', 'checks', 'ploeg-pin']);
+  assert.deepEqual(job.needs, ['pending', 'checks', 'checks-unfold', 'build-contexts', 'ploeg-pin']);
   assert.equal(job.steps[0].with.ref, '${{ github.ref }}');
   const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
   const head = job.steps.findIndex(step => step.id === 'head');
@@ -313,10 +315,18 @@ test('warnings from setup and verification turn their own job red without gating
   assert.equal(collect.id, 'warnings');
   assert.equal(collect.if, 'always()');
   assert.equal(verification.outputs.warnings.value, '${{ steps.warnings.outputs.report }}');
-  assert.equal(source.jobs.checks.outputs.warnings, '${{ steps.verify.outputs.warnings }}');
-  assert.equal(source.jobs.checks.steps.find(step => step.id === 'verify').uses, './.forgejo/actions/verify');
+  for (const name of ['checks', 'checks-unfold']) {
+    assert.equal(source.jobs[name].outputs.warnings, '${{ steps.verify.outputs.warnings }}', name);
+    assert.equal(source.jobs[name].steps.find(step => step.id === 'verify').uses, './.forgejo/actions/verify', name);
+  }
   const job = source.jobs.warnings;
-  assert.deepEqual(job.needs, ['checks']);
+  assert.deepEqual(job.needs, ['checks', 'checks-unfold']);
+  const step = job.steps.find(candidate => candidate.run);
+  const reported = (checks, unfold) => spawnSync('bash', ['-eo', 'pipefail', '-c', step.run], { env: { ...process.env, CHECKS: checks, UNFOLD: unfold }, encoding: 'utf8' });
+  assert.equal(reported('', '').status, 0, 'no warnings in either job');
+  const both = reported('npm: one', 'node: two');
+  assert.equal(both.status, 1, 'a warning in either job fails');
+  assert.match(both.stdout, /^npm: one\nnode: two$/m);
   for (const result of ['success', 'failure', 'skipped', 'cancelled']) {
     assert.equal(evaluate(job.if, { needs: { checks: { result } } }), result === 'success' || result === 'failure', result);
   }
@@ -521,7 +531,7 @@ test('Open VSX publishing fails without its token and reports where the build we
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {
   assert.deepEqual(Object.keys(publisher.jobs).filter(name => name.startsWith('ploeg-')), []);
   assert.doesNotMatch(JSON.stringify(publisher), /ploeg/i);
-  assert.doesNotMatch(JSON.stringify(read('.forgejo/actions/verify/action.yml').runs.steps.find(step => step.name === 'Container build contexts')), /ploeg/i);
+  assert.doesNotMatch(JSON.stringify(read('.forgejo/actions/build-contexts/action.yml')), /ploeg/i);
 });
 
 test('preview uses the release toolchain and remains a manual dry run', () => {

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { request } from 'node:http';
+import { connect } from 'node:net';
+import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +59,23 @@ test('the server keeps idle keep-alive connections for 75 seconds and still boun
   } finally {
     await workbench.close();
   }
+});
+
+test('closing the server does not wait out the keep-alive of a connection whose request finished after the close began', async () => {
+  const workbench = await application();
+  const { port } = new URL(workbench.url);
+  const socket = connect(Number(port), '127.0.0.1');
+  await once(socket, 'connect');
+  socket.write('GET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\n');
+  const answered = new Promise<void>(resolve => socket.on('data', chunk => { if (String(chunk).startsWith('HTTP/1.1 200')) resolve(); }));
+  await delay(50);
+  const started = performance.now();
+  const closed = workbench.close();
+  socket.write('Connection: keep-alive\r\n\r\n');
+  await answered;
+  await closed;
+  socket.destroy();
+  assert.ok(performance.now() - started < scaledTimeout(5_000), `close took ${Math.round(performance.now() - started)} ms`);
 });
 
 test('a shutdown that finishes in time reports closed', async () => {

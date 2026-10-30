@@ -68,7 +68,11 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     ploegCompatibility?.stop();
     await engine.shutdown();
     relay.close();
-    if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
+    if (server.listening) await new Promise<void>((done) => {
+      const sweep = setInterval(() => server.closeIdleConnections(), 50);
+      server.close(() => { clearInterval(sweep); done(); });
+      server.closeIdleConnections();
+    });
     store.close();
     await errors.flush();
   }

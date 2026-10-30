@@ -1,5 +1,12 @@
-name: Verify both applications and their build contexts
-description: Verify both applications and their build contexts
+name: Verify both applications
+description: Verify both applications, or the gate groups a job names
+inputs:
+  only:
+    description: Comma-separated gate groups to run, as scripts/verify.mjs names them; empty runs every group
+    default: ''
+  except:
+    description: Comma-separated gate groups to leave to another job
+    default: ''
 outputs:
   warnings:
     description: Tool warnings in the setup and verification output that scripts/ci-warnings-allow.json does not accept; empty when there are none
@@ -76,8 +83,8 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/unfold-verify
-        key: unfold-verify-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-        restore-keys: unfold-verify-${{ runner.os }}-
+        key: unfold-verify-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: unfold-verify-${{ runner.os }}-${{ github.job }}-
     - run: set -o pipefail; mise run setup 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/setup.log"
       shell: bash
     - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/verify.log"
@@ -90,12 +97,8 @@ runs:
         UNFOLD_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
         UNFOLD_VERIFY_CPUS: '4'
         UNFOLD_VERIFY_GROUPS: '2'
-    - name: Container build contexts
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker build --file apps/unfold/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold
-        docker build --file apps/unfold/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold/ops/agent
+        UNFOLD_VERIFY_ONLY: ${{ inputs.only }}
+        UNFOLD_VERIFY_EXCEPT: ${{ inputs.except }}
     - name: Collect warnings
       id: warnings
       if: always()

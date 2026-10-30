@@ -70,7 +70,7 @@ deadline=$((SECONDS + ready_timeout))
 until grep -q '"event":"unified-demo.ready"' "$log"; do
   kill -0 "$wrapper" 2>/dev/null || fail 'the launcher exited before unified-demo.ready'
   [ "$SECONDS" -lt "$deadline" ] || fail "no unified-demo.ready within ${ready_timeout}s"
-  sleep 1
+  sleep 0.2
 done
 ready="$(grep '"event":"unified-demo.ready"' "$log" | head -n 1)"
 pid="$(printf '%s' "$ready" | grep -o '"pid":[0-9]*' | cut -d: -f2)"
@@ -87,7 +87,7 @@ kill -TERM "$pid" 2>/dev/null || fail "could not signal launcher pid $pid"
 deadline=$((SECONDS + stop_timeout))
 until grep -q '"event":"unified-demo.stopped"' "$log"; do
   [ "$SECONDS" -lt "$deadline" ] || fail "no unified-demo.stopped within ${stop_timeout}s"
-  sleep 1
+  sleep 0.2
 done
 wait "$wrapper" 2>/dev/null
 wrapper=''
@@ -104,7 +104,7 @@ while kill -0 "$smoke" 2>/dev/null; do
     kill -TERM "$smoke" 2>/dev/null
     fail "'$smoke_command' did not finish within ${ready_timeout}s"
   fi
-  sleep 1
+  sleep 0.2
 done
 wait "$smoke" || fail "'$smoke_command' did not exit cleanly"
 grep -q '"event":"unified-demo.smoke-passed"' "$log" || fail 'no unified-demo.smoke-passed'

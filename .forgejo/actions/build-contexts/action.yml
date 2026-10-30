@@ -1,0 +1,13 @@
+name: Build the container contexts
+description: Build both Unfold images to the build cache only
+runs:
+  using: composite
+  steps:
+    - name: Container build contexts
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker build --progress=plain --file apps/unfold/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold &
+        app=$!
+        docker build --progress=plain --file apps/unfold/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold/ops/agent
+        wait "$app"

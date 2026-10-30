@@ -20,17 +20,35 @@ jobs:
           fetch-depth: 0
       - id: verify
         uses: ./.forgejo/actions/verify
+        with:
+          except: unfold
+
+  checks-unfold:
+    runs-on: docker
+    timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: verify
+        uses: ./.forgejo/actions/verify
+        with:
+          only: unfold
 
   warnings:
-    needs: [checks]
+    needs: [checks, checks-unfold]
     if: always() && needs.checks.result != 'skipped' && needs.checks.result != 'cancelled'
     runs-on: docker
     timeout-minutes: 5
     steps:
       - name: Fail when setup or verification printed a warning
         env:
-          REPORT: ${{ needs.checks.outputs.warnings }}
+          CHECKS: ${{ needs.checks.outputs.warnings }}
+          UNFOLD: ${{ needs.checks-unfold.outputs.warnings }}
         run: |
+          REPORT=$(printf '%s\n%s\n' "$CHECKS" "$UNFOLD" | sed '/^$/d')
           if [ -z "$REPORT" ]; then
             echo "No warnings in setup and verification output."
             exit 0
@@ -94,6 +112,13 @@ jobs:
         env:
           UNFOLD_TEST_TIMEOUT_SCALE: '2'
 
+  build-contexts:
+    runs-on: docker
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.forgejo/actions/build-contexts
+
   ploeg-pin:
     runs-on: docker
     timeout-minutes: 5
@@ -139,7 +164,7 @@ jobs:
       - uses: ./.forgejo/actions/release-policy
 
   gate:
-    needs: [checks, agents-check, opencode-contract, ploeg-pin, ploeg-docs, release-policy]
+    needs: [checks, checks-unfold, build-contexts, agents-check, opencode-contract, ploeg-pin, ploeg-docs, release-policy]
     if: always()
     runs-on: docker
     timeout-minutes: 5
