@@ -109,7 +109,7 @@ A source's own `rateLimit` replaces `source` for that source; raise it for a bus
 
 ### Behind a reverse proxy
 
-The sender's address is the socket's peer. Behind an ingress controller or load balancer that peer is the proxy, so every sender would share one bucket and one noisy sender would block all the others. Set `trustedProxies` (top-level, IP addresses and CIDR ranges) to the proxies' addresses: when the peer is one of them, Unfold reads `X-Forwarded-For` from the right and takes the first address that is not a trusted proxy. Without `trustedProxies` the header is ignored, because any client can write it. List only the proxies themselves, such as the ingress controller's pod network, never `0.0.0.0/0`. Today only the intake reads `trustedProxies`; login throttling still keys on the socket address.
+The sender's address is the socket's peer. Behind an ingress controller or load balancer that peer is the proxy, so every sender would share one bucket and one noisy sender would block all the others. Set `trustedProxies` (top-level, IP addresses and CIDR ranges) to the proxies' addresses: when the peer is one of them, Unfold reads `X-Forwarded-For` from the right and takes the first address that is not a trusted proxy. Without `trustedProxies` the header is ignored, because any client can write it. List only the proxies themselves, such as the ingress controller's pod network, never `0.0.0.0/0`. The same setting keys the sign-in throttles and the audit's source address ([behind a reverse proxy](live.md#behind-a-reverse-proxy)).
 
 ## Answers
 

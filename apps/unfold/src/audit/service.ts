@@ -6,6 +6,7 @@ import type { AccountChange, Store, StoredUser } from '../store.ts';
 import { defaultMemberships, defaultTenant, ownership, type Membership } from '../tenancy.ts';
 import type { AppConfig, AuditConfig, User } from '../types.ts';
 import { capture, readsUserFirst } from './capture.ts';
+import { clientAddress } from '../client-address.ts';
 import { AuditChain, type StoredAuditRecord } from './chain.ts';
 import { AuditOtlpExporter, maxPage, ndjson } from './export.ts';
 import { defaultRetentionDays } from './settings.ts';
@@ -23,7 +24,7 @@ export type McpAuditEntry = { user?: User; client?: string; method?: string; too
 export type AuditTrailOptions = {
   store: Store;
   settings?: AuditConfig;
-  config?: Pick<AppConfig, 'mode' | 'repositories' | 'taskSources' | 'auth'>;
+  config?: Pick<AppConfig, 'mode' | 'repositories' | 'taskSources' | 'auth' | 'trustedProxies'>;
   /** Whether a Tenant's records may leave Unfold: the `audit.export` flag. Off when absent. */
   exportEnabled?: (tenant: string) => Promise<boolean>;
   /** Runs retention at start and hourly, and sends to the OTLP endpoint after each record. */
@@ -190,7 +191,7 @@ export class AuditTrail {
           const signIn = first ? firstSignIn : credentialScope === 'browser' || credentialScope === 'editor' ? auth.signIn(req) : undefined;
           const channel = channelOf(credentialScope, credentialScope === 'editor' && signIn ? this.store.getEditorCredential(signIn)?.label : undefined, req.headers['x-unfold-client']);
           const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 512) : undefined;
-          const origin: AuditOrigin = { method, channel, confirmation: confirmationOf(req.headers['x-unfold-confirmation']), ...(req.socket.remoteAddress ? { ip: req.socket.remoteAddress } : {}), ...(userAgent ? { userAgent } : {}) };
+          const origin: AuditOrigin = { method, channel, confirmation: confirmationOf(req.headers['x-unfold-confirmation']), ...(req.socket.remoteAddress ? { ip: clientAddress(req, this.config?.trustedProxies) } : {}), ...(userAgent ? { userAgent } : {}) };
           let fact = captured.fact;
           if (fact.kind === 'api' && credentialScope === 'mcp') {
             const bearer = auth.bearer(req);

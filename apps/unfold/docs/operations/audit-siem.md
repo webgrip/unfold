@@ -108,7 +108,7 @@ NEN 7513 is the Dutch standard for logging access to electronic patient records.
 | What they did | Class, activity, `message`, `api.operation` and the inputs without secrets |
 | On whose data | The target in `unmapped.target` or `entity`, and `metadata.tenant_uid`; a Client membership names the Client |
 | When | `time`, set by the server |
-| From where | `src_endpoint.ip`, the address the server saw. Behind a reverse proxy that is the proxy, because Unfold does not trust `X-Forwarded-For` |
+| From where | `src_endpoint.ip`, the client's address: the socket's peer, or, when that peer is one of the `trustedProxies`, the address `X-Forwarded-For` names ([behind a reverse proxy](live.md#behind-a-reverse-proxy)) |
 | Whether it worked | `status_id`, `status_detail` and `api.response.code` |
 | Is the log protected | Append-only triggers and a hash chain: changes are detectable against a copy, not prevented |
 | Is reading the log logged | Yes, every read of `GET /api/admin/audit` is a record |

@@ -184,3 +184,17 @@ test('local password sign-in is on by default and turned off by auth.localLogin 
   process.env.UNFOLD_LOCAL_LOGIN = 'off';
   await assert.rejects(load(t, { auth: { oidc } }), /UNFOLD_LOCAL_LOGIN must be true or false/);
 });
+
+test('hsts defaults to two years with subdomains for an https baseUrl, is off for http, and preload is only ever opted into', async t => {
+  assert.deepEqual((await load(t, { baseUrl: 'https://unfold.example' })).hsts, { maxAge: 63_072_000, includeSubDomains: true, preload: false });
+  assert.equal((await load(t, { baseUrl: 'http://unfold.example' })).hsts, undefined);
+  assert.equal((await load(t, {})).hsts, undefined);
+  assert.equal((await load(t, { baseUrl: 'https://unfold.example', hsts: false })).hsts, undefined);
+  assert.deepEqual((await load(t, { baseUrl: 'https://unfold.example', hsts: { maxAge: 300, includeSubDomains: false } })).hsts, { maxAge: 300, includeSubDomains: false, preload: false });
+  assert.deepEqual((await load(t, { baseUrl: 'https://unfold.example', hsts: { preload: true } })).hsts, { maxAge: 63_072_000, includeSubDomains: true, preload: true });
+  await assert.rejects(load(t, { baseUrl: 'http://unfold.example', hsts: true }), /hsts needs an https baseUrl/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { preload: true, maxAge: 300 } }), /hsts.preload needs includeSubDomains/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { preload: true, includeSubDomains: false } }), /hsts.preload needs includeSubDomains/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { maxAge: -1 } }), /hsts.maxAge/);
+  await assert.rejects(load(t, { baseUrl: 'https://unfold.example', hsts: { subdomains: true } }), /hsts is true, false/);
+});

@@ -261,6 +261,7 @@ paths:
         - { name: code, in: query, required: false, schema: { type: string } }
         - { name: state, in: query, required: false, schema: { type: string } }
         - { name: error, in: query, required: false, schema: { type: string } }
+        - { name: iss, in: query, required: false, description: 'The issuer of the authorization response (RFC 9207). When present it must equal the discovered issuer exactly; when discovery advertises `authorization_response_iss_parameter_supported` it is required. Otherwise the redirect carries `login_error=oidc_issuer`.', schema: { type: string } }
       responses:
         '303': { description: Redirect back into the workbench. }
   /api/editor-requests/{code}:

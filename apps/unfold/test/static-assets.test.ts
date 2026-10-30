@@ -37,7 +37,7 @@ function fetchRaw(base: string, path: string, headers: Record<string, string> = 
   });
 }
 
-const securityHeaders = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" };
+const securityHeaders = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'", 'strict-transport-security': undefined };
 
 test('nested browser modules are served from core, views and styles with their media type, and nothing else is', { timeout: testTimeout(15_000) }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'unfold-static-'));

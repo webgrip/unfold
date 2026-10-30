@@ -156,8 +156,12 @@ config:
   repositories: []
   taskSources: []
   # trustedProxies (optional, none when absent): IP addresses and CIDR ranges of the reverse proxies in front of
-  # Unfold, whose X-Forwarded-For names the client. The Request intake keys its rate limit on that address.
+  # Unfold, whose X-Forwarded-For names the client. The sign-in throttles, the Request intake rate limit and the
+  # security audit's source address key on that address.
   # trustedProxies: ["10.42.0.0/16"]
+  # hsts (optional): Strict-Transport-Security, sent only when baseUrl is https. The default is below; false turns it
+  # off. preload stays off unless set, because the preload list binds every host under the domain.
+  # hsts: {maxAge: 63072000, includeSubDomains: true, preload: false}
   # intake.rateLimit (optional): token buckets of the public Request intake; these are the defaults.
   # intake:
   #   rateLimit: {client: {perMinute: 60, burst: 30}, source: {perMinute: 300, burst: 60}, failureCost: 5}

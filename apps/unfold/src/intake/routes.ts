@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { User } from '../types.ts';
 import { IntakeError, intakeSettings, publicSource, type IntakeService } from './service.ts';
-import { clientAddress } from './limiter.ts';
+import { clientAddress } from '../client-address.ts';
 
 /** What the intake routes borrow from the HTTP server. */
 export type IntakeRouteContext = {
