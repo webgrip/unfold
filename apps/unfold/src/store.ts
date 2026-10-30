@@ -562,6 +562,15 @@ export class Store {
 
   deleteEditorCredentialByToken(tokenHash: string): void { this.db.prepare('DELETE FROM editor_credentials WHERE token_hash=?').run(tokenHash); }
 
+  /** The hashes of every browser login of `userId`, live or not. */
+  loginHashes(userId: string): string[] { return (this.db.prepare('SELECT token_hash FROM logins WHERE user_id=?').all(userId) as { token_hash: string }[]).map(row => row.token_hash); }
+
+  /** The token hashes of every editor credential of `userId`, live or not. */
+  editorCredentialHashes(userId: string): string[] { return (this.db.prepare('SELECT token_hash FROM editor_credentials WHERE user_id=?').all(userId) as { token_hash: string }[]).map(row => row.token_hash); }
+
+  /** The ids of the internal secrets whose id starts with `prefix`. */
+  secretIds(prefix: string): string[] { return (this.db.prepare('SELECT id FROM internal_state WHERE substr(id, 1, ?)=?').all(prefix.length, prefix) as { id: string }[]).map(row => row.id); }
+
   /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login, or an editor credential that is neither expired nor idle. */
   liveSignIn(tokenHash: string): boolean { return Boolean(this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash)); }
 

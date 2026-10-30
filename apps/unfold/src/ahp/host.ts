@@ -36,6 +36,7 @@ import { refusalPlacement, refusalReply } from './refusals.ts';
 import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type EditorWindow } from './editor-window.ts';
 import { ChatSessions, chatChatUri, chatProvider, chatSessionUri } from './chats.ts';
 import type { ChatService } from '../chat/service.ts';
+import { accountDisabled } from '../identity/accounts.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -439,9 +440,24 @@ export class AgentHost {
   }
 
   /** Revokes every connection token issued by one sign-in and closes its connections. */
-  revokeSignIn(signIn: string): void {
-    for (const key of this.store.getSecret<string[]>(`ahp-sign-in:${signIn}`) ?? []) this.revoke(key);
+  revokeSignIn(signIn: string): number {
+    const keys = this.store.getSecret<string[]>(`ahp-sign-in:${signIn}`) ?? [];
+    for (const key of keys) this.revoke(key);
     this.store.deleteSecret(`ahp-sign-in:${signIn}`);
+    return keys.length;
+  }
+
+  /** Revokes every connection token of one person, whichever sign-in issued it, closes their connections, and returns how many tokens it revoked. */
+  revokeUser(userId: string): number {
+    let revoked = 0;
+    for (const id of this.store.secretIds('ahp-token:')) {
+      const key = id.slice('ahp-token:'.length);
+      if (this.store.getSecret<TokenRecord>(id)?.userId !== userId) continue;
+      this.revoke(key);
+      revoked++;
+    }
+    for (const client of [...this.clients]) if (client.user.id === userId) { this.clients.delete(client); client.connection.close(1008, 'Connection token revoked'); }
+    return revoked;
   }
 
   /** Revokes one connection token its owner names by identifier and closes its connections. Returns false when the token is unknown or another person's. */
@@ -469,7 +485,7 @@ export class AgentHost {
     const record = this.store.getSecret<TokenRecord>(`ahp-token:${key}`);
     if (!record) return undefined;
     const now = Date.now();
-    if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.liveSignIn(record.signIn))) { this.revoke(key); return undefined; }
+    if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.liveSignIn(record.signIn)) || accountDisabled(this.store.db, record.userId)) { this.revoke(key); return undefined; }
     const expiresAt = now + this.lifetimeMs();
     if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) {
       this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
@@ -1258,7 +1274,11 @@ export class AgentHost {
   private current(client: Client, renew: boolean): boolean {
     if (!this.clients.has(client)) return false;
     client.checkedAt = Date.now();
-    if (this.valid(client.token, renew)) return true;
+    if (this.valid(client.token, renew)) {
+      const stored = this.store.getUser(client.user.id);
+      if (stored && stored.role !== client.user.role) client.user = { ...client.user, role: stored.role };
+      return true;
+    }
     if (this.clients.delete(client)) client.connection.close(1008, 'Connection token expired');
     return false;
   }

@@ -22,6 +22,7 @@ import { outboundEventsSettings } from './outbound/address.ts';
 import { intakeConfig, trustedProxySettings } from './intake/limiter.ts';
 import { billingSettings } from './billing-export.ts';
 import { billingExporters } from './billing-exporters.ts';
+import { identitySettings } from './identity/settings.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -599,5 +600,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   config.intake = intakeConfig(raw.intake);
   const billing = billingSettings(raw.billing, billingExporters, { env: process.env, dataDir, agentEnvironment: config.runtime.agentEnvironment ?? [] });
   if (billing) config.billing = billing;
+  if (raw.identity !== undefined) config.identity = identitySettings(raw.identity, { oidc: Boolean(config.auth.oidc), baseUrl: config.baseUrl });
   return config;
 }

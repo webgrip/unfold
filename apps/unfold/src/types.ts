@@ -8,6 +8,7 @@ import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
 import type { IntakeConfig } from './intake/limiter.ts';
+import type { IdentitySettings } from './identity/settings.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
 import type { BillingSettings } from './billing-export.ts';
 import type { NotificationSettings } from './notify/settings.ts';
@@ -93,6 +94,8 @@ export type AppConfig = {
   intake?: IntakeConfig;
   /** Where accepted Work Items are written as billing lines: the exporter and its settings. Absent means billing is off. */
   billing?: BillingSettings;
+  /** SCIM provisioning and the Shared Signals receiver (`identity`), each behind its own flag. */
+  identity?: IdentitySettings;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */

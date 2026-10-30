@@ -5,6 +5,7 @@ import { lowerRole } from './oidc.ts';
 import type { EditorCredential, Store, StoredUser } from './store.ts';
 import { defaultMemberships, narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
+import { accountDisabled } from './identity/accounts.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
 export type EditorRequestView = { userCode: string; label: string; createdAt: string; expiresAt: string; status: 'waiting' | 'approved' | 'denied' };
@@ -166,7 +167,18 @@ export class Auth {
   }
   private account(id: string) {
     const user = this.store.getUser(id);
-    return user && (user.passwordHash === '' || localLoginEnabled(this.config)) ? user : undefined;
+    return user && (user.passwordHash === '' || localLoginEnabled(this.config)) && !accountDisabled(this.store.db, id) ? user : undefined;
+  }
+
+  /**
+   * Ends what this process holds in memory for one person: every credential delegated for them and every editor sign-in
+   * they signed in for that is not yet collected. Returns how many delegated credentials it ended.
+   */
+  forgetPerson(userId: string): number {
+    let ended = 0;
+    for (const [hash, entry] of this.delegated) if (entry.userId === userId) { this.delegated.delete(hash); ended++; }
+    for (const [code, ticket] of this.editors) if (ticket.signedInBy === userId) this.editors.delete(code);
+    return ended;
   }
   private readonly delegated = new Map<string, { userId: string; role: UserRole; memberships: Membership[]; expiresAt: number; proof?: DelegatedProof }>();
 
