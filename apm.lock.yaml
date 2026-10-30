@@ -4,8 +4,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-baseline
   host: forgejo.webgrip.dev
-  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
-  resolved_ref: v0.5.2
+  resolved_commit: a6504b9934f81341deb176fc6e0e654c6bd55254
+  resolved_ref: v0.5.3
   version: 0.0.0
   virtual_path: packages/baseline
   is_virtual: true
@@ -20,8 +20,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-board
   host: forgejo.webgrip.dev
-  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
-  resolved_ref: v0.5.2
+  resolved_commit: a6504b9934f81341deb176fc6e0e654c6bd55254
+  resolved_ref: v0.5.3
   version: 0.0.0
   virtual_path: packages/board
   is_virtual: true
@@ -30,8 +30,8 @@ dependencies:
 - repo_url: webgrip/agent-standards
   name: webgrip-secrets
   host: forgejo.webgrip.dev
-  resolved_commit: 48173ccb46a4f33116109454508397c2d5bcc43e
-  resolved_ref: v0.5.2
+  resolved_commit: a6504b9934f81341deb176fc6e0e654c6bd55254
+  resolved_ref: v0.5.3
   version: 0.0.0
   virtual_path: packages/secrets
   is_virtual: true
