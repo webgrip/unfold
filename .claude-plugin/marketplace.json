@@ -4,13 +4,13 @@
     "name": "Ryan Grippeling / WebGrip"
   },
   "metadata": {
-    "description": "Agent plugins for working with Unfold, for Claude Code, GitHub Copilot CLI and VS Code."
+    "description": "Agent plugins for working with Unfold, for Claude Code, Codex, GitHub Copilot CLI and VS Code."
   },
   "plugins": [
     {
       "name": "unfold",
       "source": "./apps/unfold/extensions/claude-code",
-      "description": "Link your agent sessions to Unfold Work Items. In Claude Code it also reports each session and records Agent Trace attribution for its commits."
+      "description": "Use Unfold's MCP tools and link your agent sessions to Unfold Work Items. In Claude Code it also reports each session and records Agent Trace attribution for its commits."
     }
   ]
 }

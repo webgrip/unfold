@@ -133,3 +133,14 @@ The owner asked to see what a session actually says on its page and to continue 
 * **Off switch.** `UNFOLD_CONVERSATION=0` on the machine. The transcript format is still internal and undocumented; the reader takes only `user` and `assistant` entries and skips anything it does not recognise.
 
 Plugin 0.14.0. Tickets: VIK-2414 (this), VIK-2415 (reply under the conversation), VIK-2417 (ended sessions through the daemon), VIK-2416 (linking or creating a Work Item from one search box).
+
+## Update, 2026-10-30
+
+The owner asked for one Unfold plugin that installs in every client that supports Agent Plugins 1.0, with Unfold's MCP server named by URL, while the Claude Code format keeps working ([system ADR-0050](../../../../docs/adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md)). Plugin 0.16.0.
+
+* **Skills.** The plugin adds an `unfold` skill that tells any agent how to use the `unfold_*` tools, and `link-work-item` now covers the Codex and OpenCode reporters too. Codex, Copilot CLI, VS Code, Cursor and Kiro load both from the root `plugin.json` ([how-to](../../../../docs/how-to/install-the-unfold-plugin.md)).
+* **No `mcp.json` in the plugin, still.** The reason of 2026-10-23 holds: the specification still forbids expansion in a remote `url` and has no OAuth client id ([agent-plugins-spec #7](https://github.com/agentplugins/agent-plugins-spec/issues/7) is open). A second reason was found: only VS Code asks for a client id when the identity provider registers none, and Authentik registers none. A shipped `mcp.json` would name one installation and fail to sign in for most clients.
+* **An installation's marketplace adds it.** `scripts/agent-plugin-marketplace.mjs` writes a marketplace for one installation: this plugin as a `git-subdir` source pinned by a 40-character `sha`, and a generated `unfold-mcp` Agent Plugin whose `mcp.json` names the installation's `UNFOLD_MCP_RESOURCE`, with no headers and no credential. Configuration happens when the operator publishes, because the specification allows none at install time. `ploeg-mcp` stays out.
+* **Hooks.** They stay in Claude Code's `hooks/hooks.json`. Portable hooks wait on [agent-plugins-spec #89](https://github.com/agentplugins/agent-plugins-spec/pull/89), still a draft.
+
+Confirmation: `test/agent-plugin.test.ts` validates `plugin.json`, the generated `plugin.json` and `mcp.json` against the vendored Agent Plugins 1.0.0 schemas, and checks that the generated URL is the configured one and that no file carries a credential.

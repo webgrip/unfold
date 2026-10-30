@@ -37,7 +37,7 @@ test('the plugin ships /unfold:takeover and /unfold:handback, which run only the
     assert.match(command, /^---\ndescription: .+\nargument-hint: .+\nallowed-tools: Bash\(node:\*\)\n---\n/);
     assert.match(command, new RegExp(`node "\\$\\{CLAUDE_PLUGIN_ROOT\\}/scripts/unfold-takeover\\.mjs" ${mode} `));
   }
-  for (const file of ['plugin.json', '.claude-plugin/plugin.json']) assert.equal(JSON.parse(await readFile(join(plugin, file), 'utf8')).version, '0.15.0');
+  for (const file of ['plugin.json', '.claude-plugin/plugin.json']) assert.equal(JSON.parse(await readFile(join(plugin, file), 'utf8')).version, '0.16.0');
 });
 
 async function unfold(t: TestContext, state: () => Record<string, unknown>) {

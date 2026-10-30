@@ -55,6 +55,8 @@ In Claude Code:
 
 To link sessions from the agent as well, register `unfold-mcp` ([Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md)). The plugin's skill then calls `unfold_link_session` when you name a Work Item.
 
+For Codex, GitHub Copilot, VS Code, Cursor and Kiro, which install the same plugin's skills, see [Install the Unfold plugin](install-the-unfold-plugin.md).
+
 ### For everyone who opens a repository
 
 To give every person who works in a repository the plugin without the two commands, commit this to the repository's `.claude/settings.json`:
