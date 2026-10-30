@@ -561,6 +561,9 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (!Array.isArray(agentHostOrigins) || agentHostOrigins.length > 20 || !agentHostOrigins.every(isAgentHostOriginPattern)) throw new Error('auth.agentHostOrigins must list up to 20 page origins such as vscode-file://vscode-app or https://vscode.dev, or "*" for any');
     config.auth.agentHostOrigins = agentHostOrigins.map((origin: string) => origin.trim().replace(/\/+$/, ''));
   }
+  const agentHostOriginMode = (raw.auth ?? {}).agentHostOriginMode;
+  if (agentHostOriginMode !== undefined && agentHostOriginMode !== 'report' && agentHostOriginMode !== 'enforce') throw new Error('auth.agentHostOriginMode must be "report" or "enforce"');
+  config.auth.agentHostOriginMode = agentHostOriginMode ?? 'report';
   const oidc = (raw.auth ?? {}).oidc;
   if (oidc !== undefined) {
     if (!oidc || typeof oidc !== 'object' || Array.isArray(oidc)) throw new Error('auth.oidc must be an object');

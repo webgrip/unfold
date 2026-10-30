@@ -4,7 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { application, login, request } from './api-support.ts';
 import { connect } from './ahp-support.ts';
-import { agentHostOriginAllowed, defaultAgentHostOrigins, isAgentHostOriginPattern, renewedExpiry } from '../src/ahp/upgrade-auth.ts';
+import { agentHostOriginAllowed, defaultAgentHostOrigins, isAgentHostOriginPattern, renewedExpiry, reportUnlistedOrigin, unlistedOriginLogMs } from '../src/ahp/upgrade-auth.ts';
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -54,8 +54,8 @@ test('a token in the URL query is logged once per token, without the token', asy
   assert.ok(!logged[0].includes(token), 'the log line never carries the token');
 });
 
-test('the upgrade refuses a web page from another origin and accepts the Agents window, the workbench and non-browser clients', async t => {
-  const server = await application('demo', config => { config.baseUrl = 'https://unfold.example'; });
+test('in enforce mode the upgrade refuses a web page from another origin and accepts the Agents window, the workbench and non-browser clients', async t => {
+  const server = await application('demo', config => { config.baseUrl = 'https://unfold.example'; config.auth.agentHostOriginMode = 'enforce'; });
   t.after(() => server.close());
   const token = await tokenOf(server);
   const lines: string[] = [];
@@ -70,8 +70,29 @@ test('the upgrade refuses a web page from another origin and accepts the Agents 
   assert.equal(await handshake(server.url, '/', { Origin: 'https://evil.example' }), 403);
 });
 
+test('in report mode an unlisted origin connects and is logged once per origin per hour, without a refusal', async t => {
+  const server = await application('demo', config => { config.auth.agentHostOriginMode = 'report'; });
+  t.after(() => server.close());
+  const token = await tokenOf(server);
+  const lines: string[] = [];
+  t.mock.method(console, 'error', (line: unknown) => { lines.push(String(line)); });
+  const auth = { Authorization: `Bearer ${token}` };
+  assert.equal(await handshake(server.url, '/', { ...auth, Origin: 'https://other.example' }), 101);
+  assert.equal(await handshake(server.url, '/', { ...auth, Origin: 'https://other.example' }), 101);
+  assert.equal(await handshake(server.url, '/', { ...auth, Origin: 'https://third.example' }), 101);
+  assert.equal(await handshake(server.url, '/', { ...auth, Origin: 'vscode-file://vscode-app' }), 101);
+  const unlisted = lines.filter(line => line.includes('agent_host.origin_unlisted')).map(line => JSON.parse(line).origin);
+  assert.deepEqual(unlisted, ['https://other.example', 'https://third.example'], 'each unlisted origin once, a listed one never');
+  assert.ok(!lines.some(line => line.includes('agent_host.origin_refused')));
+  assert.equal(await handshake(server.url, '/', { Origin: 'https://other.example' }), 403, 'report mode still needs a token');
+  const logged = new Map<string, number>();
+  assert.equal(reportUnlistedOrigin('https://a.example', logged, 0), true);
+  assert.equal(reportUnlistedOrigin('HTTPS://a.example/', logged, unlistedOriginLogMs - 1), false);
+  assert.equal(reportUnlistedOrigin('https://a.example', logged, unlistedOriginLogMs), true, 'logged again after an hour');
+});
+
 test('auth.agentHostOrigins replaces the default origins; "*" accepts any', async t => {
-  const server = await application('demo', config => { config.auth.agentHostOrigins = ['https://vscode.dev']; });
+  const server = await application('demo', config => { config.auth.agentHostOrigins = ['https://vscode.dev']; config.auth.agentHostOriginMode = 'enforce'; });
   t.after(() => server.close());
   const auth = { Authorization: `Bearer ${await tokenOf(server)}` };
   assert.equal(await handshake(server.url, '/', { ...auth, Origin: 'https://vscode.dev' }), 101);
