@@ -15,10 +15,11 @@ import { valueStream, type ValueStream } from './value-stream.ts';
 import type { CardService, CommentRequest, CommentResult, FactsQuery } from './cards/service.ts';
 import { readRunLogs, RunLogsError, type RunLogs } from './run-logs.ts';
 import { parseTranscriptPage, transcriptCursor, transcriptLimits, TranscriptError, unavailableTranscript, type RunTranscript } from './run-transcript.ts';
+import { teamSpendCap, type TeamSpendCap } from './hand-off-spend.ts';
 import type { RunCardFlow, RunCardPipeline, RunCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
-export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[]; pinnedScopes: string[] };
+export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[]; pinnedScopes: string[]; spendCap?: TeamSpendCap | null };
 export type PloegTrackerItems = { items: PloegItem[]; supported: boolean; message?: string };
 export type PloegShift = { id: string; workItemId: string; team: string; branch: string; round: number; budgetUsd: number; spentUsd: number; reservedUsd: number; openedAt: string; closedAt: string | null; closeReason: string };
 export type PloegItem = { id: string; provider: string; externalId: string; revision: string; team: string; state: PloegState; title: string; description: string; url: string; priority: number; attempts: number; infraFailures: number; nextEligibleAt: string | null; createdAt: string; updatedAt: string; target: { forge: string; owner: string; repo: string; baseBranch: string } | null; latestShift: PloegShift | null; lease: { expiresAt: string; renewedAt: string } | null; pullRequest?: PloegPullRequest | null; sourceWorkItemId?: string; createdKind?: string; ready?: boolean; waitingForClient?: PloegClientWait | null };
@@ -316,8 +317,9 @@ function connectionBoard(value: unknown): Omit<PloegConnectionBoard, 'sources'> 
 const targetText = (target: { owner: string; repo: string; baseBranch: string }) => `${target.owner}/${target.repo}${target.baseBranch ? `@${target.baseBranch}` : ''}`;
 function team(value: unknown): PloegTeam {
   const data = record(value);
-  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
+  return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean), ...spendCapOf(data.spendCap) };
 }
+function spendCapOf(value: unknown): { spendCap?: TeamSpendCap | null } { const cap = teamSpendCap(value); return cap === undefined ? {} : { spendCap: cap }; }
 function shift(value: unknown): PloegShift {
   const data = record(value);
   return { id: identifier(data.id), workItemId: identifier(data.workItemId), team: field(data.team, 100), branch: field(data.branch), round: numeric(data.round, true), budgetUsd: numeric(data.budgetUsd), spentUsd: numeric(data.spentUsd), reservedUsd: numeric(heldUsd(data)), openedAt: timestamp(data.openedAt), closedAt: nullable(data.closedAt, timestamp), closeReason: field(data.closeReason, 16000) };

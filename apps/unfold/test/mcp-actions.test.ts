@@ -271,11 +271,12 @@ test('unfold_hand_off assigns the Team\'s tracker user only after the person con
     if (url.pathname === '/api/v1/tasks/1505/comments') return send({ id: 1, comment: body.comment }, 201);
     return send({ message: 'not found' }, 404);
   });
+  let spendCap: unknown;
   const ploeg = await listen(t, (req, res) => {
     const url = new URL(req.url!, 'http://fixture.invalid');
     const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...value as object }));
     if (req.headers.authorization !== `Bearer ${bearer}`) return send({}, 401);
-    if (url.pathname === '/api/v1/operator/teams') return send({ teams: [{ id: 'silver', paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], assignees: ['silver'], pinnedScopes: [] }] });
+    if (url.pathname === '/api/v1/operator/teams') return send({ teams: [{ id: 'silver', paused: false, queueDepth: 2, roles: [{ id: 'implementer', queueDepth: 1 }], assignees: ['silver'], pinnedScopes: [], ...(spendCap === undefined ? {} : { spendCap }) }] });
     if (url.pathname === '/api/v1/operator/work-items') return send({ items: [], nextCursor: null });
     return send({}, 404);
   });
@@ -289,8 +290,13 @@ test('unfold_hand_off assigns the Team\'s tracker user only after the person con
   const args = { source: 'board', task: '1505', team: 'silver' };
 
   const declined = await overStdio(server.url, token, 'unfold_hand_off', args, { action: 'decline' });
-  assert.equal(declined.elicited[0].message, 'Hand task board/1505 "Round the totals" to Team silver? Unfold assigns the Team\'s tracker user silver to the task and comments that you handed it over. Ploeg then picks it up, and its Runs spend from Team silver\'s budget.');
+  const asked = 'Hand task board/1505 "Round the totals" to Team silver? Unfold assigns the Team\'s tracker user silver to the task and comments that you handed it over. Ploeg then picks it up.';
+  assert.equal(declined.elicited[0].message, `${asked} Its Runs spend from Team silver's budget. The spend limit for Team silver is not known until Ploeg picks this up.`);
   assert.equal(declined.result.structuredContent.done, false);
+  spendCap = null;
+  assert.equal((await overStdio(server.url, token, 'unfold_hand_off', args, { action: 'decline' })).elicited[0].message, `${asked} Its Runs spend from Team silver's budget, and Ploeg reports no spend cap for Team silver. What this task may spend is not known until Ploeg picks it up.`);
+  spendCap = { usd: 20, period: 'day', periodStart: '2026-09-30T00:00:00Z', periodEnd: '2026-10-01T00:00:00Z', settledUsd: 7.5, heldUsd: 0.25, remainingUsd: 12.25 };
+  assert.equal((await overStdio(server.url, token, 'unfold_hand_off', args, { action: 'decline' })).elicited[0].message, `${asked} Its Runs spend from Team silver's budget: Ploeg starts no Run for Team silver that would take its spend this day (UTC) over $20.00, and $12.25 of that is left until 2026-10-01 00:00 UTC. What this task alone may spend is set by the Team's plan and is not known until Ploeg picks it up.`);
   assert.equal(writes.length, 0);
   assert.match((await overStdio(server.url, token, 'unfold_hand_off', { ...args, team: 'gold' }, accept)).result.content[0].text, /Team gold is not one you can hand this task to; choose one of silver/);
 

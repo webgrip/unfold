@@ -37,7 +37,12 @@
         {"pointer": "/teams/*/roles/*/id", "types": ["string"], "required": true},
         {"pointer": "/teams/*/roles/*/queueDepth", "types": ["integer"], "required": true},
         {"pointer": "/teams/*/assignees", "types": ["array", "null"]},
-        {"pointer": "/teams/*/pinnedScopes", "types": ["array", "null"]}
+        {"pointer": "/teams/*/pinnedScopes", "types": ["array", "null"]},
+        {"pointer": "/teams/*/spendCap", "types": ["object", "null"]},
+        {"pointer": "/teams/*/spendCap/usd", "types": ["number"]},
+        {"pointer": "/teams/*/spendCap/period", "types": ["string"]},
+        {"pointer": "/teams/*/spendCap/periodEnd", "types": ["string"]},
+        {"pointer": "/teams/*/spendCap/remainingUsd", "types": ["number"]}
       ]
     },
     {
