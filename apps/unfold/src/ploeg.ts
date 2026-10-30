@@ -1406,7 +1406,9 @@ export class PloegClient {
     if (this.demo) return { unsettled: unsettledTotals([]), unsettledError: null };
     try {
       const data = envelope(await this.request('unsettled-accounts', fresh, { added: true }));
-      const accounts = array(data.accounts, unsettledAccount, 200).filter(entry => this.allowed(user, entry.team));
+      const allowed = array(data.accounts, unsettledAccount, 200).filter(entry => this.allowed(user, entry.team));
+      const reached = await this.reachedIds(user, allowed.flatMap(entry => entry.workItemId ? [entry.workItemId] : []), fresh);
+      const accounts = allowed.filter(entry => entry.workItemId ? reached.has(entry.workItemId) : this.tenancy.reachesWorkItem(user, null));
       return { unsettled: unsettledTotals(accounts), unsettledError: null };
     } catch (error) {
       const older = error instanceof PloegError && error.code === 'ploeg_unsupported';
@@ -1451,7 +1453,9 @@ export class PloegClient {
       const page = await this.eventPage({ team: filter.team, before: filter.before, after: filter.after, limit: pageSize }, fresh);
       events = page.events; nextCursor = page.nextCursor;
     }
-    const visible = structuredClone(events.filter(entry => this.allowed(user, entry.team)));
+    const allowed = events.filter(entry => this.allowed(user, entry.team));
+    const reached = await this.reachedIds(user, allowed.map(entry => entry.workItemId), fresh);
+    const visible = structuredClone(allowed.filter(entry => reached.has(entry.workItemId)));
     const missing = [...new Set(visible.filter(entry => !entry.workItemTitle && !this.titles.has(entry.workItemId)).map(entry => entry.workItemId))].slice(0, 10);
     await Promise.all(missing.map(id => this.detail(user, id).catch(() => undefined)));
     for (const entry of visible) entry.workItemTitle ||= this.titles.get(entry.workItemId) ?? '';
