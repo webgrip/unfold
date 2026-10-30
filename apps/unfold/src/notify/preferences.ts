@@ -2,8 +2,14 @@ import { isTrigger, type TriggerId } from './triggers.ts';
 
 /** Quiet hours: from `start` to `end` (`HH:MM`, 24-hour) in `timeZone`; a window may wrap past midnight. */
 export type QuietHours = { start: string; end: string; timeZone: string };
-/** What a person chose: the channels by registry id, the triggers, and optional quiet hours. Empty means nothing is sent. */
-export type Preferences = { channels: string[]; triggers: TriggerId[]; quietHours: QuietHours | null };
+/**
+ * What a person chose: the channels by registry id, the triggers, and optional quiet hours. Empty means nothing is sent.
+ * `handedOff` is `false` when they turned off notices about work they handed off; absent, those notices are on.
+ */
+export type Preferences = { channels: string[]; triggers: TriggerId[]; quietHours: QuietHours | null; handedOff?: false };
+
+/** Whether a person gets notices about the work they handed off: on unless they turned it off. */
+export const followsHandedOff = (preferences: Preferences): boolean => preferences.handedOff !== false;
 
 /** The choice of a person who never chose: nothing. */
 export const noPreferences: Preferences = Object.freeze({ channels: [], triggers: [], quietHours: null }) as Preferences;
@@ -26,7 +32,7 @@ export function validTimeZone(zone: unknown): zone is string {
   try { new Intl.DateTimeFormat('en-GB', { timeZone: zone }); return true; } catch { return false; }
 }
 
-/** Reads a preferences body, keeping only channels in `known`. Refuses an unknown trigger, a bad clock time or time zone. */
+/** Reads a preferences body, keeping only channels in `known`. Refuses an unknown trigger, a bad clock time or time zone, or a `handedOff` that is not a boolean. */
 export function parsePreferences(raw: unknown, known: readonly string[]): Preferences {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) refuse(400, 'notify_preferences', 'Send channels, triggers and quietHours.');
   const value = raw as Record<string, unknown>;
@@ -41,7 +47,8 @@ export function parsePreferences(raw: unknown, known: readonly string[]): Prefer
     if (!validTimeZone(quiet.timeZone)) refuse(400, 'notify_time_zone', 'Choose a time zone such as Europe/Amsterdam.');
     quietHours = { start: quiet.start as string, end: quiet.end as string, timeZone: quiet.timeZone as string };
   }
-  return { channels: [...new Set(channels as string[])], triggers: [...new Set(chosen as TriggerId[])], quietHours };
+  if (value.handedOff !== undefined && typeof value.handedOff !== 'boolean') refuse(400, 'notify_handed_off', 'handedOff is true or false.');
+  return { channels: [...new Set(channels as string[])], triggers: [...new Set(chosen as TriggerId[])], quietHours, ...(value.handedOff === false ? { handedOff: false as const } : {}) };
 }
 
 function localMinutes(at: number, timeZone: string): number {

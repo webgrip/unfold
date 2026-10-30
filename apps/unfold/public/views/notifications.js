@@ -34,6 +34,7 @@ export function preferencesFrom(data, channelIds, triggerIds) {
   return {
     channels: channelIds.filter(id => data[`channel.${id}`] === 'on'),
     triggers: triggerIds.filter(id => data[`trigger.${id}`] === 'on'),
+    handedOff: data.handedOff === 'on',
     quietHours: quiet ? { start: data.quietStart, end: data.quietEnd, timeZone: data.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone } : null,
   };
 }
@@ -72,7 +73,7 @@ function form(data) {
   const chosen = data.preferences;
   const zone = chosen.quietHours?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const channels = data.channels.map(channel => check(`channel.${channel.id}`, channel.label, chosen.channels.includes(channel.id), channel.available ? '' : 'not configured', !channel.available)).join('');
-  const triggers = data.triggers.map(trigger => check(`trigger.${trigger.id}`, trigger.label, chosen.triggers.includes(trigger.id))).join('');
+  const triggers = data.triggers.map(trigger => check(`trigger.${trigger.id}`, trigger.label, chosen.triggers.includes(trigger.id))).join('') + check('handedOff', 'Notify me about work I handed off', chosen.handedOff !== false, 'when it starts needing you or its pull request is ready, from whichever app you handed it off');
   const quiet = chosen.quietHours;
   return `<form data-form="notify-preferences" class="settings-rows">
 <fieldset><legend class="settings-row-label">Send to</legend>${channels}</fieldset>
@@ -100,7 +101,7 @@ function render() {
   else if (!data.enabled) content = `<section class="card settings-card">${emptyState({ icon: 'bell', title: 'Notifications are not on for you', body: 'An administrator turns on the notifications.push flag for the people who may use them.', compact: true })}</section>`;
   else {
     const demo = data.demo ? callout({ tone: 'neutral', title: 'This is the demo', body: '<p>The demo saves your choices but sends no notifications.</p>' }) : '';
-    content = `${demo}<section class="card settings-card" aria-labelledby="notify-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="notify-title">What tells you</h2><p class="card-subtitle">Nothing is sent until you choose a channel and at least one moment.</p></div></header><div class="card-body">${form(data)}</div></section>
+    content = `${demo}<section class="card settings-card" aria-labelledby="notify-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="notify-title">What tells you</h2><p class="card-subtitle">Nothing is sent until you choose a channel. Work you handed off tells you unless you turn it off; choose the other moments yourself.</p></div></header><div class="card-body">${form(data)}</div></section>
 <section class="card settings-card" aria-labelledby="notify-channels"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="notify-channels">Channels</h2></div></header><div class="card-body settings-rows">${data.channels.map(channelBlock).join('')}</div></section>
 <section class="card settings-card" aria-labelledby="notify-recent"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="notify-recent">Recent</h2></div></header><div class="card-body">${recent(data)}</div></section>`;
   }

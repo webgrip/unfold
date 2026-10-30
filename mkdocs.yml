@@ -26,6 +26,7 @@ nav:
   - How-to:
       - Assign work to an agent: how-to/assign-work-to-an-agent.md
       - Review an agent pull request: how-to/review-an-agent-pr.md
+      - Follow the work you handed off: how-to/follow-handed-off-work.md
       - Prepare a repository: how-to/prepare-a-repository.md
       - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Link your Claude Code sessions: how-to/link-claude-code-sessions.md

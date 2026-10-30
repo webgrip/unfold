@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Store } from '../store.ts';
-import { noPreferences, type Preferences } from './preferences.ts';
+import { followsHandedOff, noPreferences, type Preferences } from './preferences.ts';
 import type { NotificationMessage } from './triggers.ts';
 
 /** Where a notice stands: waiting to be sent, sent, given up, or dropped because the person's choice or target went away. */
@@ -38,6 +38,7 @@ export class NotifyStore {
       CREATE TABLE IF NOT EXISTS notify_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, channel TEXT NOT NULL, target_id TEXT NOT NULL, dedupe_key TEXT NOT NULL, message TEXT NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT, UNIQUE (user_id, channel, target_id, dedupe_key));
       CREATE INDEX IF NOT EXISTS notify_outbox_due ON notify_outbox(state, next_at);
       CREATE TABLE IF NOT EXISTS notify_cursors (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS notify_handed_transitions (work_item_id TEXT PRIMARY KEY, kind TEXT NOT NULL, event_id TEXT NOT NULL, updated_at TEXT NOT NULL);
     `);
   }
 
@@ -48,12 +49,23 @@ export class NotifyStore {
   setPreferences(userId: string, preferences: Preferences, at: string): void {
     this.db.prepare('INSERT INTO notify_preferences(user_id,body,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET body=excluded.body, updated_at=excluded.updated_at').run(userId, JSON.stringify(preferences), at);
   }
-  /** The people who chose at least one trigger and one channel. */
+  /** The people who chose at least one channel and at least one trigger or notices about the work they handed off. */
   subscribers(): { userId: string; preferences: Preferences }[] {
     return (this.db.prepare('SELECT user_id, body FROM notify_preferences ORDER BY user_id').all() as { user_id: string; body: string }[])
       .map(row => ({ userId: row.user_id, preferences: JSON.parse(row.body) as Preferences }))
-      .filter(row => row.preferences.channels.length > 0 && row.preferences.triggers.length > 0);
+      .filter(row => row.preferences.channels.length > 0 && (row.preferences.triggers.length > 0 || followsHandedOff(row.preferences)));
   }
+
+  /** What a handed-off Work Item last notified about: `needs_you` or `review`, until a Run finishes or it moves on. */
+  handedTransition(workItemId: string): string | undefined {
+    return (this.db.prepare('SELECT kind FROM notify_handed_transitions WHERE work_item_id=?').get(workItemId) as { kind: string } | undefined)?.kind;
+  }
+  /** Records the transition a handed-off Work Item notified about, so a repeat of it notifies nobody. */
+  setHandedTransition(workItemId: string, kind: string, eventId: string, at: string): void {
+    this.db.prepare('INSERT INTO notify_handed_transitions(work_item_id,kind,event_id,updated_at) VALUES(?,?,?,?) ON CONFLICT(work_item_id) DO UPDATE SET kind=excluded.kind, event_id=excluded.event_id, updated_at=excluded.updated_at').run(workItemId, kind, eventId, at);
+  }
+  /** Forgets a Work Item's last transition, once it moved on, so the next one notifies again. */
+  clearHandedTransition(workItemId: string): void { this.db.prepare('DELETE FROM notify_handed_transitions WHERE work_item_id=?').run(workItemId); }
 
   targets(userId: string, channel: string): Target[] {
     return (this.db.prepare('SELECT * FROM notify_targets WHERE user_id=? AND channel=? ORDER BY created_at, rowid').all(userId, channel) as Row[]).map(target);
@@ -95,8 +107,11 @@ export class NotifyStore {
   recent(userId: string, limit: number): OutboxEntry[] {
     return (this.db.prepare('SELECT * FROM notify_outbox WHERE user_id=? ORDER BY id DESC LIMIT ?').all(userId, limit) as Row[]).map(entry);
   }
-  /** Deletes finished notices older than `before`. */
-  prune(before: string): void { this.db.prepare("DELETE FROM notify_outbox WHERE state<>'pending' AND updated_at<?").run(before); }
+  /** Deletes finished notices and handed-off transitions older than `before`. */
+  prune(before: string): void {
+    this.db.prepare("DELETE FROM notify_outbox WHERE state<>'pending' AND updated_at<?").run(before);
+    this.db.prepare('DELETE FROM notify_handed_transitions WHERE updated_at<?').run(before);
+  }
   /** Forgets everything about a person: preferences, targets and notices. */
   forget(userId: string): void {
     this.store.transaction(() => {

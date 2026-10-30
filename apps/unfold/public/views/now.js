@@ -16,14 +16,15 @@ import { enabled, exposed, track } from '../core/flags.js';
 import { segmented } from '../core/ui.js';
 import { fleetBoard, fleetModel } from '../live/fleet.js';
 import { linkedWaitingCard } from '../core/linked-waiting.js';
+import { handedOffCard } from '../core/handed-off.js';
 import { permissionsChangedEvent } from '../core/linked-permissions.js';
 import { taskStandings } from '../handoff.js';
 import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
 const baselineKey = 'unfold.nowSince';
-const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null, snoozeOpen: null, showSnoozed: false, showOlder: false });
+const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null, handed: null, snoozeOpen: null, showSnoozed: false, showOlder: false });
 
-onForget(() => Object.assign(view, { snoozeOpen: null, showSnoozed: false, showOlder: false }));
+onForget(() => Object.assign(view, { handed: null, snoozeOpen: null, showSnoozed: false, showOlder: false }));
 
 function readBaseline() {
   try { const saved = JSON.parse(globalThis.sessionStorage?.getItem(baselineKey) ?? 'null'); return saved && typeof saved === 'object' && 'since' in saved ? saved.since : undefined; } catch { return undefined; }
@@ -146,7 +147,7 @@ function loopContent() {
   return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart(), canCancel: canCancel(), sessions: state.sessions, ...snoozeOptions() });
 }
 
-function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions, { permissions: view.linked?.permissions }) : ''; }
+function yoursCard() { return view.data ? `${linkedWaitingCard(view.linked?.sessions, { permissions: view.linked?.permissions })}${handedOffCard(view.handed)}` : ''; }
 
 function renderNow() {
   if (view.since === undefined) arrive();
@@ -200,6 +201,12 @@ async function loadLinked() {
   if (onNow() && view.data) renderNow();
 }
 
+async function loadHanded(fresh) {
+  try { view.handed = await api(`/api/handoffs${fresh ? '?refresh=1' : ''}`); }
+  catch { if (!view.handed) view.handed = { handoffs: [] }; }
+  if (onNow() && view.data) renderNow();
+}
+
 if (globalThis.window) window.addEventListener(permissionsChangedEvent, () => { if (onNow()) void loadLinked(); });
 
 async function loadNow(mode = 'open') {
@@ -212,6 +219,7 @@ async function loadNow(mode = 'open') {
   loadSummary(fresh);
   loadAsks();
   loadLinked();
+  loadHanded(fresh);
   try {
     const [data] = await Promise.all([api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`), loadSnoozes()]);
     if (request !== view.request) return;

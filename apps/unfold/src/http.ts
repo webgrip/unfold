@@ -29,6 +29,7 @@ import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.t
 import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
 import { FocusQueryError, focusExportQuery, focusFile, readFocusExport } from './focus-export.ts';
 import { TaskHandoff } from './task-handoff.ts';
+import { handedOffBy } from './notify/handed-off.ts';
 import { TenantScope } from './tenant-scope.ts';
 import { membershipsFromGroups, ownership } from './tenancy.ts';
 import { StaticFiles } from './static.ts';
@@ -319,7 +320,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
-  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), flagOn: (user, flag) => flags.getBooleanValue(flag, false, flagContext(user)), permissions, canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
+  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), flagOn: (user, flag) => flags.getBooleanValue(flag, false, flagContext(user)), permissions, canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), handedOffBy: (item, before) => handedOffBy(store, item, (config.taskSources ?? []).filter(source => source.provider === item.provider).map(source => source.id), before), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
   notifications.start();
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
