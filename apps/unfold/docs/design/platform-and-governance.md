@@ -186,7 +186,7 @@ Instrument API, admission, provisioning, model routing, verification, publishing
 | --- | --- |
 | Oldest admissible work and time to first worker | Find capacity/provisioning bottlenecks |
 | Time waiting for human decision, by reason | Identify unclear briefs and review constraints |
-| Reviewed accepted outcomes and human minutes per outcome | Evaluate useful leverage without rewarding token consumption |
+| Reviewed accepted outcomes and human minutes per outcome | Measure useful work per person-hour without rewarding token consumption |
 | Spend observed, held and unknown; oldest unknown Hold | Detect exposure and reconciliation failure |
 | Stop acknowledgement and termination confirmation latency | Verify intervention works under load |
 | Leases expired, stale results rejected, orphan resources | Detect lifecycle bugs and recover safely |

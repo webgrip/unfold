@@ -5,11 +5,20 @@ import { test } from 'node:test';
 
 const repository = resolve(import.meta.dirname, '../../..');
 const model = readFileSync(join(repository, 'docs/domain/model.yaml'), 'utf8');
-const enforced = ['Crew', 'Vloer'];
+const enforced = ['Crew', 'Vloer', 'Workload', 'Repair Subticket', 'Agency Edition'];
 const retiredBlock = model.slice(model.indexOf('\nretired_terms:'), model.indexOf('\nrules:'));
-const retired = [...retiredBlock.matchAll(/- name: (\S+)\n(?:\s+\w+:.*\n)*?\s+use: \[([^\]]+)\]/g)]
-  .map(([, word, use]) => ({ word, use: use.split(',')[0].trim() }))
+const retired = [...retiredBlock.matchAll(/- name: ([^\n]+?)\n(?:\s+\w+:.*\n)*?\s+use: \[([^\]]+)\]/g)]
+  .map(([, word, use]) => ({ word: word.trim(), use: use.split(',')[0].trim() }))
   .filter(entry => enforced.includes(entry.word));
+const spelled = (word: string): string => word.split(' ').join('[\\s-]+');
+const kubernetesSense: Record<string, { reason: string; screens: Record<string, string[]>; pages: boolean }> = {
+  Workload: {
+    reason: 'Kubernetes calls what a pod runs a workload, and workload identity is an industry term; neither means the retired name for a Work Item',
+    screens: { 'apps/unfold/src/config.ts': ['a Kata guest kernel already remaps the workload', 'sandboxed runtime such as Kata already remaps the workload in its guest kernel'] },
+    pages: false,
+  },
+};
+const filler = ['something went wrong', 'oops', 'whoops', 'seamless', 'seamlessly', 'leverage', 'leverages', 'leveraging', 'delve', 'effortless', 'effortlessly', 'empower', 'empowers', 'unlock the', 'please note'];
 
 const screens = ['apps/unfold/public', 'apps/unfold/extensions/vscode/src', 'apps/unfold/extensions/vscode/media', 'apps/unfold/extensions/vscode/package.json', 'apps/unfold/src'];
 const pages = ['docs', 'apps/unfold/docs', 'apps/unfold/README.md', 'apps/unfold/extensions/vscode/README.md', 'README.md'];
@@ -95,14 +104,15 @@ function texts(source: string): string[] {
 }
 const visible = (text: string): string => text.replace(/<[^>]*>/g, ' ');
 
-test('the domain model retires single words that this check enforces', () => {
+test('the domain model retires the words this check enforces', () => {
   assert.deepEqual(retired.map(entry => entry.word).sort(), [...enforced].sort(), 'every word this check enforces is retired in docs/domain/model.yaml');
   assert(retired.some(entry => entry.word === 'Crew' && entry.use === 'Team'), 'docs/domain/model.yaml retires Crew in favour of Team');
 });
 
 test('no screen text says a retired word; stored keys, ids and class names that still spell it are not text', () => {
   for (const { word, use } of retired) {
-    const pattern = new RegExp(`\\b${word}s?\\b`, 'i');
+    const pattern = new RegExp(`\\b${spelled(word)}s?\\b`, 'i');
+    const otherSense = kubernetesSense[word]?.screens ?? {};
     const found: string[] = [];
     for (const file of screens.flatMap(path => files(path, /\.(m?js|ts|html|json)$/))) {
       if (records.test(file) || inputWords[file]) continue;
@@ -110,7 +120,8 @@ test('no screen text says a retired word; stored keys, ids and class names that 
       for (const literal of file.endsWith('.html') || file.endsWith('.json') ? [source] : texts(source)) {
         const text = visible(literal);
         if (compatibleText[text.trim()]) continue;
-        if (/\s/.test(text.trim()) ? pattern.test(text) : new RegExp(`^${word}s?$`).test(text.trim())) found.push(`${relative(repository, join(repository, file))}: ${text.trim().slice(0, 120)}`);
+        if (otherSense[file]?.some(phrase => text.includes(phrase))) continue;
+        if (/\s/.test(text.trim()) ? pattern.test(text) : new RegExp(`^${spelled(word)}s?$`).test(text.trim())) found.push(`${relative(repository, join(repository, file))}: ${text.trim().slice(0, 120)}`);
       }
     }
     assert.deepEqual(found, [], `Screens say the retired word "${word}"; say "${use}" (docs/domain/model.yaml retired_terms)`);
@@ -130,9 +141,34 @@ test('code spells the retired word Crew only in the compatibility keys that must
   for (const [token, { files: allowed }] of Object.entries(compatibleKeys)) for (const file of allowed) assert(found.get(token)?.has(file), `${file} no longer spells "${token}"; remove it from compatibleKeys`);
 });
 
+test('a retired word kept for another sense names that sense and still occurs in it', () => {
+  for (const [word, { reason, screens: kept }] of Object.entries(kubernetesSense)) {
+    assert(enforced.includes(word) && reason, `${word} is enforced and its other sense has a reason`);
+    for (const [file, phrases] of Object.entries(kept)) {
+      const source = readFileSync(join(repository, file), 'utf8');
+      for (const phrase of phrases) assert(source.includes(phrase), `${file} no longer says "${phrase}"; remove it from kubernetesSense`);
+    }
+  }
+});
+
+test('no screen text uses filler or a vague error phrase', () => {
+  const pattern = new RegExp(`\\b(?:${filler.map(spelled).join('|')})\\b`, 'i');
+  const found: string[] = [];
+  for (const file of screens.flatMap(path => files(path, /\.(m?js|ts|html|json)$/))) {
+    if (records.test(file)) continue;
+    const source = readFileSync(join(repository, file), 'utf8');
+    for (const literal of file.endsWith('.html') || file.endsWith('.json') ? [source] : texts(source)) {
+      const text = visible(literal);
+      if (/\s/.test(text.trim()) && pattern.test(text)) found.push(`${file}: ${text.trim().slice(0, 120)}`);
+    }
+  }
+  assert.deepEqual(found, [], 'Screens use filler or a vague error phrase; say what happened and what to do next instead');
+});
+
 test('no living documentation page uses a retired word outside code', () => {
   for (const { word, use } of retired) {
-    const pattern = new RegExp(`\\b${word}s?\\b`, 'i');
+    if (kubernetesSense[word]?.pages === false) continue;
+    const pattern = new RegExp(`\\b${spelled(word)}s?\\b`, 'i');
     const found: string[] = [];
     for (const file of pages.flatMap(path => files(path, /\.md$/))) {
       if (records.test(file) || sentenceRecords[file]) continue;

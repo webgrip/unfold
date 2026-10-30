@@ -140,7 +140,7 @@ export class Engine {
     if (!input.sourceTask && (objective.trim().length < 20 || objective.trim().split(/\s+/).length < 4)) throw new EngineError(400, 'objective_too_thin', 'Describe what the team should do and how you will know it is done. A greeting or a few words is not a brief, and the team would spend your budget guessing.');
     const repository = this.config.repositories.find(item => item.id === input.repositoryId);
     const team = this.config.teams.find(item => item.id === input.teamId);
-    if (!repository || !team || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, team and runtime.');
+    if (!repository || !team || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, Team and runtime.');
     this.interactiveRepository(repository.id, input.sourceTask);
     if ((this.config.mode === 'demo') !== (input.runtime === 'demo')) throw new EngineError(400, 'invalid_runtime', 'The runtime does not match this deployment mode.');
     const placement = this.placement(input.placement);
@@ -215,16 +215,16 @@ export class Engine {
     const related = this.store.listSessions().filter(session => session.sourceTask?.key === snapshot.key);
     const existing = related.find(session => session.sourceTask?.revision === snapshot.revision && (!this.authority || session.sourceTask.bindingRevision === expectedBinding));
     if (existing) {
-      if (existing.ownerId !== user.id && user.role !== 'admin') throw new EngineError(409, 'task_in_use', 'This task revision already has an operator session.');
+      if (existing.ownerId !== user.id && user.role !== 'admin') throw new EngineError(409, 'task_in_use', 'A session already works on this version of the task. Open that session instead.');
       return { session: existing, created: false };
     }
-    if (related.some(session => !['completed', 'failed', 'cancelled'].includes(session.status) || this.active.has(session.id) || this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`) || this.reservations(session.id).length)) throw new EngineError(409, 'task_in_use', 'An earlier revision still has active work or unresolved execution. Finish and reconcile that session first.');
+    if (related.some(session => !['completed', 'failed', 'cancelled'].includes(session.status) || this.active.has(session.id) || this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`) || this.reservations(session.id).length)) throw new EngineError(409, 'task_in_use', 'A session on an earlier version of this task is still running or has not settled. Finish that session first.');
     if (this.authority) snapshot = await lookupTaskBinding(this.config, snapshot, this.contract);
-    if (this.authority && (!expectedBinding || snapshot.bindingRevision !== expectedBinding)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg binding changed after your preview. Refresh the task and review the current work item.');
+    if (this.authority && (!expectedBinding || snapshot.bindingRevision !== expectedBinding)) throw new EngineError(409, 'task_binding_changed', 'The task\'s Ploeg Work Item changed after your preview. Reload the task and review the current Work Item.');
     this.interactiveRepository(snapshot.repositoryId, snapshot);
     const concurrent = this.store.listSessions().find(session => session.sourceTask?.key === snapshot.key && (session.sourceTask.revision === snapshot.revision && (!this.authority || session.sourceTask.bindingRevision === expectedBinding) || !['completed', 'failed', 'cancelled'].includes(session.status)));
     if (concurrent) {
-      if (concurrent.ownerId !== user.id || concurrent.sourceTask?.revision !== snapshot.revision) throw new EngineError(409, 'task_in_use', 'This task already has an operator session.');
+      if (concurrent.ownerId !== user.id || concurrent.sourceTask?.revision !== snapshot.revision) throw new EngineError(409, 'task_in_use', 'A session already works on this task. Open that session instead.');
       return { session: concurrent, created: false };
     }
     const acceptedSnapshot = { ...snapshot, title: this.cleanText(snapshot.title), description: this.cleanText(snapshot.description) };
@@ -246,7 +246,7 @@ export class Engine {
       const source = this.config.taskSources?.find(item => item.id === sourceTask.sourceId);
       if (!source || source.repositoryId !== repositoryId) throw new EngineError(409, 'source_unavailable', 'This task connection is no longer configured for the repository.');
       if (this.authority) {
-        if (!source.ploeg || source.executionOwner !== 'ploeg' || !sourceTask.ploeg || sourceTask.bindingConfig !== taskBindingConfiguration(source, repository)) throw new EngineError(409, 'tracked_execution_binding', 'This tracker draft needs its current registered Ploeg binding. Refresh the task before importing or starting work.');
+        if (!source.ploeg || source.executionOwner !== 'ploeg' || !sourceTask.ploeg || sourceTask.bindingConfig !== taskBindingConfiguration(source, repository)) throw new EngineError(409, 'tracked_execution_binding', 'The task\'s link to Ploeg is out of date. Reload the task before you import or start it.');
       } else if (source.executionOwner !== 'interactive') throw new EngineError(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
     }
   }
@@ -262,32 +262,32 @@ export class Engine {
     if (!this.authority) return this.launch(session, user);
     this.authority.authorize(user);
     if (this.admissions.has(session.id) || this.active.has(session.id)) throw new EngineError(409, 'already_running', 'This session is starting or executing.');
-    if (this.active.size + this.admissions.size >= this.config.maxConcurrentSessions) throw new EngineError(409, 'capacity', 'The configured concurrent session limit has been reached.');
+    if (this.active.size + this.admissions.size >= this.config.maxConcurrentSessions) throw new EngineError(409, 'capacity', 'The workbench already runs as many sessions as it may. Wait until one finishes, or ask an administrator to raise the limit.');
     this.admissions.add(session.id);
     try {
       if (session.sourceTask && !this.authority.current(session.id) && !this.store.getSecret(`admission:${session.id}`)) {
         const owner = this.store.getUser(session.ownerId);
-        if (!owner) throw new EngineError(403, 'source_owner_unavailable', 'The original owner must retain tracker access before this task can start.');
+        if (!owner) throw new EngineError(403, 'source_owner_unavailable', 'The person who imported this task no longer has tracker access. Import it again under your own linked account.');
         this.authority.authorize(owner);
         this.interactiveRepository(session.repositoryId, session.sourceTask);
         const source = this.config.taskSources!.find(source => source.id === session.sourceTask!.sourceId)!;
         const current = await getTask(await this.taskSource(source, owner), session.sourceTask.id);
         if (current.status !== 'open' || current.key !== session.sourceTask.key || current.revision !== session.sourceTask.revision || current.nativeRevision !== session.sourceTask.nativeRevision || current.scope !== session.sourceTask.scope) throw new EngineError(409, 'task_changed', 'The source task changed after import. Review its current version before starting work.');
         const fresh = await lookupTaskBinding(this.config, current, this.contract);
-        if (!sameTaskBinding(session.sourceTask.ploeg!, fresh.ploeg!)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg work item changed after import. Refresh its binding before starting work.');
-        if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) throw new EngineError(409, 'start_superseded', 'A stop or shutdown superseded this start. No execution was admitted.');
+        if (!sameTaskBinding(session.sourceTask.ploeg!, fresh.ploeg!)) throw new EngineError(409, 'task_binding_changed', 'The task\'s Ploeg Work Item changed after you imported it. Reload the task before you start.');
+        if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) throw new EngineError(409, 'start_superseded', 'A stop or restart came in before this start went through, so nothing started. Start it again if you still want it to run.');
       }
       await this.authority.admit(session);
       if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) {
         await this.finishAuthority(session.id);
-        throw new EngineError(409, 'start_superseded', 'A stop or shutdown superseded this start. No execution was launched.');
+        throw new EngineError(409, 'start_superseded', 'A stop or restart came in before this start went through, so nothing started. Start it again if you still want it to run.');
       }
       if (action === 'resume' && session.runtime !== 'demo') await this.authority.checkResume(session);
       const granted = await this.authority.command(session, action, {}, user.id);
-      if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'The accepted command no longer represents running work. Reconcile the current execution state.');
+      if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'Ploeg no longer runs this session, so it did not take the command. Reload the page to see where it stands.');
       if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) {
         await this.finishAuthority(session.id);
-        throw new EngineError(409, 'start_superseded', 'A stop or shutdown superseded this start. No execution was launched.');
+        throw new EngineError(409, 'start_superseded', 'A stop or restart came in before this start went through, so nothing started. Start it again if you still want it to run.');
       }
       this.store.deleteSecret(`stop-intent:${session.id}`);
       return this.launch(session, user);
@@ -297,10 +297,10 @@ export class Engine {
   async resume(id: string, user: User): Promise<Session> {
     let session = this.owned(id, user);
     if (!['paused', 'interrupted'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'Only paused or interrupted sessions can be resumed.');
-    if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous execution is still stopping.');
+    if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous attempt is still stopping. Wait until it has stopped, then try again.');
     if (this.store.getSecret<boolean>(`interruption:${id}`) && session.workspace) {
       try { await this.runtimes.get(session.runtime)!.interrupt(session.workspace); this.store.deleteSecret(`interruption:${id}`); }
-      catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Resume remains blocked.'); }
+      catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The agent has not confirmed that it stopped its last step, so it cannot resume yet. Wait a moment and try again.'); }
     }
     if (session.runtime !== 'demo' && !this.authority) {
       if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
@@ -319,11 +319,11 @@ export class Engine {
   private launch(session: Session, user: User): Session {
     if (!this.authority && this.managed(session)) throw new EngineError(503, 'authority_required', 'Ploeg was asked to manage this session, so it never runs standalone. Restore the Ploeg execution connection to reconcile it, or cancel it to discard it.');
     this.interactiveRepository(session.repositoryId, session.sourceTask);
-    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
+    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The workbench is restarting and takes no new work until it is back. Wait a minute, reload, and do it again.');
     if (this.active.has(session.id)) throw new EngineError(409, 'already_running', 'This session is already executing.');
-    if (this.active.size >= this.config.maxConcurrentSessions) throw new EngineError(409, 'capacity', 'The configured concurrent session limit has been reached.');
-    if (session.runtime !== 'demo' && !this.broker && !this.authority) throw new EngineError(503, 'broker_required', 'A configured credential broker is required for paid execution.');
-    if (session.runtime !== 'demo' && session.budgetUsd - session.spentUsd <= 0) throw new EngineError(409, 'budget_exhausted', 'The authorized session budget has been exhausted.');
+    if (this.active.size >= this.config.maxConcurrentSessions) throw new EngineError(409, 'capacity', 'The workbench already runs as many sessions as it may. Wait until one finishes, or ask an administrator to raise the limit.');
+    if (session.runtime !== 'demo' && !this.broker && !this.authority) throw new EngineError(503, 'broker_required', 'Paid work needs a credential broker, and this workbench has none. Ask an administrator to configure one.');
+    if (session.runtime !== 'demo' && session.budgetUsd - session.spentUsd <= 0) throw new EngineError(409, 'budget_exhausted', 'The session spent all the budget it was given. Add budget, or start again with a larger budget.');
     session.status = 'running'; delete session.blocker; delete session.failure;
     this.save(session, 'session.started', user.id, { resumed: session.runs.some(run => run.startedAt), demo: session.runtime === 'demo' });
     const controller = new AbortController();
@@ -440,20 +440,20 @@ export class Engine {
     await this.authority.refresh(session).catch(() => undefined);
     const blocker = this.deliveryBlocker(this.store.getSession(id)!);
     if (blocker) throw new EngineError(409, 'not_deliverable', blocker);
-    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
+    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The workbench is restarting and takes no new work until it is back. Wait a minute, reload, and do it again.');
     this.admissions.add(id);
     try {
       const runtime = this.runtimes.get(session.runtime)!;
       if (this.store.getSecret<boolean>(`interruption:${id}`)) {
         try { await runtime.interrupt(session.workspace!); this.store.deleteSecret(`interruption:${id}`); }
-        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Delivery remains blocked.'); }
+        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The agent has not confirmed that it stopped its last step, so the change cannot be delivered yet. Wait a moment and try again.'); }
       }
       const previous = this.store.getSession(id)!.candidate;
       const reused = previous?.status === 'ready';
       const candidate = reused ? previous : await this.captured(this.store.getSession(id)!, runtime);
       if (candidate.status !== 'ready') throw new EngineError(409, 'candidate_unavailable', 'The approved work could not be captured from the workspace. Nothing changed in Ploeg; the workspace stays available for recovery.');
       const granted = await this.authority.command(this.store.getSession(id)!, 'resume', {}, user.id);
-      if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'Ploeg did not accept this delivery. Reconcile the current execution state.');
+      if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'Ploeg did not accept this delivery because the session no longer runs there. Reload the page to see where it stands.');
       const current = this.store.getSession(id)!;
       const reviewer = current.runs.at(-1)!;
       reviewer.status = 'completed'; reviewer.finishedAt ??= new Date().toISOString();
@@ -478,13 +478,13 @@ export class Engine {
     await this.authority.refresh(session).catch(() => undefined);
     const blocker = this.captureBlocker(this.store.getSession(id)!);
     if (blocker) throw new EngineError(409, 'not_capturable', blocker);
-    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
+    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The workbench is restarting and takes no new work until it is back. Wait a minute, reload, and do it again.');
     this.admissions.add(id);
     try {
       const runtime = this.runtimes.get(session.runtime)!;
       if (this.store.getSecret<boolean>(`interruption:${id}`)) {
         try { await runtime.interrupt(session.workspace!); this.store.deleteSecret(`interruption:${id}`); }
-        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Capture remains blocked.'); }
+        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The agent has not confirmed that it stopped its last step, so the change cannot be captured yet. Wait a moment and try again.'); }
       }
       const candidate = await this.captured(this.store.getSession(id)!, runtime);
       if (candidate.status !== 'ready') {
@@ -617,7 +617,7 @@ export class Engine {
   async setSupervision(id: string, supervision: unknown, user: User): Promise<Session> {
     const session = this.owned(id, user);
     if (!['human', 'background'].includes(String(supervision))) throw new EngineError(400, 'invalid_supervision', 'Choose human or background supervision.');
-    if (!this.authority?.current(id) || !['running', 'waiting_input'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'An active Ploeg execution is required.');
+    if (!this.authority?.current(id) || !['running', 'waiting_input'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'This needs a session that Ploeg is running. Reload the page to see where it stands.');
     this.authority.authorize(user);
     await this.authority.command(session, supervision === 'background' ? 'handback' : 'take-control', {}, user.id);
     return this.store.getSession(id)!;
@@ -626,7 +626,7 @@ export class Engine {
   private async heartbeatAuthority(id: string, generation: number): Promise<void> {
     const session = this.store.getSession(id)!;
     const binding = this.authority!.current(id)!;
-    if (binding.generation !== generation) throw new EngineError(409, 'execution_generation', 'This executor no longer owns the current generation.');
+    if (binding.generation !== generation) throw new EngineError(409, 'execution_generation', 'Another copy of Unfold took over this session, so this one stopped acting on it. Reload the page to see where it stands.');
     if (!['running', 'waiting_input', 'exporting'].includes(session.status)) return;
     const state = session.status === 'waiting_input' ? 'waiting_input' : 'running';
     await this.authority!.command(session, binding.state === state ? 'heartbeat' : 'report', binding.state === state ? {} : { state });
@@ -723,9 +723,9 @@ export class Engine {
 
   async retry(id: string, user: User): Promise<Session> {
     let session = this.owned(id, user);
-    if (this.managed(session) || this.authority) throw new EngineError(409, 'new_authorization_required', 'A failed Ploeg execution stays terminal. Reconcile its authorization and create an explicit new session.');
+    if (this.managed(session) || this.authority) throw new EngineError(409, 'new_authorization_required', 'A session Ploeg ran and failed cannot start again. Start a new session for the same work.');
     if (session.status !== 'failed') throw new EngineError(409, 'invalid_state', 'Only a failed session can be tried again.');
-    if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous execution is still stopping.');
+    if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous attempt is still stopping. Wait until it has stopped, then try again.');
     if (session.runtime !== 'demo') {
       if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
       await this.reconcile(id);
@@ -820,20 +820,20 @@ export class Engine {
     const session = this.owned(id, user);
     const request = this.store.getPermission(requestId);
     if (!request || request.sessionId !== id) throw new EngineError(404, 'not_found', 'Permission request not found.');
-    if (request.resolved || !this.active.has(id) || session.status !== 'waiting_input') throw new EngineError(409, 'request_expired', 'This request is no longer awaiting a response.');
+    if (request.resolved || !this.active.has(id) || session.status !== 'waiting_input') throw new EngineError(409, 'request_expired', 'This question no longer waits for an answer. Reload the session to see what it waits for now.');
     if (request.kind === 'permission' && !['once', 'always', 'reject'].includes(answer?.decision ?? '')) throw new EngineError(400, 'invalid_answer', 'Choose once, always or reject.');
     if (request.kind === 'question' && (!Array.isArray(answer?.answers) || answer.answers.length > 50 || answer.answers.some(values => !Array.isArray(values) || values.length > 50 || values.some(value => typeof value !== 'string' || value.length > 10000)))) throw new EngineError(400, 'invalid_answer', 'Question answers must be arrays of strings.');
     if (this.authority?.current(id)) await this.authority.command(session, 'message', { text: `Operator answered request ${request.id}: ${request.kind === 'permission' ? answer.decision : 'structured answers recorded in the workbench'}` }, user.id);
     if (request.nativeId.startsWith('brief:')) {
       const waiting = this.briefs.get(id);
-      if (!waiting) throw new EngineError(409, 'request_expired', 'This request is no longer awaiting a response.');
+      if (!waiting) throw new EngineError(409, 'request_expired', 'This question no longer waits for an answer. Reload the session to see what it waits for now.');
       this.briefs.delete(id);
       waiting.resolve((answer.answers ?? []).flat().map(String).filter(Boolean));
     } else {
       const runtime = this.runtimes.get(session.runtime)!;
-      if (!runtime.respond || !session.workspace) throw new EngineError(409, 'unsupported', 'This runtime cannot answer interactive requests.');
+      if (!runtime.respond || !session.workspace) throw new EngineError(409, 'unsupported', 'This kind of workspace cannot answer questions while it runs. Use a placement that takes questions, or let the session finish.');
       try { await runtime.respond(session.workspace, request, answer); }
-      catch { throw new EngineError(502, 'runtime_response_failed', 'The runtime could not accept this response.'); }
+      catch { throw new EngineError(502, 'runtime_response_failed', 'The workspace did not take your answer. Send it again; if it keeps failing, stop and restart the session.'); }
     }
     request.resolved = true; this.store.savePermission(request);
     const current = this.store.getSession(id)!;
@@ -1314,7 +1314,7 @@ export class Engine {
   private finishRun(id: string, runId: string, actor: string, result: ExecutionResult, reviewer = false, governed = true): void {
     const session = this.store.getSession(id)!;
     const run = session.runs.find(item => item.id === runId)!;
-    if (this.store.permissions(id).some(request => request.runId === runId && !request.resolved)) throw new EngineError(409, 'input_unresolved', 'The runtime returned before its pending operator request was resolved.');
+    if (this.store.permissions(id).some(request => request.runId === runId && !request.resolved)) throw new EngineError(409, 'input_unresolved', 'The agent finished while a question to you was still open. Reload the session and answer or dismiss the question.');
     run.finishedAt = new Date().toISOString(); run.summary = this.cleanText(result.summary); run.verdict = reviewer ? result.verdict ?? 'inconclusive' : undefined; if (reviewer) run.verdictSource = 'result';
     run.status = reviewer && governed && run.verdict !== 'approve' ? 'failed' : 'completed';
     if (result.nativeId) run.nativeId = result.nativeId;
@@ -1422,7 +1422,7 @@ export class Engine {
   private owned(id: string, user: User): Session {
     this.operator(user);
     const session = this.store.getSession(id);
-    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) throw new EngineError(404, 'not_found', 'Session not found.');
+    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) throw new EngineError(404, 'not_found', 'Unfold has no such session, or it is not yours. Open it from the Sessions list.');
     return session;
   }
 

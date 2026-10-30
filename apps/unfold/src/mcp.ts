@@ -8,6 +8,7 @@ import { appOnlyTool, cardRevision, cardRevisionDefinition, mcpAppResources, mcp
 import { mcpTasksExtension, openTaskId, sealTaskId, supportsTasks, taskCacheMs, taskPollIntervalMs, type HandOffRef, type McpTasks } from './mcp-tasks.ts';
 import { handOffSpend, teamSpendCap } from './hand-off-spend.ts';
 import type { McpEventsHandler } from './mcp-events.ts';
+import { catalogueMessage, errorCatalogue } from './error-catalogue.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -112,15 +113,19 @@ export function createMcpServer(options: McpOptions) {
       response = await fetcher(`${api}${path}`, { method: verb ?? (payload ? 'POST' : 'GET'), headers, ...(payload || verb ? { body: JSON.stringify(payload ?? {}) } : {}), redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       const name = (error as Error).name;
-      throw new Error(name === 'TimeoutError' || name === 'AbortError' ? `Unfold did not answer within ${Math.round(timeoutMs / 1000)} seconds.` : 'Unfold is unreachable at UNFOLD_URL.');
+      const timedOut = name === 'TimeoutError' || name === 'AbortError';
+      throw new UnfoldAnswer(timedOut ? 504 : 502, timedOut ? 'unfold_timeout' : 'unfold_unreachable', timedOut ? `Unfold did not answer within ${Math.round(timeoutMs / 1000)} seconds.` : 'Unfold is unreachable at UNFOLD_URL.');
     }
     const text = await response.text();
     let body: any = null;
     try { body = text ? JSON.parse(text) : null; } catch {}
-    if (response.status === 401) throw new Error(options.token ? 'Unfold refused UNFOLD_TOKEN: it expired or was revoked. Run `npm run mcp -- login` again.' : 'Unfold needs a sign-in. Run `npm run mcp -- login` and set UNFOLD_TOKEN.');
+    if (response.status === 401) throw new UnfoldAnswer(401, options.token ? 'mcp_token_refused' : 'mcp_sign_in_required', options.token ? 'Unfold refused UNFOLD_TOKEN: it expired or was revoked. Run `npm run mcp -- login` again.' : 'Unfold needs a sign-in. Run `npm run mcp -- login` and set UNFOLD_TOKEN.');
     if (response.status === 403) throw new UnfoldAnswer(403, String(body?.error?.code ?? 'forbidden'), payload && body?.error?.message ? `Unfold refused: ${redact(String(body.error.message))} Nothing was changed.` : 'Your Unfold user may not read this Team.');
     if (response.status === 404) throw new UnfoldAnswer(404, String(body?.error?.code ?? 'not_found'), 'Not found, or outside the Teams your Unfold user may read.');
-    if (!response.ok || body === null) throw new UnfoldAnswer(response.status, String(body?.error?.code ?? ''), `Unfold answered ${response.status}${body?.error?.message ? `: ${redact(String(body.error.message))}` : ''}.`);
+    if (!response.ok || body === null) {
+      const code = typeof body?.error?.code === 'string' && body.error.code ? body.error.code : response.status >= 500 || response.ok ? 'internal_error' : 'request_failed';
+      throw new UnfoldAnswer(response.status, code, body?.error?.message ? `Unfold answered ${response.status}: ${redact(String(body.error.message))}` : `Unfold answered ${response.status} without saying why. ${catalogueMessage(code in errorCatalogue ? code : 'internal_error')}`);
+    }
     return body;
   }
 
@@ -145,7 +150,7 @@ export function createMcpServer(options: McpOptions) {
     if (typeof value === 'string' && value.trim()) {
       const span = /^(\d{1,3})([hd])$/.exec(value.trim());
       const start = span ? new Date(until.getTime() - Number(span[1]) * (span[2] === 'h' ? 3_600_000 : 86_400_000)) : new Date(value);
-      if (!Number.isFinite(start.getTime()) || start >= until || until.getTime() - start.getTime() > 30 * 86_400_000) throw new Error('since must be a past ISO time or a span such as 8h, 24h or 7d, at most 30 days back.');
+      if (!Number.isFinite(start.getTime()) || start >= until || until.getTime() - start.getTime() > 30 * 86_400_000) throw new UnfoldAnswer(400, 'mcp_argument', 'since must be a past ISO time or a span such as 8h, 24h or 7d, at most 30 days back.');
       return start;
     }
     const previous = options.stateFile ? await readFile(options.stateFile, 'utf8').then(text => JSON.parse(text)?.[base], () => undefined) : undefined;
@@ -209,7 +214,7 @@ export function createMcpServer(options: McpOptions) {
       inputSchema: object({ team: string('Team id, as unfold_now lists it'), state: string('needs_human, awaiting_review, proposed, ingested, queued, active (being worked on; older Ploeg calls it leased, and both are accepted), stale, done or withdrawn'), after: string('nextCursor from the previous page') }, ['team']),
       outputSchema: object({ summary: { type: 'string' }, items: { type: 'array', items: workRow }, nextCursor: { type: ['string', 'null'] } }, ['summary', 'items', 'nextCursor']),
       async run(args) {
-        if (typeof args.team !== 'string' || !args.team) throw new Error('team is required; unfold_now lists the Teams you can read.');
+        if (typeof args.team !== 'string' || !args.team) throw new UnfoldAnswer(400, 'mcp_argument', 'team is required; unfold_now lists the Teams you can read.');
         const query = new URLSearchParams();
         for (const key of ['team', 'state', 'after']) if (typeof args[key] === 'string' && args[key]) query.set(key, args[key]);
         const page = await get(`/api/ploeg/work-items${query.size ? `?${query}` : ''}`);
@@ -274,7 +279,7 @@ export function createMcpServer(options: McpOptions) {
       outputSchema: object({ summary: { type: 'string' }, session: { type: 'object' } }, ['summary', 'session']),
       async run(args) {
         const session = typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : '';
-        if (!session) throw new Error('session_id must be the agent session id: 8 to 128 letters, digits, - or _.');
+        if (!session) throw new UnfoldAnswer(400, 'mcp_argument', 'session_id must be the agent session id: 8 to 128 letters, digits, - or _.');
         const id = workItemId(args.id);
         const answer = await get(`/api/linked-sessions/${session}/work-items/${id}`, undefined, undefined, args.unlink === true ? 'DELETE' : 'PUT');
         const row = linkedRow(answer.session ?? {});
@@ -288,7 +293,7 @@ export function createMcpServer(options: McpOptions) {
       outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, window: { type: 'string' }, settledUsd: { type: 'number' }, heldUsd: { type: 'number' }, reservedUsd: { type: 'number', description: 'Deprecated: the same amount as heldUsd' }, teams: { type: 'array', items: { type: 'object' } }, stuckHolds: { type: ['array', 'null'], items: { type: 'object' } }, stuckHoldsError: { type: ['string', 'null'] } }, ['summary', 'demo', 'window', 'settledUsd', 'heldUsd', 'reservedUsd', 'teams', 'stuckHolds', 'stuckHoldsError']),
       async run(args) {
         const window = args.window ?? '7d';
-        if (!['24h', '7d', '30d'].includes(window)) throw new Error('window must be 24h, 7d or 30d.');
+        if (!['24h', '7d', '30d'].includes(window)) throw new UnfoldAnswer(400, 'mcp_argument', 'window must be 24h, 7d or 30d.');
         const data = await get(`/api/ploeg/summary?window=${window}`);
         const demo = Boolean(data.demo);
         const teams = (data.teams ?? []).map((team: Json) => ({ team: String(team.team), settledUsd: cents(team.spend?.settledUsd), heldUsd: held(team.spend), reservedUsd: held(team.spend), needsHuman: Number(team.workItems?.needsHuman ?? 0), runsFinished: Number(team.runs?.finished ?? 0), runsFailed: Number(team.runs?.failed ?? 0), runsStuck: Number(team.runs?.stuck ?? 0) }));
@@ -351,7 +356,7 @@ export function createMcpServer(options: McpOptions) {
       async run(args, call) {
         const id = workItemId(args.id);
         const question = typeof args.question === 'string' ? args.question.trim() : '';
-        if (!question || question.length > 2000) throw new Error('question must be 1 to 2000 characters.');
+        if (!question || question.length > 2000) throw new UnfoldAnswer(400, 'mcp_argument', 'question must be 1 to 2000 characters.');
         const page = `${link(id)}`;
         const answered = (ask: Json) => {
           const asked = ask.status === 'answered';
@@ -379,14 +384,14 @@ export function createMcpServer(options: McpOptions) {
           if (decision.action !== 'accept' || decision.content?.confirm !== true) return refusedBy(decision);
           return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, agreed));
         }
-        if (call.modern ? !formElicitation(call.capabilities) : !clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
+        if (call.modern ? !formElicitation(call.capabilities) : !clientCapabilities.elicitation || !outbound) throw new UnfoldAnswer(409, 'mcp_confirmation_unsupported', `This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
         const allowance = (await get(`/api/ploeg/work-items/${id}/asks`)).allowance;
-        if (!allowance?.asksEnabled) throw new Error(`Asking a model is not enabled for this Work Item's Team. Nothing was asked or spent.`);
+        if (!allowance?.asksEnabled) throw new UnfoldAnswer(409, 'mcp_asks_off', `Asking a model is not enabled for this Work Item's Team. Nothing was asked or spent.`);
         const message = `Ask a model about Work Item ${id}? One answer spends up to ${usd(cents(allowance.askBudgetUsd))} from the Team's Ask Allowance (${usd(cents(allowance.remainingUsd))} left until ${String(allowance.resetAt).slice(0, 10)}). Question: ${clip(question, 300)}`;
         if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, message, clock()));
         let decision: Json;
         try { decision = await outbound!('elicitation/create', { message, requestedSchema }); }
-        catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
+        catch { throw new UnfoldAnswer(409, 'mcp_confirmation_missing', 'The confirmation did not come back, so no model was asked and nothing was spent.'); }
         if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return refusedBy(decision);
         return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, `${randomBytes(12).toString('base64url')}:${createHash('sha256').update(message).digest('hex')}`));
       },
@@ -412,7 +417,7 @@ export function createMcpServer(options: McpOptions) {
     const boundedText = (args: Json, key: string, required: boolean) => {
       if (!required && args[key] === undefined) return '';
       const text = typeof args[key] === 'string' ? args[key].trim() : '';
-      if (!text || text.length > 4096) throw new Error(`${key} must be 1 to 4096 characters.`);
+      if (!text || text.length > 4096) throw new UnfoldAnswer(400, 'mcp_argument', `${key} must be 1 to 4096 characters.`);
       return text;
     };
     return [
@@ -425,17 +430,17 @@ export function createMcpServer(options: McpOptions) {
           const source = typeof args.source === 'string' && /^[a-z0-9-]{1,64}$/.test(args.source) ? args.source : '';
           const task = typeof args.task === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(args.task) ? args.task : '';
           const team = typeof args.team === 'string' && args.team.trim() && args.team.length <= 100 ? args.team.trim() : '';
-          if (!source || !task || !team) throw new Error('source, task and team are required, as Unfold\'s Tasks page names them.');
+          if (!source || !task || !team) throw new UnfoldAnswer(400, 'mcp_argument', 'source, task and team are required, as Unfold\'s Tasks page names them.');
           const page = `${base}/#tasks`;
           const path = `/api/task-sources/${source}/tasks/${task}`;
           let baseline = 0n;
           const handed = await confirmThen('unfold_hand_off', page, ['unfold_hand_off', source, task, team], call, async demo => {
             const [found, status] = await Promise.all([get(path), get(`${path}/ploeg?refresh=1`)]);
             baseline = ((status.workItems ?? []) as Json[]).map(entry => String(entry.id)).filter(id => /^\d{1,19}$/.test(id)).map(BigInt).reduce((top, id) => id > top ? id : top, 0n);
-            if (status.handoff?.allowed !== true) throw new Error(`${clip(status.handoff?.reason ?? status.message ?? 'This task cannot be handed to Ploeg.', 300)} Nothing was changed.`);
-            if ((status.assignedTeams ?? []).includes(team)) throw new Error(`Team ${team} already holds this task. Nothing was changed.`);
+            if (status.handoff?.allowed !== true) throw new UnfoldAnswer(409, 'mcp_handoff_refused', `${clip(status.handoff?.reason ?? status.message ?? 'This task cannot be handed to Ploeg.', 300)} Nothing was changed.`);
+            if ((status.assignedTeams ?? []).includes(team)) throw new UnfoldAnswer(409, 'mcp_handoff_refused', `Team ${team} already holds this task. Nothing was changed.`);
             const offered = (status.teams ?? []).find((entry: Json) => entry.id === team);
-            if (!offered) throw new Error(`Team ${team} is not one you can hand this task to; choose one of ${(status.teams ?? []).map((entry: Json) => entry.id).join(', ') || 'none'}. Nothing was changed.`);
+            if (!offered) throw new UnfoldAnswer(409, 'mcp_handoff_refused', `Team ${team} is not one you can hand this task to; choose one of ${(status.teams ?? []).map((entry: Json) => entry.id).join(', ') || 'none'}. Nothing was changed.`);
             const message = `${demoSays(demo)}Hand task ${source}/${task} "${clip(found.title, 120)}" to Team ${team}? Unfold assigns the Team's tracker user ${clip(offered.assignee, 80)} to the task and comments that you handed it over. Ploeg then picks it up. ${handOffSpend(team, teamSpendCap(offered.spendCap), demo)}`;
             return { message, async perform(confirmation) {
               const result = await get(`${path}/handoff`, { team, revision: found.revision }, confirmation);
@@ -455,7 +460,7 @@ export function createMcpServer(options: McpOptions) {
       workAction('unfold_approve_work', 'Approve a proposal',
         'Approve a proposed Work Item so Ploeg queues it for its Team. Asks the person to confirm first, naming the Team whose budget its Runs spend; nothing changes without that.',
         {}, [], false, (id, _args, item, _detail, demo) => {
-          if (item.state !== 'proposed') throw new Error(`Work Item ${id} is ${plain(item.state)}, not proposed, so there is nothing to approve. Nothing was changed.`);
+          if (item.state !== 'proposed') throw new UnfoldAnswer(409, 'mcp_work_item_state', `Work Item ${id} is ${plain(item.state)}, not proposed, so there is nothing to approve. Nothing was changed.`);
           return { message: `${demoSays(demo)}Approve ${quoted(item)}? Ploeg queues it for Team ${item.team}, and its Runs spend from Team ${item.team}'s budget.`, async perform(confirmation) {
             const result = await get(`/api/ploeg/work-items/${id}/approve`, {}, confirmation);
             return settle(id, Boolean(result.demo) || demo, `Approved Work Item ${id}; it is ${plain(result.state)}.`, { state: String(result.state ?? '') });
@@ -464,7 +469,7 @@ export function createMcpServer(options: McpOptions) {
       workAction('unfold_reject_work', 'Reject a proposal',
         'Reject a proposed Work Item with a reason, so Ploeg withdraws it and nothing runs. Asks the person to confirm first; nothing changes without that.',
         { reason: string('Why, at most 4096 characters; Ploeg records it') }, ['reason'], true, (id, args, item, _detail, demo) => {
-          if (item.state !== 'proposed') throw new Error(`Work Item ${id} is ${plain(item.state)}, not proposed, so there is nothing to reject. Nothing was changed.`);
+          if (item.state !== 'proposed') throw new UnfoldAnswer(409, 'mcp_work_item_state', `Work Item ${id} is ${plain(item.state)}, not proposed, so there is nothing to reject. Nothing was changed.`);
           const reason = boundedText(args, 'reason', true);
           return { message: `${demoSays(demo)}Reject ${quoted(item)}? Ploeg withdraws the proposal with your reason; nothing runs and nothing is spent. Reason: ${clip(reason, 300)}`, async perform(confirmation) {
             const result = await get(`/api/ploeg/work-items/${id}/reject`, { reason }, confirmation);
@@ -474,7 +479,7 @@ export function createMcpServer(options: McpOptions) {
       workAction('unfold_stop_work', 'Stop a Work Item',
         'Stop a Work Item: Ploeg withdraws it, stops its running Runs and blocks their model keys. Asks the person to confirm first; nothing changes without that.',
         {}, [], true, (id, _args, item, detail, demo) => {
-          if (['done', 'withdrawn'].includes(item.state)) throw new Error(`Work Item ${id} is already ${plain(item.state)}. Nothing was changed.`);
+          if (['done', 'withdrawn'].includes(item.state)) throw new UnfoldAnswer(409, 'mcp_work_item_state', `Work Item ${id} is already ${plain(item.state)}. Nothing was changed.`);
           return { message: `${demoSays(demo)}Stop ${quoted(item)}, now ${plain(item.state)}? Ploeg withdraws it, stops its running Runs and blocks their model keys, so nothing more is spent. The ${usd(spentOf(detail))} spent so far stays spent.`, async perform(confirmation) {
             const result = await get(`/api/ploeg/work-items/${id}/cancel`, {}, confirmation);
             const stopped = typeof result.stoppedRuns === 'number' ? ` ${result.stoppedRuns} running Runs stopped.` : '';
@@ -484,7 +489,7 @@ export function createMcpServer(options: McpOptions) {
       workAction('unfold_retry_work', 'Try a Work Item again',
         'Restart a Work Item that needs you or went stale from Round 1, optionally with a note for its Runs. To answer the question a Work Item waits on, use unfold_answer_question. It spends from the Team\'s budget, so it asks the person to confirm first; nothing changes without that.',
         { note: string('What the next attempt should know, at most 4096 characters') }, [], false, (id, args, item, detail, demo) => {
-          if (!['needs_human', 'stale'].includes(item.state)) throw new Error(`Work Item ${id} is ${plain(item.state)}; Ploeg restarts only one that needs you or went stale. Nothing was changed.`);
+          if (!['needs_human', 'stale'].includes(item.state)) throw new UnfoldAnswer(409, 'mcp_work_item_state', `Work Item ${id} is ${plain(item.state)}; Ploeg restarts only one that needs you or went stale. Nothing was changed.`);
           const note = boundedText(args, 'note', false);
           const budget = item.latestShift?.budgetUsd ?? ((detail.shifts ?? []) as Json[]).at(-1)?.budgetUsd;
           const cost = typeof budget === 'number' ? `, up to ${usd(cents(budget))} like the last attempt` : '';
@@ -500,16 +505,16 @@ export function createMcpServer(options: McpOptions) {
           const fallback = listed.length ? null : board.waitingQuestion(detail, reasons.detailReason(detail));
           const wanted = typeof args.questionId === 'string' && args.questionId ? args.questionId : '';
           const question = wanted ? listed.find(entry => entry.id === wanted) : listed[0] ?? fallback;
-          if (!question) throw new Error(wanted ? `Work Item ${id} waits on no question ${wanted}. Nothing was changed.` : `Work Item ${id} waits on no question for a person. Nothing was changed.`);
+          if (!question) throw new UnfoldAnswer(409, 'mcp_work_item_state', wanted ? `Work Item ${id} waits on no question ${wanted}. Nothing was changed.` : `Work Item ${id} waits on no question for a person. Nothing was changed.`);
           const text = boundedText(args, 'text', true);
-          if (text.length > 2000) throw new Error('text must be at most 2000 characters.');
+          if (text.length > 2000) throw new UnfoldAnswer(400, 'mcp_argument', 'text must be at most 2000 characters.');
           const answer = answerPlan(id, item, detail, question, demo);
           return { message: `${demoSays(demo)}Answer the question on ${quoted(item)}? ${answer.next} Answer: ${clip(text, 300)}`, perform: (confirmation, nonce) => answer.perform(text, confirmation, nonce) };
         }, args => [boundedText(args, 'text', true), typeof args.questionId === 'string' ? args.questionId : '']),
       workAction('unfold_add_note', 'Leave a note for the next Run',
         'Leave a note on a queued or running Work Item for its next Run; the running Run never sees it. Asks the person to confirm first; nothing changes without that.',
         { text: string('The note, at most 4096 characters') }, ['text'], false, (id, args, item, detail, demo) => {
-          if (!['queued', 'leased', 'active'].includes(item.state)) throw new Error(`Work Item ${id} is ${plain(item.state)}; a note reaches only queued or running work. Nothing was changed.`);
+          if (!['queued', 'leased', 'active'].includes(item.state)) throw new UnfoldAnswer(409, 'mcp_work_item_state', `Work Item ${id} is ${plain(item.state)}; a note reaches only queued or running work. Nothing was changed.`);
           const text = boundedText(args, 'text', true);
           const open = ((detail.shifts ?? []) as Json[]).find(shift => !shift.closedAt);
           return { message: `${demoSays(demo)}Leave this note on ${quoted(item)} for its next Run? The running Run does not see it, and the note costs nothing by itself. Note: ${clip(text, 300)}`, async perform(confirmation, nonce) {
@@ -521,11 +526,11 @@ export function createMcpServer(options: McpOptions) {
         'Take control of a Work Item a Ploeg Run is working on, to finish it yourself: Ploeg asks the Run to stop at its next safe point, commits what the agent left uncommitted to the Work Item\'s branch and pushes it, then parks the Work Item for you. Only Runs of an ACP harness can stop between steps. Asks the person to confirm first; nothing changes without that. Pick the work up with /unfold:takeover, and give it back with unfold_hand_back.',
         {}, [], false, (id, _args, item, detail, demo) => {
           const held = takeOverCore.takeOverOf(detail);
-          if (held && ['yielding', 'taken_over'].includes(String(held.state))) throw new Error(`${takeOverCore.takeOverRefusal('take_over_pending')} Nothing was changed.`);
+          if (held && ['yielding', 'taken_over'].includes(String(held.state))) throw new UnfoldAnswer(409, 'take_over_pending', `${takeOverCore.takeOverRefusal('take_over_pending')} Nothing was changed.`);
           const runs = takeOverCore.runningRuns(detail);
-          if (!['leased', 'active'].includes(item.state) || !runs.length) throw new Error(`${takeOverCore.takeOverRefusal('nothing_running')} Nothing was changed.`);
+          if (!['leased', 'active'].includes(item.state) || !runs.length) throw new UnfoldAnswer(409, 'nothing_running', `${takeOverCore.takeOverRefusal('nothing_running')} Nothing was changed.`);
           const harness = takeOverCore.harnessRefusal(runs.map(run => run.harness));
-          if (harness) throw new Error(`${harness} Nothing was changed.`);
+          if (harness) throw new UnfoldAnswer(409, 'yield_unsupported', `${harness} Nothing was changed.`);
           const open = ((detail.shifts ?? []) as Json[]).find(shift => !shift.closedAt);
           const branch = clip(open?.branch || item.latestShift?.branch || 'its branch', 200);
           const roles = runs.map(run => `the ${clip(run.role || 'agent', 40)} Run`).join(', ');
@@ -539,7 +544,7 @@ export function createMcpServer(options: McpOptions) {
         'Hand a Work Item you took over back to Ploeg: it resumes the Round that stopped on the same branch, from your latest pushed commit, optionally with a note for the next Run. Push your commits first; Unfold cannot see your machine. It spends from the Team\'s budget, so it asks the person to confirm first; nothing changes without that.',
         { note: string('What you changed and what the next Run should do, at most 4096 characters') }, [], false, (id, args, item, detail, demo) => {
           const held = takeOverCore.takeOverOf(detail);
-          if (!held || held.state !== 'taken_over' || item.state !== 'needs_human') throw new Error(`Nobody holds Work Item ${id} after a take-over, so there is nothing to hand back. Nothing was changed.`);
+          if (!held || held.state !== 'taken_over' || item.state !== 'needs_human') throw new UnfoldAnswer(409, 'mcp_work_item_state', `Nobody holds Work Item ${id} after a take-over, so there is nothing to hand back. Nothing was changed.`);
           const note = boundedText(args, 'note', false);
           const offer = board.resumeOffer(detail);
           const cost = offer ? `: Round ${offer.fromRound} up to ${usd(cents(offer.roundCapUsd))}, in total up to ${usd(cents(offer.poolUsd))}, from Team ${item.team}'s budget` : `, spending from Team ${item.team}'s budget`;
@@ -555,12 +560,12 @@ export function createMcpServer(options: McpOptions) {
         outputSchema: actionOutput,
         async run(args, call) {
           const id = typeof args.id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(args.id) ? args.id : '';
-          if (!id) throw new Error('id must be a session id, as unfold_sessions lists it.');
+          if (!id) throw new UnfoldAnswer(400, 'mcp_argument', 'id must be a session id, as unfold_sessions lists it.');
           const action = String(args.action ?? '');
-          if (!['message', 'pause', 'resume', 'cancel'].includes(action)) throw new Error('action must be message, pause, resume or cancel.');
+          if (!['message', 'pause', 'resume', 'cancel'].includes(action)) throw new UnfoldAnswer(400, 'mcp_argument', 'action must be message, pause, resume or cancel.');
           const text = typeof args.text === 'string' ? args.text.trim() : '';
-          if (action === 'message' && (!text || text.length > 16000)) throw new Error('text must be 1 to 16000 characters for a message.');
-          if (action !== 'message' && args.text !== undefined) throw new Error('text goes only with action message.');
+          if (action === 'message' && (!text || text.length > 16000)) throw new UnfoldAnswer(400, 'mcp_argument', 'text must be 1 to 16000 characters for a message.');
+          if (action !== 'message' && args.text !== undefined) throw new UnfoldAnswer(400, 'mcp_argument', 'text goes only with action message.');
           const page = `${base}/#session/${encodeURIComponent(id)}`;
           return confirmThen('unfold_steer_session', page, ['unfold_steer_session', id, action, text], call, async demo => {
             const session = await get(`/api/sessions/${id}`);
@@ -587,9 +592,9 @@ export function createMcpServer(options: McpOptions) {
         outputSchema: actionOutput,
         async run(args, call) {
           const id = typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : '';
-          if (!id) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          if (!id) throw new UnfoldAnswer(400, 'mcp_argument', 'session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
           const text = typeof args.text === 'string' ? args.text.trim() : '';
-          if (!text || text.length > 2000) throw new Error('text must be 1 to 2000 characters.');
+          if (!text || text.length > 2000) throw new UnfoldAnswer(400, 'mcp_argument', 'text must be 1 to 2000 characters.');
           const page = `${base}/#linked-session/${encodeURIComponent(id)}`;
           return confirmThen('unfold_message_session', page, ['unfold_message_session', id, text], call, async demo => {
             const { session } = await get(`/api/linked-sessions/${id}`);
@@ -608,7 +613,7 @@ export function createMcpServer(options: McpOptions) {
         outputSchema: object({ summary: { type: 'string' }, requests: { type: 'array', items: { type: 'object' } } }, ['summary', 'requests']),
         async run(args) {
           const session = args.session_id === undefined || args.session_id === '' ? '' : typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : null;
-          if (session === null) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          if (session === null) throw new UnfoldAnswer(400, 'mcp_argument', 'session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
           const list = await get(session ? `/api/linked-sessions/${session}/permissions` : '/api/linked-permissions');
           const requests = (list.requests ?? []).slice(0, 20).map((entry: Json) => ({ id: String(entry.id), sessionId: String(entry.sessionId), tool: String(entry.tool), expiresAt: entry.expiresAt ?? null, link: `${base}/#linked-session/${encodeURIComponent(String(entry.sessionId))}`, untrusted: { summary: clip(entry.summary, 200), detail: clip(entry.detail, 120) } }));
           return { summary: requests.length ? `${requests.length} prompts wait for an answer.` : 'No prompt waits for an answer.', requests };
@@ -621,19 +626,19 @@ export function createMcpServer(options: McpOptions) {
         outputSchema: actionOutput,
         async run(args, call) {
           const id = typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : '';
-          if (!id) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          if (!id) throw new UnfoldAnswer(400, 'mcp_argument', 'session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
           const requestId = typeof args.request_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(args.request_id) ? args.request_id : '';
-          if (!requestId) throw new Error('request_id must be a prompt id, as unfold_permission_requests lists it.');
+          if (!requestId) throw new UnfoldAnswer(400, 'mcp_argument', 'request_id must be a prompt id, as unfold_permission_requests lists it.');
           const decision = String(args.decision ?? '');
-          if (decision !== 'allow' && decision !== 'deny') throw new Error('decision must be allow or deny.');
+          if (decision !== 'allow' && decision !== 'deny') throw new UnfoldAnswer(400, 'mcp_argument', 'decision must be allow or deny.');
           const reason = typeof args.reason === 'string' ? args.reason.trim() : '';
-          if (decision === 'allow' && reason) throw new Error('Only deny takes a reason.');
-          if (reason.length > 500) throw new Error('reason must be at most 500 characters.');
+          if (decision === 'allow' && reason) throw new UnfoldAnswer(400, 'mcp_argument', 'Only deny takes a reason.');
+          if (reason.length > 500) throw new UnfoldAnswer(400, 'mcp_argument', 'reason must be at most 500 characters.');
           const page = `${base}/#linked-session/${encodeURIComponent(id)}`;
           return confirmThen('unfold_answer_permission', page, ['unfold_answer_permission', id, requestId, decision, reason], call, async demo => {
             const { requests } = await get(`/api/linked-sessions/${id}/permissions`);
             const waiting = (requests ?? []).find((entry: Json) => entry.id === requestId);
-            if (!waiting) throw new Error(`That prompt no longer waits for an answer from Unfold. Nothing was answered. See ${page}`);
+            if (!waiting) throw new UnfoldAnswer(409, 'permission_closed', `That prompt no longer waits for an answer from Unfold. Nothing was answered. See ${page}`);
             const what = `${clip(waiting.tool, 80)}: ${clip(waiting.summary, 200)}${waiting.detail ? ` (${clip(waiting.detail, 120)})` : ''}`;
             const effect = decision === 'allow' ? `Allow it? The tool runs on your machine, in your session, as if you approved it in the terminal. Only this once.` : `Deny it? The agent is told no${reason ? ` and reads your reason: ${clip(reason, 300)}` : ''}.`;
             return { message: `${demoSays(demo)}Your Claude Code session ${id} asks to use ${what}. The summary was written by the agent, not checked by Unfold. ${effect}`, async perform(confirmation) {
@@ -648,7 +653,7 @@ export function createMcpServer(options: McpOptions) {
 
   async function mayAct(): Promise<boolean> {
     const boot = options.role === undefined ? await get('/api/bootstrap') : { user: { role: options.role }, mode: undefined };
-    if (boot?.user?.role === 'viewer') throw new Error('Your Unfold role is viewer, which cannot change work. Nothing was changed.');
+    if (boot?.user?.role === 'viewer') throw new UnfoldAnswer(403, 'forbidden', 'Your Unfold role is viewer, which cannot change work. Nothing was changed.');
     return boot?.mode === 'demo';
   }
 
@@ -662,15 +667,15 @@ export function createMcpServer(options: McpOptions) {
       if (decision.action !== 'accept' || decision.content?.confirm !== true) return refusedBy(decision);
       const planned = await plan(await mayAct());
       const [nonce, hash] = agreed.split(':');
-      if (createHash('sha256').update(planned.message).digest('hex') !== hash) throw new Error(`What ${tool} would do changed since you confirmed, so nothing was changed. Call it again to see what it would do now.`);
+      if (createHash('sha256').update(planned.message).digest('hex') !== hash) throw new UnfoldAnswer(409, 'mcp_plan_changed', `What ${tool} would do changed since you confirmed, so nothing was changed. Call it again to see what it would do now.`);
       return planned.perform(agreed, nonce);
     }
-    if (!formElicitation(call.modern ? call.capabilities : clientCapabilities) || (!call.modern && !outbound)) throw new Error(`This client cannot ask you to confirm, so nothing was changed. Do it in Unfold instead: ${page}`);
+    if (!formElicitation(call.modern ? call.capabilities : clientCapabilities) || (!call.modern && !outbound)) throw new UnfoldAnswer(409, 'mcp_confirmation_unsupported', `This client cannot ask you to confirm, so nothing was changed. Do it in Unfold instead: ${page}`);
     const planned = await plan(await mayAct());
     if (call.modern) return new InputRequired({ confirm_action: { method: 'elicitation/create', params: { mode: 'form', message: planned.message, requestedSchema: actionSchema } } }, sealConfirmation(confirmations, principal, subject, planned.message, clock()));
     let decision: Json;
     try { decision = await outbound!('elicitation/create', { message: planned.message, requestedSchema: actionSchema }); }
-    catch { throw new Error('The confirmation did not come back, so nothing was changed.'); }
+    catch { throw new UnfoldAnswer(409, 'mcp_confirmation_missing', 'The confirmation did not come back, so nothing was changed.'); }
     if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return refusedBy(decision);
     const nonce = randomBytes(12).toString('base64url');
     return planned.perform(`${nonce}:${createHash('sha256').update(planned.message).digest('hex')}`, nonce);
@@ -857,7 +862,8 @@ export function createMcpServer(options: McpOptions) {
       if (output instanceof TaskCreated) return result(id, { ...output.task, resultType: 'task', _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } });
       return complete({ structuredContent: output, content: [{ type: 'text', text: JSON.stringify(output) }] });
     } catch (error) {
-      return complete({ isError: true, content: [{ type: 'text', text: redact((error as Error).message) }] });
+      const answer = error instanceof UnfoldAnswer ? { code: error.code, message: error.message } : { code: 'internal_error', message: catalogueMessage('internal_error') };
+      return complete({ isError: true, content: [{ type: 'text', text: redact(answer.message) }], _meta: { 'dev.unfold/error': { code: answer.code } } });
     }
   }
 
@@ -926,7 +932,7 @@ function linkedRow(session: Json): Json {
 function workItemId(value: unknown): string {
   const ref = String(value ?? '').trim();
   const id = (ref.match(/#work\/(\d{1,19})(?:[?/].*)?$/) ?? ref.match(/^(\d{1,19})$/))?.[1];
-  if (!id) throw new Error('id must be a Work Item id or an Unfold link ending #work/<id>.');
+  if (!id) throw new UnfoldAnswer(400, 'mcp_argument', 'id must be a Work Item id or an Unfold link ending #work/<id>.');
   return id;
 }
 
@@ -968,7 +974,7 @@ function sealConfirmation(ledger: Confirmations, principal: string, subject: str
 }
 
 function redeemConfirmation(ledger: Confirmations, state: unknown, principal: string, subject: string, now: number, words = { other: 'another question', after: 'Nothing was asked or spent; call unfold_ask again to be asked to confirm.' }): string {
-  const refuse = (why: string) => new Error(`${why} ${words.after}`);
+  const refuse = (why: string) => new UnfoldAnswer(409, 'mcp_confirmation_invalid', `${why} ${words.after}`);
   const [payload, mac, extra] = typeof state === 'string' && state.length <= 2048 ? state.split('.') : [];
   if (!payload || !mac || extra !== undefined) throw refuse('The confirmation state is not one this server issued.');
   const expected = confirmationMac(ledger, payload);

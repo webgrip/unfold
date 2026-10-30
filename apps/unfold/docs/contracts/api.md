@@ -1,6 +1,6 @@
 # HTTP contract
 
-This guide describes routes implemented by [HTTP handlers](../../src/http.ts) and lifecycle rules in [the session engine](../../src/engine.ts). Executable tests and source resolve implementation drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
+This guide describes routes implemented by [HTTP handlers](../../src/http.ts) and lifecycle rules in [the session engine](../../src/engine.ts). Executable tests and source resolve implementation drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`; [Error codes](error-codes.md) lists every code with what it means and what to do next, and a fault inside Unfold answers `internal_error` without exception text.
 
 [openapi.yaml](openapi.yaml) describes the same routes in OpenAPI 3.1 for client generators and agents: methods, parameters, bodies, responses, credentials and the lowest role each operation admits (`x-unfold-role`). Every workbench serves it read-only at `GET /api/openapi.yaml` without a sign-in, because it describes the API and holds no workbench data. [`test/openapi.test.ts`](../../test/openapi.test.ts) validates it as OpenAPI 3.1 and fails when a route exists in `src/http.ts` and not in the document, when a path or method in the document is not served, or when its mutation header and delegated-credential claims differ from the code. This page stays the source for behaviour; the document carries the shape.
 

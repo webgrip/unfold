@@ -13,7 +13,7 @@ export function unsupportedStatus(message = 'Update the workbench server to see 
 export function sessionEligibility(bootstrap: Bootstrap, source: TaskSource, task: TaskSnapshot): { allowed: boolean; reason?: string } {
   if (bootstrap.user.role === 'viewer') return { allowed: false, reason: 'An operator account is required to start a session.' };
   if (task.status !== 'open') return { allowed: false, reason: 'Only open tasks can start a session.' };
-  if (bootstrap.sharedExecution) return task.ploeg && !task.ploegUnavailable ? { allowed: true } : { allowed: false, reason: task.ploegUnavailable?.message || 'This task has no queued Ploeg work item to supervise.' };
+  if (bootstrap.sharedExecution) return task.ploeg && !task.ploegUnavailable ? { allowed: true } : { allowed: false, reason: task.ploegUnavailable?.message || 'This task has no queued Ploeg Work Item to supervise.' };
   return source.executionOwner === 'ploeg' ? { allowed: false, reason: 'Ploeg owns execution for this board.' } : { allowed: true };
 }
 

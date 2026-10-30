@@ -608,7 +608,7 @@ function headerMarkup(detail, model, reason) {
   const effort = shift ? effortText({ runs: detail.runs.length, attempts: detail.shifts?.length || 1 }) : '';
   if (effort) facts.push(`<span class="work-fact" title="${escape(`Round ${shift.round} of the latest attempt. ${termTitle('shift', 'round')}`)}">${escape(effort)}</span>`);
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
-  const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
+  const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close Work Item details" title="Close">${icon('x')}</button>`;
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
   const grafana = grafanaTeam(item.team, model.grafanaUrl);
   if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));

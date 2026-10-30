@@ -371,5 +371,5 @@ export async function handoffRoute(service: LinkedHandoff, request: HandoffReque
   if ((match = routes.handOff.exec(path))) { only('POST', 'Hand the session to Ploeg with POST.'); const input = await request.body(); return { status: 200, body: await service.handOff(user, match[1], match[2], input.commandId, request.base, input.context) }; }
   if ((match = routes.claim.exec(path))) { only('POST', 'Claim the Run with POST.'); return { status: 200, body: await service.claim(user, match[1], await request.body(), request.base) }; }
   if ((match = routes.record.exec(path))) { only('POST', 'Record the Claude session with POST.'); return { status: 200, body: await service.recordSession(user, match[1], await request.body()) }; }
-  return fail(404, 'not_found', 'API route not found.');
+  return fail(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
 }

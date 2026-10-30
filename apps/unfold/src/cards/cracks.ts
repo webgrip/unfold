@@ -68,7 +68,7 @@ export class CrackWorkflow {
     if (!validSeverity(args.severity) || !validShare(args.share) || card.workItem.id === bug.workItem.id || args.play < 0 || bytes(args.note) > 2000 || (args.discovery !== '' && args.discovery !== 'discovered' && args.discovery !== 'concealed') || !by.person) {
       throw new CrackError('invalid_request', 'A proposal names a card, a severity S1 to S4, a share primary or contributing and at most a 2000-character note.');
     }
-    if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg work item not found in your authorized teams.');
+    if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     const bugCreated = micros(bug.workItem.createdAt);
     let play: CardJson['plays'][number] | null = null;
     for (const p of cardJson.plays) {
@@ -157,7 +157,7 @@ export class CrackWorkflow {
   evolved(args: { bug: WorkItemFacts; card: WorkItemFacts; cardJson: CardJson; note: string; by: CrackActor; now: number }): CrackRecord {
     const { bug, card, by } = args;
     if (card.workItem.id === bug.workItem.id || bytes(args.note) > 2000 || !by.person) throw new CrackError('invalid_request', 'Name a card other than the bug and at most a 2000-character note.');
-    if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg work item not found in your authorized teams.');
+    if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     const steward = args.cardJson.steward?.name ?? '';
     return this.store.transaction(() => {
       const existing = this.store.crackFor(card.workItem.id, bug.workItem.id);

@@ -97,7 +97,7 @@ test('a person sees one automation per board Ploeg runs and team of theirs with 
   const stranger = await f.attach('op-2');
   const empty = (await stranger.client.rpc('subscribe', { channel: catalogue })).snapshot.state;
   assert.deepEqual(empty.entries, []);
-  assert.match(empty._meta['dev.webgrip.unfold'].reason, /no Ploeg team access/);
+  assert.match(empty._meta['dev.webgrip.unfold'].reason, /access to no Team in Ploeg/);
 });
 
 test('every change a client asks for is rejected, a manual run is refused, and the catalogue stays as it was', { timeout: testTimeout(60_000) }, async t => {

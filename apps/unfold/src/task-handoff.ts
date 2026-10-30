@@ -45,7 +45,7 @@ export class TaskHandoff {
     const routing = await this.ploeg.routing(user, true);
     if (!routing.reported) throw new TaskError(404, 'handoff_team', olderTeams);
     const team = this.offered(user, source, routing).teams.find(entry => entry.id === id);
-    if (!team) throw new TaskError(404, 'handoff_team', this.offered(user, source, routing).reason ?? 'That Ploeg team is not available to you or has no tracker user to assign.');
+    if (!team) throw new TaskError(404, 'handoff_team', this.offered(user, source, routing).reason ?? 'You cannot hand this task to that Team: it is not one of your Teams, or it has no tracker user to assign. Choose another Team.');
     return { team, routing };
   }
 

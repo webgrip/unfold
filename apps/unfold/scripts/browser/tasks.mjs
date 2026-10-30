@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().waitFor();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
+  await page.getByRole('heading', { name: 'Import this task as a session' }).waitFor();
   assert.equal(new URL(page.url()).hash, '#tasks?source=demo-tasks&task=1', 'a wide screen does not open the first task beside the list');
   assert.equal(await page.getByLabel('Session budget', { exact: true }).inputValue(), '5,00', 'the budget is not prefilled with cents in the number format');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
@@ -12,11 +12,11 @@ export async function run({ page, app, assert, screenshot }) {
   for (const provider of ['Forgejo', 'GitHub', 'GitLab', 'ClickUp', 'Vikunja']) await connections.getByText(provider, { exact: true }).waitFor();
   await connections.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
+  await page.getByRole('heading', { name: 'Import this task as a session' }).waitFor();
   assert.equal(new URL(page.url()).hash, '#tasks?source=demo-tasks&task=1', 'the selected task is not in the address');
   assert.equal(await page.locator('.tasks-brief li').count(), 3, 'the task brief is not rendered as Markdown');
   await page.reload();
-  await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
+  await page.getByRole('heading', { name: 'Import this task as a session' }).waitFor();
   assert.equal(await page.locator('#task-row-1').getAttribute('aria-current'), 'true', 'a reload lost the selected task');
   await page.locator('#task-search').fill('no such task');
   await page.getByText('No tasks match', { exact: true }).waitFor();
@@ -40,7 +40,7 @@ export async function run({ page, app, assert, screenshot }) {
       await page.getByRole('button', { name: 'All tasks', exact: true }).click();
       await page.locator('#task-row-1').focus();
       await page.keyboard.press('Enter');
-      await page.getByRole('heading', { name: 'Bring this task onto the floor' }).waitFor();
+      await page.getByRole('heading', { name: 'Import this task as a session' }).waitFor();
       assert.equal(await page.evaluate(() => document.activeElement?.id), 'task-back', 'opening a task on a phone drops focus to the page');
       assert((await page.locator('#task-back').boundingBox()).y < 100, 'the phone task view keeps the page header above the task');
       await page.getByLabel('Session budget', { exact: true }).fill('3.25');

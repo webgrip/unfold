@@ -12,7 +12,7 @@ const cacheLimit = 512;
 
 type Entry = { mtimeMs: number; size: number; content: Buffer; etag: string; gzipped?: Promise<Buffer | null> };
 
-function missing(): never { throw Object.assign(new Error('Page not found.'), { status: 404, code: 'not_found' }); }
+function missing(): never { throw Object.assign(new Error('Unfold has no page at this address. Open Unfold from its start page.'), { status: 404, code: 'not_found' }); }
 
 /** Reports whether an Accept-Encoding header accepts gzip with a non-zero quality. */
 export function acceptsGzip(header: string | string[] | undefined): boolean {

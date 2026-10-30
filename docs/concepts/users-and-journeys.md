@@ -170,7 +170,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Starts when | a request or a rough ticket |
 | Done when | Ready work with acceptance conditions, a size and an approved quote |
 | How often | weekly rhythm, daily touches |
-| Decided | Ready means decided, or described well enough to conceive a solution ([ADR-0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md)); a refinement Role drafts work items with acceptance conditions and a size and cannot dispatch; a ready-check runs before spend; the agency may override it ([ADR-0007](../adr/adr-0007-clients-approve-ready-work.md)); sizes S, M, L, no XL ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); the tracker owns priority |
+| Decided | Ready means decided, or described well enough to conceive a solution ([ADR-0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md)); a refinement Role drafts Work Items with Acceptance Conditions and a size and cannot dispatch; a ready-check runs before spend; the agency may override it ([ADR-0007](../adr/adr-0007-clients-approve-ready-work.md)); sizes S, M, L, no XL ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); the tracker owns priority |
 | Enterprise | product-owner permissions per Client or project (*open*); brief versions kept |
 | States | missing information · client has not answered · size above L (split) · quote rejected |
 | Success measure | share of work that reaches Ready without a second refinement round; baseline: not instrumented |

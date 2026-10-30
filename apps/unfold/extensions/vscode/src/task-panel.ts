@@ -82,13 +82,13 @@ export class TaskPanel implements vscode.Disposable {
 
   /** Opens a panel for a tracker task. */
   static create(host: TaskPanelHost, source: TaskSource, taskId: string, title: string, onDispose: () => void): TaskPanel {
-    if (!/^[a-zA-Z0-9_-]{1,200}$/.test(taskId) || !/^[a-z0-9-]{1,64}$/.test(source.id)) throw new Error('Invalid linked task identifier.');
+    if (!/^[a-zA-Z0-9_-]{1,200}$/.test(taskId) || !/^[a-z0-9-]{1,64}$/.test(source.id)) throw new Error('This link names no task Unfold can open. Open the task again from the Unfold view.');
     return new TaskPanel(host, { kind: 'task', source, taskId }, TaskPanel.webviewPanel(host, title), onDispose);
   }
 
   /** Opens a panel for a Ploeg Work Item that has no tracker task the workbench knows. */
   static createWorkItem(host: TaskPanelHost, workItemId: string, title: string, onDispose: () => void): TaskPanel {
-    if (!workItemPattern.test(workItemId)) throw new Error('Invalid Work Item identifier.');
+    if (!workItemPattern.test(workItemId)) throw new Error('This link names no Work Item Unfold can open. Open the Work Item again from the Unfold view.');
     return new TaskPanel(host, { kind: 'work', workItemId }, TaskPanel.webviewPanel(host, title), onDispose);
   }
 
@@ -224,7 +224,7 @@ export class TaskPanel implements vscode.Disposable {
     catch (error) {
       if (error instanceof ApiError && (error.status === 404 || error.status === 405) && ['not_found', 'request_failed', 'invalid_response'].includes(error.code)) return unsupportedStatus();
       if (error instanceof ApiError && error.status === 401) throw error;
-      return unsupportedStatus(`Ploeg status could not be loaded: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return unsupportedStatus(`Ploeg status could not be loaded: ${error instanceof Error ? error.message : 'Unfold did not say why.'}`);
     }
   }
 
@@ -268,7 +268,7 @@ export class TaskPanel implements vscode.Disposable {
         case 'start-session': if (this.target.kind === 'task' && this.view?.kind === 'task') await this.host.startSession(this.target.source, this.view.task); await this.panel.webview.postMessage({ type: 'idle' }); return;
       }
     } catch (error) {
-      await this.panel.webview.postMessage({ type: 'problem', message: error instanceof Error ? error.message : 'The action could not be completed.' });
+      await this.panel.webview.postMessage({ type: 'problem', message: error instanceof Error ? error.message : 'Unfold did not finish this action and did not say why. Try again; if it keeps failing, report a problem from Unfold.' });
       if (error instanceof ApiError && error.status === 401) await this.host.report(error);
     }
   }
@@ -350,7 +350,7 @@ export class TaskPanels implements vscode.Disposable {
 
   /** Opens, or reveals, the panel of a Ploeg Work Item without a tracker task: header, state, pull requests, Runs and brief, without the hand-off. */
   openWorkItem(workItemId: string, title: string): TaskPanel {
-    if (!workItemPattern.test(workItemId)) throw new Error('Invalid Work Item identifier.');
+    if (!workItemPattern.test(workItemId)) throw new Error('This link names no Work Item Unfold can open. Open the Work Item again from the Unfold view.');
     const key = `work:${workItemId}`;
     const existing = this.panels.get(key);
     if (existing) { existing.reveal(); return existing; }

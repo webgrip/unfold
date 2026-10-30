@@ -229,7 +229,7 @@ function importForm(task) {
     field('task-budget', 'Session budget', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
   ].join('');
   const form = `<form id="task-import-form" class="tasks-import-fields" data-form="task-import">${fields}${importNote('form')}</form>`;
-  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the team and budget you choose.</p></div></header>${form}</section>`;
+  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Import this task as a session</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the Team and budget you choose.</p></div></header>${form}</section>`;
 }
 
 function decisionBar() {
@@ -242,8 +242,8 @@ function importArea(task, source) {
   const shared = state.bootstrap.sharedExecution;
   if (ploegOwned(source) && !task.ploeg) return '';
   const bindingBlocked = shared ? !task.ploeg || Boolean(task.ploegUnavailable) : ploegOwned(source);
-  if (bindingBlocked) return callout({ tone: 'attention', title: 'Ploeg binding needs attention', body: `<p>${escape(task.ploegUnavailable?.message || 'This connection needs its registered Ploeg tracker target before you can import work here.')}</p>` });
-  if (role === 'viewer') return callout({ tone: 'neutral', icon: 'eye', title: 'Your account can read tasks', body: '<p>An operator or administrator brings them onto the floor.</p>' });
+  if (bindingBlocked) return callout({ tone: 'attention', title: 'Ploeg cannot take this task yet', body: `<p>${escape(task.ploegUnavailable?.message || 'This connection needs its registered Ploeg tracker target before you can import work here.')}</p>` });
+  if (role === 'viewer') return callout({ tone: 'neutral', icon: 'eye', title: 'Your account can read tasks', body: '<p>An operator or administrator imports them as sessions.</p>' });
   if (task.status !== 'open') return callout({ tone: 'neutral', title: 'Only open tasks can be imported', body: `<p>This task is ${escape((statuses[task.status] || statuses.unknown)[0].toLowerCase())}. Reopen it in its tracker first.</p>` });
   return `${importForm(task)}${decisionBar()}`;
 }
@@ -393,7 +393,7 @@ function renderTasks() {
   const sources = taskSources();
   const source = selectedTaskSource();
   const actions = act('data-action="connections"', { label: 'Connections', icon: 'link' });
-  const page = { title: 'Tasks', subtitle: ploegOwned(source) ? 'Read a task from your tracker, then hand it to a Ploeg team.' : 'Preview a task from your tracker, then bring it onto the floor as a session.', actions };
+  const page = { title: 'Tasks', subtitle: ploegOwned(source) ? 'Read a task from your tracker, then hand it to a Ploeg Team.' : 'Preview a task from your tracker, then import it as a session.', actions };
   if (!sources.length) {
     const body = emptyState({ icon: 'link', title: 'No task connections yet', body: 'An administrator connects a tracker project to a registered repository. Its open tasks then show up here, ready to preview.', actions: act('data-action="connections"', { label: 'How connections work', variant: 'primary' }) });
     renderHtml(shell(`<div class="tasks-page"><section class="card tasks-first-run">${body}</section></div>`, page));

@@ -38,7 +38,7 @@ export function transient(error: unknown): boolean {
 }
 
 function workItemId(value: string): string {
-  if (!/^[1-9][0-9]{0,19}$/.test(value)) throw new Error('Invalid Ploeg work item identifier.');
+  if (!/^[1-9][0-9]{0,19}$/.test(value)) throw new Error('A Ploeg Work Item identifier is a whole number from 1, such as 42.');
   return value;
 }
 

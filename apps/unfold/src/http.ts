@@ -35,6 +35,7 @@ import { membershipsFromGroups, ownership } from './tenancy.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
+import { publicError } from './error-catalogue.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 import { StoreUpkeep } from './store-upkeep.ts';
@@ -132,26 +133,26 @@ async function rawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) fault(413, 'body_too_large', 'Request is too large.');
+    if (size > limit) fault(413, 'body_too_large', `The request is larger than the ${limit >= 1048576 ? `${Math.round(limit / 1048576)} MiB` : `${Math.round(limit / 1024)} KiB`} this address accepts. Send less at once.`);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
 }
 
 async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  if (!req.headers['content-type']?.startsWith('application/json')) fault(415, 'content_type', 'Use application/json.');
+  if (!req.headers['content-type']?.startsWith('application/json')) fault(415, 'content_type', 'Send the body as JSON with Content-Type: application/json.');
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 131072) fault(413, 'body_too_large', 'Request is too large.');
+    if (size > 131072) fault(413, 'body_too_large', 'The request is larger than the 128 KiB a JSON body may be. Send less at once.');
     chunks.push(chunk);
   }
   try {
     const data = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     return data;
-  } catch { return fault(400, 'invalid_json', 'Expected a JSON object.'); }
+  } catch { return fault(400, 'invalid_json', 'The body is not a JSON object. Send an object, such as {}.'); }
 }
 
 async function upload(req: IncomingMessage, limit: number, tooLarge = 'asset_too_large'): Promise<Buffer> {
@@ -209,15 +210,15 @@ function loopbackUrl(address: AddressInfo): string {
 }
 
 function mutationGuard(req: IncomingMessage, config: AppConfig): void {
-  if (req.headers['x-unfold-request'] !== '1') fault(403, 'csrf', 'The request is missing the application request header.');
+  if (req.headers['x-unfold-request'] !== '1') fault(403, 'csrf', 'Unfold refused this change because it lacks the header X-Unfold-Request: 1. Reload the page; a script must send that header with every change.');
   const origin = req.headers.origin;
   if (origin) {
     let expected: string;
     try { expected = new URL(config.baseUrl || `http://${req.headers.host}`).origin; }
-    catch { return fault(403, 'origin', 'Invalid request origin.'); }
-    if (origin !== expected) fault(403, 'origin', 'This request came from another origin.');
+    catch { return fault(403, 'origin', 'Unfold refused this change because its Origin header is not a valid address. Make the change from the Unfold page itself.'); }
+    if (origin !== expected) fault(403, 'origin', 'Unfold refused this change because it came from another website. Make the change from the Unfold page itself.');
   }
-  if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
+  if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Unfold refused this change because another website sent it. Make the change from the Unfold page itself.');
 }
 
 const requestBodyLimitMs = 15000;
@@ -400,7 +401,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   }) : undefined;
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);
-    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Session not found.');
+    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Unfold has no such session, or it is not yours. Open it from the Sessions list.');
     return session as Session;
   }
   const responseHeaders = securityHeaders(config.hsts);
@@ -533,7 +534,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             agentHost?.revokeSignIn(auth.revokeEditorCredential(user, editorCredential[1]));
             return json(res, 200, { editors: auth.editorCredentials(user) });
           }
-          fault(405, 'method', 'Unsupported method.');
+          fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
         }
         if (method === 'GET' && path === '/api/reports') {
           await Promise.race([reports.refresh(user).catch(() => undefined), new Promise(done => setTimeout(done, reportRefreshWaitMs).unref())]);
@@ -618,7 +619,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (error instanceof SnoozeError) return json(res, error.status, { error: { code: error.code, message: error.message } });
             throw error;
           }
-          fault(405, 'method', 'Unsupported method.');
+          fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
         }
         if (path === '/api/admin/audit' || path === '/api/admin/audit/verify') return await audit.serve(res, { method, path, query: url.searchParams, user });
         if (path === '/api/admin/webhooks' || path.startsWith('/api/admin/webhooks/')) {
@@ -691,7 +692,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             let target: AgentsWindowTarget | undefined;
             if (kind === 'sessions') {
               target = agentHost!.sessionLinkTarget(user, id);
-              if (!target) fault(404, 'not_found', 'Session not found.');
+              if (!target) fault(404, 'not_found', 'Unfold has no such session, or it is not yours. Open it from the Sessions list.');
             } else {
               try { target = await agentHost!.workItemLinkTarget(user, id); }
               catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
@@ -717,7 +718,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (!agentHost!.revokeToken(user, agentHostToken[1])) fault(404, 'not_found', 'No connection token of yours has this identifier.');
             return json(res, 200, { revoked: true });
           }
-          fault(405, 'method', 'Unsupported method.');
+          fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
         }
         if (method === 'GET' && path === '/api/attestations/public-key') {
           const key = engine.signing();
@@ -750,7 +751,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const handoffRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks\/([a-zA-Z0-9_-]+)\/(ploeg|handoff)$/);
         if (handoffRoute) {
           const source = tenants.source(user, handoffRoute[1]);
-          if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (!source) fault(404, 'source_not_found', 'There is no such task connection. Choose one from the Tasks page.');
           if (handoffRoute[3] === 'ploeg' && method === 'GET') return json(res, 200, sanitize(await handoff.status(user, source!, handoffRoute[2], url.searchParams.get('refresh') === '1')));
           if (handoffRoute[3] === 'handoff' && (method === 'POST' || method === 'DELETE')) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot hand tasks to Ploeg.');
@@ -759,13 +760,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const data = await body(req);
             return json(res, 200, sanitize(await handoff.handOff(user, source!, handoffRoute[2], text(data.team, 'Team', 100), text(data.revision, 'Task revision', 128))));
           }
-          fault(405, 'method', 'Unsupported method.');
+          fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
         }
         if (method === 'GET' && path === '/api/tasks/lookup') return json(res, 200, sanitize(await handoff.lookup(url.searchParams.get('provider'), url.searchParams.get('id'), tenants.sources(user))));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
           const source = tenants.source(user, taskRoute[1]);
-          if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (!source) fault(404, 'source_not_found', 'There is no such task connection. Choose one from the Tasks page.');
           const resolved = await withUserToken(source!);
           if (taskRoute[2]) return json(res, 200, sanitize(presentTask(resolved, await engine.previewTask(await getTask(resolved, taskRoute[2], url.searchParams.get('truncate') === '1'), user))));
           const page = Number(url.searchParams.get('page') ?? 1);
@@ -781,10 +782,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const teamId = teamInput(data);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const source = tenants.source(user, sourceId);
-          if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (!source) fault(404, 'source_not_found', 'There is no such task connection. Choose one from the Tasks page.');
           if (!tenants.mayAct(user, source!)) fault(403, 'forbidden', 'Importing needs a Developer or Admin membership of the Tenant that owns this connection.');
           if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
-          if (!runtimeKinds.includes(runtime) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
+          if (!runtimeKinds.includes(runtime) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured Team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const snapshot = await getTask(await withUserToken(source!), taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
@@ -798,7 +799,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const repositoryId = text(data.repositoryId, 'Repository', 64);
           const teamId = teamInput(data);
-          if (!runtimeKinds.includes(runtime) || !tenants.repository(user, repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
+          if (!runtimeKinds.includes(runtime) || !tenants.repository(user, repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, Team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const trackerUrl = text(data.trackerUrl, 'Tracker link', 2048, true);
           if (trackerUrl) {
@@ -830,7 +831,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (pack && !pack[2] && method === 'GET') return json(res, 200, sanitize(await collection.pack(user, pack[1])));
             if (pack && pack[2] && method === 'POST') { await body(req); return json(res, 200, sanitize(await collection.openPack(user, pack[1]))); }
             if (path === '/api/season' && method === 'GET') return json(res, 200, sanitize(await collection.season(user, url.searchParams.get('team') || undefined, url.searchParams.get('quarter') || undefined)));
-            fault(405, 'method', 'Unsupported method.');
+            fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
           } catch (error) {
             if (error instanceof CollectionError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
             throw error;
@@ -1110,7 +1111,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const administrator = user.role === 'admin';
           const onlyAdministrators = (what: string) => { if (!administrator) fault(403, 'forbidden', `Only administrators can ${what}.`); };
           if (path === '/api/card-themes') {
-            if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+            if (method !== 'GET') fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
             return json(res, 200, sanitize({
               themes: themes.list(), canEdit: administrator, skins: [...themes.skins.values()],
               limits: { assets: assetLimits, maxImageSide, quotaMb: Math.round(themes.quotaBytes / 1024 / 1024) },
@@ -1122,7 +1123,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (themeRoute) {
             const [, id, versions, version] = themeRoute;
             if (versions) {
-              if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+              if (method !== 'GET') fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
               if (version) { const found = themes.version(id, Number(version)); if (!found) fault(404, 'not_found', 'Theme version not found.'); return json(res, 200, found); }
               return json(res, 200, { versions: themes.versions(id) });
             }
@@ -1134,28 +1135,28 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               return json(res, existed ? 200 : 201, themes.save(id, data.theme, data.baseVersion, user));
             }
             if (method === 'DELETE') { onlyAdministrators('delete card themes'); themes.remove(id); return json(res, 200, { ok: true }); }
-            fault(405, 'method', 'Unsupported method.');
+            fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
           }
           if (path === '/api/card-assets') {
-            if (method !== 'POST') fault(405, 'method', 'Unsupported method.');
+            if (method !== 'POST') fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
             onlyAdministrators('upload theme assets');
             const purpose = url.searchParams.get('purpose') ?? '';
             return json(res, 201, themes.putAsset(purpose, await upload(req, maxUploadBytes), user));
           }
           const assetRoute = /^\/api\/card-assets\/([a-f0-9]{64})$/.exec(path);
           if (assetRoute) {
-            if (method !== 'GET') fault(405, 'method', 'Unsupported method.');
+            if (method !== 'GET') fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
             const asset = themes.asset(assetRoute[1]);
             if (!asset) fault(404, 'not_found', 'Asset not found.');
             return sendAsset(req, res, asset!);
           }
           if (path === '/api/card-art/generate') {
-            if (method !== 'POST') fault(405, 'method', 'Unsupported method.');
+            if (method !== 'POST') fault(405, 'method', `This address does not take ${method}. The API reference at /api/openapi.yaml lists the methods it takes.`);
             onlyAdministrators('generate card art');
             const data = await body(req);
             return json(res, 200, await cardArt.generate(user, data));
           }
-          fault(404, 'not_found', 'API route not found.');
+          fault(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
         }
         const match = path.match(/^\/api\/sessions\/([a-zA-Z0-9_-]+)(?:\/(.*))?$/);
         if (match) {
@@ -1186,7 +1187,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'GET' && action === 'recovery') return json(res, 200, sanitize(await engine.recovery(id, user)));
           if (method === 'GET' && action === 'permissions') return json(res, 200, sanitize(store.permissions(id).map(({ nativeId, ...request }) => request)));
           if (method === 'GET' && action === 'events') {
-            if (streams.size >= 100) fault(429, 'streams', 'Too many live connections.');
+            if (streams.size >= 100) fault(429, 'streams', 'Unfold is already sending live updates to as many pages as it can. Close Unfold tabs you no longer watch, then reload this one.');
             let cursor = streamCursor(url.searchParams.get('after'), req.headers['last-event-id']);
             res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
             streams.add(res);
@@ -1237,28 +1238,26 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (typeof data.amountUsd !== 'number' || !Number.isFinite(data.amountUsd) || data.amountUsd <= 0) fault(400, 'budget', 'Additional budget must be positive.');
               result = await engine.addBudget(id, data.amountUsd as number, user);
             } else if (action.startsWith('permissions/')) {
-              if (data.decision !== undefined && !['once','always','reject'].includes(String(data.decision))) fault(400, 'permission', 'Invalid permission decision.');
-              if (data.answers !== undefined && (!Array.isArray(data.answers) || data.answers.length > 20 || data.answers.some((answers: unknown) => !Array.isArray(answers) || answers.some(value => typeof value !== 'string' || value.length > 4000)))) fault(400, 'answers', 'Invalid question answers.');
+              if (data.decision !== undefined && !['once','always','reject'].includes(String(data.decision))) fault(400, 'permission', 'Answer the permission request with once, always or reject.');
+              if (data.answers !== undefined && (!Array.isArray(data.answers) || data.answers.length > 20 || data.answers.some((answers: unknown) => !Array.isArray(answers) || answers.some(value => typeof value !== 'string' || value.length > 4000)))) fault(400, 'answers', 'Send the answers as at most 20 lists of texts, each text at most 4000 characters.');
               result = await engine.respond(id, action.slice('permissions/'.length), data as any, user);
-            } else return fault(404, 'not_found', 'Action not found.');
+            } else return fault(404, 'not_found', 'A session takes no such action. The API reference at /api/openapi.yaml lists the actions it takes.');
             return json(res, 200, sanitize(publicSession(result)));
           }
         }
-        return fault(404, 'not_found', 'API route not found.');
+        return fault(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
       }
       const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/start.js': 'start.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/console-view.js': 'console-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/connections.js': 'connections.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js', '/sw.js': 'sw.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
-      if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
+      if (method !== 'GET' || !file) return fault(404, 'not_found', 'Unfold has no page at this address. Open Unfold from its start page.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));
     } catch (error: any) {
       if (res.headersSent) { res.end(); return; }
-      const status = Number(error.status || error.statusCode) || 500;
-      const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
-      const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) && !(error instanceof CardArtError) && !(error instanceof AssetError) && !(error instanceof ThemeError) ? 'The operation could not be completed. Check the server log.' : error.message;
+      const { status, code, message } = publicError(error, error instanceof TaskError || error instanceof PloegError || error instanceof CardArtError || error instanceof AssetError || error instanceof ThemeError);
       if (status >= 500 && !(error instanceof PloegContractIncompatible)) {
         console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
         const route = `${req.method || 'GET'} ${routeShape(new URL(req.url || '/', 'http://localhost').pathname)}`;
-        errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code }, fingerprint: ['http', route, String(code)] });
+        errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code: String(error.code || code) }, fingerprint: ['http', route, String(error.code || code)] });
       }
       json(res, status, sanitize({ error: { code, message } }));
     }

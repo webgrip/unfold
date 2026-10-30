@@ -191,7 +191,7 @@ Importing the same task revision again returns its existing session for that ope
 
 Task listing is paged, not an exhaustive background synchronization. Most providers return at most 50 records per request; ClickUp uses up to 100. Move to the next page to browse further. The server bounds response size and task text. A list page cuts a description over 16,000 characters and marks it truncated, so one long task does not hide the rest. Previewing or importing that task still refuses it with an explicit error instead of silently dropping acceptance criteria. Tasks also show labels, assignees, priority, due date and the tracker's own identifier where the provider returns them, and Vikunja's HTML descriptions are converted to plain Markdown for reading. The imported revision covers normalized title, description, state, update timestamp and link. It does not include comments, labels, checklists, assignees, priority, custom fields or linked documents. Put the required acceptance criteria in the task description for this pilot; changes to other fields are outside its revision check.
 
-The same task may be represented in several systems. This release identifies imports by their registered source and task identity; it does not infer that a ClickUp task and a linked Forgejo issue are the same work item. Use one authoritative source per work item for the pilot.
+The same task may be represented in several systems. This release identifies imports by their registered source and task identity; it does not infer that a ClickUp task and a linked Forgejo issue are the same Work Item. Use one authoritative source per Work Item for the pilot.
 
 ## Share a server deliberately
 
@@ -201,7 +201,7 @@ An `executionOwner` declaration alone is a local routing rule. A live Unfold alw
 
 The server checks source and repository configuration again before first admission. Existing repository registrations without an ownership declaration retain the interactive default; new task source entries require an explicit declaration. Declare repository ownership too when introducing Ploeg alongside the service.
 
-## Import the existing Ploeg work item
+## Import the existing Ploeg Work Item
 
 Enable the [shared execution connection](../../../../docs/workflows/managed-execution.md), then register a supported source with an explicit target. This example maps the existing `application` repository whose URL is `https://forge.example/team/application.git` and base branch is `main`:
 
@@ -252,7 +252,7 @@ The Tasks page and the editor's task view offer **Hand to Ploeg** with a team pi
 A connection can hand off when all of these hold:
 
 * its adapter declares hand-off (Vikunja or ClickUp) and it has a `tokenEnv`;
-* its `executionOwner` is `"ploeg"`. A `ploeg.target` is not needed for hand-off; it is only for [importing the existing Ploeg work item](#import-the-existing-ploeg-work-item);
+* its `executionOwner` is `"ploeg"`. A `ploeg.target` is not needed for hand-off; it is only for [importing the existing Ploeg Work Item](#import-the-existing-ploeg-work-item);
 * the server has a live `ploeg` operator connection, not the demo;
 * Ploeg reports tracker assignees for its teams. Ploeg's teams config `teams.<team>.assignees` and `PLOEG_TEAM_MAP` set them.
 

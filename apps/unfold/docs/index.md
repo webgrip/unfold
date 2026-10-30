@@ -32,6 +32,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 ## Integrate
 
 - [HTTP API](contracts/api.md)
+- [Error codes](contracts/error-codes.md): every error code Unfold gives a person, what it means and what to do next
 - [Ploeg execution](contracts/ploeg-execution.md)
 - [Canonical tracker binding](contracts/ploeg-tracker-binding.md)
 - [Candidate verification and approval](contracts/candidate-delivery.md)

@@ -38,7 +38,7 @@ verified_by: "the command, test or source read that confirmed it"
 
 ## One answer per question
 
-* **The start page and README** open with the problem and the outcome: work items become review-ready pull requests. `llms.txt` repeats that sentence.
+* **The start page and README** open with the problem and the outcome: Work Items become review-ready pull requests. `llms.txt` repeats that sentence.
 * **System explanation** lives only in `docs/concepts/`. An application's `architecture.md` explains its implementation and links up. When you find a second explanation, merge it and replace it with a link.
 * **Terms** have one definition. Unfold uses Ploeg's execution terms ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)). The [combined glossary](reference/glossary.md) is generated from the [product model](domain/model.yaml) and [Ploeg's model](../apps/ploeg/docs/domain/model.yaml). A second meaning is recorded as "not to be confused with", never as a second definition.
 * **A current rule** appears in a current page, which links the ADR that explains it. An ADR is never the only place a rule lives.

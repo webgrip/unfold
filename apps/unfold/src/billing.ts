@@ -264,7 +264,7 @@ export class BillingService {
 
   private record(user: User, id: string, change = true): BillingRecord {
     const record = this.store.get(id);
-    if (!record || !this.visible(user, ownerOf(record.line), change)) fail(404, 'billing_line_not_found', 'No such billing line.');
+    if (!record || !this.visible(user, ownerOf(record.line), change)) fail(404, 'billing_line_not_found', 'There is no such billing line. Choose one from the billing page.');
     return record!;
   }
 
@@ -445,5 +445,5 @@ export async function billingRoute(service: BillingService, user: User, method: 
     if (action[2] === 'price') return { status: 200, json: await service.setPrice(user, action[1], data) };
     return { status: 200, json: await service.reverse(user, action[1], data) };
   }
-  return fail(404, 'not_found', 'API route not found.');
+  return fail(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
 }

@@ -581,7 +581,7 @@ export const noteFailures = {
   work_item_terminal: (id: string) => `#${id} is no longer running, so your note was not saved. Look again to see where it stands.`,
   operator_owned: (id: string) => `A workbench session drives #${id}. Give your instruction there instead.`,
   command_conflict: (id: string) => `Ploeg already holds a different note for #${id} under this command, so this one was not saved. Send it again.`,
-  not_found: () => 'Ploeg work item not found in your authorized teams.',
+  not_found: () => 'Ploeg has no Work Item with this id in the Teams you can see.',
   invalid: () => 'Ploeg refused the note. A note is 1 to 4096 characters.',
   unreachable: () => 'Ploeg could not be reached, so your note was not saved. Send it again to retry.',
 } as const;
@@ -686,7 +686,7 @@ function askSpend(value: unknown): PloegAskSpend {
 const decisionFailures: Record<number, [string, string]> = {
   400: ['ploeg_decision', 'Ploeg refused the request. A rejection needs a reason of at most 4096 characters.'],
   403: ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot record decisions. An administrator must grant it execute permission.'],
-  404: ['ploeg_not_found', 'Ploeg work item not found in your authorized teams.'],
+  404: ['ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.'],
   409: ['ploeg_decision_conflict', 'Ploeg did not apply this: the Work Item changed state or is bound to an execution. Refresh to see where it stands.'],
 };
 
@@ -1019,7 +1019,7 @@ const contextVersions = ['1.0', undefined];
 const contextFailures: Record<number, [string, string]> = {
   400: ['ploeg_context_refused', 'Ploeg refused the file.'],
   403: ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot add context. An administrator must grant it execute permission.'],
-  404: ['ploeg_not_found', 'Ploeg work item not found in your authorized teams.'],
+  404: ['ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.'],
   409: ['ploeg_context_closed', 'This Work Item is done or withdrawn, so it takes no more context.'],
   413: ['ploeg_context_too_large', 'The file is larger than Ploeg accepts for one upload or for this Work Item.'],
 };
@@ -1179,7 +1179,7 @@ export class PloegClient {
   }
   /** Reads one Work Item's delivery facts within the consumer's scope. */
   async workItemFacts(id: string, fresh = false): Promise<WorkItemFacts> {
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     const data = await this.request(`work-items/${id}/facts`, fresh);
     try { return parseFactsResponse(data); } catch (error) { if (error instanceof FactsError) throw new PloegError(502, 'ploeg_facts_invalid', `Ploeg returned delivery facts Unfold cannot read (${error.path}).`); throw error; }
   }
@@ -1212,7 +1212,7 @@ export class PloegClient {
   /** Whether this client answers from the deterministic demo instead of a Ploeg. */
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
-  private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
+  private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has access to no Team in Ploeg. Ask an administrator to give you access to one.'); }
   private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number }; contractProbe?: boolean } = {}): Promise<unknown> {
     if (!options.contractProbe) this.refuseWhenIncompatible();
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
@@ -1235,7 +1235,7 @@ export class PloegClient {
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
         if (post && decisionFailures[response.status]) { const [code, message] = decisionFailures[response.status]; throw new PloegError(response.status, code, message); }
-        throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg work item not found in your authorized teams.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
+        throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg has no Work Item with this id in the Teams you can see.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
       }
       if (options.answer) options.answer.status = response.status;
       if (!(response.headers.get('content-type') ?? '').includes('application/json') || Number(response.headers.get('content-length')) > 16_777_216 || !response.body) { await response.body?.cancel(); throw new PloegError(502, 'ploeg_response_size', 'Ploeg returned an unsupported response type or a snapshot larger than 16 MiB.'); }
@@ -1282,7 +1282,7 @@ export class PloegClient {
    */
   async items(user: User, selectedTeam: string, requested: string = 'all', cursor = '0', fresh = false): Promise<PloegPresentedPage> {
     this.authorize(user);
-    if (!this.allowed(user, selectedTeam)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+    if (!this.allowed(user, selectedTeam)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no such Team, or it is not one of your Teams.');
     const filter: PloegItemFilter | undefined = Object.hasOwn(spanningFilters, requested) ? requested as keyof typeof spanningFilters : ploegState(requested);
     if (!/^(0|[1-9][0-9]{0,19})$/.test(cursor) || !filter) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Ploeg state and page cursor.');
     const wanted = Object.hasOwn(spanningFilters, filter) ? spanningFilters[filter as keyof typeof spanningFilters] : [filter as PloegState];
@@ -1302,17 +1302,17 @@ export class PloegClient {
     try {
       const teams = await this.teams(user, fresh);
       const selected = selectedTeam ?? teams[0]?.id;
-      if (selected && !teams.some(team => team.id === selected)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+      if (selected && !teams.some(team => team.id === selected)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no such Team, or it is not one of your Teams.');
       const lanes = selected ? Object.fromEntries(await Promise.all((['awaiting_review', 'needs_human', 'stale', 'leased', 'queued', 'open', 'closed'] as const).map(async state => [state, await this.items(user, selected, state, '0', fresh)]))) as PloegOverview['lanes'] : undefined;
       return { ...base, available: true, teams, selectedTeam: selected, lanes, fetchedAt: new Date().toISOString(), message: this.demo ? 'Illustrative Ploeg records. These runs were not executed; no model calls or charges.' : 'Read-only operator snapshot. Ploeg owns execution; open a linked workbench session to supervise interactive work.' };
     } catch (error) { if (error instanceof PloegError && [403, 404].includes(error.status)) throw error; return { ...base, message: error instanceof PloegError ? error.message : 'Ploeg operator data is unavailable.' }; }
   }
   async detail(user: User, id: string, fresh = false): Promise<PloegDetail & { item: PloegPresentedItem }> {
     this.authorize(user);
-    if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     const demoDetail = this.demo ? ploegDemo.details[id] : undefined;
     const result = this.demo ? demoDetail && { ...demoDetail, item: this.demoItems().find(entry => entry.id === id)! } : detail(await this.request(`work-items/${id}`, fresh));
-    if (!result || result.item.id !== id || !this.allowed(user, result.item.team) || !this.reaches(user, result.item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (!result || result.item.id !== id || !this.allowed(user, result.item.team) || !this.reaches(user, result.item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     this.remember(result.item.id, result.item.title);
     const copy = structuredClone(result);
     return { ...copy, item: presented(copy.item), demo: this.demo, fetchedAt: new Date().toISOString() };
@@ -1320,19 +1320,19 @@ export class PloegClient {
   /** Reads a Work Item's value stream: its tracker, pull request, CI and deploy timeline from Ploeg's delivery facts. The demo has no such facts and says so. */
   async valueStream(user: User, id: string, fresh = false): Promise<ValueStream> {
     this.authorize(user);
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (this.demo) {
       const item = this.demoItems().find(entry => entry.id === id);
-      if (!item || !this.allowed(user, item.team) || !this.reaches(user, item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+      if (!item || !this.allowed(user, item.team) || !this.reaches(user, item)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
       return { workItemId: id, trackerCreatedAt: null, admittedAt: item.createdAt, closed: false, lanes: [], notes: ['The demo has no tracker, forge, CI or deploy facts; it shows only its Shifts and Runs.'], demo: true, fetchedAt: new Date().toISOString() };
     }
     const facts = await this.workItemFacts(id, fresh);
-    if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team) || !(await this.reachesId(user, id, fresh))) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team) || !(await this.reachesId(user, id, fresh))) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     return valueStream(facts);
   }
   /** Reads the agent pod logs of one Run of a Work Item the caller may see; `after` is the `cursor` of an earlier read. See {@link readRunLogs}. */
   async runLogs(user: User, id: string, runId: string, after?: string, fresh = false): Promise<RunLogs> {
-    if (!/^[1-9][0-9]{0,19}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    if (!/^[1-9][0-9]{0,19}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'A Run id is a whole number, as the Work Item page shows it.');
     const view = await this.detail(user, id, fresh);
     const found = view.runs.find(entry => entry.id === runId);
     if (!found || found.workItemId !== id) throw new PloegError(404, 'ploeg_not_found', 'This Run is not part of the Work Item.');
@@ -1345,7 +1345,7 @@ export class PloegClient {
    * demo runs no agents and answers reason `demo`.
    */
   async runTranscript(user: User, id: string, runId: string, after?: string, fresh = false): Promise<RunTranscript> {
-    if (!/^[1-9][0-9]{0,18}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'A Run id is a whole number, as the Work Item page shows it.');
     const cursor = transcriptCursor(after);
     if (cursor === null) throw new PloegError(400, 'transcript_cursor', 'Use a cursor from an earlier read of this transcript.');
     const view = await this.detail(user, id, fresh);
@@ -1361,14 +1361,14 @@ export class PloegClient {
   /** Reads a Work Item's Run card, assembled by Unfold from Ploeg's delivery facts. Without those facts it refuses with 503 `cards_facts_unavailable`. */
   async card(user: User, id: string, fresh = false): Promise<RunCardView> {
     this.authorize(user);
-    if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (this.demo) {
       const card = ploegDemo.cards[id];
-      if (!card || card.workItemId !== id || !this.allowed(user, card.team) || !this.reachesCard(user, card)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+      if (!card || card.workItemId !== id || !this.allowed(user, card.team) || !this.reachesCard(user, card)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
       return { card: (await this.withRarity(user, [structuredClone(card)]))[0], demo: true, fetchedAt: new Date().toISOString() };
     }
     const owned = parseCard(await (await this.cards(fresh)).card(id, fresh));
-    if (owned.workItemId !== id || !this.allowed(user, owned.team) || !this.reachesCard(user, owned)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (owned.workItemId !== id || !this.allowed(user, owned.team) || !this.reachesCard(user, owned)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     return { card: (await this.withRarity(user, [owned]))[0], demo: false, fetchedAt: new Date().toISOString() };
   }
   /** Lists the cards whose roster or steward names any of `logins`, newest activity first, across the caller's teams. The demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
@@ -1384,7 +1384,7 @@ export class PloegClient {
   /** Lists one Team's cards for its team page; the demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
   async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<RunCardList> {
     this.authorize(user);
-    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no such Team, or it is not one of your Teams.');
     if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => card.team === team && this.reachesCard(user, card)).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).teamCards(team, since, fresh);
     return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => card.team === team && this.reachesCard(user, card))), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
@@ -1421,8 +1421,8 @@ export class PloegClient {
   /** Lists Runs newest first; `before` pages to older Runs. */
   async runs(user: User, filter: PloegRunFilter, fresh = false): Promise<PloegRunsPage> {
     this.connected(user);
-    if (filter.team && !this.allowed(user, filter.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    if ((filter.before && !/^[1-9][0-9]{0,19}$/.test(filter.before)) || (filter.state && !['pending', 'running', 'finished'].includes(filter.state)) || (filter.outcome && filter.state && filter.state !== 'finished') || (filter.outcome && !/^[a-z_]{1,32}$/.test(filter.outcome))) throw new PloegError(400, 'ploeg_filter', 'Choose a valid team, state, outcome and page cursor.');
+    if (filter.team && !this.allowed(user, filter.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no such Team, or it is not one of your Teams.');
+    if ((filter.before && !/^[1-9][0-9]{0,19}$/.test(filter.before)) || (filter.state && !['pending', 'running', 'finished'].includes(filter.state)) || (filter.outcome && filter.state && filter.state !== 'finished') || (filter.outcome && !/^[a-z_]{1,32}$/.test(filter.outcome))) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Team, state, outcome and page cursor.');
     let runs: PloegRunRow[]; let nextBefore: string | null;
     if (this.demo) {
       const matching = ploegDemo.runs.filter(run => (!filter.team || run.team === filter.team) && (!filter.state || run.state === filter.state) && (!filter.outcome || run.outcome === filter.outcome) && (!filter.before || BigInt(run.id) < BigInt(filter.before)));
@@ -1444,7 +1444,7 @@ export class PloegClient {
    */
   async events(user: User, filter: { team?: string; before?: string; after?: string }, fresh = false): Promise<PloegEventsPage> {
     this.connected(user);
-    if (filter.team && !this.allowed(user, filter.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
+    if (filter.team && !this.allowed(user, filter.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no such Team, or it is not one of your Teams.');
     if ((filter.before && !/^[1-9][0-9]{0,19}$/.test(filter.before)) || (filter.after && !/^(0|[1-9][0-9]{0,19})$/.test(filter.after)) || (filter.before && filter.after)) throw new PloegError(400, 'ploeg_filter', 'Choose a valid page cursor.');
     let events: PloegActivityEvent[]; let nextCursor: string | null;
     if (this.demo) {
@@ -1522,7 +1522,7 @@ export class PloegClient {
    */
   async followTranscript(workItemId: string, runId: string, after: number): Promise<RunTranscript> {
     if (this.demo || !this.config) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.');
-    if (!/^[1-9][0-9]{0,18}$/.test(runId) || !/^[1-9][0-9]{0,19}$/.test(workItemId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(runId) || !/^[1-9][0-9]{0,19}$/.test(workItemId)) throw new PloegError(400, 'ploeg_id', 'A Run id is a whole number, as the Work Item page shows it.');
     const cursor = transcriptCursor(String(after));
     if (cursor === null) throw new PloegError(400, 'transcript_cursor', 'Use a cursor from an earlier read of this transcript.');
     let data: unknown;
@@ -1722,10 +1722,10 @@ export class PloegClient {
   async note(user: User, id: string, command: PloegNoteCommand): Promise<PloegNoted> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A note needs a command id of 1 to 128 identifier characters.');
-    if (command.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(command.expectedShiftId)) throw new PloegError(400, 'ploeg_note', 'Use a valid Ploeg Shift identifier.');
+    if (command.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(command.expectedShiftId)) throw new PloegError(400, 'ploeg_note', 'A Shift id is a whole number, as the Work Item page shows it.');
     const text = command.text.trim();
     if (!text || text.length > 4096) throw new PloegError(400, 'ploeg_note', noteFailures.invalid());
     if (this.demo || this.notesRoute === false) throw notesUnsupported();
@@ -1752,7 +1752,7 @@ export class PloegClient {
   async answerQuestion(user: User, id: string, questionId: string, command: { commandId: string; answer: string }): Promise<PloegQuestionAnswered> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (!/^q[1-9][0-9]{0,18}-[1-9][0-9]{0,3}$/.test(questionId)) throw new PloegError(400, 'ploeg_question', 'Use a valid question identifier.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'An answer needs a command id of 1 to 128 identifier characters.');
@@ -1768,7 +1768,7 @@ export class PloegClient {
   async requeue(user: User, id: string, command: PloegRequeueCommand): Promise<PloegRequeued> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A requeue needs a command id of 1 to 128 identifier characters.');
     const note = command.note?.trim() ?? '';
@@ -1802,7 +1802,7 @@ export class PloegClient {
   async takeOver(user: User, id: string, command: PloegTakeOverCommand): Promise<PloegTakeOverStarted> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A take-over needs a command id of 1 to 128 identifier characters.');
     if (command.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(command.expectedShiftId)) throw new PloegError(400, 'ploeg_take_over', 'expectedShiftId must be a Shift id.');
@@ -1838,7 +1838,7 @@ export class PloegClient {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
     if (this.demo) throw new PloegError(409, 'ploeg_demo', 'The demo has no Run to start.');
-    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
     await this.detail(user, id, true);
     const data = envelope(await this.request(`work-items/${id}/claim`, true, { actor: user.id, claim: true }));
@@ -1943,7 +1943,7 @@ export class PloegClient {
     }
     if (note) body.note = note;
     const [bugDetail, cardDetail] = [await this.detail(user, bug, true), await this.detail(user, card, true)];
-    if (bugDetail.item.team !== cardDetail.item.team) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (bugDetail.item.team !== cardDetail.item.team) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     if (this.demo) return { crack: this.demoAttribute(login, bugDetail.item, cardDetail.item, step, body), demo: true, message: demoAttribution };
     const cards = await this.cards();
     const by = { person: login, audit: `unfold:${user.id}` };
@@ -2051,7 +2051,7 @@ export class PloegClient {
   async askAllowance(user: User, team: string): Promise<PloegAskAllowance | null> {
     this.connected(user);
     if (this.demo) return null;
-    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg has no Work Item with this id in the Teams you can see.');
     return askAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}`)).allowance);
   }
   /** Admits one chat message for a Team the caller may use, as the caller (Unfold ADR 0049, proposed). Throws {@link ChatAllowanceUsedUp} when the Team's chat allowance is used up. The demo admits nothing. */

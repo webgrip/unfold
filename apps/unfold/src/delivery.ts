@@ -83,7 +83,7 @@ export class DeliveryService {
 
   private session(id: string, user: User, mutate = false): Session {
     const session = this.store.getSession(id);
-    if (!session || session.ownerId !== user.id && user.role !== 'admin') throw Object.assign(new Error('Session not found.'), { status: 404, code: 'not_found' });
+    if (!session || session.ownerId !== user.id && user.role !== 'admin') throw Object.assign(new Error('Unfold has no such session, or it is not yours. Open it from the Sessions list.'), { status: 404, code: 'not_found' });
     if (!session.execution || !this.config.execution) deliveryFailure('shared_execution_required');
     if (mutate) new ExecutionAuthority(this.store, this.config).authorize(user);
     return session;

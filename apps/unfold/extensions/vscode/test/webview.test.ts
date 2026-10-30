@@ -111,7 +111,7 @@ test('the situation counts only the final read role as a reviewer', () => {
   assert.equal(view.situation(completed)[0], 'Required reviewers approved (1 of 1).');
   const policy = session({ status: 'failed', failure: { category: 'policy_violation', stage: 'execution', message: 'A model request left the providers this workbench allows.', remediation: 'Check the gateway route.', promptAcceptance: 'accepted', automaticRetry: false } });
   assert.equal(view.situation(policy)[0], 'Gateway policy failed: A model request left the providers this workbench allows.');
-  assert.equal(view.failureNotice(policy).find('strong')[0]?.textContent, 'Gateway policy needs attention');
+  assert.equal(view.failureNotice(policy).find('strong')[0]?.textContent, 'Gateway policy failed');
 });
 
 test('the gateway tab summarises attribution and lists every request with its flags', () => {

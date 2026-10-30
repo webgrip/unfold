@@ -301,7 +301,7 @@ export class IntakeService {
   async receive(sourceId: string, delivery: { headers: IncomingHttpHeaders; query: URLSearchParams; body: Buffer; contentType: string; client: string }): Promise<IntakeAnswer> {
     const limits = this.limits;
     const clientKey = `client:${delivery.client}`;
-    const tooMany = (wait: number) => new IntakeError(429, 'rate_limited', 'Too many deliveries; retry later.', wait);
+    const tooMany = (wait: number) => new IntakeError(429, 'rate_limited', 'Too many deliveries arrived from this source in a short time. Send this one again after the wait the Retry-After header names.', wait);
     const clientWait = this.buckets.take(clientKey, limits.client);
     if (clientWait) throw tooMany(clientWait);
     const refuse = (error: IntakeError): never => { this.buckets.charge(clientKey, limits.client, limits.failureCost); throw error; };
