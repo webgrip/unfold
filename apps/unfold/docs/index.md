@@ -21,6 +21,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Bill accepted tickets through Simplicate](operations/billing-simplicate.md): one line per accepted Work Item in your own billing tool
+- [Get notified (ntfy and Web Push)](operations/notifications.md)
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
 - [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export
 - [Leaving Unfold: export a Tenant](operations/leaving-unfold.md): the export bundle, its formats and how to use it elsewhere

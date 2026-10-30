@@ -6,7 +6,7 @@ function billingSecrets(config: AppConfig): string[] {
   return value ? [value, ...value.split(':').filter(part => part.length >= 8)] : [];
 }
 
-/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg, token exchange, task source and billing credentials and the Sentry DSN. */
+/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg, token exchange, task source and billing credentials, the Sentry DSN, the ntfy token and the VAPID private key. */
 export function knownSecrets(config: AppConfig): string[] {
   return [
     config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined,
@@ -18,6 +18,8 @@ export function knownSecrets(config: AppConfig): string[] {
     config.ploeg?.personTokens ? process.env[config.ploeg.personTokens.clientSecretEnv] : undefined,
     ...(config.taskSources ?? []).map(source => source.token), config.errorReports?.sentryDsn,
     ...billingSecrets(config),
+    config.notifications?.ntfy?.tokenEnv ? process.env[config.notifications.ntfy.tokenEnv] : undefined,
+    config.notifications?.webPush ? process.env[config.notifications.webPush.privateKeyEnv] : undefined,
   ].filter((value): value is string => Boolean(value));
 }
 

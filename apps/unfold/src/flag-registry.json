@@ -245,6 +245,20 @@
         "labs": false
       }
     },
+    "notifications.push": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Notifications over ntfy and Web Push",
+        "description": "Lets a person choose to be told, over ntfy or Web Push, when a Work Item needs them, a question or tool permission waits for them, a pull request is ready for review, a Client Sign-off was recorded or a budget threshold was crossed (docs/operations/notifications.md). Each person opts in per channel and trigger, with optional quiet hours. Evaluated per person on the server; while it is off for a person, Unfold queues nothing for them and refuses changes to their choices. The demo sends nothing.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

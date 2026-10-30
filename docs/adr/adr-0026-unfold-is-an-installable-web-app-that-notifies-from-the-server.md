@@ -83,3 +83,4 @@ Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 * Evidence: [substrate, language and Run bottlenecks](https://github.com/ploeg-hq/ploeg/blob/development/docs/research/2026-10-05-substrate-language-and-run-bottlenecks.md), §4 and §7.
 * Re-open with a native shell when biometric approval, deep links, a tray, or iOS push without Add to Home Screen is asked for twice.
 * 2026-10-05: proposed with [RFC-0004](../design/rfc-0004-unfold-on-phones-and-desktops.md).
+* 2026-10-30: the server-side notifier is built behind the `notifications.push` flag, off by default ([Get notified](../../apps/unfold/docs/operations/notifications.md)): ntfy and Web Push as adapters in one channel registry, per-person opt-in with quiet hours, and `public/sw.js` for push only. The shell cache, the offline browser check and the triage view are not built, so the record stays proposed.

@@ -71,6 +71,7 @@ import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
 import { AuditTrail } from './audit/service.ts';
 import { TenantExports, isTenantExportRoute, tenantExportRoute } from './tenant-export-jobs.ts';
+import { Notifications } from './notify/service.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -300,6 +301,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
+  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
+  notifications.start();
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const outbound = new OutboundEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo' });
@@ -556,6 +559,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           return json(res, 200, await labsView(user));
         }
+        if (path === '/api/me/notifications' || path.startsWith('/api/me/notifications/')) { const answer = await notifications.route(user, method, path, () => body(req)); return json(res, answer.status, answer.body); }
         if (path === '/api/now/snoozes') {
           const now = new Date();
           const mine = () => ({ snoozes: store.nowSnoozes(user.id, now.toISOString(), new Date(now.getTime() - snoozeRetentionDays * 86_400_000).toISOString()), limit: maxNowSnoozes, demo: config.mode === 'demo' });
@@ -1181,7 +1185,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/start.js': 'start.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/console-view.js': 'console-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/connections.js': 'connections.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/start.js': 'start.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/console-view.js': 'console-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/connections.js': 'connections.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js', '/sw.js': 'sw.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));
@@ -1220,6 +1224,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
+  server.on('close', () => notifications.stop());
   server.keepAliveTimeout = keepAliveTimeoutMs;
   return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); billing.stop(); }, reports };
 }

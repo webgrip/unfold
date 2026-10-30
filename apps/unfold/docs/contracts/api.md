@@ -611,6 +611,20 @@ A person sets rows aside on their own Now ([ADR 0056](../adrs/0056-a-person-snoo
 * `kind` is `snooze` (the default) or `dismiss` (400 `snooze_kind`). A dismissal is for a `task:` key only and lasts until it changes; `until` may be left out (400 `snooze_dismiss` otherwise).
 * `PUT` and `DELETE` are guarded mutations like every other and appear in the person's action log.
 
+#### Notifications
+
+A person chooses how Unfold tells them that something waits for them ([Get notified](../operations/notifications.md), system ADR-0026, proposed). Every role may set their own; nobody reads or changes another person's. While the `notifications.push` flag is off for the person, `GET` answers `{enabled: false, demo}` and every other route 404 `notifications_off`. Every answer below except that one is the same view: `{enabled: true, demo, triggers, preferences, channels, recent}`, plus `result` from a channel route.
+
+| Route | Request and answer |
+| --- | --- |
+| `GET /api/me/notifications` | → the view. `triggers` lists `{id, label, detectedFrom}`; `preferences` is `{channels, triggers, quietHours}`, empty for a person who never chose; `channels` lists `{id, label, available}` and, when available, what the channel shows: ntfy `{server, topic, subscribeUrl, protected}`, Web Push `{publicKey, subscriptions: [{id, host, createdAt}]}`; `recent` lists the person's last 20 notices `{id, trigger, title, channel, state, attempts, createdAt, updatedAt, lastError}` |
+| `PUT /api/me/notifications` | `{channels, triggers, quietHours}` → the view. `channels` are available channel ids (400 `notify_channel`), `triggers` are listed trigger ids (400 `notify_trigger`), `quietHours` is `null` or `{start, end, timeZone}` with `HH:MM` times and an IANA zone (400 `notify_quiet_hours`, `notify_time_zone`). Turning ntfy on creates the person's topic |
+| `DELETE /api/me/notifications` | → the view. Forgets the person's preferences, topic, subscriptions and notices |
+| `POST /api/me/notifications/test` | `{}` → 202 `{demo: false, queued}`: one test notice per chosen channel and target, outside quiet hours. In the demo 200 `{demo: true, queued: 0, message}` and nothing is sent |
+| `POST /api/me/notifications/channels/ntfy/topic` | `{}` → the view with a new topic; the old one gets nothing more. 409 `notify_unavailable` when ntfy is not configured |
+| `POST /api/me/notifications/channels/web-push/subscriptions` | A browser's `PushSubscription.toJSON()` → 201, the view with `result.id`. The endpoint must be HTTPS on a public host and the keys a P-256 point and a 16-byte secret (400 `notify_subscription`). The same endpoint replaces its keys; a person keeps at most 10, the oldest goes first |
+| `DELETE /api/me/notifications/channels/web-push/subscriptions/:id` | → the view. 404 `not_found` for a subscription that is not the person's |
+
 ### Cancel
 
 Cancel is for operators and administrators; viewers get 403. Live, Unfold asks Ploeg to cancel the Work Item as the signed-in person and answers `{workItemId, team, state, demo: false, withdrawn, shiftId, cancelledRuns, stoppedRuns, keysBlocked, message}` with Ploeg's own figures:

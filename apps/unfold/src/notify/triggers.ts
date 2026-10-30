@@ -1,0 +1,58 @@
+import { plainRedactedText } from '../redaction.ts';
+
+/** What can notify a person. */
+export const triggerIds = ['needs_you', 'question', 'review', 'sign_off', 'budget'] as const;
+export type TriggerId = typeof triggerIds[number];
+
+/** One trigger as the Notifications page lists it, with where Unfold detects it. */
+export type TriggerSpec = { id: TriggerId; label: string; detectedFrom: string };
+
+/** Every trigger, in the order the Notifications page lists them. */
+export const triggers: readonly TriggerSpec[] = [
+  { id: 'needs_you', label: 'A Work Item needs you', detectedFrom: 'Ploeg audit actions work_item.needs_human and work_item.stale' },
+  { id: 'question', label: 'A question or tool permission waits for you', detectedFrom: 'work_item.needs_human after a Shift closed question_for_person, and a pending tool-permission request in your own agent session' },
+  { id: 'review', label: 'A pull request is ready for review', detectedFrom: 'Ploeg audit action work_item.awaiting_review' },
+  { id: 'sign_off', label: 'A Client Sign-off was recorded', detectedFrom: 'Unfold\'s Client Sign-off store' },
+  { id: 'budget', label: 'A Work Item crossed a budget threshold', detectedFrom: 'the latest Shift\'s spent and held share of its budget after each Run\'s outcome' },
+];
+
+/** Whether `value` names a trigger. */
+export function isTrigger(value: unknown): value is TriggerId { return typeof value === 'string' && (triggerIds as readonly string[]).includes(value); }
+
+/** What a channel sends: a headline, one line of body, where a click goes, and a tag that collapses repeats of the same notice. */
+export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string };
+
+const headlines: Record<Exclude<TriggerId, 'budget'>, string> = {
+  needs_you: 'A Work Item needs you',
+  question: 'A question waits for you',
+  review: 'A pull request is ready for review',
+  sign_off: 'A Client Sign-off was recorded',
+};
+
+/** The Work Item title as a notice may carry it: one line, secrets masked, at most 120 characters. */
+export function noticeTitle(title: string): string {
+  const line = plainRedactedText(title).replace(/\s+/g, ' ').trim();
+  return line.length > 120 ? `${line.slice(0, 119).trimEnd()}…` : line;
+}
+
+const link = (baseUrl: string | undefined, hash: string) => baseUrl ? `${baseUrl.replace(/\/+$/, '')}/#${hash}` : null;
+
+/**
+ * The notice for a trigger about one Work Item: a fixed headline, the Work Item's number and title, and a link to
+ * its page. A budget notice names the share used, never an amount. Nothing else from the Work Item is carried.
+ */
+export function workItemMessage(trigger: TriggerId, workItem: { id: string; title: string }, baseUrl?: string, share?: number): NotificationMessage {
+  const title = trigger === 'budget' ? `A Work Item used ${Math.round((share ?? 1) * 100)} % of its budget` : headlines[trigger];
+  const name = noticeTitle(workItem.title);
+  return { trigger, title, body: name ? `#${workItem.id} ${name}` : `Work Item #${workItem.id}`, url: link(baseUrl, `work/${encodeURIComponent(workItem.id)}`), tag: `${trigger}-${workItem.id}` };
+}
+
+/** The notice for a tool-permission request in the person's own agent session. It never carries the tool or its arguments. */
+export function permissionMessage(sessionId: string, baseUrl?: string): NotificationMessage {
+  return { trigger: 'question', title: 'A tool permission waits for you', body: 'Your agent session asks before it runs a tool.', url: link(baseUrl, `linked-session/${encodeURIComponent(sessionId)}`), tag: `permission-${sessionId}` };
+}
+
+/** The test notice a person sends themselves from the Notifications page. */
+export function testMessage(baseUrl?: string): NotificationMessage {
+  return { trigger: 'test', title: 'Unfold notifications work', body: 'This is the test notice you asked for.', url: link(baseUrl, 'settings/notifications'), tag: 'test' };
+}
