@@ -76,6 +76,7 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_ERROR_OTLP_URL` | Optional OTLP/HTTP logs URL of an OpenTelemetry collector (ends in `/v1/logs`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as log records. See [Error reports](#error-reports) |
 | `UNFOLD_SENTRY_DSN` | Optional Sentry-protocol DSN (`https://<key>@<host>/<project>`) for Sentry, GlitchTip or Bugsink; the same reports as envelopes |
 | `UNFOLD_ERROR_ENVIRONMENT` | Environment name on each report, such as `staging`; defaults to the mode |
+| `UNFOLD_MCP_RESOURCE`, `UNFOLD_MCP_ISSUER`, `UNFOLD_MCP_TOKEN_AUDIENCE`, `UNFOLD_MCP_CLIENT_IDS` and the other `UNFOLD_MCP_*` | Serve `unfold-mcp` over HTTPS at `UNFOLD_MCP_RESOURCE`, for tokens of `UNFOLD_MCP_ISSUER` whose `aud` is that URL. `UNFOLD_MCP_TOKEN_AUDIENCE=client-id` also accepts the client id in `aud`, which Authentik needs. Off unless `UNFOLD_MCP_RESOURCE` is set. See [Serve Unfold's MCP tools over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md#2-configure-the-unfold-server) |
 | `UNFOLD_PLOEG_MCP_URL` | Optional exact resource URL of the remote `ploeg-mcp`, the same string as its `PLOEG_MCP_RESOURCE`. HTTPS, except on loopback. No default. See [Ploeg's MCP server in VS Code](#ploegs-mcp-server-in-vs-code) |
 | `UNFOLD_PLOEG_MCP_CLIENT_ID` | The public OAuth client registered for that server, such as `ploeg-mcp`. Set it together with the URL; one without the other stops Unfold from starting |
 

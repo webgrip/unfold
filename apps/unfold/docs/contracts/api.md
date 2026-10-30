@@ -335,6 +335,27 @@ Delivery applies only to a shared Ploeg execution on a repository with a configu
 
 The VS Code extension provides this server to VS Code's chat by URL ([extension README](../../extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)). `unfold-mcp` is not listed: it runs over stdio with the person's `UNFOLD_TOKEN`, and an editor that receives it from an extension writes that token to disk in plain text ([ADR-0011, 2026-10-16](../../../../docs/adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md#more-information)).
 
+## unfold-mcp over HTTP
+
+With `UNFOLD_MCP_RESOURCE` set, the server also answers these routes outside `/api/` ([Serve Unfold's MCP tools over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md)). The endpoint path is the resource URL's path, such as `/mcp`.
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /.well-known/oauth-protected-resource` and `GET /.well-known/oauth-protected-resource<endpoint>` | The RFC 9728 protected resource metadata, public, with `Access-Control-Allow-Origin: *`: `{resource, authorization_servers: [issuer], scopes_supported, bearer_methods_supported: ["header"], resource_name: "Unfold"}`. `resource` is the exact `UNFOLD_MCP_RESOURCE` and `authorization_servers` the exact `UNFOLD_MCP_ISSUER` |
+| `POST <endpoint>` | One JSON-RPC message as `application/json`, at most 1 MiB, with `Authorization: Bearer <access token>`. No token, or a refused one, answers 401 with `WWW-Authenticate: Bearer` naming `scope` and `resource_metadata`; a token without the required scope answers 403 `insufficient_scope`; another `Origin` answers 403. A notification answers 202. Answers are JSON, never SSE, and never carry `Mcp-Session-Id` |
+| `GET` or `DELETE <endpoint>` | 405: there is no server-to-client stream and no session |
+
+An access token is accepted when it is a JWT signed with an asymmetric key from the issuer's key set; its `iss` equals `UNFOLD_MCP_ISSUER` as an exact string; its `aud` names the resource (RFC 8707), compared after URL parsing, so only the case of the scheme and host may differ, or, under `UNFOLD_MCP_TOKEN_AUDIENCE=client-id`, one of `UNFOLD_MCP_CLIENT_IDS`; it names its client in `client_id` or `azp`, which must be in `UNFOLD_MCP_CLIENT_IDS` when that list is set (an entry may be a Client ID Metadata Document URL); it carries `scope` with the required scope, `sub`, `iat` and `exp`; and it lives at most `UNFOLD_MCP_MAX_TOKEN_LIFETIME`.
+
+The message is served by MCP revision, per request:
+
+| Revision | How a request is recognised | Rules |
+| --- | --- | --- |
+| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call`, `Mcp-Name` (plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`. Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list` and `server/discover` carry `ttlMs` and `cacheScope: "public"` |
+| 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`. Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
+
+A tool that asks the person to confirm returns, to a 2026-07-28 client that declares form elicitation, `{resultType: "input_required", inputRequests: {confirm_action | confirm_spend: {method: "elicitation/create", params: {mode: "form", message, requestedSchema}}}, requestState}`. The client retries `tools/call` with `inputResponses` and the same `requestState`. The state is HMAC-sealed with a key of this process and binds the person, the tool and its arguments, the hash of the message and a 10-minute expiry; it acts at most once. A retry without a well-formed answer under the requested key is asked again; `cancel` returns a result that links to the Unfold page. A 2025 client over HTTP cannot be asked and is refused with that link.
+
 ## Agent host
 
 | Method and path | Behavior |
@@ -653,6 +674,15 @@ Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](.
 | `GET /api/admin/flags/export` | Administrators only: `{flags}`, the flagd rules the authored rollouts compile to, with segments inlined |
 | `POST /api/ofrep/v1/evaluate/flags` | OFREP 0.4.0 bulk evaluation for the signed-in person or editor: `{context}` → `{flags: [{key, value, reason, variant, metadata}]}` with an `ETag`; `If-None-Match` with that ETag answers 304. Only browser-visible flags are listed. The context's identity attributes (`targetingKey`, `userId`, `role`, `teams`, `tenantId`, `mode`, `labs`, `labsOff`, `flagVariants`) come from the session, and a client may add up to 32 scalar attributes of its own. Needs no `X-Unfold-Request` header |
 | `POST /api/ofrep/v1/evaluate/flags/:key` | OFREP single evaluation: 200 `{key, value, reason, variant, metadata}`, 404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed |
+
+## Security audit
+
+Unfold records security-relevant events as OCSF 1.9.0 in one hash chain per Tenant ([Send Unfold's audit to your SIEM](../operations/audit-siem.md)). Both routes need the Admin account role and an Admin membership of the Tenant asked for; `tenant` may be left out by someone who administers exactly one Tenant (400 `audit_tenant` otherwise, 403 `audit_tenant_forbidden` for a Tenant the caller does not administer).
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/admin/audit?tenant=&since=&cursor=&limit=` | `application/x-ndjson`: one OCSF event per line, oldest first, after sequence `cursor` (default 0) and from ISO time `since`, at most `limit` (1 to 1000, default 500). Headers: `X-Unfold-Audit-Tenant`, `X-Unfold-Audit-Head` (`<sequence>:<sha256>`), and when more follow `X-Unfold-Audit-Next-Cursor` and `Link: <…>; rel="next"`. 404 `audit_export_off` while the Tenant's `audit.export` flag is off; 400 `audit_since`, `audit_cursor` or `audit_limit` for a malformed value. Each read is itself recorded |
+| `GET /api/admin/audit/verify?tenant=` | `{tenant, ok, checked, anchor, head, break}`: the chain checked from its newest retention anchor; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. Answers whatever the flag says |
 
 ## Static files
 

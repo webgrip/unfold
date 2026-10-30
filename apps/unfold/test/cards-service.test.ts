@@ -358,7 +358,7 @@ test('the card comment is published through Ploeg’s keyed comment only when tu
   assert.deepEqual(Object.keys(body.image).sort(), ['alt', 'svg']);
   assert.equal(body.number, 10);
   assert.equal(body.adoptCommentId, 555, 'the first publish takes over the comment Ploeg posted on that pull request');
-  assert.match(body.markdown, /^### Run card · /);
+  assert.match(body.markdown, /^<!-- unfold:ai-generated v=1 subject=pull-request review=(approved|merged|pending)\b[^\n]* -->\n_Written by an AI agent and [^\n]+\._\n\n### Run card · /, 'the card comment opens with the AI marking of the agent’s pull request');
   assert.equal(body.markdown.includes('<!-- ploeg:'), false, 'Ploeg adds its own marker; Unfold sends none');
   assert.match(body.image.svg, /^<svg[\s>]/);
   assert.match(body.image.alt, /^Run card: /);
