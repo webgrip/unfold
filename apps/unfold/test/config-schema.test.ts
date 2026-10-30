@@ -91,3 +91,9 @@ test('every environment variable src/ reads is in the environment reference, and
   assert.deepEqual([...documented].filter(name => !read.has(name)).sort(), [], 'listed in docs/contracts/config.v1.environment.json but never read in src/');
   for (const variable of environment.variables) assert(variable.type && variable.description, `${variable.name} needs a type and a description`);
 });
+
+test('the schema lists exactly the task source providers Unfold registers', async () => {
+  const { taskProviders } = await import('../src/task-providers/index.ts');
+  const schema = configSchema() as { properties: { taskSources: { items: { properties: { provider: { enum: string[] } } } } } };
+  assert.deepEqual([...schema.properties.taskSources.items.properties.provider.enum].sort(), taskProviders().map(adapter => adapter.name).sort());
+});

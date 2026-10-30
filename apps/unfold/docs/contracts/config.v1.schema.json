@@ -210,7 +210,7 @@
         "properties": {
           "id": { "$ref": "#/$defs/slug", "description": "Unique lowercase slug that names the source." },
           "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Name people see." },
-          "provider": { "type": "string", "enum": ["forgejo", "github", "gitlab", "vikunja", "clickup", "demo"], "description": "Tracker kind; demo is the fixture tracker of demo mode." },
+          "provider": { "type": "string", "enum": ["forgejo", "github", "gitlab", "vikunja", "clickup", "jira", "demo"], "description": "Tracker kind; demo is the fixture tracker of demo mode." },
           "baseUrl": { "type": "string", "maxLength": 2048, "pattern": "^https?://\\S+$", "description": "Tracker API root, such as https://forge.example/api/v1; HTTPS except on loopback." },
           "project": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Repository, project or list on the tracker, in the provider's own form." },
           "repositoryId": { "$ref": "#/$defs/slug", "description": "Registered repository the source's tasks change." },

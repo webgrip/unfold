@@ -23,7 +23,7 @@ A key ending in `Env` names an environment variable that holds a secret, so no s
 
 ## In the Helm chart
 
-The chart renders `config:` from its values into the file, and its [values.schema.json](../../ops/helm/unfold/values.schema.json) holds the same rules, so `helm lint` and `helm template` stop on a misspelt key. It writes `mode`, `dataDir`, `publicDir`, `runtime`, `kubernetes` and `auth.localLogin` itself and refuses them under `config:`. It also sets `baseUrl` when the chart value `baseUrl` is set, and `delivery` and `decider` from their own chart values when those are enabled.
+The chart renders `config:` from its values into the file, and its [values.schema.json](../../ops/helm/unfold/values.schema.json) holds the same keys, types and limits, so `helm lint` and `helm template` stop on a misspelt key or a wrong value; a missing required key is reported by Unfold at startup. It writes `mode`, `dataDir`, `publicDir`, `runtime`, `kubernetes` and `auth.localLogin` itself and refuses them under `config:`. It also sets `baseUrl` when the chart value `baseUrl` is set, and `delivery` and `decider` from their own chart values when those are enabled.
 
 ## Environment variables
 
@@ -107,7 +107,7 @@ The JSON file Unfold reads from --config or UNFOLD_CONFIG. Keys are written as d
 | `maxBudgetUsd` | number, 0.01–10000 | `25` | Largest budget in US dollars one session may request. |
 | `trustedProxies` | list of string (at most 100 entries) |  | Addresses and CIDR ranges of the reverse proxies whose X-Forwarded-For names the client. Absent trusts none. |
 
-### repositories
+### `repositories`
 
 The repositories sessions may work on. Demo mode replaces them with the bundled example. Default: `[]`.
 
@@ -130,7 +130,7 @@ The repositories sessions may work on. Demo mode replaces them with the bundled 
 | `repositories[].tenant` | string |  | Tenant that owns the repository (system ADR-0017); the default Tenant when absent. |
 | `repositories[].client` | string |  | Client inside the Tenant that owns the repository. |
 
-### teams
+### `teams`
 
 The Teams sessions run with, each a list of Roles run in order. Absent means the delivery and investigation Teams; demo mode uses delivery only.
 
@@ -147,7 +147,7 @@ The Teams sessions run with, each a list of Roles run in order. Absent means the
 | `teams[].roles[].model` | string |  | Model id from models; the session's or the first when absent. |
 | `teams[].roles[].maxToolCalls` | integer, 1–2000 |  | Tool calls this Role may make in a Run; runtime.maxToolCalls when absent. |
 
-### crews
+### `crews`
 
 Deprecated. Retired name of teams (system ADR-0036), still read. Set teams instead; both with different lists stops Unfold.
 
@@ -164,7 +164,7 @@ Deprecated. Retired name of teams (system ADR-0036), still read. Set teams inste
 | `crews[].roles[].model` | string |  | Model id from models; the session's or the first when absent. |
 | `crews[].roles[].maxToolCalls` | integer, 1–2000 |  | Tool calls this Role may make in a Run; runtime.maxToolCalls when absent. |
 
-### models
+### `models`
 
 The models a session or Role may pick; the first is the default. Default: `[{"id":"coding","name":"Coding","providerId":"litellm","modelId":"coding"}]`.
 
@@ -175,7 +175,7 @@ The models a session or Role may pick; the first is the default. Default: `[{"id
 | `models[].providerId` | string |  | Provider id in the agent's OpenCode configuration. |
 | `models[].modelId` | string |  | Model alias the gateway serves. |
 
-### runtime
+### `runtime`
 
 How agent Runs execute and where their workspaces live.
 
@@ -195,7 +195,7 @@ How agent Runs execute and where their workspaces live.
 | `runtime.reconnectGraceMs` | integer, 1000–900000 | `300000` | How long a restarted workbench waits for a workspace worker to reconnect, in milliseconds. |
 | `runtime.briefCheck` | boolean | `true` | Whether a configured model checks that a hand-written objective is actionable before the session starts. |
 
-### docker
+### `docker`
 
 The Docker workspace backend. Read when runtime.backends lists docker.
 
@@ -213,7 +213,7 @@ The Docker workspace backend. Read when runtime.backends lists docker.
 | `docker.relayUrl` | string |  | Workbench URL the container's worker connects back to (transport pull). |
 | `docker.provisionTimeoutMs` | integer, 5000–3600000 | `180000` | How long a container may take to become ready, in milliseconds. |
 
-### kubernetes
+### `kubernetes`
 
 The Kubernetes workspace backend. Required when runtime.backends lists kubernetes; the Helm chart writes it from its workspace values.
 
@@ -251,7 +251,7 @@ The Kubernetes workspace backend. Required when runtime.backends lists kubernete
 | `kubernetes.workspaceRetentionDays` | integer, 0–365 | `7` | Days a finished workspace's volume is kept before it is deleted. |
 | `kubernetes.volumeDeleteAnnotations` | map of annotation to string | `{}` | Annotations set on a workspace volume before it is deleted, such as a backup tool's opt-out. |
 
-### litellm
+### `litellm`
 
 The model gateway agents call.
 
@@ -263,7 +263,7 @@ The model gateway agents call.
 | `litellm.settlementDelayMs` | integer, 0–3600000 | `60000` | How long after a Run ends Unfold waits before it reads the gateway's final spend, in milliseconds. |
 | `litellm.masterKey` | refused |  | Never set here: the gateway master key belongs in LITELLM_MASTER_KEY. |
 
-### taskSources
+### `taskSources`
 
 Tracker projects Unfold imports tasks from. Demo mode adds a fixture source when absent. Default: `[]`.
 
@@ -271,7 +271,7 @@ Tracker projects Unfold imports tasks from. Demo mode adds a fixture source when
 | --- | --- | --- | --- |
 | `taskSources[].id` | string |  | Unique lowercase slug that names the source. |
 | `taskSources[].name` | string |  | Name people see. |
-| `taskSources[].provider` | one of `forgejo`, `github`, `gitlab`, `vikunja`, `clickup`, `demo` |  | Tracker kind; demo is the fixture tracker of demo mode. |
+| `taskSources[].provider` | one of `forgejo`, `github`, `gitlab`, `vikunja`, `clickup`, `jira`, `demo` |  | Tracker kind; demo is the fixture tracker of demo mode. |
 | `taskSources[].baseUrl` | string |  | Tracker API root, such as https://forge.example/api/v1; HTTPS except on loopback. |
 | `taskSources[].project` | string |  | Repository, project or list on the tracker, in the provider's own form. |
 | `taskSources[].repositoryId` | string |  | Registered repository the source's tasks change. |
@@ -286,7 +286,7 @@ Tracker projects Unfold imports tasks from. Demo mode adds a fixture source when
 | `taskSources[].tenant` | string |  | Tenant that owns the source; it must own the repository too. |
 | `taskSources[].client` | string |  | Client inside the Tenant that owns the source. |
 
-### auth
+### `auth`
 
 How people sign in.
 
@@ -312,7 +312,7 @@ How people sign in.
 | `auth.oidc.roles.operator` | list of string (at most 20 entries) | `["unfold-operators"]` | Groups whose members are operators. |
 | `auth.oidc.roles.viewer` | list of string (at most 20 entries) | `["unfold-viewers"]` | Groups whose members are viewers. |
 
-### ploeg
+### `ploeg`
 
 The Ploeg API Unfold reads from and acts through. Live mode requires it.
 
@@ -331,7 +331,7 @@ The Ploeg API Unfold reads from and acts through. Live mode requires it.
 | `ploeg.personTokens.clientSecretEnv` | string |  | Environment variable holding the exchange client secret. |
 | `ploeg.personTokens.audience` | string |  | Audience of the exchanged token. |
 
-### execution
+### `execution`
 
 Shared execution under Ploeg. Live mode requires it.
 
@@ -340,7 +340,7 @@ Shared execution under Ploeg. Live mode requires it.
 | `execution.team` | string |  | Ploeg Team sessions run under; within ploeg.teams when that is set. |
 | `execution.heartbeatMs` | integer, 1000–20000 | `15000` | How often Unfold renews its execution lease with Ploeg, in milliseconds. |
 
-### links
+### `links`
 
 Accounts people link to act on other forges and trackers as themselves.
 
@@ -356,7 +356,7 @@ Accounts people link to act on other forges and trackers as themselves.
 | `links.clickup.apiUrl` | string | `https://api.clickup.com` | ClickUp API URL. |
 | `links.clickup.appUrl` | string | `https://app.clickup.com` | ClickUp application URL people authorize at. |
 
-### gatewayPolicy
+### `gatewayPolicy`
 
 Providers and regions the retired standalone path allowed; refused together with execution in live mode, where the gateway enforces residency.
 
@@ -365,7 +365,7 @@ Providers and regions the retired standalone path allowed; refused together with
 | `gatewayPolicy.providers` | list of string (1–50 entries) |  | Allowed provider names. |
 | `gatewayPolicy.regions` | list of string (1–50 entries) |  | Allowed region names. |
 
-### observability
+### `observability`
 
 Links from sessions and Runs into the estate's Grafana.
 
@@ -380,7 +380,7 @@ Links from sessions and Runs into the estate's Grafana.
 | `observability.traceQuery` | string |  | Trace query template. |
 | `observability.logsQuery` | string |  | Logs query template. |
 
-### audit
+### `audit`
 
 The security audit.
 
@@ -404,7 +404,7 @@ The security audit.
 | `audit.checkpoints.accessKeyId` | refused |  | Not read from the configuration file; set UNFOLD_AUDIT_CHECKPOINT_ACCESS_KEY_ID from a secret. |
 | `audit.checkpoints.secretAccessKey` | refused |  | Not read from the configuration file; set UNFOLD_AUDIT_CHECKPOINT_SECRET_ACCESS_KEY from a secret. |
 
-### cards
+### `cards`
 
 Run cards and their binders and packs.
 
@@ -440,7 +440,7 @@ Run cards and their binders and packs.
 | `cards.rules.teams.<team>.pullRequestComment` | boolean | `false` | Whether the Team's pull requests get a card comment. |
 | `cards.rules.teams.<team>.workingHours` | object |  | The Team's working hours, which flow time counts. |
 
-### cardThemes
+### `cardThemes`
 
 Card themes administrators make, and optional generated art.
 
@@ -456,7 +456,7 @@ Card themes administrators make, and optional generated art.
 | `cardThemes.ai.timeoutMs` | number, 5000–300000 | `90000` | How long one generation may take, in milliseconds. |
 | `cardThemes.ai.requestsPerHour` | number, 1–500 | `30` | Generations allowed per hour. |
 
-### decider
+### `decider`
 
 The decider the tripwire asks (RFC-0008, ADR-0042). Absent, or in demo mode, the tripwire is off.
 
@@ -468,7 +468,7 @@ The decider the tripwire asks (RFC-0008, ADR-0042). Absent, or in demo mode, the
 | `decider.name` | string | `Hetzner Qwen` | Name a hit shows. |
 | `decider.requestsPerMinute` | number, 1–60 | `8` | Screens allowed per minute. |
 
-### runHealth
+### `runHealth`
 
 Run health's shadow judge (RFC-0007).
 
@@ -476,7 +476,7 @@ Run health's shadow judge (RFC-0007).
 | --- | --- | --- | --- |
 | `runHealth.judgeModels` | list of string (1–8 entries) | `["hetzner-qwen3-8-27b","hetzner-qwen3-6-35b-a3b"]` | Gateway models the judge may use, in order of preference; it never falls back to another. |
 
-### judgement
+### `judgement`
 
 The Work Kind expectations each Team pins over the defaults (RFC-0009).
 
@@ -489,7 +489,7 @@ The Work Kind expectations each Team pins over the defaults (RFC-0009).
 | `judgement.teams.<team>.expectations.<work kind>.cycles` | integer, 1–50 |  | Edit and verify cycles expected. |
 | `judgement.teams.<team>.expectations.<work kind>.verifyBeforeShip` | boolean |  | Whether a Run must verify before it ships. |
 
-### flags
+### `flags`
 
 Feature flag rules (ADR 0043): an inline flagd document, an optional watched file and the providers asked.
 
@@ -516,7 +516,7 @@ Feature flag rules (ADR 0043): an inline flagd document, an optional watched fil
 | `flags.strategy` | one of `first-match`, `first-successful` | `first-match` | How providers combine: the first that knows the flag, or the first that answers without an error. |
 | `flags.console` | boolean | `true` | Whether administrators may author rollouts in Unfold. |
 
-### delivery
+### `delivery`
 
 Candidate verification and publishing under pinned policies. Needs execution; refused in demo mode.
 
@@ -564,7 +564,7 @@ Candidate verification and publishing under pinned policies. Needs execution; re
 | `delivery.verifier.tolerations` | list of object |  | Tolerations of check pods. |
 | `delivery.verifier.imagePullSecrets` | list of string |  | Secrets check pods pull images with. |
 
-### reports
+### `reports`
 
 Where Report a problem files: false turns it off; { source, project? } uses a task source with a token; { provider, baseUrl, project, tokenEnv } is a connection of its own. Absent, the first interactive source that can file issues; off in demo mode.
 
@@ -577,7 +577,7 @@ Where Report a problem files: false turns it off; { source, project? } uses a ta
 | `reports.baseUrl` | string |  | Tracker API root. |
 | `reports.tokenEnv` | string |  | Environment variable holding the tracker token; unset keeps reports without filing them. |
 
-### notifications
+### `notifications`
 
 The notification channels the deployment offers (system ADR-0026). Absent, none.
 
@@ -601,7 +601,7 @@ The notification channels the deployment offers (system ADR-0026). Absent, none.
 | `notifications.teams.allowedHosts` | list of string (1–10 entries) | `["logic.azure.com","api.powerplatform.com"]` | Host suffixes a person's workflow URL may use. |
 | `notifications.budgetThresholds` | list of number, more than 0, at most 1 (at most 5 entries) | `[0.8,1]` | Shares of a budget whose crossing notifies. |
 
-### acceptanceCalendar
+### `acceptanceCalendar`
 
 Extra non-working dates the silent Acceptance timer skips.
 
@@ -609,7 +609,7 @@ Extra non-working dates the silent Acceptance timer skips.
 | --- | --- | --- | --- |
 | `acceptanceCalendar.nonWorkingDates` | list of string (at most 1000 entries) | `[]` | Dates as YYYY-MM-DD. |
 
-### tenancy
+### `tenancy`
 
 Tenant and Client checks (system ADR-0017).
 
@@ -617,7 +617,7 @@ Tenant and Client checks (system ADR-0017).
 | --- | --- | --- | --- |
 | `tenancy.enforce` | boolean | `false` | Limits every person to the repositories, task sources and Work Items their memberships reach. |
 
-### outboundEvents
+### `outboundEvents`
 
 Outbound webhooks.
 
@@ -625,7 +625,7 @@ Outbound webhooks.
 | --- | --- | --- | --- |
 | `outboundEvents.allowedPrivateTargets` | list of string (at most 100 entries) | `[]` | Non-public host names, addresses and CIDR ranges webhooks may still reach. |
 
-### hsts
+### `hsts`
 
 Strict-Transport-Security, sent only for an https baseUrl: false turns it off, true keeps the default, an object sets it. Default: `true`.
 
@@ -635,7 +635,7 @@ Strict-Transport-Security, sent only for an https baseUrl: false turns it off, t
 | `hsts.includeSubDomains` | boolean | `true` | Whether every host below the domain is included. |
 | `hsts.preload` | boolean | `false` | Whether the host asks for the preload list; needs includeSubDomains and a maxAge of at least a year. |
 
-### intake
+### `intake`
 
 The public Request intake.
 
@@ -650,7 +650,7 @@ The public Request intake.
 | `intake.rateLimit.source.burst` | integer, 1–100000 |  | Requests allowed at once. |
 | `intake.rateLimit.failureCost` | integer, 1–1000 | `5` | Tokens a refused delivery costs. |
 
-### billing
+### `billing`
 
 One line per accepted Work Item into the Agency's billing tool (system ADR-0006); also behind the billing.export flag. Refused in demo mode.
 
@@ -666,7 +666,7 @@ One line per accepted Work Item into the Agency's billing tool (system ADR-0006)
 | `billing.file` | object |  | The file adapter: CSV and UBL files any tool imports. |
 | `billing.file.directory` | string | `billing-export` | Folder the files are written to, relative to dataDir. |
 
-### identity
+### `identity`
 
 SCIM provisioning and the Shared Signals receiver; both need auth.oidc.
 

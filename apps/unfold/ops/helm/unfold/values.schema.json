@@ -150,7 +150,6 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "name", "url", "baseBranch", "verify"],
             "properties": {
               "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Unique lowercase slug that names the repository." },
               "name": { "type": "string", "minLength": 1, "description": "Name people see." },
@@ -171,7 +170,6 @@
               "access": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["username", "password"],
                 "description": "Basic credentials the workspace clones with. Prefer kubernetes.gitSecretName, which keeps the password out of this file.",
                 "properties": {
                   "username": { "type": "string", "description": "Git user name." },
@@ -181,7 +179,6 @@
               "mcp": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["litellmTeamId", "accessGroups"],
                 "description": "Read-only gateway MCP tools for sessions on this repository: session keys are minted into this LiteLLM team with exactly these access groups.",
                 "properties": {
                   "litellmTeamId": {
@@ -219,7 +216,6 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "roles"],
             "properties": {
               "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Unique lowercase slug that names the Team." },
               "name": { "type": "string", "description": "Name people see." },
@@ -232,7 +228,6 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["id", "name", "mode", "instruction"],
                   "properties": {
                     "id": { "type": "string", "minLength": 1, "description": "Role id, unique in the Team." },
                     "name": { "type": "string", "minLength": 1, "description": "Name people see." },
@@ -259,7 +254,6 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "roles"],
             "properties": {
               "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Unique lowercase slug that names the Team." },
               "name": { "type": "string", "description": "Name people see." },
@@ -272,7 +266,6 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["id", "name", "mode", "instruction"],
                   "properties": {
                     "id": { "type": "string", "minLength": 1, "description": "Role id, unique in the Team." },
                     "name": { "type": "string", "minLength": 1, "description": "Name people see." },
@@ -298,7 +291,6 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "providerId", "modelId"],
             "properties": {
               "id": { "type": "string", "minLength": 1, "description": "Id a Role's model or a session refers to." },
               "name": { "type": "string", "description": "Name people see." },
@@ -388,13 +380,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "name", "provider", "baseUrl", "project", "repositoryId", "executionOwner"],
             "properties": {
               "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Unique lowercase slug that names the source." },
               "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Name people see." },
               "provider": {
                 "type": "string",
-                "enum": ["forgejo", "github", "gitlab", "vikunja", "clickup", "demo"],
+                "enum": ["forgejo", "github", "gitlab", "vikunja", "clickup", "jira", "demo"],
                 "description": "Tracker kind; demo is the fixture tracker of demo mode."
               },
               "baseUrl": {
@@ -419,13 +410,11 @@
               "ploeg": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["target"],
                 "description": "The Ploeg target tasks of this source are handed off to (Vikunja and ClickUp, executionOwner ploeg).",
                 "properties": {
                   "target": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["forge", "owner", "repo", "baseBranch"],
                     "description": "Forge repository the work lands in; it must match the registered repository.",
                     "properties": {
                       "forge": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$", "description": "Forge name Ploeg knows." },
@@ -454,7 +443,7 @@
           "additionalProperties": false,
           "description": "How people sign in.",
           "properties": {
-            "localLogin": { "not": {}, "description": "Set by the chart value auth.localLogin; leave it out of config." },
+            "localLogin": { "description": "Set by the chart value auth.localLogin; the chart refuses it under config." },
             "secureCookies": { "type": "boolean", "description": "Whether cookies carry Secure; on when baseUrl is https." },
             "sessionHours": { "type": "number", "exclusiveMinimum": 0, "maximum": 8760, "default": 12, "description": "How long a sign-in lasts, in hours." },
             "bootstrapName": {
@@ -478,7 +467,6 @@
             "oidc": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["issuer", "clientId"],
               "description": "Single sign-on through an OpenID Connect provider.",
               "properties": {
                 "issuer": { "type": "string", "maxLength": 2048, "pattern": "^https?://\\S+$", "description": "Issuer URL." },
@@ -547,7 +535,6 @@
         "ploeg": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["url"],
           "description": "The Ploeg API Unfold reads from and acts through. Live mode requires it.",
           "properties": {
             "url": {
@@ -586,7 +573,6 @@
             "personTokens": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["tokenUrl", "clientId", "clientSecretEnv", "audience"],
               "description": "Exchanges each person's sign-in token for a Ploeg-audience token sent with every change Unfold makes for them (Unfold ADR 0055). Needs auth.oidc.",
               "properties": {
                 "tokenUrl": { "type": "string", "maxLength": 2048, "pattern": "^https?://[^\\s#]+$", "description": "Identity provider token endpoint." },
@@ -600,7 +586,6 @@
         "execution": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["team"],
           "description": "Shared execution under Ploeg. Live mode requires it.",
           "properties": {
             "team": {
@@ -836,7 +821,6 @@
               "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["lengthDays", "anchor"],
                 "properties": {
                   "lengthDays": { "type": "integer", "minimum": 7, "maximum": 42, "description": "Sprint length in days." },
                   "anchor": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "A date a sprint starts on, such as 2026-09-28." }
@@ -872,7 +856,6 @@
                       "style": {
                         "type": "object",
                         "additionalProperties": false,
-                        "required": ["skin"],
                         "description": "The repository's card skin and theme.",
                         "properties": {
                           "skin": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Skin name." },
@@ -984,7 +967,6 @@
             "ai": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["baseUrl", "model", "keyEnv"],
               "description": "Art generation through an OpenAI-compatible endpoint; ignored in demo mode.",
               "properties": {
                 "baseUrl": {
@@ -1015,7 +997,6 @@
         "decider": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["baseUrl"],
           "description": "The decider the tripwire asks (RFC-0008, ADR-0042). Absent, or in demo mode, the tripwire is off.",
           "properties": {
             "baseUrl": {
@@ -1129,7 +1110,6 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["kind"],
                 "properties": {
                   "kind": { "type": "string", "enum": ["flagd", "ofrep"], "description": "flagd is the in-process evaluator; ofrep asks an OFREP service." },
                   "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$", "description": "Name of an OFREP provider; ofrep-<position> when absent." },
@@ -1165,7 +1145,6 @@
         "delivery": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["verifierTokenEnv", "policies"],
           "description": "Candidate verification and publishing under pinned policies. Needs execution; refused in demo mode.",
           "properties": {
             "verifierTokenEnv": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,100}$", "description": "Environment variable holding the verifier credential." },
@@ -1178,7 +1157,6 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["repositoryId", "approvedBaseSha", "approvedBaseBundle", "image", "directory", "files", "protectedPaths", "checks"],
                 "properties": {
                   "repositoryId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Registered repository the policy verifies." },
                   "approvedBaseSha": { "type": "string", "pattern": "^[a-f0-9]{40}$", "description": "Commit candidates must build on." },
@@ -1209,7 +1187,6 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["id", "argv", "stdout", "exitCode"],
                       "properties": {
                         "id": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,80}$", "description": "Check name, unique in the policy." },
                         "argv": {
@@ -1237,7 +1214,6 @@
             "publisher": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["kind", "apiUrl", "tokenEnv"],
               "description": "Opens the pull request of an approved candidate.",
               "properties": {
                 "kind": { "type": "string", "enum": ["forgejo", "github", "gitlab"], "description": "Forge the publisher speaks to." },
@@ -1258,7 +1234,6 @@
             "verifier": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["kind"],
               "description": "Where checks run: the local Docker engine, or a Kubernetes namespace.",
               "properties": {
                 "kind": { "type": "string", "enum": ["docker", "kubernetes"], "description": "Verifier kind; docker takes no other setting." },
@@ -1277,14 +1252,12 @@
                 "resources": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["requests", "limits"],
                   "default": { "requests": { "cpu": "100m", "memory": "128Mi" }, "limits": { "cpu": "1", "memory": "512Mi" } },
                   "description": "Resources of check pods.",
                   "properties": {
                     "requests": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["cpu", "memory"],
                       "properties": {
                         "cpu": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$", "description": "CPU quantity." },
                         "memory": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$", "description": "Memory quantity." }
@@ -1294,7 +1267,6 @@
                     "limits": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["cpu", "memory"],
                       "properties": {
                         "cpu": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$", "description": "CPU quantity." },
                         "memory": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$", "description": "Memory quantity." }
@@ -1338,7 +1310,6 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["source"],
               "properties": {
                 "source": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "Task source to file through." },
                 "project": { "type": "string", "minLength": 1, "description": "Repository or project on the report tracker; the source's own when absent." },
@@ -1348,7 +1319,6 @@
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["provider", "baseUrl", "project", "tokenEnv"],
               "properties": {
                 "provider": { "type": "string", "enum": ["forgejo", "vikunja"], "description": "Tracker reports are filed on." },
                 "baseUrl": { "type": "string", "maxLength": 2048, "pattern": "^https?://\\S+$", "description": "Tracker API root." },
@@ -1371,7 +1341,6 @@
             "ntfy": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["server"],
               "description": "Notifications through an ntfy server.",
               "properties": {
                 "server": { "type": "string", "maxLength": 2048, "pattern": "^https?://\\S+$", "description": "ntfy server URL." },
@@ -1382,7 +1351,6 @@
             "webPush": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["subject", "publicKeyEnv", "privateKeyEnv"],
               "description": "Browser notifications through Web Push.",
               "properties": {
                 "subject": {
@@ -1397,7 +1365,6 @@
             "slack": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["tokenEnv", "signingSecretEnv"],
               "description": "Notifications and answers through a Slack app; refused in demo mode.",
               "properties": {
                 "tokenEnv": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]{0,127}$", "description": "Environment variable holding the bot token (xoxb-…)." },
@@ -1536,7 +1503,6 @@
         "billing": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["exporter"],
           "description": "One line per accepted Work Item into the Agency's billing tool (system ADR-0006); also behind the billing.export flag. Refused in demo mode.",
           "properties": {
             "exporter": { "type": "string", "enum": ["simplicate", "file"], "description": "Billing adapter; only its own block below is read." },
@@ -1545,7 +1511,6 @@
             "simplicate": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["tokenEnv"],
               "description": "The Simplicate adapter.",
               "properties": {
                 "domain": {
@@ -1569,7 +1534,6 @@
             "file": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["directory"],
               "description": "The file adapter: CSV and UBL files any tool imports.",
               "properties": {
                 "directory": {
@@ -1590,7 +1554,6 @@
             "scim": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["tokenEnv"],
               "description": "The SCIM service provider.",
               "properties": {
                 "tokenEnv": {
@@ -1609,7 +1572,6 @@
             "sharedSignals": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["transmitters"],
               "description": "The Shared Signals push receiver.",
               "properties": {
                 "audience": {
@@ -1627,7 +1589,6 @@
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["name", "issuer", "jwksUri"],
                     "properties": {
                       "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$", "description": "Unique transmitter name." },
                       "issuer": { "type": "string", "minLength": 1, "maxLength": 2048, "description": "Issuer its tokens name." },
