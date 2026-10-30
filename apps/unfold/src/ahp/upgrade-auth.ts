@@ -26,6 +26,18 @@ export function agentHostOriginAllowed(origin: string | undefined, allowed: read
   return list.some(item => normalizedOrigin(item) === candidate);
 }
 
+/** How often report mode logs one unlisted origin. */
+export const unlistedOriginLogMs = 3_600_000;
+
+/** Whether report mode logs `origin` now, given when it last logged each origin; records the time when it does. */
+export function reportUnlistedOrigin(origin: string, logged: Map<string, number>, now = Date.now()): boolean {
+  const key = origin.trim().replace(/\/+$/, '').toLowerCase();
+  const last = logged.get(key);
+  if (last !== undefined && now - last < unlistedOriginLogMs) return false;
+  logged.set(key, now);
+  return true;
+}
+
 export type UpgradeToken = { token: string | null; via: 'header' | 'query' | 'none' };
 
 /**

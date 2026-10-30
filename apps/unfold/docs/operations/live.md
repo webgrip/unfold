@@ -636,19 +636,33 @@ When the status bar says **not connected**, open the Agents window: it connects 
 2. Open the user `settings.json` and look for the `chat.remoteAgentHosts` entry with your workbench's address. If it is missing, `unfold.agentHost.autoConnect` may be `false`, or the file could not be parsed.
 3. Without a GitHub account, the Agents window asks for GitHub sign-in before it shows anything. VS Code decides that, not Unfold ([sign-in spike](../research/2026-10-10-ahp-sign-in-spike.md)).
 4. A workbench behind a proxy must pass WebSocket upgrades on `/` or `/ahp`, with the `Origin` header unchanged.
-5. A `403` with `agent_host.origin_refused` in the workbench log means the page the client runs in is not an allowed origin; see [Who may open the WebSocket](#who-may-open-the-websocket).
+5. With `auth.agentHostOriginMode` set to `enforce`, a `403` with `agent_host.origin_refused` in the workbench log means the page the client runs in is not an allowed origin; see [Who may open the WebSocket](#who-may-open-the-websocket).
 
 ### Who may open the WebSocket
 
 The upgrade carries the connection token in an `Authorization: Bearer <token>` header or in the `tkn` query parameter. VS Code 1.144's Agents window sends only `?tkn=`, because a browser WebSocket cannot set headers, so the query form stays supported. The first time a token arrives in the query, the workbench logs `agent_host.token_in_query` with the first 12 hex digits of its digest and the client's user agent, never the token. A query token can end up in the access log of every proxy and ingress in front of the workbench: configure them to log the path without the query string, or to drop the `tkn` parameter, on `/` and `/ahp`.
 
-A request from a web page names that page in `Origin`. The workbench accepts `vscode-file://vscode-app`, the page origin of VS Code's desktop Agents window, and its own `baseUrl` origin, and refuses every other page with `403` and an `agent_host.origin_refused` log line. A request without `Origin` comes from a client that is not a web page and is accepted on its token. `auth.agentHostOrigins` replaces the default list, for example to add VS Code for the Web:
+A request from a web page names that page in `Origin`. The allowed origins are `vscode-file://vscode-app`, the page origin VS Code's desktop Agents window loads from, and the workbench's own `baseUrl` origin. A request without `Origin` comes from a client that is not a web page and is accepted on its token. `auth.agentHostOrigins` replaces the default list, for example to add VS Code for the Web. Each entry is `scheme://host[:port]`; `"*"` accepts any page. In Kubernetes set both keys under the chart's `config.auth`.
 
-```json
-"auth": { "agentHostOrigins": ["vscode-file://vscode-app", "https://vscode.dev"] }
-```
+`auth.agentHostOriginMode` decides what happens to any other origin:
 
-Each entry is `scheme://host[:port]`; `"*"` accepts any page. In Kubernetes set it under the chart's `config.auth`.
+| Mode | An origin outside the list |
+| --- | --- |
+| `report` (default) | Connects on its token. The workbench logs `agent_host.origin_unlisted` with the origin, once per origin per hour |
+| `enforce` | Gets `403` and an `agent_host.origin_refused` log line |
+
+Every connection still needs a valid token in either mode. To switch to `enforce`:
+
+1. Leave the mode at `report` and connect an Agents window from each kind of client people use: desktop VS Code, Insiders and, if anyone uses it, VS Code for the Web.
+2. Search the workbench log for `agent_host.origin_unlisted`. No lines means every client's origin is already allowed. Each line names an origin that would be refused.
+3. Add every origin that belongs to a real client to `auth.agentHostOrigins`, keeping `vscode-file://vscode-app` in the list. An origin you do not recognise is the reason to enforce, so leave it out.
+4. Set the mode and restart:
+
+    ```json
+    "auth": { "agentHostOrigins": ["vscode-file://vscode-app", "https://vscode.dev"], "agentHostOriginMode": "enforce" }
+    ```
+
+5. Watch for `agent_host.origin_refused`. A refused real client is fixed by adding its origin, or by setting the mode back to `report`.
 
 ## Ploeg's MCP server in VS Code
 

@@ -37,7 +37,7 @@ import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type
 import { ChatSessions, chatChatUri, chatProvider, chatSessionUri } from './chats.ts';
 import type { ChatService } from '../chat/service.ts';
 import { accountDisabled } from '../identity/accounts.ts';
-import { agentHostOriginAllowed, renewedExpiry, upgradeToken } from './upgrade-auth.ts';
+import { agentHostOriginAllowed, renewedExpiry, reportUnlistedOrigin, upgradeToken } from './upgrade-auth.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -279,6 +279,7 @@ export class AgentHost {
   readonly engine: Engine;
   readonly clients = new Set<Client>();
   private readonly queryTokens = new Set<string>();
+  private readonly unlistedOrigins = new Map<string, number>();
   private readonly sequence: ServerSequence;
   /** The last sequence number the host gave an action. It never moves backwards, also not across a restart. */
   get serverSeq(): number { return this.sequence.current; }
@@ -516,8 +517,11 @@ export class AgentHost {
     if (!isWebSocketUpgrade(req)) { rejectUpgrade(socket, 400, 'Bad Request'); return true; }
     const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
     if (!agentHostOriginAllowed(origin, this.config.auth.agentHostOrigins, this.config.baseUrl)) {
-      console.error(JSON.stringify({ level: 'warn', event: 'agent_host.origin_refused', origin: origin!.slice(0, 200) }));
-      rejectUpgrade(socket, 403, 'Forbidden'); return true;
+      if (this.config.auth.agentHostOriginMode === 'enforce') {
+        console.error(JSON.stringify({ level: 'warn', event: 'agent_host.origin_refused', origin: origin!.slice(0, 200) }));
+        rejectUpgrade(socket, 403, 'Forbidden'); return true;
+      }
+      if (reportUnlistedOrigin(origin!.slice(0, 200), this.unlistedOrigins)) console.error(JSON.stringify({ level: 'warn', event: 'agent_host.origin_unlisted', origin: origin!.slice(0, 200) }));
     }
     const presented = upgradeToken(req, url);
     const authenticated = this.authenticate(presented.token);

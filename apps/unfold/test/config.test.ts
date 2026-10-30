@@ -174,6 +174,9 @@ test('auth.agentHostOrigins lists the page origins the agent host accepts, and r
   assert.deepEqual((await load(t, { auth: { agentHostOrigins: ['vscode-file://vscode-app', 'https://vscode.dev/'] } })).auth.agentHostOrigins, ['vscode-file://vscode-app', 'https://vscode.dev']);
   await assert.rejects(load(t, { auth: { agentHostOrigins: 'https://vscode.dev' } }), /auth\.agentHostOrigins must list/);
   await assert.rejects(load(t, { auth: { agentHostOrigins: ['https://vscode.dev/path'] } }), /auth\.agentHostOrigins must list/);
+  assert.equal((await load(t, {})).auth.agentHostOriginMode, 'report', 'unlisted origins are reported, not refused, by default');
+  assert.equal((await load(t, { auth: { agentHostOriginMode: 'enforce' } })).auth.agentHostOriginMode, 'enforce');
+  await assert.rejects(load(t, { auth: { agentHostOriginMode: 'strict' } }), /auth\.agentHostOriginMode must be "report" or "enforce"/);
 });
 
 test('local password sign-in is on by default and turned off by auth.localLogin or UNFOLD_LOCAL_LOGIN, never without single sign-on', async t => {
