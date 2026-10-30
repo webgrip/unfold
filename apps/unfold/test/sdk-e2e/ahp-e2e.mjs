@@ -563,7 +563,7 @@ async function negotiationOnly(url, offered, label) {
   let outcome;
   try { outcome = { ok: true, result: await h.client.initialize({ clientId: h.clientId, protocolVersions: offered, initialSubscriptions: ['ahp-root://'] }) }; }
   catch (error) { outcome = { ok: false, error: { name: error.name, code: error.code, message: error.message, data: error.data } }; }
-  await h.waitFor(() => h.client.connectionState.status === 'closed', 'connection close', 3_000).catch(() => {});
+  if (!outcome.ok) await h.waitFor(() => h.client.connectionState.status === 'closed', 'connection close', 3_000).catch(() => {});
   await sleep(300);
   const closed = h.client.connectionState.status === 'closed';
   const closeInfo = h.transport.lastClose;

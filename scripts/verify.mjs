@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { devNull } from 'node:os';
-import { resolve } from 'node:path';
+import { devNull, tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { gateKey, resultCache } from './verify-cache.mjs';
 import { runGate } from './verify-gate.mjs';
 
@@ -23,6 +23,11 @@ for (const [scope, name, variants] of [
 
 const groups = [
   { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
+  { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
+  { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
+  { name: 'integration', inputs: ['apps/unfold', 'scripts/integration.mjs', 'scripts/fake-litellm.mjs'], gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
+  { name: 'ahp-sdk', inputs: ['apps/unfold'], gates: ['ahp:e2e'].map(unfold) },
+  { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'ploeg',
     inputs: ['apps/unfold/ploeg-release.json', 'apps/unfold/scripts/unified-demo', 'apps/unfold/ops/helm/unfold/Chart.yaml', 'apps/unfold/ops/helm/unfold/Chart.lock', 'scripts/ploeg-contract.py', 'scripts/ploeg-contract.test.py'],
@@ -33,11 +38,7 @@ const groups = [
       gate('apps/unfold/scripts/unified-demo', 'go', ['build', '-o', devNull, '.']),
     ],
   },
-  { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
-  { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
-  { name: 'integration', inputs: ['apps/unfold', 'scripts/integration.mjs', 'scripts/fake-litellm.mjs'], gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
-  { name: 'ahp-sdk', inputs: ['apps/unfold'], gates: ['ahp:e2e'].map(unfold) },
-  { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
+  { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
   {
     name: 'release',
     gates: [
@@ -46,15 +47,24 @@ const groups = [
       gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-stamp.test.mjs', 'scripts/release-floors.test.cjs']),
     ],
   },
-  { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
   { name: 'openspec', inputs: ['openspec'], gates: [gate('.', 'openspec', ['validate', '--all', '--strict', '--no-interactive'])] },
   { name: 'helm', inputs: ['apps/unfold/ops/helm'], gates: helm },
   { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md', 'apps/unfold/public/core/brand.js', 'apps/unfold/public/favicon.svg', 'apps/unfold/public/index.html'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
 ];
 
+const groupList = name => (process.env[name] ?? '').split(',').map(entry => entry.trim()).filter(Boolean);
+const only = groupList('UNFOLD_VERIFY_ONLY');
+const except = groupList('UNFOLD_VERIFY_EXCEPT');
+const unknown = [...only, ...except].filter(name => !groups.some(group => group.name === name));
+if (unknown.length) throw new Error(`UNFOLD_VERIFY_ONLY and UNFOLD_VERIFY_EXCEPT name unknown gate groups: ${unknown.join(', ')}`);
+for (let index = groups.length - 1; index >= 0; index--) {
+  if ((only.length && !only.includes(groups[index].name)) || except.includes(groups[index].name)) groups.splice(index, 1);
+}
+
 const cpus = process.env.UNFOLD_VERIFY_CPUS;
 const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), UNFOLD_TEST_CONCURRENCY: cpus } : {};
 const locale = process.env.LC_ALL || process.env.LANG ? {} : { LC_ALL: 'C.UTF-8' };
+const compileCache = process.env.NODE_COMPILE_CACHE ? {} : { NODE_COMPILE_CACHE: join(tmpdir(), 'unfold-node-compile-cache') };
 
 const resultsDirectory = process.env.UNFOLD_VERIFY_RESULTS ?? (process.env.CI ? undefined : '~/.cache/unfold-verify');
 const reuseResults = (process.env.UNFOLD_VERIFY_REUSE ?? (process.env.UNFOLD_VERIFY_RESULTS ? 'false' : 'true')) === 'true';
@@ -86,7 +96,7 @@ function execute(step) {
   const started = performance.now();
   const gate = runGate('mise', ['exec', '--', step.command, ...step.args], {
     cwd: resolve(root, step.scope),
-    env: { ...process.env, ...locale, ...parallelism, ...step.env },
+    env: { ...process.env, ...locale, ...compileCache, ...parallelism, ...step.env },
     keepStdout: !step.discardStdout,
     captureStdout: step.emptyStdout,
   });
