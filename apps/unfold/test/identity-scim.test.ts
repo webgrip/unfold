@@ -71,6 +71,12 @@ test('SCIM creates, reads, filters, pages, replaces and patches a User', async t
   const bad = await scim(server.url, `/Users?filter=${encodeURIComponent('title co "x"')}`);
   assert.equal(bad.status, 400);
   assert.equal(bad.body.scimType, 'invalidFilter');
+  for (const attribute of ['constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+    const inherited = await scim(server.url, `/Users?filter=${encodeURIComponent(`${attribute} eq "person@example.com"`)}`);
+    assert.equal(inherited.status, 400, `${attribute} is not a User attribute: ${JSON.stringify(inherited.body)}`);
+    assert.equal(inherited.body.scimType, 'invalidFilter');
+    assert.equal((await scim(server.url, `/Groups?filter=${encodeURIComponent(`${attribute} eq "x"`)}`)).status, 400, `${attribute} is not a Group attribute`);
+  }
   for (const index of [1, 2, 3]) assert.equal((await scim(server.url, '/Users', { method: 'POST', body: { schemas: [userSchema], userName: `user${index}@example.com`, externalId: `user-${index}` } })).status, 201);
   const second = await scim(server.url, '/Users?startIndex=2&count=2');
   assert.equal(second.body.totalResults, 4);
