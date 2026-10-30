@@ -1465,6 +1465,83 @@
             }
           }
         },
+        "rateLimits": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Token buckets of the HTTP surface: per signed-in person for mutations, Asks and exports, and per client address for SCIM, MCP, public webhooks and sign-ins. A refused request answers 429 with Retry-After.",
+          "properties": {
+            "mutation": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 300, "burst": 120 },
+              "description": "Every change a person makes."
+            },
+            "ask": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 20, "burst": 10 },
+              "description": "Asks and card art generations, which spend model money."
+            },
+            "export": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 20, "burst": 10 },
+              "description": "Exports and downloads that read a lot at once."
+            },
+            "scim": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 600, "burst": 300 },
+              "description": "SCIM provisioning and Shared Signals, per address."
+            },
+            "mcp": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 300, "burst": 120 },
+              "description": "unfold-mcp over HTTP, per address."
+            },
+            "webhook": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 120, "burst": 60 },
+              "description": "Public notification channel routes, per address."
+            },
+            "signIn": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "perMinute": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Tokens refilled per minute." },
+                "burst": { "type": "integer", "minimum": 1, "maximum": 100000, "description": "Requests allowed at once." }
+              },
+              "default": { "perMinute": 30, "burst": 60 },
+              "description": "Sign-in routes, per address."
+            }
+          }
+        },
         "intake": {
           "type": "object",
           "additionalProperties": false,

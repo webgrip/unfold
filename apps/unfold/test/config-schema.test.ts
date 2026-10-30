@@ -97,3 +97,16 @@ test('the schema lists exactly the task source providers Unfold registers', asyn
   const schema = configSchema() as { properties: { taskSources: { items: { properties: { provider: { enum: string[] } } } } } };
   assert.deepEqual([...schema.properties.taskSources.items.properties.provider.enum].sort(), taskProviders().map(adapter => adapter.name).sort());
 });
+
+test('every top-level key loadConfig reads from the file is in the schema', () => {
+  const code = readFileSync(new URL('../src/config.ts', import.meta.url), 'utf8');
+  const keys = [...new Set([...code.matchAll(/\braw\??\.([A-Za-z]+)/g)].map(match => match[1]))];
+  const properties = (configSchema() as { properties: Record<string, unknown> }).properties;
+  assert.deepEqual(keys.filter(key => !(key in properties)), []);
+});
+
+test('the schema gives the rate limits the defaults the limiter uses', async () => {
+  const { defaultRateLimits } = await import('../src/rate-limits.ts');
+  const schema = configSchema() as { properties: { rateLimits: { properties: Record<string, { default: unknown }> } } };
+  assert.deepEqual(Object.fromEntries(Object.entries(schema.properties.rateLimits.properties).map(([name, entry]) => [name, entry.default])), JSON.parse(JSON.stringify(defaultRateLimits)));
+});

@@ -635,6 +635,34 @@ Strict-Transport-Security, sent only for an https baseUrl: false turns it off, t
 | `hsts.includeSubDomains` | boolean | `true` | Whether every host below the domain is included. |
 | `hsts.preload` | boolean | `false` | Whether the host asks for the preload list; needs includeSubDomains and a maxAge of at least a year. |
 
+### `rateLimits`
+
+Token buckets of the HTTP surface: per signed-in person for mutations, Asks and exports, and per client address for SCIM, MCP, public webhooks and sign-ins. A refused request answers 429 with Retry-After.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `rateLimits.mutation` | object | `{"perMinute":300,"burst":120}` | Every change a person makes. |
+| `rateLimits.mutation.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.mutation.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.ask` | object | `{"perMinute":20,"burst":10}` | Asks and card art generations, which spend model money. |
+| `rateLimits.ask.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.ask.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.export` | object | `{"perMinute":20,"burst":10}` | Exports and downloads that read a lot at once. |
+| `rateLimits.export.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.export.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.scim` | object | `{"perMinute":600,"burst":300}` | SCIM provisioning and Shared Signals, per address. |
+| `rateLimits.scim.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.scim.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.mcp` | object | `{"perMinute":300,"burst":120}` | unfold-mcp over HTTP, per address. |
+| `rateLimits.mcp.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.mcp.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.webhook` | object | `{"perMinute":120,"burst":60}` | Public notification channel routes, per address. |
+| `rateLimits.webhook.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.webhook.burst` | integer, 1–100000 |  | Requests allowed at once. |
+| `rateLimits.signIn` | object | `{"perMinute":30,"burst":60}` | Sign-in routes, per address. |
+| `rateLimits.signIn.perMinute` | integer, 1–100000 |  | Tokens refilled per minute. |
+| `rateLimits.signIn.burst` | integer, 1–100000 |  | Requests allowed at once. |
+
 ### `intake`
 
 The public Request intake.
