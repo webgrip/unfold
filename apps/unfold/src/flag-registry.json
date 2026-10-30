@@ -189,6 +189,20 @@
         "labs": false
       }
     },
+    "billing.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Bill accepted Work Items in the Agency's tool",
+        "description": "Writes one line per accepted Work Item (merged, approved or silent, system ADR-0006), and one credit line per Reversal an administrator confirms, into the billing tool the billing block configures, such as Simplicate, at the Agency's own price per Client. Needs a billing block and a mapping per Client in Settings. The tool makes and sends the invoice; Unfold never does. Evaluated per Tenant: the context carries the Tenant.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

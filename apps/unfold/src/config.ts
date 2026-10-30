@@ -16,6 +16,8 @@ import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
 import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameOwnership, type Ownership } from './tenancy.ts';
 import { tenancySettings } from './tenant-scope.ts';
+import { billingSettings } from './billing-export.ts';
+import { billingExporters } from './billing-exporters.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -354,6 +356,7 @@ export function refuseDemoCredentials(raw: Record<string, unknown>, env: NodeJS.
   }
   if (raw.execution !== undefined) throw demoRefusal('execution, which runs agent work under a real Ploeg');
   if (raw.delivery !== undefined) throw demoRefusal('delivery, whose verifier and publisher hold forge credentials');
+  if (raw.billing !== undefined) throw demoRefusal('billing, which writes lines into a real billing tool with its credential', 'Remove billing, or set mode: live');
   if (raw.links !== undefined) throw demoRefusal('links: a GitLab or ClickUp account one visitor links would act for every visitor', 'Remove links, or set mode: live');
   for (const source of Array.isArray(raw.taskSources) ? raw.taskSources : []) {
     if (plain(source) && source.tokenEnv !== undefined) throw demoRefusal(`the token of task source ${String(source.id)} (tokenEnv)`, 'Remove its tokenEnv, or set mode: live');
@@ -584,5 +587,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
 
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);
+  const billing = billingSettings(raw.billing, billingExporters, { env: process.env, dataDir, agentEnvironment: config.runtime.agentEnvironment ?? [] });
+  if (billing) config.billing = billing;
   return config;
 }

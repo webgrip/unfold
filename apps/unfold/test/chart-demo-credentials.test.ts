@@ -28,6 +28,7 @@ test('the chart refuses demo mode with a real Ploeg or any other credential, bec
     [['--set', 'config.execution.team=delivery'], /cannot use config\.execution/],
     [['--set', 'config.links.gitlab.baseUrl=https://gitlab.example'], /cannot use config\.links/],
     [['--set', 'config.delivery.verifierTokenEnv=UNFOLD_VERIFIER_TOKEN'], /cannot use config\.delivery/],
+    [['--set', 'config.billing.exporter=simplicate'], /cannot use config\.billing/],
     [['--set', 'config.taskSources[0].id=board', '--set', 'config.taskSources[0].tokenEnv=UNFOLD_TASK_VIKUNJA_TOKEN'], /cannot hold the token of task source board/],
     [['--set', 'config.reports.tokenEnv=UNFOLD_REPORTS_TOKEN'], /cannot hold config\.reports\.tokenEnv/],
   ];

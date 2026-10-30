@@ -20,6 +20,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
+- [Bill accepted tickets through Simplicate](operations/billing-simplicate.md): one line per accepted Work Item in your own billing tool
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
 - [Release procedure](operations/release.md)
 

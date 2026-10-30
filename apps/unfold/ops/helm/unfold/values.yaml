@@ -158,6 +158,13 @@ config:
   # tenancy.enforce (optional, off when absent): limit each person to what their Tenant and Client memberships reach.
   # tenancy:
   #   enforce: true
+  # billing (optional, off when absent): one line per accepted Work Item into the Agency's billing tool, also behind
+  # the billing.export flag per Tenant. tokenEnv names a variable from credentialsSecret that holds key:secret.
+  # billing:
+  #   exporter: simplicate
+  #   simplicate:
+  #     domain: agency
+  #     tokenEnv: UNFOLD_SIMPLICATE_TOKEN
   # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a
   # Ploeg-audience token sent with every change Unfold makes for them. The secret comes from credentialsSecret.
   # ploeg:
