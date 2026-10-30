@@ -75,7 +75,7 @@ Ploeg released 0.2.0-rc.61 at 13:16, rc.62 at 13:30 and rc.63 at 14:39 on 2026-1
 * [scripts/test_release_train_pin.py](../../scripts/test_release_train_pin.py), run by `mise run verify`, fails when pins are not ordered by version precedence, when another author's, another base's, a fork's or a non-version branch counts as a pin, when a conflicting pin is asked to merge, when the merge is not a merge commit at the read head, when a refused newest pin stops an older green one from merging, when a newer pin is closed, when an older one stays open, or when an authentication or server error, or a 405 refusing the CI bot itself, reads as "not green".
 * [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) fails when `merge-pin` loses the release gate, stops being the first job, passes the wrong author or token, hides its failure, or when another job merges pins; and when `pending` stops waiting for it, stops after its failure or continues after a cancel.
 * Mutation, 2026-10-24: nine mutants of the script and seven of the workflow each failed the suites; unmutated, both pass.
-* In operation: the first train after a Ploeg candidate shows a green `merge-pin` that names the pull request it merged, and the `fix(ploeg)` merge commit is authored by the CI bot.
+* In operation: the first train after a Ploeg candidate shows a green `merge-pin` that names the pull request it merged, and the `fix(ploeg)` merge commit is authored by the CI bot (by `ploeg-release` since the 2026-10-30 amendment).
 
 ## Amendment 2026-10-25: pending and current are computed from tags, because a release no longer commits
 
@@ -96,6 +96,25 @@ Unfold moved to `@webgrip/semantic-release-config` 2.x ([homelab ADR-0078](https
 * [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) runs `release-train.sh` against a scratch repository whose releases are tags only: a commit after a release tag is pending and the tagged commit is not; a tag added at the checked head keeps it current; a commit with a release-commit subject is pending and, after the checked head, makes it not current; an unknown or sideways commit is never current. It also requires every release job to use the same digest-pinned 2.x image and v3 composite as `mise run release-check`, and nothing to run after semantic release.
 * [scripts/release-policy.test.cjs](../../scripts/release-policy.test.cjs) and [scripts/release-isolation.test.cjs](../../scripts/release-isolation.test.cjs) require no prepare step, no `@semantic-release/git` or changelog step, the `ERELEASECOMMIT` guard, `initialDevelopment`, and that no commit scoped `site`, breaking or not, releases Unfold.
 * Mutation, 2026-10-25: putting the release-commit filter back into `pending`; restoring the 1.x rule for `current`; accepting any ancestor as current; counting `apps/site` for Unfold; leaving the breaking rule at major; passing the `site` rule through `extraReleaseRules`; adding `@semantic-release/git`; adding a `prepareCmd`; leaving one release job on the 0.3.6 image or the preview on the v2.8.3 composite; a different image in `mise run release-check`; a step after semantic release; and an `unfold-agent` reference that is not a candidate each failed the release suites. Unmutated, the suites pass.
+
+## Amendment 2026-10-30: `merge-pin` merges as `ploeg-release`, the account the branch rule lets merge
+
+From 2026-10-28 the train failed at `merge-pin` whenever a pin was waiting: Forgejo answered `HTTP 405 User not allowed to merge PR`. `development`'s branch rule ([homelab repo-config model](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/repo-config/repo-config/model/repos.yaml)) lets only `ryangr0`, `yon`, `renovate` and `ploeg-release` merge, and the script merged with `WEBGRIP_CI_TOKEN`. No Unfold release was cut after rc.121. The owner chose on 2026-10-30 to keep the train as the only merger of pins and give it the producer bot's token, over adding the CI bot to the merge list or letting pins merge themselves again.
+
+1. **`merge-pin`** passes `secrets.PLOEG_RELEASE_TOKEN` to [scripts/release_train_pin.py](../../scripts/release_train_pin.py) as `PIN_MERGE_TOKEN`. The homelab `forgejo-actions-secrets` reconciler publishes that secret to this repository only, from the `ploeg-release-token` Secret its provisioner mints. The token reaches `webgrip/unfold` and nothing else.
+2. **No other job reads `PLOEG_RELEASE_TOKEN`.** Every other job keeps `WEBGRIP_CI_TOKEN`.
+3. The homelab model's `release_consumers` entry for Unfold carries `"merge": "by-consumer"`, so Ploeg's release stops asking Forgejo to merge each pin when its checks pass (item 3 of the 2026-10-24 amendment, which the model had not carried).
+
+### Consequences of the 2026-10-30 amendment
+
+* Good, because the merge list stays as narrow as before: the CI bot, whose token reaches sixteen repositories, still cannot merge into `development`.
+* Bad, because any workflow on a branch of this repository can read `PLOEG_RELEASE_TOKEN` and merge a green pull request into `development` as `ploeg-release`. The CI bot's token in the same position could already push and open pull requests across the estate.
+* Neutral: a `fix(ploeg)` merge commit is now authored by `ploeg-release`, not the CI bot.
+
+### Confirmation of the 2026-10-30 amendment
+
+* [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) fails when `merge-pin` passes any token but `secrets.PLOEG_RELEASE_TOKEN`, or when any other job names `PLOEG_RELEASE_TOKEN`.
+* In operation: the first train with a waiting green pin shows a green `merge-pin`, and the merge commit names `ploeg-release`.
 
 ## Pros and Cons of the Options
 

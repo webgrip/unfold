@@ -27,7 +27,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           PIN_BASE: development
           PIN_AUTHOR: ploeg-release
-          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          PIN_MERGE_TOKEN: ${{ secrets.PLOEG_RELEASE_TOKEN }}
         run: python3 scripts/release_train_pin.py
 
   pending:

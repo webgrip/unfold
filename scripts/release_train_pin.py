@@ -120,7 +120,7 @@ def emit(name, value):
 
 
 def main():
-    forge = Forgejo(os.environ['FORGEJO_REPOSITORY_API'], os.environ['WEBGRIP_CI_TOKEN'])
+    forge = Forgejo(os.environ['FORGEJO_REPOSITORY_API'], os.environ['PIN_MERGE_TOKEN'])
     try:
         number = merge_newest_green_pin(forge, os.environ['REPOSITORY'], os.environ['PIN_BASE'], os.environ['PIN_AUTHOR'])
     except PinMergeError as error:
