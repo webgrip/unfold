@@ -433,6 +433,90 @@ test('the chart job signs the chart it publishes with the image signing identity
   assert.match(script, /sign_once\(reference\)/);
 });
 
+test('the extension job signs and attests the canonical VSIX with the image signing identity, and verifies all three assets before any registry gets it', () => {
+  const job = publisher.jobs['unfold-release-publish-extension'];
+  assert.equal(job['enable-openid-connect'], true);
+  assert.deepEqual(job.permissions, { contents: 'read' });
+  const at = predicate => job.steps.findIndex(predicate);
+  const restore = at(step => step.run?.includes('scripts/restore_extension_asset.py'));
+  const sign = at(step => step.run === 'python3 scripts/sign_extension_asset.py sign "$VERSION"');
+  const verify = at(step => step.run === 'python3 scripts/sign_extension_asset.py verify "$VERSION"');
+  const openVsx = at(step => step.run?.includes('ovsx publish'));
+  const marketplace = at(step => step.run?.includes('vsce publish'));
+  assert.ok(restore >= 0 && restore < sign, 'signs the bytes already attached to the release, not a fresh package');
+  assert.ok(sign < verify, 'verifies after signing');
+  assert.ok(verify < openVsx && openVsx < marketplace, 'no registry publishes a VSIX whose release assets do not verify');
+  assert.match(job.steps[verify].name, /cosign verify-blob/);
+  for (const index of [sign, verify]) assert.equal(job.steps[index]['continue-on-error'], undefined);
+  const script = fs.readFileSync(path.join(root, 'scripts/sign_extension_asset.py'), 'utf8');
+  assert.match(script, /'cosign', 'verify-blob', '--key', PUBLIC_KEY/);
+  assert.match(script, /'cosign', 'verify-blob-attestation', '--key', PUBLIC_KEY/);
+});
+
+test('the Marketplace step prefers the Entra credential, warns about VSCE_PAT until global PATs retire and then fails, and never skips without a summary', () => {
+  const step = publisher.jobs['unfold-release-publish-extension'].steps.find(candidate => candidate.run?.includes('vsce publish'));
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'vsix-marketplace-'));
+  const work = path.join(bin, 'work');
+  fs.mkdirSync(path.join(work, 'apps/unfold/extensions/vscode'), { recursive: true });
+  fs.writeFileSync(path.join(bin, 'npx'), '#!/bin/sh\necho "$@" >> "$NPX_LOG"\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'date'), '#!/bin/sh\necho "$FAKE_TODAY"\n', { mode: 0o755 });
+  const run = (env, today = '2026-11-30', version = '0.5.0') => {
+    const summary = path.join(bin, `summary-${Math.random()}`);
+    const log = path.join(bin, `npx-${Math.random()}`);
+    fs.writeFileSync(summary, '');
+    fs.writeFileSync(log, '');
+    const result = spawnSync('bash', ['-c', step.run], { cwd: work, encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_STEP_SUMMARY: summary, NPX_LOG: log, FAKE_TODAY: today, VERSION: version, VSCE_PAT: '', AZURE_CLIENT_ID: '', AZURE_TENANT_ID: '', ...env } });
+    return { status: result.status, out: result.stdout + result.stderr, summary: fs.readFileSync(summary, 'utf8'), npx: fs.readFileSync(log, 'utf8') };
+  };
+  const entra = { AZURE_CLIENT_ID: 'client', AZURE_TENANT_ID: 'tenant' };
+
+  const prerelease = run({ ...entra, VSCE_PAT: 'pat' }, '2026-11-30', '0.5.0-rc.1');
+  assert.equal(prerelease.status, 0);
+  assert.equal(prerelease.npx, '', 'a pre-release never reaches the Marketplace');
+  assert.match(prerelease.summary, /Marketplace: \*\*skipped\*\*, 0\.5\.0-rc\.1 is a pre-release/);
+
+  for (const today of ['2026-11-30', '2027-01-01']) {
+    const preferred = run({ ...entra, VSCE_PAT: 'pat' }, today);
+    assert.equal(preferred.status, 0, today);
+    assert.match(preferred.npx, /vsce publish .*--azure-credential/, today);
+    assert.match(preferred.out, /::warning::VSCE_PAT is set but unused/);
+    assert.match(preferred.summary, /published 0\.5\.0 with the Entra credential/);
+  }
+  for (const half of [{ AZURE_CLIENT_ID: 'client' }, { AZURE_TENANT_ID: 'tenant' }]) {
+    const broken = run({ ...half, VSCE_PAT: 'pat' });
+    assert.equal(broken.status, 1, 'a half-configured Entra credential fails instead of falling back to the PAT');
+    assert.equal(broken.npx, '');
+    assert.match(broken.summary, /\*\*failed\*\*/);
+  }
+
+  const before = run({ VSCE_PAT: 'pat' }, '2026-11-30');
+  assert.equal(before.status, 0);
+  assert.match(before.out, /::warning::VSCE_PAT is an Azure DevOps global personal access token, and those stop working on 2026-12-01/);
+  assert.match(before.npx, /vsce publish --packagePath unfold-0\.5\.0\.vsix --skip-duplicate\n$/);
+  for (const today of ['2026-12-01', '2027-03-04']) {
+    const after = run({ VSCE_PAT: 'pat' }, today);
+    assert.equal(after.status, 1, today);
+    assert.equal(after.npx, '', today);
+    assert.match(after.out, /::error::Only VSCE_PAT is set.*Fix: .*MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID/);
+    assert.match(after.summary, /\*\*failed\*\*, VSCE_PAT is a global PAT/);
+  }
+
+  const none = run({});
+  assert.equal(none.status, 0);
+  assert.equal(none.npx, '');
+  assert.match(none.out, /::warning::No Marketplace credential is configured/);
+  assert.match(none.summary, /Marketplace: \*\*skipped\*\*, no credential is configured/);
+  fs.rmSync(bin, { recursive: true });
+});
+
+test('Open VSX publishing fails without its token and reports where the build went', () => {
+  const step = publisher.jobs['unfold-release-publish-extension'].steps.find(candidate => candidate.run?.includes('ovsx publish'));
+  assert.match(step.run, /--skip-duplicate/);
+  assert.doesNotMatch(step.run, /--trusted-publishing/, 'Open VSX Trusted Publishing accepts only GitHub Actions identities');
+  assert.match(step.run, /exit 1/);
+  assert.match(step.run, /GITHUB_STEP_SUMMARY/);
+});
+
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {
   assert.deepEqual(Object.keys(publisher.jobs).filter(name => name.startsWith('ploeg-')), []);
   assert.doesNotMatch(JSON.stringify(publisher), /ploeg/i);

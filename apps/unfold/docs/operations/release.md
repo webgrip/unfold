@@ -37,15 +37,65 @@ Deploy through the target environment's desired-state repository. [Live operatio
 
 ## Extension distribution
 
-The release publish job packages the tagged extension, runs the [listing and package verifier](../../scripts/extension-verify.mjs), then attaches its VSIX and SHA-256 checksum to Forgejo. Registry publication happens afterward. The release is initially created without those assets; a release page can therefore exist while packaging is still running or has failed.
+The release publish job packages the tagged extension, runs the [listing and package verifier](../../scripts/extension-verify.mjs), then attaches its VSIX and SHA-256 checksum to Forgejo. It then signs those attached bytes and attests their provenance, verifies all of them, and only then publishes to a registry. The release is initially created without those assets; a release page can therefore exist while packaging is still running or has failed.
 
 | Destination | Workflow condition |
 | --- | --- |
-| Forgejo release | Upload VSIX and checksum before attempting registry publication |
-| Open VSX | Publish when `OVSX_PAT` is configured; mark a version containing a hyphen as a prerelease |
-| Visual Studio Marketplace | Skip versions containing a hyphen; stable versions require the configured Marketplace credential |
+| Forgejo release | Upload the VSIX and its checksum, then its cosign signature and SLSA provenance, before any registry publication |
+| Open VSX | Publish with `OVSX_PAT`; fail when it is missing; mark a version containing a hyphen as a prerelease |
+| Visual Studio Marketplace | Skip versions containing a hyphen; for a stable version use the Entra credential, else `VSCE_PAT` until 2026-12-01; skip with a warning when neither is set |
 
-[ADR 0021](../adrs/0021-the-extension-ships-through-open-vsx-first.md) records the Open VSX-first decision. The workflow warns or reports a notice when a registry credential is absent; a successful job with such a notice is not evidence of a registry listing. Account ownership, credentials and external registry availability require a fresh check when publishing there.
+[ADR 0021](../adrs/0021-the-extension-ships-through-open-vsx-first.md) records the Open VSX-first decision. Each registry step writes what it did, or why it skipped, to the job summary. A green job with a skip line is not evidence of a registry listing. Account ownership, credentials and external registry availability require a fresh check when publishing there.
+
+### Signature and provenance
+
+[scripts/sign_extension_asset.py](../../../../scripts/sign_extension_asset.py) signs the VSIX that is already attached to the release, after the checksum check of [restore_extension_asset.py](../../../../scripts/restore_extension_asset.py), so a retry never signs a repackaged file with a new ZIP timestamp. It uses the same OpenBao Transit key and `cosign-signer` role as the images and the chart, reached through the job's Forgejo OIDC token, and uploads nothing to a public transparency log. It attaches two files:
+
+| Asset | Content |
+| --- | --- |
+| `unfold-<version>.vsix.sig` | cosign signature over the VSIX (`cosign sign-blob`) |
+| `unfold-<version>.vsix.intoto.json` | DSSE envelope holding an in-toto statement with an SLSA v1 provenance predicate (`cosign attest-blob --type slsaprovenance1`): the tag, its commit, the workflow and the run |
+
+The provenance is written by the release job and signed with a key that only a release run can use. That is SLSA Build Level 2 at most: the job describes its own build, and no separate hosted builder vouches for it. A rerun signs only a file that is missing and leaves an existing one in place.
+
+The next step downloads all four assets from the release again and runs `cosign verify-blob` and `cosign verify-blob-attestation` against the [committed public key](../../../../ops/security/cosign.pub). It also checks that the attestation names this VSIX's SHA-256 and the tag's commit. Any failure stops the job before Open VSX or the Marketplace receives the VSIX. To check a downloaded release by hand:
+
+```sh
+sha256sum -c unfold-<version>.vsix.sha256
+cosign verify-blob --key cosign.pub --insecure-ignore-tlog \
+  --signature unfold-<version>.vsix.sig unfold-<version>.vsix
+cosign verify-blob-attestation --key cosign.pub --insecure-ignore-tlog \
+  --type slsaprovenance1 --signature unfold-<version>.vsix.intoto.json unfold-<version>.vsix
+```
+
+`--insecure-ignore-tlog` is expected: the signature was never uploaded to Rekor, so there is no log entry to check. The key is the trust anchor.
+
+Neither registry takes this signature. Open VSX signs every published version with its own registry key and serves a `.sigzip` and that key's URL next to the VSIX; `ovsx verify <file.vsix>` checks a download against it. The Marketplace also signs every extension when it is published, and VS Code checks that signature on install. `vsce publish` does accept publisher signature files (`--manifestPath`, `--signaturePath`, `--sigzipPath`), but they are PKCS#7 signatures from Microsoft's signing tool, which a cosign key cannot produce. The cosign signature and provenance are for people who install from the Forgejo or GitHub release, and for anyone who wants to tie a registry download back to the release: the registries store the same bytes, which `scripts/publish_release.py` compares for Open VSX.
+
+### Registry credentials
+
+Both registries offer Trusted Publishing, where the CI job trades its OIDC identity for a short-lived publish token and no long-lived secret exists. Neither accepts a Forgejo Actions identity:
+
+- **Open VSX** accepts `ovsx publish --trusted-publishing` from GitHub Actions only. The server code also has a GitLab provider, which any GitLab instance can be configured for, but open-vsx.org has enabled only GitHub. It has no generic OIDC issuer setting, so Forgejo has no route. The first publication of an extension always needs a token.
+- **Visual Studio Marketplace** accepts `vsce publish --oidc` from GitHub Actions and Azure Pipelines only, and says other OIDC providers are not supported.
+
+That leaves three options for Open VSX:
+
+| Option | Cost | Verdict |
+| --- | --- | --- |
+| Keep a token, scoped to the namespace and rotated | One secret to rotate every 90 days | **Chosen** |
+| Mirror-publish from a GitHub Actions workflow on `github.com/webgrip/unfold` | A second publisher, with GitHub Actions turned back on for the mirror, and the VSIX and its signature carried across | Rejected: Forgejo stays the only publisher |
+| Wait for GitLab or generic OIDC support on open-vsx.org | Nothing now | Revisit when open-vsx.org enables a provider Forgejo can act as |
+
+`OVSX_PAT` belongs to the Open VSX account that owns the `webgrip` namespace and is used only for that namespace. Rotate it every 90 days, and right away if it may have leaked:
+
+1. Sign in at [open-vsx.org](https://open-vsx.org/user-settings/tokens) as the owner of the `webgrip` namespace and create a token whose description names the date, for example `unfold-release-2026-10-30`.
+2. Check it before storing it: `npx ovsx verify-pat webgrip -p <token>`.
+3. Replace the value in OpenBao at the path the estate's [Actions secret configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app) bridges to the `OVSX_PAT` repository secret, and wait for the bridge to publish it.
+4. Run the [release preview](../../../../.forgejo/workflows/on_release_preview.yml). Its preflight fails without `OVSX_PAT`; the next release's Open VSX step proves that the token publishes.
+5. Delete the old token in the same Open VSX settings page.
+
+The Marketplace step prefers the Entra credential (`MARKETPLACE_AZURE_CLIENT_ID` and `MARKETPLACE_AZURE_TENANT_ID`, a managed identity added to the `WebGrip` publisher) and fails when only one of the two is set. Entra workload identity federation can trust any OIDC issuer, so it is the keyless route open to Forgejo, but `vsce --azure-credential` finds the identity through an Azure CLI login or the Azure environment variables, and the job sets up neither yet. With only `VSCE_PAT` set, the step publishes with a deprecation warning. Azure DevOps retires global personal access tokens on 2026-12-01, and a Marketplace token is one, so from that date the step fails and its error names the fix. No release is published to the Marketplace today: every Unfold release is a `-rc.N` candidate, which the step skips.
 
 For installation, download the matching VSIX and checksum from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/unfold/releases), verify the checksum, then use the editor's **Install from VSIX** command. The [extension guide](../../extensions/vscode/README.md#install) gives the user-facing steps.
 
