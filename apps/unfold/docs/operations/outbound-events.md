@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation on branch feat/outbound-events: src/outbound/*.ts, the /api/admin/webhooks route block in src/http.ts and public/views/webhooks.js. test/outbound-events.test.ts passed, including the Standard Webhooks signing vectors and a signed test event delivered to a local receiver. The AsyncAPI document parsed with @asyncapi/parser 3 without diagnostics. The verification snippets ran against that test's deliveries. Not checked: a live n8n, Zapier, Make, Slack or Teams receiver."
+verified_by: "Written with the implementation on branch feat/outbound-events: src/outbound/*.ts, the /api/admin/webhooks route block in src/http.ts and public/views/webhooks.js. test/outbound-events.test.ts passed, including the Standard Webhooks signing vectors and a signed test event delivered to a local receiver. The AsyncAPI document parsed with @asyncapi/parser 3 without diagnostics. The verification snippets ran against that test's deliveries. The MCP Events section was written with the implementation on branch feat/mcp-events: src/mcp-events.ts and its hooks in src/outbound/, src/mcp.ts and src/mcp-http.ts; test/mcp-events.test.ts passed. Not checked: a live n8n, Zapier, Make, Slack or Teams receiver, and a live ChatGPT subscription."
 ---
 
 # Outbound webhooks
@@ -136,3 +136,27 @@ A Slack incoming webhook or a Teams workflow webhook expects its own message sha
 ```
 
 Escape the title for the target format; it comes from the tracker.
+
+## MCP Events
+
+A person can also have their own AI client told when work moves, through the [MCP Events](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) extension (`io.modelcontextprotocol/events`) of `unfold-mcp` over HTTP. Nobody in Settings subscribes anything: the client subscribes for the person it signed in as, and a delivery reaches only what that person may read. The extension is an open proposal, so Unfold pins it to SEP-3415 at commit [`b08e4f9d`](https://github.com/pja-ant/modelcontextprotocol/blob/b08e4f9dd684f39d846d94089487fbeb28e666f5/seps/0000-events-extension.md) and builds what [ChatGPT ships](https://developers.openai.com/plugins/build/mcp-events) first: webhook delivery only, with no poll, stream, `gap` or `terminated`. The wire format is in the [HTTP contract](../contracts/api.md#mcp-events).
+
+Turn on the `mcp.events` flag for the people who may use it ([feature flags](feature-flags.md)). It is off by default and evaluated per person.
+
+| Event | When | Comes from |
+| --- | --- | --- |
+| `work_item.needs_you` | A Work Item starts waiting on a person | `dev.unfold.work_item.needs_you` |
+| `pull_request.ready` | A Work Item's pull request is ready for review | `dev.unfold.work_item.ready_for_review` |
+| `run.finished` | A Run reported its Outcome, with what it cost and what its Shift spent | `dev.unfold.run.finished` and Ploeg's delivery facts |
+
+The client picks what to follow with optional arguments: `team`, and `tenant` and `client` for a person who belongs to more than one. A subscription is refused when the person may not read that Team, Tenant or Client.
+
+How it uses the outbox:
+
+- **Subscriptions** are rows of the same subscription table as an administrator's, with the client's own `whsec_` secret sealed in the store like any other subscription secret. Their MCP key (person, URL, event, arguments), lifetime and delivery status sit next to them in `mcp_event_subscriptions`. Settings never lists them, and an administrator cannot change them.
+- **Events.** When Unfold queues a Ploeg event for administrators, it also writes one `EventOccurrence` per MCP event type in the same transaction, and one delivery for each live subscription whose person may read the Work Item.
+- **Delivery** uses the same transport: `https` only, every address checked again at connect time, no redirects, 15 seconds. Each body is the occurrence as JSON, at most 256 KiB, signed with the subscription's secret, with `webhook-id` set to the `eventId` and `X-MCP-Subscription-Id` set to the subscription id. A failure is retried after 10 s, 1 min, 3 min and 10 min, with jitter, then given up. A 410 or 413 gives up that one delivery and keeps the subscription.
+- **Every attempt checks the person again.** A delivery for a Work Item they can no longer read is dropped. A person who lost the Team, Tenant or Client the subscription names, or whose account is gone, loses the subscription. While their flag is off, their deliveries wait.
+- **Lifetimes.** A subscription lives a day unless the client asks for another lifetime: at least one minute and at most 30 days, or no expiry for `ttlMs: null`. Expired subscriptions are deleted within five seconds; an unexpired one survives restarts.
+
+Before a new callback URL receives anything, Unfold proves the endpoint wants it: it posts a signed `{"type": "verification", "challenge": …}` and expects the challenge back in a 2xx JSON body. A proved URL stays proved for that person for 24 hours, and at most ten challenges per minute go to one host.

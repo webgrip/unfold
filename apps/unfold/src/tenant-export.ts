@@ -134,6 +134,8 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
   { table: 'notify_handed_transitions', reason: 'Operational: the last moment each handed-off Work Item notified about, so a repeat notifies nobody. It holds Work Item and Ploeg event ids, no person.' },
   { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },
+  { table: 'mcp_event_subscriptions', reason: 'Operational: the MCP key, lifetime and delivery status of subscriptions MCP clients made. The client owns its subscriptions and subscribes again at the destination; the subscription rows are exported as outbound-subscriptions.' },
+  { table: 'mcp_event_verifications', reason: 'Operational: which callback URLs a person proved to receive MCP events, kept 24 hours.' },
   { table: 'outbound_sign_off_changes', reason: 'Operational: Client Sign-off changes waiting to become webhook events. The sign-offs are exported as client-sign-offs.' },
 ];
 

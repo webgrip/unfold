@@ -357,6 +357,20 @@
         "labs": false
       }
     },
+    "mcp.events": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "MCP Events",
+        "description": "Lets a person's MCP client, such as ChatGPT, subscribe a webhook to work_item.needs_you, pull_request.ready and run.finished through the MCP Events extension (SEP-3415 pinned at b08e4f9d, webhook mode as ChatGPT ships it). Deliveries go through the outbound events outbox, signed with the client's own secret, and only for Work Items the person may still read (docs/operations/outbound-events.md#mcp-events). Evaluated per person on the server: the context carries the person, their role and their Teams. While it is off for a person, server/discover does not offer the extension, events/* answers method not found and their deliveries wait.",
+        "client": false,
+        "labs": false
+      }
+    },
     "events.webhooks": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

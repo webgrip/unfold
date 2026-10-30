@@ -117,6 +117,7 @@ No secret is exported: password hashes, sign-in and editor token hashes, the OID
 | `ssf_seen`, `intake_deliveries` | Deduplication of Shared Signals events and intake deliveries, forgotten after a while. |
 | `notify_outbox` | The queue of notices to send over ntfy and Web Push. What they report is exported itself. |
 | `notify_cursors`, `outbound_cursors`, `outbound_sign_off_changes` | How far notifications and webhooks have read their sources. |
+| `mcp_event_subscriptions`, `mcp_event_verifications` | The MCP key, lifetime and delivery status of MCP Events subscriptions, and which callback URLs a person proved. The MCP client owns its subscriptions and subscribes again at the destination; the subscription rows themselves leave as `outbound-subscriptions`. |
 
 `test/tenant-export.test.ts` fails when a table is added anywhere in `src/` without being exported or listed here with a reason.
 

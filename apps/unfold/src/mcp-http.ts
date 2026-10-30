@@ -8,6 +8,7 @@ import type { DelegatedProof } from './person-proof.ts';
 import type { User, UserRole } from './types.ts';
 import type { McpAuditEntry } from './audit/service.ts';
 import { clientAddress } from './client-address.ts';
+import type { McpEventsHandler } from './mcp-events.ts';
 
 /** What the MCP endpoint inside the Unfold server needs from the rest of it. */
 export type McpHttpOptions = {
@@ -38,6 +39,8 @@ export type McpHttpOptions = {
    * connection the person reaches.
    */
   tasks?: { enabled(user: User): Promise<boolean>; keys(): TaskKeyRing; tenantOf(user: User, source: string): string | undefined };
+  /** MCP Events for a 2026-07-28 client: whether the person may use them, and their `events/*` handler. */
+  events?: { enabled(user: User): Promise<boolean>; handler(user: User): McpEventsHandler };
 };
 
 const maxBodyBytes = 1_048_576;
@@ -158,8 +161,9 @@ export function createMcpHttp(options: McpHttpOptions) {
         const named = method === 'tools/call' ? params?.name : params?.uri;
         if (name === undefined || decodeHeader(name) !== named) return rpcError(res, 400, id, -32020, `Header mismatch: Mcp-Name is missing or does not match the ${method === 'tools/call' ? 'tool name' : 'resource URI'}.`);
       }
-      const taskName = typeof method === 'string' && method.startsWith('tasks/') ? header(req, 'mcp-name') : undefined;
-      if (taskName !== undefined && decodeHeader(taskName) !== params?.taskId) return rpcError(res, 400, id, -32020, 'Header mismatch: Mcp-Name does not match the task id.');
+      const named = typeof method === 'string' ? method.startsWith('tasks/') ? { value: params?.taskId, what: 'task id' } : method.startsWith('events/') ? { value: params?.name, what: 'event name' } : undefined : undefined;
+      const sentName = named ? header(req, 'mcp-name') : undefined;
+      if (named && sentName !== undefined && decodeHeader(sentName) !== named.value) return rpcError(res, 400, id, -32020, `Header mismatch: Mcp-Name does not match the ${named.what}.`);
     }
     const delegated = options.delegate(user, delegationMs, { source: 'request', userId: user.id, accessToken: authorization[1], subject: token.subject, expiresAt: token.expiresAt });
     const appsKey = JSON.stringify([user.id, token.client ?? '', header(req, 'user-agent') ?? '']);
@@ -167,7 +171,8 @@ export function createMcpHttp(options: McpHttpOptions) {
     try {
       const follow = options.tasks;
       const tasks: McpTasks | undefined = follow ? { enabled: () => follow.enabled(user), keys: () => follow.keys(), tenantOf: source => follow.tenantOf(user, source), cache: taskCache } : undefined;
-      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations, ...(!modern && declaredApps(appsKey) ? { mcpApps: true } : {}), ...(tasks ? { tasks } : {}) });
+      const events = modern && options.events && await options.events.enabled(user).catch(() => false) ? options.events.handler(user) : undefined;
+      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations, ...(!modern && declaredApps(appsKey) ? { mcpApps: true } : {}), ...(tasks ? { tasks } : {}), ...(events ? { events } : {}) });
       answer = await server.handle(message);
       if (!modern && method === 'initialize' && answer?.result) rememberApps(appsKey, server.declaredMcpApps());
     } finally { delegated.revoke(); }
