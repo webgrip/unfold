@@ -189,6 +189,20 @@
         "labs": false
       }
     },
+    "audit.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Audit export",
+        "description": "Lets a Tenant's OCSF security audit leave Unfold: as OTLP logs to UNFOLD_AUDIT_OTLP_URL, and as NDJSON from GET /api/admin/audit for the Tenant's administrators. Recording, retention and chain verification run whatever the flag says. Evaluated per Tenant: the context carries tenantId, with targetingKey tenant:<id>.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
