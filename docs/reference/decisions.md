@@ -48,6 +48,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0041](../adr/adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md) | A Ploeg release opens Unfold's pin pull request by running Unfold's recipe | 2026-10-18 | — |
 | System | [0043](../adr/adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md) | An Unfold release is one chart that carries the Ploeg it was tested with | 2026-10-19 | — |
 | System | [0045](../adr/adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md) | Agent code runs under Kata or gVisor, chosen by what the node and the work need | 2026-10-24 | — |
+| System | [0050](../adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md) | Unfold integrates through open standards and registries and never locks a customer in | 2026-10-30 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
