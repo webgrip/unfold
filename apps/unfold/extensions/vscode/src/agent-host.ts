@@ -11,6 +11,23 @@ export const agentHostsSetting = 'chat.remoteAgentHosts';
 
 export type AgentHostEntry = { address?: string; name?: string; connectionToken?: string };
 
+/** The VS Code setting Settings Sync leaves alone the settings it lists in. `chat.remoteAgentHosts` is application-scoped without `ignoreSync`, so Sync uploads it unless it is listed here. */
+export const syncIgnoredSetting = 'settingsSync.ignoredSettings';
+
+/** Whether Settings Sync ignores `chat.remoteAgentHosts`, given the value of `settingsSync.ignoredSettings`. A `-chat.remoteAgentHosts` entry syncs it again. */
+export function agentHostsSyncIgnored(value: unknown): boolean {
+  return Array.isArray(value) && value.includes(agentHostsSetting) && !value.includes(`-${agentHostsSetting}`);
+}
+
+/** `settingsSync.ignoredSettings` with `chat.remoteAgentHosts` added and a `-chat.remoteAgentHosts` removed, keeping every other entry; undefined when nothing changes. */
+export function withAgentHostsSyncIgnored(value: unknown): string[] | undefined {
+  if (agentHostsSyncIgnored(value)) return undefined;
+  const current = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item !== `-${agentHostsSetting}`) : [];
+  return [...current, agentHostsSetting];
+}
+
+function carriesToken(entries: readonly AgentHostEntry[]): boolean { return entries.some(item => typeof item.connectionToken === 'string' && item.connectionToken.length > 0); }
+
 /** The address as the Agents window stores it: `ws://` hosts lose their scheme, `wss://` hosts keep it, and a root path is dropped. */
 export function agentHostAddressKey(address: string | undefined): string | undefined {
   if (!address) return undefined;
@@ -188,6 +205,9 @@ export interface AgentHostStore {
   readonly location: string;
   /** The current entries; throws a SettingsFileError when a later update could not be written. */
   read(): Promise<AgentHostEntry[] | undefined>;
+  /** Whether Settings Sync ignores `chat.remoteAgentHosts` in this store. */
+  syncIgnored(): Promise<boolean>;
+  /** Writes the changed entries. When they carry a connection token, `chat.remoteAgentHosts` is added to `settingsSync.ignoredSettings` first, or in the same write. */
   update(change: (entries: AgentHostEntry[] | undefined) => AgentHostEntry[]): Promise<void>;
 }
 
@@ -205,8 +225,11 @@ export function configurationStore(configuration: SettingsConfiguration): AgentH
     kind: 'configuration',
     location: 'User Settings',
     read: async () => entriesOf(configuration.inspect(agentHostsSetting)?.globalValue),
+    syncIgnored: async () => agentHostsSyncIgnored(configuration.inspect(syncIgnoredSetting)?.globalValue),
     update: async change => {
       const next = change(entriesOf(configuration.inspect(agentHostsSetting)?.globalValue));
+      const ignored = carriesToken(next) ? withAgentHostsSyncIgnored(configuration.inspect(syncIgnoredSetting)?.globalValue) : undefined;
+      if (ignored) await configuration.update(syncIgnoredSetting, ignored, true);
       await configuration.update(agentHostsSetting, next, true);
     },
   };
@@ -221,12 +244,15 @@ export function fileStore(path: string): AgentHostStore {
       await assertWritable(path);
       return entries;
     },
+    syncIgnored: async () => agentHostsSyncIgnored(readSetting(path, (await existing(path)) ?? '', syncIgnoredSetting)),
     update: async change => {
       const text = (await existing(path)) ?? '';
       const current = readSetting(path, text, agentHostsSetting);
       const next = change(entriesOf(current));
       if (!next.length && current === undefined) return;
-      await writeFileAtomically(path, editSetting(path, text, agentHostsSetting, next));
+      const ignored = carriesToken(next) ? withAgentHostsSyncIgnored(readSetting(path, text, syncIgnoredSetting)) : undefined;
+      const withIgnore = ignored ? editSetting(path, text, syncIgnoredSetting, ignored) : text;
+      await writeFileAtomically(path, editSetting(path, withIgnore, agentHostsSetting, next));
     },
   };
 }
@@ -245,16 +271,20 @@ export function agentHostStore(configuration: SettingsConfiguration, settingsFil
 
 export type TokenProbe = 'valid' | 'invalid' | 'unknown';
 
-/** Opens and immediately closes a WebSocket handshake with the token: 101 means valid, 401 or 403 invalid, anything else unknown. */
+/**
+ * Opens and immediately closes a WebSocket handshake with the token in an `Authorization` header, so it stays out of URLs that
+ * proxies log: 101 means valid, 401 or 403 invalid, anything else unknown.
+ */
 export function probeAgentHostToken(address: string, token: string, timeoutMs = 5_000): Promise<TokenProbe> {
   return new Promise(resolve => {
     let url: URL;
-    try { url = new URL(connectionAddress(address, token)); } catch { resolve('unknown'); return; }
+    try { url = new URL(address); } catch { resolve('unknown'); return; }
+    url.searchParams.delete('tkn');
     const secure = url.protocol === 'wss:';
     if (!secure && url.protocol !== 'ws:') { resolve('unknown'); return; }
     url.protocol = secure ? 'https:' : 'http:';
     const send = secure ? httpsRequest : httpRequest;
-    const req = send(url, { method: 'GET', timeout: timeoutMs, headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': randomBytes(16).toString('base64') } });
+    const req = send(url, { method: 'GET', timeout: timeoutMs, headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': randomBytes(16).toString('base64'), Authorization: `Bearer ${token}` } });
     req.on('upgrade', (_response, socket) => { socket.destroy(); resolve('valid'); });
     req.on('response', response => { response.resume(); resolve(response.statusCode === 401 || response.statusCode === 403 ? 'invalid' : 'unknown'); });
     req.on('timeout', () => { req.destroy(); resolve('unknown'); });
@@ -285,13 +315,14 @@ export type AttachOutcome = { status: 'attached' | 'unchanged' | 'skipped'; mint
 
 /**
  * Adds or refreshes the Unfold entry. The store is read first, so an unparseable or unwritable file stops before a token is minted.
- * A stored token is reused unless the workbench rejects it, and a minted token is remembered before the write so a failed write leaves nothing to orphan.
- * A rejected token is then retired on the workbench, in case only the handshake failed.
+ * A stored token is reused unless the workbench rejects it or Settings Sync could have uploaded it, and a minted token is remembered
+ * before the write so a failed write leaves nothing to orphan. A replaced token is then retired on the workbench.
  */
 export async function attachAgentHost(request: AttachRequest): Promise<AttachOutcome> {
   const existingEntry = agentHostEntry(await request.store.read(), request.address);
   if ((request.when === 'missing' && existingEntry) || (request.when === 'present' && !existingEntry)) return { status: 'skipped', minted: false };
-  const reusable = request.storedToken && (await request.probe(request.storedToken)) !== 'invalid' ? request.storedToken : undefined;
+  const exposed = Boolean(existingEntry?.connectionToken) && !(await request.store.syncIgnored());
+  const reusable = request.storedToken && !exposed && (await request.probe(request.storedToken)) !== 'invalid' ? request.storedToken : undefined;
   const named = (entries: readonly AgentHostEntry[] | undefined, entry: AgentHostEntry) => withAgentHostNames(withAgentHost(entries, entry));
   if (reusable && existingEntry?.connectionToken === reusable) {
     const entries = await request.store.read();

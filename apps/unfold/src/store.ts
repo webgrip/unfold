@@ -574,6 +574,9 @@ export class Store {
   /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login, or an editor credential that is neither expired nor idle. */
   liveSignIn(tokenHash: string): boolean { return Boolean(this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash)); }
 
+  /** The absolute expiry of the live sign-in `tokenHash` identifies, a browser login or an editor credential, or undefined when it is not live. */
+  signInExpiresAt(tokenHash: string): string | undefined { return (this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash))?.expiresAt; }
+
   private editorCredential(row: unknown): EditorCredential | undefined {
     if (!row) return undefined;
     const value = row as Record<string, string | null>;

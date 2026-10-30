@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, GitRewrite, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
 import { mcpHttpSettings } from './mcp-auth.ts';
+import { isAgentHostOriginPattern } from './ahp/upgrade-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
@@ -552,6 +553,11 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (config.litellm) config.litellm.masterKey = '';
     if (mode === 'live' && !config.litellm?.baseUrl) throw new Error('Ploeg execution requires an inference gateway base URL');
     if (mode === 'live' && config.gatewayPolicy) throw new Error('Ploeg execution requires provider and region restrictions to be enforced in the control-plane gateway policy');
+  }
+  const agentHostOrigins = (raw.auth ?? {}).agentHostOrigins;
+  if (agentHostOrigins !== undefined) {
+    if (!Array.isArray(agentHostOrigins) || agentHostOrigins.length > 20 || !agentHostOrigins.every(isAgentHostOriginPattern)) throw new Error('auth.agentHostOrigins must list up to 20 page origins such as vscode-file://vscode-app or https://vscode.dev, or "*" for any');
+    config.auth.agentHostOrigins = agentHostOrigins.map((origin: string) => origin.trim().replace(/\/+$/, ''));
   }
   const oidc = (raw.auth ?? {}).oidc;
   if (oidc !== undefined) {

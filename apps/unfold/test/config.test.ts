@@ -169,6 +169,13 @@ test('a kubernetes workspace reservation is a Kubernetes quantity and is kept ap
   await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes: { ...kubernetes, memoryRequest: 'a lot' } }), /kubernetes\.memoryRequest must be a Kubernetes quantity/);
 });
 
+test('auth.agentHostOrigins lists the page origins the agent host accepts, and refuses anything that is not an origin', async t => {
+  assert.equal((await load(t, {})).auth.agentHostOrigins, undefined);
+  assert.deepEqual((await load(t, { auth: { agentHostOrigins: ['vscode-file://vscode-app', 'https://vscode.dev/'] } })).auth.agentHostOrigins, ['vscode-file://vscode-app', 'https://vscode.dev']);
+  await assert.rejects(load(t, { auth: { agentHostOrigins: 'https://vscode.dev' } }), /auth\.agentHostOrigins must list/);
+  await assert.rejects(load(t, { auth: { agentHostOrigins: ['https://vscode.dev/path'] } }), /auth\.agentHostOrigins must list/);
+});
+
 test('local password sign-in is on by default and turned off by auth.localLogin or UNFOLD_LOCAL_LOGIN, never without single sign-on', async t => {
   const previous = process.env.UNFOLD_LOCAL_LOGIN;
   t.after(() => { if (previous === undefined) delete process.env.UNFOLD_LOCAL_LOGIN; else process.env.UNFOLD_LOCAL_LOGIN = previous; });

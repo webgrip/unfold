@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowFolder, agentsWindowState, agentsWindowStatusText, foldersByLastPick, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost, isAgentsWindowWorkspace,
-  isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withoutIssuedAgentHost,
+  agentHostsSyncIgnored, isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withAgentHostsSyncIgnored, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
 
@@ -35,12 +35,13 @@ function attachRequest(store: AgentHostStore, overrides: Partial<AttachRequest> 
   return { request, calls };
 }
 
-function fakeConfiguration(registered: boolean, globalValue?: AgentHostEntry[]) {
+function fakeConfiguration(registered: boolean, globalValue?: AgentHostEntry[], ignoredSettings?: unknown) {
   const updates: Array<{ key: string; value: unknown; global: boolean }> = [];
   let value = globalValue;
+  let ignored = ignoredSettings;
   const configuration: SettingsConfiguration = {
-    inspect: key => key === 'chat.remoteAgentHosts' ? { ...(registered ? { defaultValue: [] } : {}), globalValue: value } : undefined,
-    update: async (key, next, global) => { updates.push({ key, value: next, global }); value = next as AgentHostEntry[] | undefined; },
+    inspect: key => key === 'chat.remoteAgentHosts' ? { ...(registered ? { defaultValue: [] } : {}), globalValue: value } : key === 'settingsSync.ignoredSettings' ? { defaultValue: [], globalValue: ignored } : undefined,
+    update: async (key, next, global) => { updates.push({ key, value: next, global }); if (key === 'chat.remoteAgentHosts') value = next as AgentHostEntry[] | undefined; else ignored = next; },
   };
   return { configuration, updates };
 }
@@ -101,7 +102,7 @@ test('a tab-indented file stays tab-indented and a missing file is created reada
   const created = join(dir, 'User', 'settings.json');
   const { request } = attachRequest(fileStore(created));
   await attachAgentHost(request);
-  assert.deepEqual(JSON.parse(await readFile(created, 'utf8')), { 'chat.remoteAgentHosts': [{ address, name: 'Unfold', connectionToken: 'minted-1' }] });
+  assert.deepEqual(JSON.parse(await readFile(created, 'utf8')), { 'settingsSync.ignoredSettings': ['chat.remoteAgentHosts'], 'chat.remoteAgentHosts': [{ address, name: 'Unfold', connectionToken: 'minted-1' }] });
   if (process.platform !== 'win32') assert.equal((await stat(created)).mode & 0o777, 0o600);
 });
 
@@ -154,7 +155,7 @@ test('an unwritable settings file is refused before any token is minted', { skip
 });
 
 test('a minted token is remembered before the write, so a failed write leaves nothing orphaned', async () => {
-  const store: AgentHostStore = { kind: 'file', location: 'memory', read: async () => [], update: async () => { throw new Error('disk full'); } };
+  const store: AgentHostStore = { kind: 'file', location: 'memory', read: async () => [], syncIgnored: async () => true, update: async () => { throw new Error('disk full'); } };
   const { request, calls } = attachRequest(store);
   await assert.rejects(attachAgentHost(request), /disk full/);
   assert.deepEqual(calls.remembered, ['minted-1']);
@@ -172,7 +173,7 @@ test('signing out removes the issued entry from the file and keeps the comments 
   assert.match(text, /"other": 1/);
   await writeFile(path, JSON.stringify({ 'chat.remoteAgentHosts': [{ address, connectionToken: 'issued' }, { address: 'ws://other', connectionToken: 'x' }] }));
   await detachAgentHost(fileStore(path), address, 'issued');
-  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { 'chat.remoteAgentHosts': [{ address: 'ws://other', connectionToken: 'x' }] });
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { 'settingsSync.ignoredSettings': ['chat.remoteAgentHosts'], 'chat.remoteAgentHosts': [{ address: 'ws://other', connectionToken: 'x' }] }, 'an entry left with a token is kept out of Settings Sync too');
 });
 
 test('a symlinked settings file is written through the link, which stays a link', { skip: process.platform === 'win32' }, async t => {
@@ -193,8 +194,12 @@ test('when the window registers chat.remoteAgentHosts the configuration API is u
   const store = agentHostStore(configuration, path);
   assert.equal(store.kind, 'configuration');
   await attachAgentHost(attachRequest(store).request);
-  assert.deepEqual(updates, [{ key: 'chat.remoteAgentHosts', value: [{ address: 'ws://other', connectionToken: 'x' }, { address, name: 'Unfold', connectionToken: 'minted-1' }], global: true }]);
+  assert.deepEqual(updates, [
+    { key: 'settingsSync.ignoredSettings', value: ['chat.remoteAgentHosts'], global: true },
+    { key: 'chat.remoteAgentHosts', value: [{ address: 'ws://other', connectionToken: 'x' }, { address, name: 'Unfold', connectionToken: 'minted-1' }], global: true },
+  ], 'Settings Sync is told to ignore the setting before a token reaches it');
   await assert.rejects(readFile(path, 'utf8'), { code: 'ENOENT' });
+  updates.splice(0, updates.length);
   await detachAgentHost(store, address, 'minted-1');
   assert.deepEqual(updates.at(-1), { key: 'chat.remoteAgentHosts', value: [{ address: 'ws://other', connectionToken: 'x' }], global: true });
   const unregistered = agentHostStore(fakeConfiguration(false).configuration, path);
@@ -203,10 +208,12 @@ test('when the window registers chat.remoteAgentHosts the configuration API is u
   assert.throws(() => agentHostStore(fakeConfiguration(false).configuration, undefined), /could not locate/);
 });
 
-test('a token probe tells an accepted handshake from a rejected one', async t => {
+test('a token probe sends the token in a header, never in the URL, and tells an accepted handshake from a rejected one', async t => {
+  const seen: string[] = [];
   const server = createServer((_req, res) => { res.writeHead(404); res.end(); });
   server.on('upgrade', (req, socket) => {
-    const token = new URL(req.url ?? '/', 'http://localhost').searchParams.get('tkn');
+    const token = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
+    seen.push(req.url ?? '');
     if (token === 'good') socket.end('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: x\r\n\r\n');
     else socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
   });
@@ -216,6 +223,39 @@ test('a token probe tells an accepted handshake from a rejected one', async t =>
   assert.equal(await probeAgentHostToken(`ws://127.0.0.1:${port}`, 'good'), 'valid');
   assert.equal(await probeAgentHostToken(`ws://127.0.0.1:${port}`, 'bad'), 'invalid');
   assert.equal(await probeAgentHostToken('ws://127.0.0.1:1', 'good', 500), 'unknown');
+  assert.equal(await probeAgentHostToken(`ws://127.0.0.1:${port}/?tkn=good`, 'good'), 'valid');
+  assert.ok(seen.length >= 3 && seen.every(url => !url.includes('tkn') && !url.includes('good')), 'no probe puts the token into the request line');
+});
+
+test('Settings Sync ignores chat.remoteAgentHosts once the extension writes a token, and other ignored settings stay', async t => {
+  assert.deepEqual(withAgentHostsSyncIgnored(undefined), ['chat.remoteAgentHosts']);
+  assert.deepEqual(withAgentHostsSyncIgnored(['editor.fontSize']), ['editor.fontSize', 'chat.remoteAgentHosts']);
+  assert.deepEqual(withAgentHostsSyncIgnored(['-chat.remoteAgentHosts', 'a']), ['a', 'chat.remoteAgentHosts'], 'a re-include is replaced by the ignore');
+  assert.equal(withAgentHostsSyncIgnored(['chat.remoteAgentHosts']), undefined);
+  assert.equal(agentHostsSyncIgnored(['chat.remoteAgentHosts', '-chat.remoteAgentHosts']), false);
+  const path = join(await folder(t), 'settings.json');
+  await writeFile(path, '{\n  // mine\n  "settingsSync.ignoredSettings": ["editor.fontSize"]\n}\n');
+  await attachAgentHost(attachRequest(fileStore(path)).request);
+  const text = await readFile(path, 'utf8');
+  assert.match(text, /\/\/ mine/);
+  assert.deepEqual(JSON.parse(text.replace(/\/\/.*$/m, ''))['settingsSync.ignoredSettings'], ['editor.fontSize', 'chat.remoteAgentHosts']);
+  assert.equal(await fileStore(path).syncIgnored(), true);
+  await detachAgentHost(fileStore(path), address, 'minted-1');
+  assert.equal(await fileStore(path).syncIgnored(), true, 'signing out leaves the ignore, so a later token is never synced either');
+});
+
+test('a token that sat in a synced chat.remoteAgentHosts is replaced and retired, because Settings Sync may have uploaded it', async t => {
+  const path = join(await folder(t), 'settings.json');
+  await writeFile(path, JSON.stringify({ 'chat.remoteAgentHosts': [{ address, name: 'Unfold', connectionToken: 'synced' }] }));
+  const exposed = attachRequest(fileStore(path), { storedToken: 'synced', probed: 'valid' });
+  assert.deepEqual(await attachAgentHost(exposed.request), { status: 'attached', minted: true });
+  assert.deepEqual(exposed.calls.probed, [], 'an exposed token is not even probed');
+  assert.deepEqual(exposed.calls.retired, ['synced']);
+  const settings = JSON.parse(await readFile(path, 'utf8'));
+  assert.deepEqual(settings['chat.remoteAgentHosts'], [{ address, name: 'Unfold', connectionToken: 'minted-1' }]);
+  assert.deepEqual(settings['settingsSync.ignoredSettings'], ['chat.remoteAgentHosts']);
+  const later = attachRequest(fileStore(path), { storedToken: 'minted-1', probed: 'valid' });
+  assert.deepEqual(await attachAgentHost(later.request), { status: 'unchanged', minted: false }, 'once ignored, the token is reused');
 });
 
 test('a token the workbench rejected is retired after its replacement is remembered; a reused token is not', async t => {
