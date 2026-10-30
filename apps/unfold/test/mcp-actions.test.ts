@@ -110,6 +110,7 @@ test('each Work Item action over stdio calls Unfold\'s route only after the pers
       const answer = await overStdio(server.url, token, entry.tool, entry.args, declined);
       assert.equal(answer.elicited.length, 1, entry.tool);
       if (declined === 'fail') assert.match(answer.result.content[0].text, /did not come back, so nothing was changed/);
+      else if (declined.action === 'cancel') assert.equal(answer.result.structuredContent.summary, `Not done: the confirmation was closed without an answer, so nothing was changed. If your client never showed it to you, do it in Unfold: ${server.url}/#work/${entry.args.id}`, entry.tool);
       else assert.deepEqual(answer.result.structuredContent, { summary: 'Not done: you did not confirm. Nothing was changed.', done: false, demo: false, link: `${server.url}/#work/${entry.args.id}`, result: null }, entry.tool);
     }
     assert.equal(ploeg.posted.length, before.posts, `${entry.tool}: a declined or unanswered confirmation calls nothing`);
