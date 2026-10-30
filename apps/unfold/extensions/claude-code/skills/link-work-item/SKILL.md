@@ -13,6 +13,6 @@ Only the plugin's Claude Code hooks write that line. Without it, for example in 
 2. Call `unfold_link_session` with `session_id` and `id`. To undo a link, call it with `unlink: true`; the branch name will not link that Work Item again.
 3. Say which Work Item the session is now linked to, with the link the tool returned.
 
-When you write a commit message in this session, end it with the trailer line `Unfold-Session: <the session's Unfold page>`, next to any `VIK-<id>` trailer the repository asks for.
+When you write a commit message in this session, end it with the trailer lines `Assisted-by: claude-code:<your model id>` and `Unfold-Session: <the session's Unfold page>`, next to any `VIK-<id>` trailer the repository asks for. The session's start-up text gives the exact lines, and the two lines that start a pull request description ([AI output marking](../../../../docs/contracts/ai-marking.md)).
 
 `unfold_linked_sessions` with a Work Item id shows every session linked to it, including other people's.
