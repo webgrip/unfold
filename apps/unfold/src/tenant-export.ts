@@ -131,6 +131,7 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'ssf_seen', reason: 'Deduplication: the ids of Shared Signals events already handled, forgotten after a while.' },
   { table: 'intake_deliveries', reason: 'Deduplication: the delivery ids each intake source already received and their outcome, kept for a few hours.' },
   { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy, Web Push, Slack and Microsoft Teams.' },
+  { table: 'jobs', reason: 'Operational: the background job queue, when each pending delivery, notice, billing line, report or comment runs next. The records it works on are exported or excluded under their own tables.' },
   { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
   { table: 'notify_handed_transitions', reason: 'Operational: the last moment each handed-off Work Item notified about, so a repeat notifies nobody. It holds Work Item and Ploeg event ids, no person.' },
   { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },

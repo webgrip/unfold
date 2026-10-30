@@ -476,4 +476,10 @@ test('through the workbench, an administrator subscribes a local receiver the al
   const listed = await request(server.url, '/api/admin/webhooks', { cookie: adminCookie });
   assert(!listed.text.includes(created.body.secret));
   assert.equal(listed.body.subscriptions[0].deliveries.delivered, 1);
+  const jobs = await request(server.url, '/api/admin/jobs?kind=outbound.delivery', { cookie: adminCookie });
+  assert.equal(jobs.status, 200, jobs.text);
+  assert.deepEqual(jobs.body.kinds.find((entry: Json) => entry.kind === 'outbound.delivery'), { kind: 'outbound.delivery', pending: 0, running: 0, done: 1, dead: 0, oldestDueAt: null }, 'operators see the delivery job in the queue');
+  assert.deepEqual(jobs.body.troubled, []);
+  assert.equal((await request(server.url, '/api/admin/jobs', { cookie: operator })).status, 403);
+  assert.equal((await request(server.url, '/api/admin/jobs?kind=Bad%20Kind', { cookie: adminCookie })).body.error.code, 'job_kind');
 });

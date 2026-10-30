@@ -147,7 +147,8 @@ test('a refusing tracker keeps the report, says it will retry, and the retry con
   assert(errors.some(line => line.includes('report.file_failed') && line.includes('storage full')));
 
   refuseAssets = false;
-  app.app.store.db.prepare('UPDATE reports SET next_attempt_at=?').run(new Date(Date.now() - 1000).toISOString());
+  assert.equal((app.app.store.db.prepare("SELECT state FROM jobs WHERE kind='report.file'").get() as { state: string }).state, 'pending', 'the retry waits in the durable job queue');
+  app.app.store.db.prepare("UPDATE jobs SET run_at=? WHERE kind='report.file'").run(new Date(Date.now() - 1000).toISOString());
   await app.app.reports.retryDue();
   const row = app.app.store.db.prepare('SELECT status, url, attempts FROM reports').get() as Record<string, string | number>;
   assert.equal(row.status, 'filed', 'the retry filed it once the tracker recovered');

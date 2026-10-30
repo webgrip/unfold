@@ -4,6 +4,7 @@ import type { LinkedSession, LinkedSessionStore } from './linked-sessions.ts';
 import type { CommentRequest, CommentResult } from './cards/service.ts';
 import type { FactsPullRequest, WorkItemFacts } from './cards/facts.ts';
 import { markAiMarkdown, pullRequestReview } from './ai-marking.ts';
+import type { JobWorker } from './jobs/worker.ts';
 
 /** The key of Unfold's Agent Trace comment on a Work Item's pull request (Ploeg ADR-0079). */
 export const agentTraceCommentKey = 'agent-trace';
@@ -24,9 +25,13 @@ export type AgentTraceCommentOptions = {
   /** Whether the Team may get the comment: the `linked.trace-comment` flag. */
   enabled: (team: string) => Promise<boolean>;
   delayMs?: number;
-  schedule?: (run: () => void, ms: number) => void;
+  /** The worker whose durable queue holds the scheduled writes. Without it, {@link AgentTraceComments.notice} schedules nothing. */
+  jobs?: JobWorker;
+  clock?: () => number;
   log?: (level: 'info' | 'warn', event: string, detail: Record<string, unknown>) => void;
 };
+/** The job kind of a scheduled Agent Trace comment write. */
+export const agentTraceCommentJob = 'agent_trace.comment';
 
 type CommitRow = { sha: string; subject: string; at: string; ai: number; files: number; sessions: Set<string> };
 
@@ -90,37 +95,53 @@ export function agentTraceCommentMarkdown(entries: readonly { session: LinkedSes
 
 /**
  * Keeps one Agent Trace comment on each Work Item's open pull request through Ploeg's keyed comment: a stored record
- * for a session linked to the Work Item schedules a write after {@link agentTraceCommentDelayMs}, further records in
- * that window join it, and a write whose text did not change is skipped. Ploeg replaces the keyed comment, so a
- * repeated write never adds a second comment.
+ * for a session linked to the Work Item queues a write {@link agentTraceCommentDelayMs} later in the durable job
+ * queue, further records in that window join it, and a write whose text did not change is skipped. Ploeg replaces the
+ * keyed comment, so a repeated write never adds a second comment.
  */
 export class AgentTraceComments {
   private readonly source: AgentTraceCommentSource;
   private readonly store: LinkedSessionStore;
   private readonly options: AgentTraceCommentOptions;
-  private readonly waiting = new Map<string, string>();
   private readonly written = new Map<string, string>();
 
   constructor(source: AgentTraceCommentSource, store: LinkedSessionStore, options: AgentTraceCommentOptions) {
     this.source = source;
     this.store = store;
     this.options = options;
+    options.jobs?.register<{ workItemId: string; base: string }>({
+      kind: agentTraceCommentJob, leaseMs: 120_000, backoff: { baseMs: 60_000, maxMs: 1_800_000 }, retainMs: 86_400_000,
+      run: async job => {
+        try {
+          const outcome = await this.publish(job.payload.workItemId, job.payload.base);
+          this.log('info', 'agent_trace.comment', { workItem: job.payload.workItemId, outcome });
+          return { done: true };
+        } catch (error) {
+          const message = String((error as Error).message).slice(0, 200);
+          this.log('warn', 'agent_trace.comment_failed', { workItem: job.payload.workItemId, message });
+          return { retry: message };
+        }
+      },
+    });
   }
 
-  /** The Work Items whose comment write is scheduled. */
-  pending(): string[] { return [...this.waiting.keys()]; }
+  private now(): number { return (this.options.clock ?? Date.now)(); }
 
-  /** Schedules the comment of each Work Item, once per window; `base` is the workbench address the session links use. */
+  /** The Work Items whose comment write is queued. */
+  pending(): string[] {
+    const db = this.options.jobs?.queue.store.db;
+    if (!db) return [];
+    return (db.prepare("SELECT key FROM jobs WHERE kind=? AND state IN ('pending','running') ORDER BY id").all(agentTraceCommentJob) as { key: string }[]).map(row => row.key);
+  }
+
+  /** Queues the comment of each Work Item, once per window; `base` is the workbench address the session links use. */
   notice(workItemIds: readonly string[], base: string): void {
+    const jobs = this.options.jobs;
+    if (!jobs) return;
+    const now = this.now();
     for (const id of new Set(workItemIds)) {
-      if (this.waiting.has(id)) { this.waiting.set(id, base); continue; }
-      this.waiting.set(id, base);
-      const run = () => {
-        const at = this.waiting.get(id) ?? base;
-        this.waiting.delete(id);
-        this.publish(id, at).then(outcome => this.log('info', 'agent_trace.comment', { workItem: id, outcome }), error => this.log('warn', 'agent_trace.comment_failed', { workItem: id, message: String((error as Error).message).slice(0, 200) }));
-      };
-      (this.options.schedule ?? ((task, ms) => { setTimeout(task, ms).unref(); }))(run, this.options.delayMs ?? agentTraceCommentDelayMs);
+      const queued = jobs.queue.enqueue(agentTraceCommentJob, id, { workItemId: id, base }, now, { runAt: now + (this.options.delayMs ?? agentTraceCommentDelayMs), maxAttempts: 5, repeat: 'when_finished' }).queued;
+      if (!queued) jobs.queue.update(agentTraceCommentJob, id, { workItemId: id, base }, now);
     }
   }
 

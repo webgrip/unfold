@@ -59,7 +59,7 @@ export class AuditOtlpExporter {
   private readonly environment: string;
   private readonly fetcher: typeof fetch;
   private readonly warn: (message: string) => void;
-  private flushing: Promise<void> | undefined;
+  private flushing: Promise<boolean> | undefined;
   private again = false;
 
   constructor(options: { chain: AuditChain; target: AuditOtlpTarget; enabled: (tenant: string) => Promise<boolean>; environment: string; fetch?: typeof fetch; warn: (message: string) => void }) {
@@ -71,28 +71,31 @@ export class AuditOtlpExporter {
     this.warn = options.warn;
   }
 
-  /** Sends what is pending; a flush asked for while one runs runs once more after it. */
-  flush(): Promise<void> {
+  /** Sends what is pending and answers whether the collector took all of it; a flush asked for while one runs runs once more after it. */
+  flush(): Promise<boolean> {
     if (this.flushing) { this.again = true; return this.flushing; }
     this.flushing = (async () => {
+      let ok = true;
       try {
-        do { this.again = false; await this.sendAll(); } while (this.again);
+        do { this.again = false; ok = await this.sendAll(); } while (this.again);
       } finally { this.flushing = undefined; }
+      return ok;
     })();
     return this.flushing;
   }
 
-  private async sendAll(): Promise<void> {
+  private async sendAll(): Promise<boolean> {
     for (const tenant of this.chain.tenants()) {
       if (!await this.enabled(tenant)) continue;
       for (;;) {
         const records = this.chain.page(tenant, { cursor: this.chain.exportedThrough(tenant), limit: exportBatch });
         if (!records.length) break;
-        if (!await this.send(records)) return;
+        if (!await this.send(records)) return false;
         this.chain.markExported(tenant, records[records.length - 1].sequence);
         if (records.length < exportBatch) break;
       }
     }
+    return true;
   }
 
   private async send(records: StoredAuditRecord[]): Promise<boolean> {

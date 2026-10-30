@@ -5,6 +5,7 @@ import type { CommentRequest, CommentResult } from './cards/service.ts';
 import type { FactsChangedPath, FactsPullRequest, WorkItemFacts } from './cards/facts.ts';
 import { commentPullRequest } from './agent-trace-comments.ts';
 import { markAiMarkdown, pullRequestReview } from './ai-marking.ts';
+import type { JobWorker } from './jobs/worker.ts';
 
 /** The key of Unfold's Client Sign-off comment on a Work Item's pull request (Ploeg ADR-0079, system ADR-0049). */
 export const clientSignOffCommentKey = 'client-sign-off';
@@ -244,7 +245,8 @@ export type ClientSignOffOptions = {
   readFile?: SignOffFileReader;
   writeStatus?: SignOffStatusWriter;
   delayMs?: number;
-  schedule?: (run: () => void, ms: number) => void;
+  /** The worker whose durable queue holds the scheduled writes. Without it, {@link ClientSignOffs.notice} schedules nothing. */
+  jobs?: JobWorker;
   now?: () => Date;
   log?: (level: 'info' | 'warn', event: string, detail: Record<string, unknown>) => void;
 };
@@ -299,27 +301,47 @@ export function signOffCommentMarkdown(latest: ClientSignOff, headSha: string | 
   return lines.join('\n');
 }
 
+/** The job kind of a scheduled Client Sign-off comment write. */
+export const clientSignOffCommentJob = 'client_sign_off.comment';
+
 /**
  * Records and withdraws Client Sign-offs, dismisses them when the pull request's head moves, and keeps one keyed comment
- * on the pull request through Ploeg (Ploeg ADR-0079). A change schedules a write after
- * {@link clientSignOffCommentDelayMs}; further changes in that window join it, and a write whose text did not change is
- * skipped. A failed write is logged and tried again at the next change, never in a loop, and never undoes a Sign-off.
+ * on the pull request through Ploeg (Ploeg ADR-0079). A change queues a write {@link clientSignOffCommentDelayMs} later
+ * in the durable job queue; further changes in that window join it, and a write whose text did not change is skipped.
+ * A failed write is logged and retried with backoff a few times, and never undoes a Sign-off.
  */
 export class ClientSignOffs {
   readonly store: ClientSignOffStore;
   private readonly source: ClientSignOffSource;
   private readonly options: ClientSignOffOptions;
-  private readonly waiting = new Set<string>();
   private readonly written = new Map<string, string>();
 
   constructor(source: ClientSignOffSource, store: ClientSignOffStore, options: ClientSignOffOptions) {
     this.source = source;
     this.store = store;
     this.options = options;
+    options.jobs?.register<{ workItemId: string }>({
+      kind: clientSignOffCommentJob, leaseMs: 120_000, backoff: { baseMs: 60_000, maxMs: 1_800_000 }, retainMs: 86_400_000,
+      run: async job => {
+        const workItemId = job.payload.workItemId;
+        try {
+          this.log('info', 'client_sign_off.comment', { workItem: workItemId, outcome: await this.publish(workItemId) });
+          return { done: true };
+        } catch (error) {
+          const message = String((error as Error).message).slice(0, 200);
+          this.log('warn', 'client_sign_off.comment_failed', { workItem: workItemId, message });
+          return { retry: message };
+        }
+      },
+    });
   }
 
-  /** The Work Items whose comment write is scheduled. */
-  pending(): string[] { return [...this.waiting]; }
+  /** The Work Items whose comment write is queued. */
+  pending(): string[] {
+    const db = this.options.jobs?.queue.store.db;
+    if (!db) return [];
+    return (db.prepare("SELECT key FROM jobs WHERE kind=? AND state IN ('pending','running') ORDER BY id").all(clientSignOffCommentJob) as { key: string }[]).map(row => row.key);
+  }
 
   /** The Work Item's current Sign-off, its history and the scope a Sign-off now would have, after dismissing stale ones. */
   async view(workItemId: string, client = unassignedClient): Promise<SignOffView> {
@@ -378,15 +400,12 @@ export class ClientSignOffs {
     return { ...current, state: 'withdrawn', endedAt: at, endedBy: person.id };
   }
 
-  /** Schedules the comment of a Work Item, once per window. */
+  /** Queues the comment of a Work Item, once per window. */
   notice(workItemId: string): void {
-    if (this.waiting.has(workItemId)) return;
-    this.waiting.add(workItemId);
-    const run = () => {
-      this.waiting.delete(workItemId);
-      this.publish(workItemId).then(outcome => this.log('info', 'client_sign_off.comment', { workItem: workItemId, outcome }), error => this.log('warn', 'client_sign_off.comment_failed', { workItem: workItemId, message: String((error as Error).message).slice(0, 200) }));
-    };
-    (this.options.schedule ?? ((task, ms) => { setTimeout(task, ms).unref(); }))(run, this.options.delayMs ?? clientSignOffCommentDelayMs);
+    const jobs = this.options.jobs;
+    if (!jobs) return;
+    const now = (this.options.now?.() ?? new Date()).getTime();
+    jobs.queue.enqueue(clientSignOffCommentJob, workItemId, { workItemId }, now, { runAt: now + (this.options.delayMs ?? clientSignOffCommentDelayMs), maxAttempts: 3, repeat: 'when_finished' });
   }
 
   /** Writes the comment, and the commit status where a writer exists, of one Work Item now. */

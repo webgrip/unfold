@@ -11,7 +11,8 @@ import { deliveryRow, defaultAcceptanceCalendar, type AcceptanceCalendar } from 
 import { cloudEvent, eventTypes, ploegEventType, validFilter, type CloudEvent, type EventOwner } from './catalogue.ts';
 import { webhookHeaders, newSecret } from './signing.ts';
 import { TargetError, guardedLookup, parseTarget, resolveTarget, targetAllowlist, type OutboundEventsSettings, type TargetAllowlist } from './address.ts';
-import { OutboundStore, type Delivery, type Subscription } from './store.ts';
+import { OutboundStore, deliveryJob, type Delivery, type Subscription } from './store.ts';
+import { JobWorker, type JobOutcome } from '../jobs/worker.ts';
 
 export { ploegEventType };
 
@@ -104,6 +105,8 @@ export type OutboundOptions = {
    * queues it for administrators and moves the cursor. Returns how many deliveries it queued.
    */
   sink?: (event: CloudEvent, source: PloegEvent, facts: WorkItemFacts | undefined, recorded: string) => number;
+  /** The application's job worker; the service makes its own over the same store when absent. */
+  jobs?: JobWorker;
 };
 
 /**
@@ -117,8 +120,9 @@ export class OutboundEvents {
   private readonly transport: Transport;
   private readonly clock: () => number;
   private readonly random: () => number;
+  private readonly jobs: JobWorker;
   private timers: NodeJS.Timeout[] = [];
-  private busy = { dispatch: false, follow: false, ledger: false };
+  private busy = { follow: false, ledger: false };
   private stopped = false;
 
   constructor(store: Store, options: OutboundOptions) {
@@ -128,6 +132,8 @@ export class OutboundEvents {
     this.transport = options.transport ?? httpTransport;
     this.clock = options.clock ?? Date.now;
     this.random = options.random ?? Math.random;
+    this.jobs = options.jobs ?? new JobWorker(this.store.jobs, { clock: this.clock, random: this.random });
+    this.jobs.register<{ deliveryId: number }>({ kind: deliveryJob, concurrency: 8, leaseMs: 4 * deliveryTimeoutMs, retainMs: deliveryRetentionDays * 86_400_000, run: job => this.deliver(job.payload.deliveryId) });
   }
 
   private now(): string { return new Date(this.clock()).toISOString(); }
@@ -135,18 +141,21 @@ export class OutboundEvents {
     (level === 'warn' ? console.error : console.log)(JSON.stringify({ level, event, ...fields }));
   }
 
-  /** Starts the background loops: delivery every 5 s, Ploeg's events and Sign-offs every 15 s, Acceptance hourly. */
+  /**
+   * Starts the background loops: Ploeg's events and Sign-offs every 15 s, Acceptance hourly. Deliveries run on the
+   * application's job worker; a service that made its own worker drains it every 5 s.
+   */
   start(): void {
     const every = (ms: number, work: () => Promise<unknown>, first = ms) => {
       const run = () => { if (!this.stopped) void work().catch(error => this.log('warn', 'outbound.loop_failed', { message: String(error?.message ?? error).slice(0, 200) })); };
       this.timers.push(setTimeout(run, first).unref(), setInterval(run, ms).unref());
     };
-    every(5_000, () => this.dispatch());
+    if (!this.options.jobs) every(5_000, () => this.dispatch());
     every(15_000, async () => { await this.collectSignOffs(); await this.followPloeg(); });
     every(3_600_000, async () => { await this.sweepAcceptance(); this.store.prune(new Date(this.clock() - deliveryRetentionDays * 86_400_000).toISOString()); }, 60_000);
   }
   /** Stops the loops. A delivery in flight finishes; one not yet recorded is sent again after the next start. */
-  stop(): void { this.stopped = true; for (const timer of this.timers) clearTimeout(timer); this.timers = []; }
+  stop(): void { this.stopped = true; if (!this.options.jobs) this.jobs.stop(); for (const timer of this.timers) clearTimeout(timer); this.timers = []; }
 
   /** One round of every source and then of delivery; public so a test can drive it. */
   async tick(): Promise<void> { await this.collectSignOffs(); await this.followPloeg(); await this.dispatch(); }
@@ -314,7 +323,7 @@ export class OutboundEvents {
     return [secrets.current, ...(secrets.previous && secrets.previousUntil && Date.parse(secrets.previousUntil) > this.clock() ? [secrets.previous] : [])];
   }
 
-  private async attempt(delivery: Delivery, body: string, subscription: Subscription): Promise<void> {
+  private async attempt(delivery: Delivery, body: string, subscription: Subscription): Promise<JobOutcome> {
     const attempts = delivery.attempts + 1;
     const timestamp = Math.floor(this.clock() / 1000);
     const headers = { 'content-type': 'application/cloudevents+json; charset=utf-8', 'user-agent': 'Unfold-Webhooks/1', ...webhookHeaders(this.secretsFor(subscription.id), delivery.eventId, timestamp, body) };
@@ -324,7 +333,7 @@ export class OutboundEvents {
     const now = this.now();
     if ('status' in result && result.status >= 200 && result.status < 300) {
       this.store.recordAttempt(delivery.id, { status: 'delivered', attempts, nextAttemptAt: null, lastStatus: result.status, lastError: null, deliveredAt: now });
-      return;
+      return { done: true };
     }
     if ('status' in result && result.status === 410) {
       this.store.store.transaction(() => {
@@ -332,30 +341,34 @@ export class OutboundEvents {
         this.store.updateSubscription(subscription.id, { active: false, disabledReason: 'The receiver answered 410 Gone.' }, now);
       });
       this.log('warn', 'outbound.subscription_disabled', { subscription: subscription.id, reason: 'gone' });
-      return;
+      return { dead: 'gone' };
     }
     const lastStatus = 'status' in result ? result.status : null;
     const lastError = 'error' in result ? result.error : result.status >= 300 && result.status < 400 ? 'redirect' : `status_${result.status}`;
     const wait = nextDelay(attempts, this.random, 'status' in result ? result.retryAfterMs : undefined);
     this.store.recordAttempt(delivery.id, { status: wait === null ? 'dead' : 'pending', attempts, nextAttemptAt: wait === null ? null : new Date(this.clock() + wait).toISOString(), lastStatus, lastError, deliveredAt: null });
-    if (wait === null) this.log('warn', 'outbound.delivery_dead', { subscription: subscription.id, eventId: delivery.eventId, attempts, lastStatus, lastError });
+    if (wait === null) {
+      this.log('warn', 'outbound.delivery_dead', { subscription: subscription.id, eventId: delivery.eventId, attempts, lastStatus, lastError });
+      return { dead: lastError };
+    }
+    return { retry: lastError, afterMs: wait };
   }
 
-  /** Sends every delivery that is due, up to 50 per round and 8 at once; a Tenant whose flag is off waits. */
-  async dispatch(): Promise<number> {
-    if (this.busy.dispatch) return 0;
-    this.busy.dispatch = true;
-    try {
-      const due = this.store.due(this.now(), 50);
-      const subscriptions = new Map(this.store.subscriptions().map(entry => [entry.id, entry]));
-      const enabled = await this.enabledTenants([...subscriptions.values()].map(entry => entry.tenant));
-      const ready = due.filter(entry => { const subscription = subscriptions.get(entry.delivery.subscriptionId); return subscription && enabled.get(subscription.tenant); });
-      for (let index = 0; index < ready.length && !this.stopped; index += 8) {
-        await Promise.all(ready.slice(index, index + 8).map(entry => this.attempt(entry.delivery, entry.body, subscriptions.get(entry.delivery.subscriptionId)!)));
-      }
-      return ready.length;
-    } finally { this.busy.dispatch = false; }
+  private async deliver(deliveryId: number): Promise<JobOutcome> {
+    const entry = this.store.withBody(deliveryId);
+    if (!entry || entry.delivery.status !== 'pending') return { done: true };
+    const subscription = this.store.subscription(entry.delivery.subscriptionId);
+    if (!subscription) return { done: true };
+    if (!subscription.active || !await this.options.enabled(subscription.tenant).catch(() => false)) return { later: this.clock() + 60_000 };
+    return this.attempt(entry.delivery, entry.body, subscription);
   }
+
+  /**
+   * Sends every delivery that is due, up to 50 per round and 8 at once, through the job queue. A delivery whose
+   * subscription is paused or whose Tenant's flag is off waits a minute and is not counted; turning the subscription
+   * on again wakes it.
+   */
+  async dispatch(): Promise<number> { return this.stopped ? 0 : this.jobs.drain(deliveryJob, 50); }
 
   private administers(user: User, tenant: string): boolean {
     if (user.role !== 'admin') return false;
