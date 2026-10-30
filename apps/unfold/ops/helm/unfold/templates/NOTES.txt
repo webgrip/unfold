@@ -13,3 +13,11 @@ code an agent writes or fetches runs on the node's default runtime, against the 
 Install Kata Containers or gVisor and set {{ include "unfold.workspaceRuntimeClassValue" . }}:
 https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/how-to/run-agent-code-in-a-sandbox-runtime.md
 {{- end }}
+{{- if include "unfold.storeKeyOnDataVolume" . }}
+
+WARNING: the store key is a file on the data volume.
+storeKey.allowFileOnDataVolume is true and no store key Secret is set, so the key that encrypts people's
+links, sign-in grants and relay credentials sits in unfold.sqlite.key beside the database: one copy of
+the volume or of a backup opens them. Set storeKey.existingSecret or externalSecrets.storeKey:
+https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/storage.md#the-store-key
+{{- end }}

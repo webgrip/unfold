@@ -39,8 +39,8 @@ A passing check logs `store.quick_check` with `ok: true` and how long it took. A
 
 Unfold encrypts its stored secrets (people's links, relay credentials, sign-in grants) with AES-256-GCM under one 32-byte key. Where that key lives:
 
-- **`UNFOLD_STORE_KEY` set.** The key comes from the environment, as base64 or 64 hex characters. In the chart, `storeKey.existingSecret` and `storeKey.secretKey` name the Secret, which an External Secret fills from OpenBao; a `UNFOLD_STORE_KEY` entry in `credentialsSecret` works too. The key then never touches the data volume, so a copy of the volume or a backup alone does not open the secrets.
-- **Unset.** The workbench creates `unfold.sqlite.key` next to the database on first start and reads it from there. This is the default for a local or demo workbench.
+- **`UNFOLD_STORE_KEY` set.** The key comes from the environment, as base64 or 64 hex characters. In the chart, `storeKey.existingSecret` and `storeKey.secretKey` name the Secret, or `externalSecrets.storeKey` names the vault entry an ExternalSecret copies into one ([chart README](../../ops/helm/unfold/README.md#secrets-and-the-store-key)). A key kept in `credentialsSecret` is named the same way, with `storeKey.existingSecret` set to that Secret and `storeKey.secretKey: UNFOLD_STORE_KEY`. The key then never touches the data volume, so a copy of the volume or a backup alone does not open the secrets.
+- **Unset.** The workbench creates `unfold.sqlite.key` next to the database on first start and reads it from there. This is the default for a local or demo workbench. In live mode the chart renders it only while `storeKey.allowFileOnDataVolume` is `true`, and its install notes then warn that one copy of the volume opens every stored secret; with `false` it refuses to render.
 
 A malformed `UNFOLD_STORE_KEY` stops the start rather than falling back to a file.
 
@@ -52,6 +52,18 @@ A malformed `UNFOLD_STORE_KEY` stops the start rather than falling back to a fil
 4. If neither key opens a row, the start stops with `UNFOLD_STORE_KEY does not open the stored internal state` and nothing changes: the key file stays where it was.
 
 With a new key rather than the file's bytes, a backup taken before the move needs the old key file, so keep it with those backups until they age out.
+
+### Rotating the key
+
+Unfold reseals the stored secrets under a new `UNFOLD_STORE_KEY` only with the old key in the key file, the same path as moving the key off the volume. Rotating a key that already lives in a Secret therefore puts the old key on the volume for one start:
+
+1. Keep the old key: its value is in the vault, or in the Secret `storeKey` names.
+2. Write a new key, 32 random bytes as base64 (`openssl rand -base64 32`), to the vault entry or Secret, but do not roll the workbench yet. An ExternalSecret copies it at its next refresh, so check that the Secret holds the new value. A workbench that restarts before step 3 stops at start with `UNFOLD_STORE_KEY does not open the stored internal state` and changes nothing; step 3, run from a pod that mounts the data volume while the workbench is down, lets it start.
+3. Write the old key's raw bytes to the key file: `kubectl exec deploy/unfold -- sh -c 'echo <old key as base64> | base64 -d > /data/workbench/unfold.sqlite.key && chmod 600 /data/workbench/unfold.sqlite.key'`.
+4. Restart the workbench (`kubectl rollout restart deploy/unfold`). On start each row the new key does not open is opened with the key file and sealed again under the new key, the file is deleted and `store.key_adopted` reports how many rows were resealed. If neither key opens a row, the start stops and nothing changes.
+5. Keep the old key with the backups taken under it until they age out.
+
+The workbench takes no previous key from the environment, so the old key sits in a file on the data volume between steps 3 and 4, and the rotation needs a restart. A second input for the old key, which would let a rotation never touch the volume, is not built.
 
 ## When the check fails
 

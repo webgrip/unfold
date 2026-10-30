@@ -9,6 +9,7 @@
 {{- range (default (list) .Values.config.taskSources) -}}{{- if hasKey . "tokenEnv" -}}{{- fail (printf "mode demo gives every visitor admin; it cannot hold the token of task source %v. Remove its tokenEnv, or set mode: live" (get . "id")) -}}{{- end -}}{{- end -}}
 {{- if hasKey (default (dict) .Values.config.reports) "tokenEnv" -}}{{- fail "mode demo gives every visitor admin; it cannot hold config.reports.tokenEnv. Remove it, or set mode: live" -}}{{- end -}}
 {{- end -}}
+{{- include "unfold.validateSecrets" . -}}
 {{- $_ := set $cfg "publicDir" "/app/public" -}}
 {{- if hasKey (default (dict) .Values.config.auth) "localLogin" -}}{{- fail "Set local password sign-in through auth.localLogin, not config.auth.localLogin" -}}{{- end -}}
 {{- if and (not .Values.auth.localLogin) (not (hasKey (default (dict) .Values.config.auth) "oidc")) -}}{{- fail "auth.localLogin false needs config.auth.oidc: without local sign-in, single sign-on is the only way in" -}}{{- end -}}
@@ -53,8 +54,9 @@
 {{- with $d.verifier.imagePullSecrets -}}{{- $_ := set $verifier "imagePullSecrets" . -}}{{- end -}}
 {{- $delivery := dict "verifierTokenEnv" $d.verifierTokenEnv "policies" $d.policies "verifier" $verifier -}}
 {{- if $d.publisher.enabled -}}
-{{- $secret := required "delivery.publisher.existingSecret must name the Secret holding the publisher token" $d.publisher.existingSecret -}}
-{{- if has $secret (default (list) .Values.workspaceAgentSecrets) -}}{{- fail "workspaceAgentSecrets must not list delivery.publisher.existingSecret: it holds the publisher token" -}}{{- end -}}
+{{- $secret := $d.publisher.existingSecret -}}
+{{- if and (not $secret) (not (hasKey (fromJson (include "unfold.credentialRefs" .)) $d.publisher.tokenEnv)) -}}{{- fail (printf "delivery.publisher.existingSecret must name the Secret holding the publisher token, or credentialRefs or externalSecrets.credentials must hold %s" $d.publisher.tokenEnv) -}}{{- end -}}
+{{- if and $secret (has $secret (default (list) .Values.workspaceAgentSecrets)) -}}{{- fail "workspaceAgentSecrets must not list delivery.publisher.existingSecret: it holds the publisher token" -}}{{- end -}}
 {{- $publisher := dict "kind" "forgejo" "apiUrl" (required "delivery.publisher.apiUrl is required" $d.publisher.apiUrl) "tokenEnv" $d.publisher.tokenEnv -}}
 {{- with $d.publisher.username -}}{{- $_ := set $publisher "username" . -}}{{- end -}}
 {{- $_ := set $delivery "publisher" $publisher -}}

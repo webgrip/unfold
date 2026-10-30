@@ -1,6 +1,9 @@
 mode: live
 baseUrl: https://workbench.example
 credentialsSecret: unfold-credentials
+storeKey:
+  existingSecret: unfold-store-key
+  allowFileOnDataVolume: false
 workspaceNamespace: unfold-workspaces
 workspacePodRuntimeClassName: kata
 workspaceGitSecretName: repository-readonly
