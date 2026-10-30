@@ -75,6 +75,9 @@ export class AuditChain {
       CREATE INDEX IF NOT EXISTS audit_records_by_time ON audit_records(tenant_id, at);
       CREATE TABLE IF NOT EXISTS audit_anchors (tenant_id TEXT NOT NULL, seq INTEGER NOT NULL, hash TEXT NOT NULL, uid TEXT NOT NULL, type_uid INTEGER NOT NULL, pruned INTEGER NOT NULL, at TEXT NOT NULL, PRIMARY KEY (tenant_id, seq)) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS audit_exports (tenant_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS audit_checkpoints (tenant_id TEXT NOT NULL, at TEXT NOT NULL, seq INTEGER NOT NULL, hash TEXT NOT NULL, checkpoint TEXT NOT NULL, stored_at TEXT, PRIMARY KEY (tenant_id, at)) WITHOUT ROWID;
+      CREATE TRIGGER IF NOT EXISTS audit_checkpoints_kept BEFORE DELETE ON audit_checkpoints BEGIN SELECT RAISE(ABORT, 'audit checkpoints are never removed'); END;
+      CREATE TRIGGER IF NOT EXISTS audit_checkpoints_append_only BEFORE UPDATE ON audit_checkpoints WHEN OLD.stored_at IS NOT NULL OR NEW.stored_at IS NULL OR NEW.tenant_id IS NOT OLD.tenant_id OR NEW.at IS NOT OLD.at OR NEW.seq IS NOT OLD.seq OR NEW.hash IS NOT OLD.hash OR NEW.checkpoint IS NOT OLD.checkpoint BEGIN SELECT RAISE(ABORT, 'audit checkpoints are append-only'); END;
       CREATE TRIGGER IF NOT EXISTS audit_records_append_only BEFORE UPDATE ON audit_records BEGIN SELECT RAISE(ABORT, 'audit records are append-only'); END;
       CREATE TRIGGER IF NOT EXISTS audit_records_anchored_delete BEFORE DELETE ON audit_records WHEN NOT EXISTS (SELECT 1 FROM audit_anchors WHERE tenant_id = OLD.tenant_id AND seq >= OLD.seq) BEGIN SELECT RAISE(ABORT, 'audit records are removed only behind a retention anchor'); END;
       CREATE TRIGGER IF NOT EXISTS audit_anchors_append_only BEFORE UPDATE ON audit_anchors BEGIN SELECT RAISE(ABORT, 'audit anchors are append-only'); END;

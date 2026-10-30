@@ -799,7 +799,7 @@ Unfold records security-relevant events as OCSF 1.9.0 in one hash chain per Tena
 | Method and path | Response |
 | --- | --- |
 | `GET /api/admin/audit?tenant=&since=&cursor=&limit=` | `application/x-ndjson`: one OCSF event per line, oldest first, after sequence `cursor` (default 0) and from ISO time `since`, at most `limit` (1 to 1000, default 500). Headers: `X-Unfold-Audit-Tenant`, `X-Unfold-Audit-Head` (`<sequence>:<sha256>`), and when more follow `X-Unfold-Audit-Next-Cursor` and `Link: <…>; rel="next"`. 404 `audit_export_off` while the Tenant's `audit.export` flag is off; 400 `audit_since`, `audit_cursor` or `audit_limit` for a malformed value. Each read is itself recorded |
-| `GET /api/admin/audit/verify?tenant=` | `{tenant, ok, checked, anchor, head, break}`: the chain checked from its newest retention anchor; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. Answers whatever the flag says |
+| `GET /api/admin/audit/verify?tenant=&checkpoints=all` | `{tenant, ok, checked, anchor, head, break, checkpoints}`: the chain checked from its newest retention anchor; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. `checkpoints` is `null` unless a checkpoint signer or bucket is configured, else `{source, ok, checked, newest, pruned, problems}` for the newest checkpoint, or every one with `checkpoints=all`; `ok` is false when either check fails ([audit](../operations/audit-siem.md#verify)). Answers whatever the flag says |
 
 ## Outbound webhooks
 

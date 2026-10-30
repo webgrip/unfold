@@ -290,6 +290,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0057](../../apps/unfold/docs/adrs/0057-a-delivery-brief-is-one-evidence-backed-record-rendered-per-audience.md) | A Delivery Brief is one evidence-backed record, rendered per audience | 2026-10-29 | unknown | — |
 | Unfold | [0058](../../apps/unfold/docs/adrs/0058-an-acp-editor-uses-unfold-as-the-agent-unfold-which-follows-one-work-item.md) | An ACP editor uses Unfold as the agent `unfold`, which follows one Work Item | 2026-10-30 | unknown | — |
 | Unfold | [0059](../../apps/unfold/docs/adrs/0059-the-identity-provider-provisions-and-deprovisions-people-through-scim-and-pushed-shared-signals.md) | The identity provider provisions and deprovisions people through SCIM and pushed Shared Signals | 2026-10-30 | unknown | — |
+| Unfold | [0061](../../apps/unfold/docs/adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) | Unfold signs the audit chain head with OpenBao Transit and copies it to a locked bucket daily | 2026-10-30 | unknown | — |
 
 ## Other statuses
 

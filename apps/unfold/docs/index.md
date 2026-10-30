@@ -25,7 +25,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Get notified (ntfy, Web Push, Slack and Microsoft Teams)](operations/notifications.md)
 - [Provision and deprovision people](operations/provision-and-deprovision-people.md): SCIM provisioning and the Shared Signals receiver
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
-- [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export
+- [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, signed daily checkpoints in a locked bucket, OTLP and NDJSON export
 - [Leaving Unfold: export a Tenant](operations/leaving-unfold.md): the export bundle, its formats and how to use it elsewhere
 - [Release procedure](operations/release.md)
 

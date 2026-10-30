@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator, integrator]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation on branch feat/ocsf-audit: src/audit/ocsf.ts, chain.ts, capture.ts, export.ts, service.ts and settings.ts, the tap and route in src/http.ts, the MCP hook in src/mcp-http.ts and the account observer in src/store.ts. test/audit.test.ts and test/api-audit.test.ts passed, including validation of every record against the OCSF 1.9.0 extract that scripts/vendor-ocsf.mjs read from schema.ocsf.io on 2026-10-30. The Splunk, Elastic and Amazon Security Lake notes were not tried against those products."
+verified_by: "Written with the implementation on branch feat/ocsf-audit: src/audit/ocsf.ts, chain.ts, capture.ts, export.ts, service.ts and settings.ts, the tap and route in src/http.ts, the MCP hook in src/mcp-http.ts and the account observer in src/store.ts. test/audit.test.ts and test/api-audit.test.ts passed, including validation of every record against the OCSF 1.9.0 extract that scripts/vendor-ocsf.mjs read from schema.ocsf.io on 2026-10-30. The Splunk, Elastic and Amazon Security Lake notes were not tried against those products. The checkpoint section was written with src/audit/checkpoints.ts, signer.ts and object-store.ts; test/audit-checkpoints.test.ts passed against a fake Transit server and a fake S3 bucket, and the Signature Version 4 code against the AWS documentation's example. Not yet tried against a live OpenBao or bucket."
 ---
 
 # Send Unfold's audit to your SIEM (OCSF)
@@ -53,7 +53,7 @@ Each Tenant has its own chain. A record about a person (sign-in, sign-out, crede
 
 Records are appended to `audit_records` in `unfold.sqlite` ([Storage](storage.md)). Each record uses the OCSF Record Integrity profile: `attestation_list[0]` has `chain_uid` `unfold-audit:<tenant>`, the previous record's `uid`, `type_uid` and SHA-256 `fingerprint` in `prev_event`, and the record's own `fingerprint`. That fingerprint is the SHA-256, in hex, of the record serialized as RFC 8785 JSON (JCS) with its own `fingerprint` left out. Because each record carries the previous record's fingerprint, changing any record changes every fingerprint after it.
 
-Database triggers refuse to update a record and refuse to delete one that no retention anchor covers. This stops Unfold's own code, and a mistaken query, from rewriting history. It does not stop someone with write access to the database file: they can drop the triggers, change records and recompute every fingerprint. **Tampering is detectable, not prevented**, and only against a copy kept somewhere else: the records your SIEM already holds, or a chain head (`X-Unfold-Audit-Head`) you wrote down. Send the audit to a SIEM if you need that check.
+Database triggers refuse to update a record and refuse to delete one that no retention anchor covers. This stops Unfold's own code, and a mistaken query, from rewriting history. It does not stop someone with write access to the database file: they can drop the triggers, change records and recompute every fingerprint. **Tampering is detectable, not prevented**, and only against a copy kept somewhere else: the records your SIEM already holds, a chain head (`X-Unfold-Audit-Head`) you wrote down, or the signed daily checkpoints of the next section. Configure one of them if you need that check.
 
 Records older than the retention are removed once an hour. Before that, an anchor stores the sequence and fingerprint of the last removed record, so the remaining chain still verifies. Anchors are never removed.
 
@@ -63,7 +63,96 @@ Records older than the retention are removed once an hour. Before that, an ancho
 | `UNFOLD_AUDIT_OTLP_URL`, else `audit.otlpUrl` | none | OTLP/HTTP JSON logs endpoint, such as a collector's `/v1/logs` |
 | `UNFOLD_AUDIT_OTLP_HEADERS` | none | Headers for that endpoint as `key=value` pairs separated by commas, URL-encoded, as `OTEL_EXPORTER_OTLP_HEADERS` writes them. Keep the value in a secret |
 
-Check a Tenant's chain with `GET /api/admin/audit/verify?tenant=<id>`. It answers `{tenant, ok, checked, anchor, head, break}`, where `break` names the first sequence whose link or fingerprint does not match.
+Check a Tenant's chain with `GET /api/admin/audit/verify?tenant=<id>`. It answers `{tenant, ok, checked, anchor, head, break, checkpoints}`, where `break` names the first sequence whose link or fingerprint does not match, and `checkpoints` is the check against the signed copies of the next section (`null` when none are configured).
+
+## Sign the chain head and copy it off the box
+
+A SIEM copy is one way to keep a copy Unfold cannot edit. The other is a checkpoint: once a day Unfold signs each Tenant's chain head with an [OpenBao](https://openbao.org/) Transit key and writes it to an S3-compatible bucket whose retention Unfold cannot shorten. Someone who rewrites the database can then neither forge the signature (the key never leaves OpenBao) nor remove the copy (the bucket keeps it). [ADR 0061](../adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) records why.
+
+A checkpoint is one JSON object:
+
+```json
+{"chain_uid":"unfold-audit:default","head_hash":"<sha-256 hex>","key_version":1,"sequence":42,"signature":"vault:v1:<base64>","signer":{"key":"unfold-audit","kind":"openbao-transit"},"tenant":"default","time":"2026-10-30T09:00:00.000Z","type":"unfold.audit.checkpoint","version":1}
+```
+
+The signature covers the RFC 8785 (JCS) serialization of every field except `signature` and `key_version`. The object key is `<prefix>/<tenant>/<12-digit sequence>-<time>.json`, so a listing sorts by sequence. Unfold also keeps each checkpoint in `audit_checkpoints`, whose triggers refuse deletes and every update except marking it stored.
+
+Each part is optional and works alone. With neither, nothing is checkpointed.
+
+| Configured | What happens |
+| --- | --- |
+| OpenBao and a bucket | Signed checkpoints, copied to the bucket. Verification reads the bucket. |
+| OpenBao only | Signed checkpoints kept in Unfold's database. Verification reads those; a rewritten database can drop them, so this only proves the rows it finds. |
+| A bucket only | Unsigned checkpoints in the bucket. A rollback of the chain still shows, but nothing proves Unfold wrote the copy. |
+
+The run happens a second after start and then every hour; a Tenant gets a new checkpoint when its newest is a day old. While OpenBao fails, no checkpoint is written (never an unsigned one in its place). While the bucket fails, checkpoints wait in the database and are copied on the next run. Both failures are logged once an hour as `audit.checkpoint_failed`; each checkpoint written is logged as `audit.checkpoint`.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `UNFOLD_AUDIT_OPENBAO_ADDR`, else `audit.openbao.address` | none | OpenBao's address, such as `https://openbao.openbao.svc:8200` |
+| `UNFOLD_AUDIT_OPENBAO_MOUNT`, else `audit.openbao.mount` | `transit` | The Transit secrets engine's mount path |
+| `UNFOLD_AUDIT_OPENBAO_KEY`, else `audit.openbao.key` | `unfold-audit` | The Transit key name |
+| `UNFOLD_AUDIT_OPENBAO_ROLE`, else `audit.openbao.role` | none | Sign in with the pod's service account token through Kubernetes auth as this role. Preferred over a token |
+| `UNFOLD_AUDIT_OPENBAO_AUTH_MOUNT`, else `audit.openbao.authMount` | `kubernetes` | The Kubernetes auth method's mount path |
+| `audit.openbao.jwtPath` | `/var/run/secrets/kubernetes.io/serviceaccount/token` | Where the service account token is read, again at every sign-in |
+| `UNFOLD_AUDIT_OPENBAO_TOKEN` | none | An OpenBao token instead of a role. Environment only, from a secret; the configuration file is refused |
+| `UNFOLD_AUDIT_CHECKPOINT_URL`, else `audit.checkpoints.url` | none | The bucket's URL: path style `https://s3.example.com/<bucket>` or virtual-hosted `https://<bucket>.s3.example.com` |
+| `UNFOLD_AUDIT_CHECKPOINT_REGION`, else `audit.checkpoints.region` | `us-east-1` | The region in the signature; `auto` for Cloudflare R2 |
+| `UNFOLD_AUDIT_CHECKPOINT_PREFIX`, else `audit.checkpoints.prefix` | `unfold-audit` | The key prefix |
+| `UNFOLD_AUDIT_CHECKPOINT_LOCK_DAYS`, else `audit.checkpoints.lockDays` | none | Asks S3 Object Lock to retain each object in compliance mode for this many days. Leave it out when the bucket has a default retention, or when the store does not take Object Lock headers |
+| `UNFOLD_AUDIT_CHECKPOINT_ACCESS_KEY_ID`, `UNFOLD_AUDIT_CHECKPOINT_SECRET_ACCESS_KEY` | none | The bucket's access key pair. Environment only, from a secret |
+
+### OpenBao: key, policy and role
+
+Create the key once, as an OpenBao administrator. Ed25519 signatures are small and any library verifies them; ECDSA P-256 works too.
+
+```sh
+bao secrets enable transit   # once, if Transit is not mounted yet
+bao write -f transit/keys/unfold-audit type=ed25519
+```
+
+The policy lets Unfold sign and verify with that key and nothing else. It cannot read, export, rotate or delete the key:
+
+```hcl
+path "transit/sign/unfold-audit" {
+  capabilities = ["update"]
+}
+path "transit/verify/unfold-audit" {
+  capabilities = ["update"]
+}
+```
+
+```sh
+bao policy write unfold-audit-checkpoints unfold-audit-checkpoints.hcl
+bao write auth/kubernetes/role/unfold-audit \
+  bound_service_account_names=unfold bound_service_account_namespaces=unfold \
+  token_policies=unfold-audit-checkpoints token_ttl=1h
+```
+
+Then set `UNFOLD_AUDIT_OPENBAO_ROLE=unfold-audit`. Unfold signs in again before the token's lease ends and once after OpenBao refuses a request. Rotating the key (`bao write -f transit/keys/unfold-audit/rotate`) is safe: each checkpoint records its `key_version` and old versions keep verifying unless you raise `min_decryption_version`.
+
+### The bucket
+
+The copy is only as strong as the bucket's retention. Create the bucket with S3 Object Lock and a default retention in compliance mode at least as long as `UNFOLD_AUDIT_RETENTION_DAYS`, or the store's equivalent (a Cloudflare R2 bucket lock rule, for example). Give Unfold an access key that may `PutObject`, `GetObject` and `ListBucket` under the prefix, and nothing that deletes or changes retention. Keep the bucket on another provider or site than Unfold's database.
+
+### Verify
+
+`GET /api/admin/audit/verify?tenant=<id>` checks the newest checkpoint in the bucket (or, without a bucket, in the database); `&checkpoints=all` checks every one. The chain links every earlier record to the newest checkpoint's, so the newest is enough unless you want to look at each day. For each checkpoint it verifies the signature with OpenBao and looks up its sequence in the chain. `checkpoints` answers `{source, ok, checked, newest, pruned, problems}`, and the top-level `ok` is false when either the chain or its checkpoints fail.
+
+| Problem | Meaning |
+| --- | --- |
+| `ahead_of_chain` | The checkpoint names a sequence the chain no longer has: records were removed from its end |
+| `hash_mismatch` | The record at the checkpoint's sequence has another hash: the chain was rewritten |
+| `missing_record` | The sequence lies between the anchor and the head but its record is gone |
+| `bad_signature` | OpenBao does not accept the signature: the checkpoint was edited or not signed by this key |
+| `unsigned` | A signer is configured but the checkpoint has no signature |
+| `signer_unavailable`, `storage_unavailable` | OpenBao or the bucket could not be reached, so nothing was proven |
+| `stale` | The newest checkpoint is more than two days old, or a chain older than two days has none |
+| `wrong_tenant`, `unreadable` | The object is not a checkpoint of this Tenant |
+
+Checkpoints older than the retention anchor are counted in `pruned` and not compared: their records are gone by design.
+
+Without Unfold, check a downloaded checkpoint with OpenBao (`bao write transit/verify/unfold-audit input=<base64 of the JCS payload> signature=<signature>`), or with the key's public half from `bao read transit/keys/unfold-audit` and any Ed25519 library, then compare `head_hash` with the record of that sequence in your exported NDJSON.
 
 ## Turn export on
 
@@ -114,7 +203,7 @@ NEN 7513 is the Dutch standard for logging access to electronic patient records.
 | When | `time`, set by the server |
 | From where | `src_endpoint.ip`, the client's address: the socket's peer, or, when that peer is one of the `trustedProxies`, the address `X-Forwarded-For` names ([behind a reverse proxy](live.md#behind-a-reverse-proxy)) |
 | Whether it worked | `status_id`, `status_detail` and `api.response.code` |
-| Is the log protected | Append-only triggers and a hash chain: changes are detectable against a copy, not prevented |
+| Is the log protected | Append-only triggers and a hash chain: changes are detectable against a copy, not prevented. Daily checkpoints signed by OpenBao in a locked bucket are such a copy, when configured |
 | Is reading the log logged | Yes, every read of `GET /api/admin/audit` is a record |
 | How long it is kept | `UNFOLD_AUDIT_RETENTION_DAYS`, 400 days by default. Set what your agreement with the client requires |
 

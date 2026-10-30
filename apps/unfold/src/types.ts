@@ -8,6 +8,8 @@ import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
 import type { IntakeConfig } from './intake/limiter.ts';
+import type { OpenBaoSettings } from './audit/signer.ts';
+import type { ObjectStoreSettings } from './audit/object-store.ts';
 import type { HstsSettings } from './security-headers.ts';
 import type { IdentitySettings } from './identity/settings.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
@@ -108,7 +110,7 @@ export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environm
 /** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
 export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
 /** How long the security audit keeps records, and where its OTLP logs go when export is on. */
-export type AuditConfig = { retentionDays: number; otlp?: { url: string; headers: Record<string, string> } };
+export type AuditConfig = { retentionDays: number; otlp?: { url: string; headers: Record<string, string> }; openbao?: OpenBaoSettings; checkpointStorage?: ObjectStoreSettings };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };
