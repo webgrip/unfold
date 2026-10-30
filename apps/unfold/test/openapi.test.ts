@@ -18,7 +18,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 const text = readFileSync(openApiDocument, 'utf8');
 const spec = parse(text) as { paths: Record<string, PathItem>; security: Record<string, string[]>[]; components: { parameters: Record<string, Parameter>; securitySchemes: Record<string, unknown> } };
 
-const routeModules = ['src/http.ts', 'src/take-over.ts', 'src/linked-handoff.ts', 'src/linked-permissions.ts', 'src/linked-conversation.ts', 'src/intake/routes.ts', 'src/billing.ts', 'src/tenant-export-jobs.ts'];
+const routeModules = ['src/http.ts', 'src/jobs/route.ts', 'src/take-over.ts', 'src/linked-handoff.ts', 'src/linked-permissions.ts', 'src/linked-conversation.ts', 'src/intake/routes.ts', 'src/billing.ts', 'src/tenant-export-jobs.ts'];
 const param = '\u0000';
 const wildcard = '\u0001';
 

@@ -4797,6 +4797,36 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/admin/jobs:
+    get:
+      tags: [Administration]
+      operationId: readJobQueue
+      summary: 'The background job queue: counts per kind and the jobs that failed'
+      description: |
+        Read-only. `kinds` counts each job kind's jobs by state with the time its oldest waiting job became due;
+        `troubled` lists dead jobs and waiting jobs that failed at least once, newest change first. A job's key and
+        payload are never shown. 400 `job_kind` for a malformed `kind`.
+      x-unfold-role: admin
+      parameters:
+        - { name: kind, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: '`{kinds, troubled}`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kinds:
+                    type: array
+                    items: { type: object, properties: { kind: { type: string }, pending: { type: integer }, running: { type: integer }, done: { type: integer }, dead: { type: integer }, oldestDueAt: { type: [string, 'null'] } } }
+                  troubled:
+                    type: array
+                    items: { type: object, properties: { id: { type: integer }, kind: { type: string }, state: { type: string, enum: [pending, running, done, dead] }, guarantee: { type: string, enum: [at_least_once, at_most_once] }, attempts: { type: integer }, maxAttempts: { type: integer }, runAt: { type: string }, leaseUntil: { type: [string, 'null'] }, lastError: { type: [string, 'null'] }, createdAt: { type: string }, updatedAt: { type: string }, finishedAt: { type: [string, 'null'] } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /api/admin/webhooks:
     get:
       tags: [Administration]

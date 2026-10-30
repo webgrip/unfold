@@ -80,6 +80,9 @@ import { IdentityLifecycle } from './identity/lifecycle.ts';
 import { clientAddress } from './client-address.ts';
 import { securityHeaders } from './security-headers.ts';
 import { listHandOffs } from './handoffs.ts';
+import { JobQueue } from './jobs/queue.ts';
+import { JobWorker } from './jobs/worker.ts';
+import { jobsRoute } from './jobs/route.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -238,7 +241,8 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
 const personProofLine = (line: PersonProofStatus | undefined) => line ? { personProof: line } : {};
 
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
-  const audit = new AuditTrail({ store, settings: config.audit, config, exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
+  const jobs = new JobWorker(new JobQueue(store));
+  const audit = new AuditTrail({ store, jobs, settings: config.audit, config, exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
@@ -277,7 +281,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const cardArt = new CardArtGenerator(config);
   const upkeep = new StoreUpkeep(store, errors);
   const insight = new InsightService(store, config, applicationVersion, undefined, { upkeep: () => upkeep.run() });
-  const reports = new ReportService(store, config, applicationVersion);
+  const reports = new ReportService(store, config, applicationVersion, undefined, { jobs });
   const secrets = knownSecrets(config);
   const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
   const askAuthority: AskAuthority | undefined = config.ploeg && !askDemo ? {
@@ -321,13 +325,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
-  const notifications = new Notifications(store, { settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), flagOn: (user, flag) => flags.getBooleanValue(flag, false, flagContext(user)), permissions, canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), handedOffBy: (item, before) => handedOffBy(store, item, (config.taskSources ?? []).filter(source => source.provider === item.provider).map(source => source.id), before), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
+  const notifications = new Notifications(store, { jobs, settings: config.notifications, demo: config.mode === 'demo', enabled: user => flags.getBooleanValue('notifications.push', false, flagContext(user)), flagOn: (user, flag) => flags.getBooleanValue(flag, false, flagContext(user)), permissions, canRead: (user, team, target) => ploeg.allows(user, team) && tenants.reachesWorkItem(user, target), handedOffBy: (item, before) => handedOffBy(store, item, (config.taskSources ?? []).filter(source => source.provider === item.provider).map(source => source.id), before), ...(config.ploeg && !ploeg.isDemo ? { ploeg } : {}), baseUrl: config.baseUrl });
   notifications.start();
-  const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
-  const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { jobs, enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { jobs, enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const mcpPerson = (id: string) => { const record = store.getUser(id); return record && lifecycle.admit({ id }) ? signedInUser(record) : undefined; };
   const mcpEvents = new McpEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: user => flags.getBooleanValue('mcp.events', false, flagContext(user)), allowsTeam: (user, team) => ploeg.allows(user, team), findUser: mcpPerson, baseUrl: config.baseUrl });
-  const outbound = new OutboundEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo', sink: (event, source, facts, at) => mcpEvents.sink(event, source, facts, at) });
+  const outbound = new OutboundEvents(store, { jobs, settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo', sink: (event, source, facts, at) => mcpEvents.sink(event, source, facts, at) });
   outbound.start();
   mcpEvents.start();
   const tenantExports = new TenantExports({
@@ -348,6 +352,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     tenants, calendar: config.acceptanceCalendar, demo: config.mode === 'demo',
     enabled: tenant => flags.getBooleanValue('billing.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }),
   });
+  jobs.start();
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -603,6 +608,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (path === '/api/admin/jobs') { const answer = jobsRoute(jobs.queue, user, method, url.searchParams); return json(res, answer.status, answer.body); }
         if (path === '/api/admin/audit' || path === '/api/admin/audit/verify') return await audit.serve(res, { method, path, query: url.searchParams, user });
         if (path === '/api/admin/webhooks' || path.startsWith('/api/admin/webhooks/')) {
           try { const answer = await outbound.route(user, method, path, () => body(req)); return json(res, answer.status, sanitize(answer.body)); }
@@ -1270,5 +1276,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   server.headersTimeout = 10000;
   server.on('close', () => notifications.stop());
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); mcpEvents.stop(); billing.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { jobs.stop(); audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); mcpEvents.stop(); billing.stop(); }, reports };
 }
