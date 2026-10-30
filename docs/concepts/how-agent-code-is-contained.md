@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, operator, contributor]
 owner: unfold
-last_verified: 2026-10-24
-verified_by: "Chart values in apps/unfold/ops/helm/unfold/values.yaml and Ploeg's chart at the pinned release fd45cc7 (ops/helm/ploeg/values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl); apps/unfold/src/runtime/kubernetes.ts and src/store.ts; the homelab's Talos workers read with talosctl (Kata 3.32.0, Cloud Hypervisor, virtio-fs, disable_guest_seccomp=true, no TPM on the three workers); sources in research/2026-10-24-sandbox-runtimes-and-encryption.md."
+last_verified: 2026-10-29
+verified_by: "Chart values in apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) read on 2026-10-29; apps/unfold/src/runtime/kubernetes.ts and src/store.ts; the homelab's Talos workers read with talosctl (Kata 3.32.0, Cloud Hypervisor, virtio-fs, disable_guest_seccomp=true, no TPM on the three workers); sources in research/2026-10-24-sandbox-runtimes-and-encryption.md."
 ---
 
 # How agent code is contained
@@ -20,11 +20,11 @@ Three terms first:
 
 | Pod | Created by | Runs | Setting for its runtime |
 | --- | --- | --- | --- |
-| Ploeg worker | Ploeg, one per Run ([Inside a Run](inside-a-run.md)) | The harness and every command it starts | `executor.sandbox.runtimeClassName`, per team and Role, under `executorType: sandbox` only |
-| Unfold workspace | Unfold, one per interactive session | OpenCode or another harness, with the person steering | `workspacePodRuntimeClassName` (pod provisioner) or `workspaceRuntimeClassName` (sandbox provisioner) |
+| Ploeg worker | Ploeg, one per Run ([Inside a Run](inside-a-run.md)) | The harness and every command it starts | `executor.runtimeClassName`, overridden per team and Role, under every executor |
+| Unfold workspace | Unfold, one per interactive session | OpenCode or another harness, with the person steering | `workspacePodRuntimeClassName` (pod provisioner) or `workspaceRuntimeClassName` (sandbox provisioner); in live mode the chart refuses an empty one unless `workspaceAllowUnsandboxed` is `true` |
 | Unfold verifier check | Unfold's delivery verifier, one per check ([candidate delivery](../../apps/unfold/docs/contracts/candidate-delivery.md)) | A policy check over an agent's candidate | `delivery.verifier.runtimeClassName`, default `kata` |
 
-Ploeg's teams on the default KEDA executor get no RuntimeClass: their worker pods run under runc. Not implemented yet: a RuntimeClass for KEDA workers, and a runtime chosen per Unfold session rather than per installation.
+A Ploeg worker pod that resolves no RuntimeClass at the Role, team or `executor` level runs under runc. Not implemented yet: a runtime chosen per Unfold session rather than per installation.
 
 ## The layers
 
@@ -80,6 +80,5 @@ Disk encryption is only as strong as what holds its key. A TPM keeps the key in 
 
 ## What is not built yet
 
-* A RuntimeClass for Ploeg workers under the KEDA executor.
 * A runtime chosen per Unfold session or per Ploeg isolation class ([Ploeg ADR-0106](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0106-a-run-declares-an-isolation-floor-and-a-cell-runs-it-at-the-strictest-class-it-can-honour.md), proposed).
 * Credentials kept outside the Run's pod entirely, in an egress gateway, so that even a compromised harness holds only placeholders.

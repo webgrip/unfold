@@ -10,6 +10,7 @@ import type { AppConfig, Event, PermissionRequest, Repository, Session, User, Wo
 import type { Recovery } from '../engine.ts';
 import type { DeliveryService } from '../delivery.ts';
 import type { PersonProof } from '../person-proof.ts';
+import type { PloegAttribution } from '../ploeg-attribution.ts';
 import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
 import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta, isAutomationsChannel } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
@@ -382,7 +383,7 @@ export class AgentHost {
   useDelivery(service: DeliveryService): void { this.delivery = service; }
 
   /** Sends each Ploeg change made from an editor with its person's token when one can be had (Unfold ADR 0055). */
-  usePersonProof(proof: PersonProof | undefined): void { for (const client of this.ploegClients) client.usePersonProof(proof); }
+  usePersonProof(proof: PersonProof | undefined, attribution?: PloegAttribution): void { for (const client of this.ploegClients) client.usePersonProof(proof, attribution); }
 
   /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
   evictIdleSessions(now = Date.now()): string[] {

@@ -21,3 +21,36 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- with $image.digest -}}@{{ . }}{{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "unfold.ploegAttribution" -}}
+{{- $ploeg := default (dict) .Values.ploeg -}}
+{{- $env := default (dict) (get $ploeg "env") -}}
+{{- $operator := default (dict) (get $ploeg "operator") -}}
+{{- if hasKey $env "PLOEG_OPERATOR_ATTRIBUTION" -}}
+{{- get $env "PLOEG_OPERATOR_ATTRIBUTION" -}}
+{{- else if get $operator "attribution" -}}
+{{- get $operator "attribution" -}}
+{{- else -}}
+{{- $version := "0.0.0" -}}
+{{- range .Chart.Dependencies -}}{{- if eq .Name "ploeg" -}}{{- $version = .Version -}}{{- end -}}{{- end -}}
+{{- ternary "proven" "asserted" (semverCompare ">=0.3.0-0" $version) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "unfold.ploegFullname" -}}
+{{- $ploeg := default (dict) .Values.ploeg -}}
+{{- get $ploeg "fullnameOverride" | default .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "unfold.ploegInstance" -}}
+{{- $ploeg := default (dict) .Values.ploeg -}}
+{{- get $ploeg "instanceOverride" | default .Release.Name -}}
+{{- end -}}
+
+{{- define "unfold.workspaceRuntimeClassValue" -}}
+{{- ternary "workspaceRuntimeClassName" "workspacePodRuntimeClassName" (eq .Values.workspaceProvisioner "sandbox") -}}
+{{- end -}}
+
+{{- define "unfold.workspaceUnsandboxed" -}}
+{{- if and (eq .Values.mode "live") (not (get .Values (include "unfold.workspaceRuntimeClassValue" .))) -}}true{{- end -}}
+{{- end -}}

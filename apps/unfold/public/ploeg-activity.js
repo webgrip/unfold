@@ -1,5 +1,5 @@
 import * as ui from './core/ui.js';
-import { count, dateTime, dayKey, dayLabel, duration as span, modelName, money, percent, plural, timeHtml, tokens as tokenText, tokenUnit } from './core/format.js';
+import { count, date as calendarDate, dateTime, dayKey, dayLabel, duration as span, modelName, money, percent, plural, timeHtml, tokens as tokenText, tokenUnit } from './core/format.js';
 import { auditActor, auditEvent, runFailure, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
 import { markdown } from './core/markdown.js';
 import { routingWarning } from './core/reasons.js';
@@ -308,6 +308,49 @@ function openSpendNote(economics, helpers) {
   return `<details class="meta insights-open-spend"><summary>${escape(`${plural(total, 'Run')} of merged Work Items left out of the cost`)}</summary><ul>${items}${more}</ul></details>`;
 }
 
+/** The words for each Acceptance kind of `/api/ploeg/deliveries`. */
+export const acceptanceLabels = { merged: 'Merged', approved: 'Approved', silent: 'Accepted by silence', closed_without_acceptance: 'Closed without acceptance', open: 'Open' };
+const deliveriesDemo = '<p class="meta">Demo · no model calls, so there is no Token Charge base or Acceptance to show.</p>';
+
+/**
+ * The Deliveries section's body for the window, from `/api/ploeg/deliveries`: per Work Item its Acceptance kind and
+ * date, Token Charge base and unsettled spend. Figures only; the demo shows no amounts.
+ */
+export function deliveriesMarkup(view, windowName, demo, helpers) {
+  const { escape } = helpers;
+  if (demo) return deliveriesDemo;
+  const ledger = view.deliveries;
+  const missing = economicsMissing(ledger, view.deliveriesError);
+  if (missing) return `<p class="meta">${escape(missing)}</p>`;
+  if (ledger.demo) return deliveriesDemo;
+  const { kinds } = ledger.totals;
+  const summary = parts(...Object.entries(acceptanceLabels).filter(([kind]) => kinds[kind]).map(([kind, label]) => `${count(kinds[kind] ?? 0)} ${label.toLowerCase()}`), `Token Charge base ${money(ledger.totals.tokenChargeBaseUsd)}`, ledger.totals.unsettledRuns ? `${money(ledger.totals.unsettledUsd)} unsettled` : '', ledger.truncated ? `newest ${count(ledger.scanned)} Work Items only` : '');
+  const none = '<span class="subtle">—</span>';
+  const when = entry => entry.acceptance.kind === 'open' ? entry.silentDueAt ? escape(`Silent on ${calendarDate(entry.silentDueAt)}`) : none : entry.acceptance.at ? escape(calendarDate(entry.acceptance.at)) : none;
+  const open = entry => {
+    if (!entry.unsettled.runs && !entry.unknownRuns) return none;
+    return escape(parts(entry.unsettled.runs ? `${money(entry.unsettled.usd)} · ${plural(entry.unsettled.runs, 'Run')}` : '', entry.unknownRuns ? `${plural(entry.unknownRuns, 'Run')} not reported` : ''));
+  };
+  const columns = [['Work Item'], ['Acceptance'], ['Date'], ['Token Charge base', true], ['Unsettled', true]].map(([label, numeric], index) => ({ key: String(index), label, numeric }));
+  const rows = ledger.rows.map(entry => ({
+    0: `<a href="#work/${escape(entry.workItemId)}">${escape(entry.title || `Work Item ${entry.workItemId}`)}</a> <span class="subtle">${escape(parts(entry.externalRef, entry.team))}</span>`,
+    1: escape(acceptanceLabels[entry.acceptance.kind] || words(entry.acceptance.kind)),
+    2: when(entry),
+    3: escape(money(entry.tokenChargeBaseUsd)),
+    4: open(entry),
+  }));
+  const table = ui.table({ caption: `Deliveries, last ${windowName}`, columns, rows, rowHeader: true, region: false, className: 'insights-table', empty: escape(`No Work Item was attempted in the last ${windowName}.`) });
+  const extra = ledger.calendar.nonWorkingDates.length ? `, less ${plural(ledger.calendar.nonWorkingDates.length, 'configured date')}` : '';
+  const note = `A Work Item is accepted when its pull request merged, a person approved it, or nobody decided for ${ledger.calendar.silentAfterWorkingDays} working days after the agents' last writing Run; Ploeg records no ready-for-review moment, so that Run stands in for it. Working days are Monday to Friday${extra}; this calendar is proposed. The Token Charge base is the settled cost of every attempt, failed Runs included, before any Markup. These are figures only: nothing is charged, and Credits, the Delivery Fee and invoices are not built.`;
+  return `<p class="meta">${escape(summary)}</p><div class="card flush insights-deliveries">${table}</div><p class="meta insights-deliveries-note">${escape(note)}</p>`;
+}
+
+/** The CSV download of the window's Deliveries, once they loaded outside the demo. */
+export function deliveriesCsvLink(view, windowId, demo, { escape }) {
+  if (demo || !view.deliveries || view.deliveries.demo) return '';
+  return `<a class="button secondary sm" id="insights-deliveries-csv" href="/api/ploeg/deliveries?window=${escape(encodeURIComponent(windowId))}&amp;format=csv" download>Download CSV</a>`;
+}
+
 function teamTable({ caption, columns, rows }, { escape }) {
   const keyed = columns.map(([label, numeric], index) => ({ key: String(index), label, numeric }));
   const cells = rows.map(([name, values]) => Object.fromEntries([escape(name), ...values].map((value, index) => [String(index), value])));
@@ -382,7 +425,7 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
   const workBody = `<div class="stat-row insights-stats insights-stats-work">${workTiles}</div><div class="card flush insights-tables">${workTable}</div>`;
   const cards = `<section class="section insights-cards" aria-label="Per Team"><div class="insights-teams">${data.teams.map(teamCard).join('')}</div></section>`;
   const outcomesBody = `<div class="stat-row insights-stats insights-stats-outcomes">${outcomeTiles}</div>${data.demo ? '' : openSpendNote(view.economics, helpers)}`;
-  return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', outcomesBody, helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
+  return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', outcomesBody, helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers)}${insightsSection('insights-deliveries', 'Deliveries', `Last ${windowName} · figures only, nothing is charged`, deliveriesMarkup(view, windowName, data.demo, helpers), helpers, deliveriesCsvLink(view, windowId, data.demo, helpers))}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
 }
 
 function eventItem(entry, helpers, now, user) {

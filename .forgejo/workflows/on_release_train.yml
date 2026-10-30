@@ -71,14 +71,14 @@ jobs:
           ref: ${{ needs.pending.outputs.sha }}
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
       - name: Unpack the pinned Ploeg contract bundle, verifying its digest
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
       - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
 
   release:
     if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'

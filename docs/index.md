@@ -36,10 +36,12 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
+| Run Unfold and Ploeg on your own Kubernetes cluster, from an empty cluster to backups and upgrades | [Self-host the whole stack in the EU](how-to/self-host-the-whole-stack.md) |
 | Run agent pods under Kata or gVisor, and pick between them and Firecracker | [Run agent code in a sandbox runtime](how-to/run-agent-code-in-a-sandbox-runtime.md) · [Sandbox runtimes](reference/sandbox-runtimes.md) |
 | Encrypt node disks, traffic and volumes on a self-hosted cluster | [Protect data at rest and in transit](how-to/protect-data-at-rest-and-in-transit.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
+| Follow, ask about and steer Work Items from PhpStorm, Air, Zed or Neovim | [Use Unfold from PhpStorm and other ACP editors](how-to/use-unfold-from-an-acp-editor.md) |
 | See your own Claude Code sessions on the Work Items they serve, with Agent Trace attribution and telemetry | [Link your Claude Code sessions](how-to/link-claude-code-sessions.md) |
 | See your own OpenCode and Codex sessions on the Work Items they serve, with Agent Trace attribution | [Link your OpenCode and Codex sessions](how-to/link-opencode-and-codex-sessions.md) |
 | Let people connect Claude Code, VS Code or Cursor to Unfold by URL, with a browser sign-in | [Serve Unfold's MCP tools over HTTPS](how-to/serve-unfold-mcp-over-https.md) |

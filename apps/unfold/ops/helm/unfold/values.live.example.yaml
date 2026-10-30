@@ -2,6 +2,7 @@ mode: live
 baseUrl: https://workbench.example
 credentialsSecret: unfold-credentials
 workspaceNamespace: unfold-workspaces
+workspacePodRuntimeClassName: kata
 workspaceGitSecretName: repository-readonly
 workspaceGitRewrites:
   - url: http://forgejo-http.forge.svc.cluster.local:3000/

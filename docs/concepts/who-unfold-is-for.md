@@ -21,6 +21,8 @@ Unfold is for developers and agencies who do not want to bill by the hour. It tu
 | What Unfold charges | Nothing | A **Delivery Fee** in **Credits** on **Acceptance**, plus a monthly platform fee set by the Agency's **Edition** |
 | Where it runs | The user's own cluster | A rented EU cluster, one **Tenant** per Agency |
 
+To run phase 1 on your own cluster, follow [Self-host the whole stack in the EU](../how-to/self-host-the-whole-stack.md).
+
 Phase 2 starts when phase 1 works and there is money to fund it. Unfold stays open source in both phases: self-hosting is encouraged, and no feature is held back from the open-source code.
 
 ## The loop

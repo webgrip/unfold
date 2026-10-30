@@ -7,18 +7,20 @@ import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
+import type { AcceptanceCalendar } from './delivery-ledger.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
 export type UserRole = 'admin' | 'operator' | 'viewer';
-/** A signed-in person. `memberships` are the Tenant and Client memberships they hold; nothing checks them yet (system ADR-0017). */
+/** A signed-in person. `memberships` are the Tenant and Client memberships they hold, checked while `tenancy.enforce` is on (system ADR-0017). */
 export type User = { id: string; name: string; role: UserRole; memberships?: Membership[] };
 export type RepositoryAccess = { username: string; password: string };
 /** A git URL prefix fetched from another address: `insteadOf` is what repository URLs say, `url` is where git goes. */
 export type GitRewrite = { url: string; insteadOf: string };
 /** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
 export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
-export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
+/** A registered repository. `tenant` (the default Tenant when absent) and `client` name its owner (system ADR-0017). */
+export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp; tenant?: string; client?: string };
 export type TeamRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
 export type Team = { id: string; name: string; description: string; roles: TeamRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
@@ -66,12 +68,18 @@ export type AppConfig = {
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
+  /** The security audit's retention and OTLP endpoint (`src/audit/settings.ts`). */
+  audit?: AuditConfig;
   errorReports?: ErrorReportConfig;
   mcpServers?: McpServersConfig;
   productEvents?: boolean;
   /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
   flags?: FlagSettings;
   reports?: ReportTarget | null;
+  /** The extra non-working dates the silent Acceptance timer skips (proposed; ADR-0006's holiday calendar is open). */
+  acceptanceCalendar?: AcceptanceCalendar;
+  /** Whether Tenant and Client memberships limit what people reach (system ADR-0017). Absent means not enforced. */
+  tenancy?: { enforce: boolean };
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
@@ -80,6 +88,8 @@ export type ReportTarget = { source: TaskSourceConfig; project: string; acknowle
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 /** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
 export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
+/** How long the security audit keeps records, and where its OTLP logs go when export is on. */
+export type AuditConfig = { retentionDays: number; otlp?: { url: string; headers: Record<string, string> } };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

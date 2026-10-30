@@ -1,0 +1,206 @@
+{
+  "schema": "unfold.delivery-brief/1",
+  "title": "Pin Unfold back to rc.112 until rc.114 has a chart and a signed image",
+  "generatedAt": "2026-10-29T14:05:00Z",
+  "workItem": {
+    "id": "UNF-218",
+    "title": "The rc.114 rollout stalls in the homelab cluster",
+    "url": "https://forgejo.example/webgrip/unfold/issues/218"
+  },
+  "pullRequests": [
+    {
+      "url": "https://forgejo.example/webgrip/homelab-cluster/pulls/412",
+      "title": "fix(unfold): pin the HelmRelease back to 0.4.0-rc.112",
+      "state": "merged"
+    },
+    {
+      "url": "https://forgejo.example/webgrip/unfold/pulls/702",
+      "title": "ci: publish the chart and sign the image before the release tag",
+      "state": "open"
+    }
+  ],
+  "session": {
+    "id": "7f3a91c2",
+    "url": "https://unfold.example.com/#linked-session/7f3a91c2"
+  },
+  "summary": "Flux tried to move Unfold to 0.4.0-rc.114, but that chart version was never published and the image carries no signature, so admission refused it and the HelmRelease sat in a failed upgrade. The release is pinned back to rc.112, which runs again. The release workflow fix that stops this from recurring is open and its first CI run failed.",
+  "intent": "Get the homelab running a signed, published Unfold release again without editing the cluster by hand, and make the release workflow refuse to tag an image whose chart and signature do not exist yet.\n\nThe pin is a holding move. Renovate takes Unfold forward again once rc.115 ships with both.",
+  "changes": [
+    {
+      "area": "homelab-cluster: apps/unfold/helmrelease.yaml",
+      "what": "Pins spec.chart.spec.version to 0.4.0-rc.112 and the image to its signed digest.",
+      "why": "rc.114 has no chart in the registry and no cosign signature, so Flux could never finish the upgrade.",
+      "url": "https://forgejo.example/webgrip/homelab-cluster/pulls/412/files"
+    },
+    {
+      "area": "homelab-cluster: renovate.json",
+      "what": "Holds Unfold updates below 0.4.0-rc.115 until the pin is lifted.",
+      "why": "Without it Renovate would reopen the rc.114 update the next morning."
+    },
+    {
+      "area": "unfold: .forgejo/workflows/release.yml",
+      "what": "Publishes the chart and signs the image in jobs that the release tag now depends on.",
+      "why": "The tag used to run first, so a failed chart job still left a tagged, unsigned image behind.",
+      "url": "https://forgejo.example/webgrip/unfold/pulls/702/files"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "chart-missing",
+      "claim": "The 0.4.0-rc.114 chart was never published to the registry.",
+      "status": "verified",
+      "source": {
+        "kind": "command",
+        "ref": "helm show chart oci://registry.example.com/charts/unfold --version 0.4.0-rc.114",
+        "at": "2026-10-29T12:41:00Z",
+        "exitCode": 1
+      },
+      "detail": "The registry answers 404 for the rc.114 tag; rc.112 and rc.113 resolve."
+    },
+    {
+      "id": "image-unsigned",
+      "claim": "The rc.114 image has no cosign signature.",
+      "status": "verified",
+      "source": {
+        "kind": "command",
+        "ref": "cosign verify --key cosign.pub registry.example.com/unfold:0.4.0-rc.114",
+        "at": "2026-10-29T12:44:00Z",
+        "exitCode": 10
+      }
+    },
+    {
+      "id": "admission-refused",
+      "claim": "Admission refused the unsigned rc.114 image.",
+      "status": "verified",
+      "source": {
+        "kind": "live",
+        "ref": "kubectl get events -n unfold --field-selector reason=PolicyViolation",
+        "at": "2026-10-29T12:47:00Z"
+      }
+    },
+    {
+      "id": "pin-reconciled",
+      "claim": "Flux reconciled the pin and the HelmRelease is Ready on 0.4.0-rc.112.",
+      "status": "verified",
+      "source": {
+        "kind": "live",
+        "ref": "flux get helmrelease unfold -n unfold",
+        "at": "2026-10-29T13:32:00Z",
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "digest-match",
+      "claim": "The running pod's image digest equals the signed rc.112 digest.",
+      "status": "stale",
+      "source": {
+        "kind": "live",
+        "ref": "kubectl get pod -n unfold -l app.kubernetes.io/name=unfold -o jsonpath='{..imageID}'",
+        "at": "2026-10-29T13:35:00Z"
+      },
+      "detail": "Checked before the node drain at 13:50; the pod was rescheduled since and nobody checked again."
+    },
+    {
+      "id": "release-order",
+      "claim": "The release workflow now publishes the chart and signs the image before it tags.",
+      "status": "failed",
+      "source": {
+        "kind": "ci",
+        "ref": "release.yml run 3318",
+        "url": "https://forgejo.example/webgrip/unfold/actions/runs/3318",
+        "at": "2026-10-29T13:58:00Z",
+        "exitCode": 1
+      },
+      "detail": "The signing job could not read the cosign key: the runner's token lacks the scope for it. The tag job correctly did not run."
+    },
+    {
+      "id": "preview-signin",
+      "claim": "The Preview Environment for the workflow change serves the sign-in page.",
+      "status": "unverified",
+      "source": {
+        "kind": "render",
+        "url": "https://preview-702.unfold.example.com"
+      }
+    }
+  ],
+  "risks": [
+    {
+      "risk": "The pin stays after rc.115 ships and the homelab drifts behind.",
+      "level": "medium",
+      "mitigation": "The Renovate hold expires with rc.115; the follow-up Work Item lifts the pin."
+    },
+    {
+      "risk": "rc.112 lacks the tenancy migration rc.114 would have run, so a later upgrade runs two migrations at once.",
+      "level": "high",
+      "mitigation": "Take a database snapshot before the rc.115 upgrade and read both migrations first."
+    },
+    {
+      "risk": "Granting the runner the signing scope widens what a compromised workflow can sign.",
+      "level": "low",
+      "mitigation": "Scope the token to the release workflow on tags only."
+    }
+  ],
+  "rollout": [
+    {
+      "step": "Merge the pin to 0.4.0-rc.112 in homelab-cluster.",
+      "check": "The pull request is merged and Flux picked up its commit.",
+      "status": "done",
+      "evidence": ["pin-reconciled"]
+    },
+    {
+      "step": "Confirm the running image is the signed rc.112 digest.",
+      "check": "The pod's imageID equals the digest cosign verifies.",
+      "status": "done",
+      "evidence": ["digest-match"]
+    },
+    {
+      "step": "Fix the release workflow so the tag waits for the chart and the signature.",
+      "check": "A release run publishes, signs and then tags, in that order.",
+      "status": "blocked",
+      "evidence": ["release-order"]
+    },
+    {
+      "step": "Publish the 0.4.0-rc.115 chart.",
+      "check": "helm show chart for rc.115 exits 0.",
+      "status": "pending"
+    },
+    {
+      "step": "Sign the rc.115 image.",
+      "check": "cosign verify for rc.115 exits 0.",
+      "status": "pending"
+    },
+    {
+      "step": "Let Renovate open the rc.115 update and merge it.",
+      "check": "The HelmRelease is Ready on rc.115 and the running digest matches the signed one.",
+      "status": "pending",
+      "evidence": ["chart-missing", "image-unsigned"]
+    }
+  ],
+  "rollback": [
+    "Revert the homelab-cluster pin commit; Flux returns to the previous HelmRelease spec.",
+    "If the pod does not come back, suspend the HelmRelease and roll the Deployment back to the last Ready ReplicaSet through a commit, not kubectl.",
+    "Lift the Renovate hold only after the pin is gone."
+  ],
+  "decisions": [
+    {
+      "question": "Keep the pin until rc.115, or admit rc.114 with a policy exception?",
+      "options": [
+        "Keep the pin and wait for rc.115 with a chart and a signature.",
+        "Add a one-off admission exception for the unsigned rc.114 digest."
+      ],
+      "recommendation": "Keep the pin. An exception teaches the cluster to admit unsigned images, and rc.112 is running."
+    },
+    {
+      "question": "Who grants the release runner the signing scope?"
+    }
+  ],
+  "client": {
+    "summary": "The Unfold you use runs the previous release again, so sign-in and the board work as before. The newer release waits until it is built and signed properly; nothing you saved was lost.",
+    "previewUrl": "https://preview-702.unfold.example.com",
+    "tryThis": [
+      "Sign in and open the board; your Work Items should all be there.",
+      "Open a Work Item and check its last Shift shows its pull request.",
+      "Tell us if anything you did after 12:30 today is missing."
+    ]
+  }
+}

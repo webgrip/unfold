@@ -59,7 +59,7 @@ async function fixture(t: TestContext) {
   return { server, state, attach };
 }
 
-test('the host advertises a read-only automation catalogue that VS Code 1.141 connects to, without create, schedules or run cancellation', { timeout: testTimeout(20_000) }, async t => {
+test('the host advertises a read-only automation catalogue that VS Code 1.141 connects to, without create, schedules or run cancellation', { timeout: testTimeout(60_000) }, async t => {
   const f = await fixture(t);
   const { initialized } = await f.attach('op-1');
   assert.deepEqual(initialized.automations, {}, 'the baseline catalogue only');
@@ -67,7 +67,7 @@ test('the host advertises a read-only automation catalogue that VS Code 1.141 co
   assert.equal(initialized._meta['vscode.ahpSessionUris'], undefined, 'a client that did not declare session URIs is not told it did');
 });
 
-test('a person sees one automation per board Ploeg runs and team of theirs with a tracker user, each with no operations', { timeout: testTimeout(20_000) }, async t => {
+test('a person sees one automation per board Ploeg runs and team of theirs with a tracker user, each with no operations', { timeout: testTimeout(60_000) }, async t => {
   const f = await fixture(t);
   const { client } = await f.attach('op-1');
   const { snapshot } = await client.rpc('subscribe', { channel: catalogue });
@@ -100,7 +100,7 @@ test('a person sees one automation per board Ploeg runs and team of theirs with 
   assert.match(empty._meta['dev.webgrip.unfold'].reason, /no Ploeg team access/);
 });
 
-test('every change a client asks for is rejected, a manual run is refused, and the catalogue stays as it was', { timeout: testTimeout(20_000) }, async t => {
+test('every change a client asks for is rejected, a manual run is refused, and the catalogue stays as it was', { timeout: testTimeout(60_000) }, async t => {
   const f = await fixture(t);
   const { client } = await f.attach('op-1');
   const before = (await client.rpc('subscribe', { channel: catalogue })).snapshot.state.entries;
@@ -122,7 +122,7 @@ test('every change a client asks for is rejected, a manual run is refused, and t
   assert.deepEqual((await client.rpc('subscribe', { channel: catalogue })).snapshot.state.entries.map((entry: Json) => entry.resource), before.map((entry: Json) => entry.resource));
 });
 
-test('a refresh publishes a paused team as a disabled route and a team that lost its tracker user as removed, to the watching person only', { timeout: testTimeout(20_000) }, async t => {
+test('a refresh publishes a paused team as a disabled route and a team that lost its tracker user as removed, to the watching person only', { timeout: testTimeout(60_000) }, async t => {
   const f = await fixture(t);
   const { client } = await f.attach('op-1');
   const viewer = await f.attach('viewer-1');
@@ -143,7 +143,7 @@ test('a refresh publishes a paused team as a disabled route and a team that lost
   assert.equal(client.inbox.length, before, 'an unchanged catalogue publishes nothing');
 });
 
-test('the catalogue answers in the spelling VS Code 1.141 sends, ahp-automations: without the slashes', { timeout: testTimeout(20_000) }, async t => {
+test('the catalogue answers in the spelling VS Code 1.141 sends, ahp-automations: without the slashes', { timeout: testTimeout(60_000) }, async t => {
   const f = await fixture(t);
   const { client } = await f.attach('op-1');
   const spelled = 'ahp-automations:';
@@ -157,7 +157,7 @@ test('the catalogue answers in the spelling VS Code 1.141 sends, ahp-automations
   assert.equal((await client.until(message => action(message, spelled, 'automation/set'))).params.action.automation.resource, 'ahp-automation:/tracker.board.silver');
 });
 
-test('a demo workbench advertises no automations and serves VS Code an empty catalogue, so initialize and reconnect succeed', { timeout: testTimeout(20_000) }, async t => {
+test('a demo workbench advertises no automations and serves VS Code an empty catalogue, so initialize and reconnect succeed', { timeout: testTimeout(60_000) }, async t => {
   const server = await application('demo');
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'demo' } });

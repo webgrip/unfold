@@ -48,7 +48,7 @@ jobs:
           fetch-depth: 0
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: node
           cache: false
           github_token: ''
@@ -59,7 +59,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          mise exec -- node apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs --base "${BASE:-origin/development}" --head "${HEAD_SHA:-HEAD}" > agent-trace.md || echo "The Agent Trace report did not run." > agent-trace.md
+          mise exec node -- node apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs --base "${BASE:-origin/development}" --head "${HEAD_SHA:-HEAD}" > agent-trace.md || echo "The Agent Trace report did not run." > agent-trace.md
           cat agent-trace.md
           cat agent-trace.md >> "$GITHUB_STEP_SUMMARY" || true
 
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           cache: false
           github_token: ''
       - run: mise trust apps/unfold/mise.toml
@@ -101,14 +101,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
       - name: Unpack the pinned Ploeg contract bundle, verifying its digest
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
       - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
 
   ploeg-docs:
     runs-on: docker
@@ -117,16 +117,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
       - name: Unpack the pinned Ploeg contract bundle, verifying its digest
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
       - name: Require the glossary and decision register to match the pinned Ploeg's domain model and ADRs
-        run: mise exec -- uv run --frozen python scripts/docs.py --domain-check
+        run: mise exec uv -- uv run --frozen python scripts/docs.py --domain-check
       - name: Require every documentation link into the pinned Ploeg to resolve
-        run: mise exec -- uv run --frozen python scripts/docs.py --stage-only
+        run: mise exec uv -- uv run --frozen python scripts/docs.py --stage-only
 
   release-policy:
     runs-on: docker

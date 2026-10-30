@@ -94,6 +94,10 @@ workspaceUserNamespaces: false
 # to run each in its own lightweight VM. Empty runs them on the node's default
 # runtime. The sandbox provisioner uses workspaceRuntimeClassName instead.
 workspacePodRuntimeClassName: ""
+# In live mode the chart refuses to render while the provisioner's RuntimeClass
+# is empty. true runs agent workspaces on the node's default runtime anyway,
+# and the install notes warn about it.
+workspaceAllowUnsandboxed: false
 # Days a finished session's workspace volume (pod provisioner) is kept after the
 # session last changed, once its change was captured. 0 keeps every volume.
 workspaceRetentionDays: 7
@@ -147,8 +151,13 @@ config:
   # Each repository may add `mcp: {litellmTeamId: agents-orders, accessGroups: [observability-read-orders]}`.
   # Session keys are then minted into that LiteLLM team with exactly those MCP access groups, and the
   # agent gets one remote MCP server `litellm` at <litellm root>/mcp. Absent means no MCP tools.
+  # Each repository and task source may name its owner (system ADR-0017): `tenant` (default `default`) and an
+  # optional `client`. One repository, or one tracker project on one instance, registered for two owners stops startup.
   repositories: []
   taskSources: []
+  # tenancy.enforce (optional, off when absent): limit each person to what their Tenant and Client memberships reach.
+  # tenancy:
+  #   enforce: true
   # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a
   # Ploeg-audience token sent with every change Unfold makes for them. The secret comes from credentialsSecret.
   # ploeg:
@@ -169,3 +178,8 @@ ingress:
   tlsSecret: ""
 ploeg:
   enabled: true
+  # Ploeg's object names. Empty would be the release name, which Unfold's own
+  # Deployment, Service and ServiceAccount already use.
+  fullnameOverride: ploeg
+  operator:
+    attribution: asserted

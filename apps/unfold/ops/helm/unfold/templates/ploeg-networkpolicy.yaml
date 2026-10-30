@@ -1,0 +1,24 @@
+{{- $ploeg := default (dict) .Values.ploeg -}}
+{{- $np := default (dict) (get $ploeg "networkPolicy") -}}
+{{- $ploegd := default (dict) (get $np "ploegd") -}}
+{{- if and $ploeg.enabled (get $np "enabled") (get $ploegd "ingressFrom") }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "unfold.name" . }}-to-ploegd
+  labels: {{- include "unfold.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ploeg
+      app.kubernetes.io/instance: {{ include "unfold.ploegInstance" . }}
+      ploeg.webgrip.dev/component: daemon
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "unfold.labels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}

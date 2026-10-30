@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install: false
           cache: false
           github_token: ''
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
@@ -58,18 +58,18 @@ jobs:
             git clone --quiet --depth 1 --no-tags --branch development https://github.com/ploeg-hq/ploeg.git "$clone"
             oras_version=$(sed -n 's/^oras = "\(.*\)"$/\1/p' "$clone/mise.toml")
             CONTRACT_BUNDLE_OUTPUT="$clone/.bundle" mise exec "oras@${oras_version:?the mise.toml of Ploeg pins no oras}" -- bash "$clone/scripts/contract-bundle.sh" build v0.0.0-rc.1 "$clone"
-            mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned 0.0.0-rc.1 --archive "$clone/.bundle/ploeg-contract-0.0.0-rc.1.tar.gz"
+            mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned 0.0.0-rc.1 --archive "$clone/.bundle/ploeg-contract-0.0.0-rc.1.tar.gz"
             echo "Checking Unfold's docs against Ploeg's development head $(git -C "$clone" rev-parse HEAD), labelled 0.0.0-rc.1"
           else
-            mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned latest
+            mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned latest
           fi
       - name: Regenerate the Ploeg-derived pages as Renovate would, then fail on what it cannot fix
         env:
           UNFOLD_PLOEG_CONTRACT_UNPINNED: 'true'
         run: |
-          mise exec -- sh scripts/renovate-ploeg-docs.sh
-          mise exec -- uv run --frozen python scripts/docs.py --domain-check --without-landscape
-          mise exec -- uv run --frozen python scripts/docs.py --stage-only
+          mise exec uv -- sh scripts/renovate-ploeg-docs.sh
+          mise exec uv -- uv run --frozen python scripts/docs.py --domain-check --without-landscape
+          mise exec uv -- uv run --frozen python scripts/docs.py --stage-only
 
   release-notes:
     runs-on: docker
@@ -82,11 +82,11 @@ jobs:
         run: git fetch origin '+refs/notes/*:refs/notes/*'
       - uses: https://github.com/jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
-          version: 2026.10.21
+          version: 2026.10.22
           install_args: uv
           cache: false
           github_token: ''
       - name: Fail when Forgejo no longer holds every imported release note
         env:
           UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
-        run: mise exec -- uv run --frozen python scripts/verify-import.py
+        run: mise exec uv -- uv run --frozen python scripts/verify-import.py

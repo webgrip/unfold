@@ -21,6 +21,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
+- [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export
 - [Release procedure](operations/release.md)
 
 ## Integrate

@@ -63,6 +63,14 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 **Also known as:** Agent Host Protocol  
 **See also:** [Unfold](#unfold), [Harness](../reference/glossary.md#harness)  
 
+## Approver
+*Context: Offering · Owner: Unfold*
+
+The party whose approval a Client's proposed Work Items need before a Shift: the Client by default, or, as the Agency sets per Client, the Agency itself or the party in front of the work that pays for it, such as a main contractor. Unfold names that approval to Ploeg under a generic approval name, and Ploeg never learns who the Approver is. Proposed (system ADR-0049); not implemented yet.
+
+**Not to be confused with** [Steward](#steward): The person a Run Card names for its change, picked from the forge's merger or pull request approver.  
+**See also:** [Client](../reference/glossary.md#client), [Agency](#agency), [Quote](#quote), [Client Profile](#client-profile)  
+
 ## Attempt
 *Context: Participation · Owner: Unfold*
 
@@ -120,9 +128,27 @@ The part of Unfold where Clients submit Requests, talk to the refinement agent, 
 ## Client Profile
 *Context: Offering*
 
-A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions.
+A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions. Proposed (system ADR-0049): it also holds the Client's Approver and, per repository, the exclusion globs that narrow its Sign-off Paths, and later the Client's default language.
 
-**See also:** [Client](../reference/glossary.md#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
+**See also:** [Client](../reference/glossary.md#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement), [Approver](#approver), [Sign-off Paths](#sign-off-paths)  
+
+## Client Project
+*Context: Offering · Owner: Unfold*
+
+A named grouping inside one Client, or inside the Agency's own work, that bundles its tracker sources, its Repository Grants, its Routing Rules, its default Team and its budget: a share of the Client Budget, or of the Agency Budget for the Agency's own work. A Work Item takes its Client and Client Project from its origin. Proposed in system ADR-0048; not implemented yet.
+
+**Not to be confused with** [Scope](../reference/glossary.md#scope): A tracker's own container, such as a Vikunja or Jira project.  
+**See also:** [Client](../reference/glossary.md#client), [Integration Account](#integration-account), [Repository Grant](#repository-grant), [Work Item](../reference/glossary.md#work-item)  
+
+## Client Sign-off
+*Context: Offering · Owner: Unfold*
+
+A Client's answer on one of its Work Item's open pull requests, "looks good" or "needs changes" with a note. It is bound to the pull request's head commit, a new push dismisses it for good, and it covers its Sign-off Paths. It is input to the Agency's Acceptance, never Acceptance itself: it merges nothing, approves nothing in the forge and changes no Ploeg state. Until Client memberships exist, Agency people record it on the Client's behalf. Proposed (system ADR-0049); not implemented yet.
+
+**Do not use:** client acceptance, client verdict, client approval  
+**Not to be confused with** [Acceptance](#acceptance): The Agency's decision that a pull request delivers its Work Item; a Client Sign-off is one input to it.  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's answer; a Client Sign-off is a person's answer for a Client.  
+**See also:** [Sign-off Paths](#sign-off-paths), [Client](../reference/glossary.md#client), [Acceptance](#acceptance), [Preview Environment](#preview-environment), [Client Profile](#client-profile)  
 
 ## Crack
 *Context: Cards*
@@ -213,6 +239,13 @@ A Run Card's assessment of its change from 1 to 10 in half steps, from four subg
 
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
+
+## Integration Account
+*Context: Offering · Owner: Unfold*
+
+One account on one tracker or forge instance, such as one ClickUp workspace token or one GitHub App installation, with its credential reference. It belongs to a Tenant, and any number of sources and repositories use it. It grants nothing on its own, and it is not part of a source's or repository's identity. Not the Settings → Connections page, which checks each board's and repository's wiring. Proposed in system ADR-0048; not implemented yet.
+
+**See also:** [Tenant](../reference/glossary.md#tenant), [Client Project](#client-project), [Repository Grant](#repository-grant)  
 
 ## Linked Session
 *Context: Participation · Owner: Unfold*
@@ -335,6 +368,13 @@ Turning a Request into one or more Ready Work Items, each with Acceptance Condit
 **Also known as:** request-to-quote  
 **See also:** [Request](#request), [Ready](#ready), [Quote](#quote), [Size](#size), [Client Profile](#client-profile)  
 
+## Repository Grant
+*Context: Offering · Owner: Unfold*
+
+Permission for a Client Project to route work to a repository its Tenant owns. Several Client Projects may hold a grant on one repository, such as a shared library; each Client still sees only its own Work Items on it. Proposed in system ADR-0048; not implemented yet.
+
+**See also:** [Client Project](#client-project), [Client](../reference/glossary.md#client), [Work Target](../reference/glossary.md#work-target)  
+
 ## Request
 *Context: Offering*
 
@@ -400,6 +440,13 @@ Unfold's internal record of a Work Item a person started in Unfold: its brief, t
 The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Work Item](../reference/glossary.md#work-item), [Crack](#crack)  
+
+## Sign-off Paths
+*Context: Offering · Owner: Unfold*
+
+The changed paths a Client Sign-off covers: every path its pull request changes at the signed head, minus those matching the exclusion globs the Agency set for that Client and repository in the Client Profile. A file in the repository may propose more exclusions; the Client Profile wins where they disagree. Each Client Sign-off stores its own, and a truncated or missing path list never counts as the whole change. Proposed (system ADR-0049); not implemented yet.
+
+**See also:** [Client Sign-off](#client-sign-off), [Client Profile](#client-profile), [Attention Path](#attention-path)  
 
 ## Size
 *Context: Billing*
@@ -510,6 +557,14 @@ The steps a writing Run reports for a person to check its change without reading
 The Client-safe projection of a Work Item that an Ask answers from. It never holds prompts, tool input or output, transcripts, diffs, gateway details, operator notes or another Work Item's facts. Built in Unfold (apps/unfold/src/ask/brief.ts) from an allow-list: title, objective, state and why it stopped, pull request and preview status, its Runs with their summaries and Verdicts, progress, and spend in US dollars. It does has no Acceptance Conditions field yet. Decided in system ADR-0031, which is still proposed.
 
 **See also:** [Ask](../reference/glossary.md#ask), [Client](../reference/glossary.md#client)  
+
+## Work Item Link
+*Context: Work · Owner: Unfold*
+
+A confirmed "same work as" between a Work Item and another tracker item or forge issue of the same Client, or of the Agency's own sources. A reference in an item only proposes one; a person with access to both confirms it. Assigning a linked item to a Team creates no second Work Item. It maps to a Ploeg contract still to be named upstream. Proposed in system ADR-0048; not implemented yet.
+
+**Not to be confused with** [Linked Session](#linked-session): An agent session run outside Unfold that reports to a Work Item.  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Tracker Item](../reference/glossary.md#tracker-item)  
 
 ## Workbench
 *Context: System · Owner: Unfold*

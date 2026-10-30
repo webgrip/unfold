@@ -231,6 +231,20 @@ node scripts/activity-report.mjs runs.json entries.json
 
 It prints each Run's calls, moves, minutes to its first Change and the share of its time in each Activity, and how many calls no rule placed. The exports hold commands the agents ran, so keep them out of the repository and delete them afterwards.
 
+## Deliveries and the silent Acceptance calendar
+
+Insights lists the window's Deliveries: each attempted Work Item's Acceptance, its date and the Token Charge base, which is the settled cost of every attempt before any Markup. The rules come from [system ADR-0006](../../../../docs/adr/adr-0006-the-ticket-is-the-billing-unit.md); the route is in the [API contract](../contracts/api.md). This is phase 1 of billing per accepted Work Item: figures only. Unfold charges nothing, and has no Credits, Delivery Fee, Reversals or invoices; those are phase 2 and wait for the owner's pricing decisions.
+
+A pull request with no decision from a person counts as silently accepted 10 working days after the agents handed it over. Ploeg records no ready-for-review moment, so the hand-over is the finish of the Shift's last writing Run, the same stand-in the clean-merge rate uses. Working days are Monday to Friday in UTC. The holiday calendar is an open owner decision, so this setting is **proposed**: list any extra non-working dates in the configuration file (default none).
+
+```json
+"acceptanceCalendar": { "nonWorkingDates": ["2026-12-25", "2026-12-26"] }
+```
+
+Unfold refuses to start when a date is not a real `YYYY-MM-DD` date or the list holds more than 1000.
+
+Not counted yet: a change that lands on the base branch by another route, attempts that failed through Unfold's own fault (they are in the base), and Reversals after a revert.
+
 ## Decider tripwire
 
 The tripwire screens every new tool call of a running Run with a decider, a model asked for scores instead of prose ([RFC-0008](../../../../docs/design/rfc-0008-decision-models.md), [ADR-0042](../../../../docs/adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md), both proposed). Built on branch `feat/tripwire-reader`, not released. It is off until a `decider` block is configured and the `runs.tripwire` flag is on for the Run's Team ([feature flags](feature-flags.md)); it needs a connected Ploeg.
@@ -282,6 +296,27 @@ A profile can name the providers and regions the gateway may route a session to:
 The provider rule is enforced before the first turn, from the gateway's model catalogue, including every tier behind an auto-router; a session whose Team names a model served elsewhere does not start. The region rule can only be checked against what the gateway attributes after a request, so a violation stops the session at the next ledger read and revokes its key, and the Gateway tab marks the row. The names are the gateway's own: `anthropic`, `fireworks_ai`, and regions such as `global` or `eu` as the provider reports them. Anthropic's public endpoint reports `global`, so a profile that requires `eu` needs a gateway route to a regional endpoint first.
 
 Ploeg execution refuses `gatewayPolicy` at start-up, so on a live Unfold enforce provider and region restrictions in the gateway's own policy instead; this setting is kept for the retired standalone path until its code is deleted.
+
+### How residency is enforced
+
+Residency is enforced in the model gateway, not in the agent workspace. Every model request an agent makes goes through the gateway with a key Ploeg authorizes, and that key may call only the model aliases in the Team's managed inference policy ([managed execution](../../../../docs/workflows/managed-execution.md)). The gateway serves each alias only from the deployments configured for it, so the aliases a policy allows decide which providers and regions can answer. For a deployment that must keep inference in the EU, configure each allowed alias on a provider's regional endpoint and leave other aliases out of the policy. Unfold and Ploeg add no second filter on a live workbench; `gatewayPolicy` is the check of the retired standalone path described above.
+
+### Reading Where your data goes
+
+**Where your data goes** on the Status page ([`residency.ts`](../../src/residency.ts)) reads the requests Unfold has stored from the gateway's ledger and checks each against `gatewayPolicy`. Its badge says:
+
+| Badge | Meaning | What to do |
+| --- | --- | --- |
+| Within the policy | Every request in the last 7 days came from an allowed provider and region | Nothing |
+| Outside the policy | At least one request in the last 7 days came from a provider or region the policy does not name | Open the listed session, Run or Work Item, then check the gateway route for its model. A session the engine caught while it ran is already stopped and its key revoked |
+| Nothing to check | A policy is set and no request reached the gateway in 7 days | Nothing |
+| No policy set | Unfold reads the ledger but no `gatewayPolicy` is set, so nothing counts as outside | Set a policy if the workbench must keep requests anywhere in particular |
+| Unknown | Unfold reads no gateway ledger, which is always the case under Ploeg execution: Ploeg budgets the Runs and the gateway's own policy decides where they go | Read the gateway's spend log for the providers and regions that answered |
+| Demo | The demo makes no model calls and shows no requests | Nothing |
+
+The table counts requests per provider and per region for the last 24 hours and 7 days, marks names the policy does not allow as **outside**, and counts requests whose ledger row named no provider or region as **not reported**; a request is judged only on what it reports. A row the engine already marked with a violation stays outside after the policy changes. Each request outside the policy links to its session, names its Run by Role and links its Work Item when the reader may open them; another person's request shows as a count line only. The line does not change the verdict at the top or the navigation dot, because a request outside the policy does not stop new work from starting.
+
+**Where each part runs** names what the configuration says about Unfold, Ploeg and the agent workspaces: the Ploeg API host and the workspace namespace and RuntimeClass for administrators, the backend kind for everyone. Unfold reads no region from its configuration and no Kubernetes node labels, so the Region column reads Unknown rather than a guess.
 
 Each role's brief is recorded with the run and shown in the Activity stream, and the budget panel draws cumulative cost against the ceiling from the gateway's rows.
 
@@ -348,7 +383,7 @@ This carries accounts across only while the provider keeps issuing the same subj
 
 ### Tenant and Client memberships
 
-Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs/reference/glossary.md#tenant) and [Client](../../../../docs/reference/glossary.md#client) memberships ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Unfold records them; it does not check them yet, so a membership changes nothing a person can see or do, and the workbench role above still decides who may sign in.
+Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs/reference/glossary.md#tenant) and [Client](../../../../docs/reference/glossary.md#client) memberships ([system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)). Unfold records them, and checks them only while [`tenancy.enforce`](#limiting-people-to-their-tenant-and-client) is on; with it off, a membership changes nothing a person can see or do. The workbench role above still decides who may sign in.
 
 | Group | Membership |
 | --- | --- |
@@ -363,6 +398,25 @@ Groups in the same `groupsClaim` also carry a person's [Tenant](../../../../docs
 * A local password account and the demo account hold their workbench role in the `default` Tenant: admin as Admin, operator as Developer, viewer as Viewer. A person who signs in with single sign-on joins `default` only through an `unfold/default/<role>` group.
 * `GET /api/bootstrap` reports them as `user.memberships`, for example `[{ "kind": "tenant", "tenant": "default", "role": "admin" }]`, and so does a password sign-in's answer.
 * Each single sign-on saves them on the account, in `user_memberships`, replacing what the previous sign-in saved: a group removed at the provider removes its membership at the person's next sign-in, and their open sessions report the new set from then on.
+* Repositories and task sources name the Tenant and Client that own them with `tenant` and `client` ([who owns a source](task-connections.md#who-owns-a-source-and-a-repository)). Unfold checks those fields at startup and compares them with memberships while `tenancy.enforce` is on.
+
+### Limiting people to their Tenant and Client
+
+`tenancy.enforce` turns on the checks of [system ADR-0017](../../../../docs/adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) in Unfold. It is off by default, and while it is off every answer is the same as without it. In the chart it is `config.tenancy.enforce`. Turning it on for a deployment is a change to that deployment's values; give every person their `unfold/<tenant>/...` groups first, because a person without a membership then sees no task source, repository or Work Item.
+
+```json
+"tenancy": { "enforce": true }
+```
+
+While it is on:
+
+* A Tenant membership, with any Access Role, reaches every repository and task source of that Tenant, including every Client's. A Client membership reaches only what that Client owns, never what no Client owns. The workbench role grants no Tenant: an admin without a membership reaches nothing.
+* `GET /api/bootstrap`, `GET /api/task-sources`, the task list and task reads, `GET /api/tasks/lookup`, the hand-off routes, `POST /api/task-imports`, `POST /api/sessions` and the folders of `GET /api/agent-host` see only what the person reaches. Unfold decides this before it reads a tracker with a source's token.
+* Anything else answers exactly like an id that does not exist: `404 source_not_found` for a task source, `400 unknown_profile` for a repository in `POST /api/sessions`, `404 ploeg_not_found` for a Work Item. Probing ids shows nothing about another Tenant.
+* Importing, handing off and taking back need a Developer or Admin membership of the source's Tenant. A Viewer or a Client user reads the tasks and gets `403 forbidden` for those.
+* The Ploeg reads Unfold already limits by Team are limited again by the owner of each Work Item's target repository: Work Item lists and reads, Now, Proposed, Runs and a Work Item's value stream. Ploeg does not record a Tenant yet, so Unfold takes the owner of the registered repository the target names, through a task source's Ploeg target or the repository's `owner/name`. A Work Item with no target, or one no registered repository matches, belongs to the `default` Tenant with no Client; one whose target matches repositories of different owners reaches nobody. Each Run whose Work Item Unfold has not read yet costs one Ploeg read.
+* A delegated `unfold-mcp` credential holds only the memberships the account held both when it was minted and when it is used, and over HTTP only those the caller's access token's groups also grant. Each Tenant role is capped at the role the credential acts with: viewer as Viewer, operator as Developer, admin as Admin. A token whose role is lowered to viewer can read in its Tenant but cannot hand off, and a token without `unfold/` groups reaches nothing.
+* A person in several Tenants sees all of them together until the Tenant switcher exists (VIK-1877). Audit events, Run Cards, Ploeg connections and the folders the agent host offers over its own protocol are still limited by Team only.
 
 ### Local sign-in
 
@@ -420,6 +474,29 @@ What the identity provider and Ploeg need:
 * **Ploeg.** Unfold's consumer in `PLOEG_OPERATOR_CONSUMERS` lists `"audiences": ["ploeg-for-unfold"]`. `PLOEG_OPERATOR_PERSON_ISSUER` is the issuer of the exchanged tokens; for Authentik's global issuer that is `https://authentik.example/`. Set `PLOEG_OPERATOR_PERSON_SUBJECT_NAMESPACE` to Unfold's account namespace: `auth.oidc.subjectNamespace`, or `auth.oidc.issuer` when that is unset. Ploeg derives the person's id from that namespace and the token's subject. That id must equal the Unfold account id Unfold puts in `X-Ploeg-Actor`, or Ploeg refuses every change with `actor_conflict`.
 * **The same subject.** The target provider must issue the same `sub` for a person as the sign-in provider; Authentik's default subject mode, a hashed user id, does. Unfold checks it and sends no token for another subject.
 
+### When Ploeg refuses changes without proof
+
+Ploeg's `PLOEG_OPERATOR_ATTRIBUTION` decides what happens to a change that carries no person token (Ploeg ADR-0171). Under `asserted`, Ploeg accepts it, records it as named by Unfold and answers with a `Warning: 299` header; Unfold logs each distinct warning once as `ploeg.warning`. Under `proven`, Ploeg refuses every operator change other than a read without a verified person token, answers 403 `person_token_required`, changes nothing and writes an `operator.attribution_refused` audit row. Reads stay open either way.
+
+What Unfold does under `proven`:
+
+* Every refused change answers `ploeg_person_unproven` with a message that tells the person to sign out and sign in again, whichever route made it: an approval, a note, an Ask, a chat message, an admission, context, a delivery step or an execution command. The Status page's person-proof line then turns degraded with `gap` `required`, also without `ploeg.personTokens`, and recovers at that person's next accepted change. Unfold logs `ploeg.person_unproven` once.
+* A session whose heartbeat or command is refused stops at once, without waiting for its lease to run out. Its blocker asks the person to sign in again and reconcile; the refused command is not kept for a retry, and store upkeep does not send the session's report again until someone acts on it.
+* A person token Ploeg rejects with 401 `invalid_token` is sent once more without the token, as under `asserted`, and the refusal that follows keeps Ploeg's reason for the rejection. Ploeg does not report its attribution mode (its version route names only its release and contracts), so Unfold learns it from the first `person_token_required` and from then on returns a rejected token's 401 as it is, without the retry.
+
+Unfold cannot check Ploeg's mode when it starts, for the same reason. The Unfold chart checks it instead: it sets `ploeg.operator.attribution: asserted` and refuses to render a resolved `proven` without `config.ploeg.personTokens`.
+
+Moving to Ploeg chart 0.3.0, whose empty `operator.attribution` resolves to `proven`, needs either `ploeg.operator.attribution: asserted` (the Unfold chart's default) or person tokens on both sides:
+
+| Where | Setting |
+| --- | --- |
+| Unfold | `config.ploeg.personTokens` as above, with `auth.oidc` |
+| Ploeg chart | `ploeg.operator.personTokens.issuer` (and `subjectNamespace` when it differs from the issuer), which the chart renders as `PLOEG_OPERATOR_PERSON_ISSUER` and its siblings |
+| Ploeg chart | `audiences: [ploeg-for-unfold]` on Unfold's entry in `ploeg.operator.consumers` |
+| Ploeg chart | `ploeg.operator.attribution: proven`, or empty from 0.3.0 |
+
+Ploeg's chart refuses to render `proven` with consumers and no `operator.personTokens`. Changes Unfold makes without a person (the `unfold-cards` pull request comments, the delivery verifier's calls, an administrator acting for someone else's session) carry no person token, so Ploeg refuses them under `proven`; Ploeg has not yet decided how such a caller is attributed.
+
 ## Linking GitLab
 
 Register one OAuth application per workbench in GitLab, under your user or the group that owns the repositories ([GitLab OAuth applications](https://docs.gitlab.com/integration/oauth_provider/)): redirect URI `<baseUrl>/api/links/gitlab/callback`, confidential off, scopes `read_api`, `read_repository` and `write_repository`. The application ID is not a secret. Put it in the profile as `links.gitlab.clientId`, or export `UNFOLD_GITLAB_CLIENT_ID`, and set `links.gitlab.baseUrl` for a self-hosted GitLab. `baseUrl` on the workbench must match what the browser uses, because it forms the redirect URI.
@@ -472,7 +549,7 @@ helm lint ops/helm/unfold
 helm template unfold ops/helm/unfold > /tmp/unfold-rendered.yaml
 ```
 
-The chart defaults to **demo** mode. Copy `ops/helm/unfold/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example forge, gateway/model, network selectors and the Ploeg settings under `ploeg:`, which configure the Ploeg release the chart carries ([chart README](../../ops/helm/unfold/README.md#ploeg)). Leave the images alone: a published chart already names each by its released digest. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Put Unfold's Ploeg consumer token there under the name `config.ploeg.tokenEnv` gives; the gateway master key belongs to Ploeg, not to Unfold or the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there. `workspaceUserNamespaces` maps the workspace pod into its own user namespace (`hostUsers: false`), so the container's root is an unprivileged uid on the node; user namespaces are generally available from Kubernetes 1.36 and the cluster's container runtime must support them, so it is opt-in and refused together with the sandbox provisioner, where the guest kernel already provides that boundary. `workspacePodRuntimeClassName` puts the pod provisioner's agent and export pods under a RuntimeClass, such as `kata` or `gvisor`, so each runs behind a sandbox runtime ([Run agent code in a sandbox runtime](../../../../docs/how-to/run-agent-code-in-a-sandbox-runtime.md)); it is refused together with `workspaceUserNamespaces` for the same reason. `workspaceAgentSecrets` lists Secrets in the workspace namespace whose keys become environment inside the agent container only, never the clone container; an External Secret from OpenBao is the intended way to let an agent pod reach something beyond the repository and the gateway. The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`; the delivery verifier and publisher tokens live only in the application namespace's credentials Secret or a dedicated Secret there. Candidate delivery in the cluster uses the Kubernetes verifier: set `delivery.enabled`, the policies, the inputs volume, `delivery.verifier.image` and, for publication, `delivery.publisher.existingSecret`; the [chart README](../../ops/helm/unfold/README.md#candidate-delivery) lists the values and the [delivery contract](../contracts/candidate-delivery.md#kubernetes-verifier) how each check pod is isolated. Register `unfold-kubernetes-v1` as the verifier ID in Ploeg's delivery policy. The chart's deny-all NetworkPolicy only isolates check pods where the network plugin enforces NetworkPolicy; the verifier probes from inside every check pod and fails the check as `network_reachable` when it is not enforced.
+The chart defaults to **demo** mode. Copy `ops/helm/unfold/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example forge, gateway/model, network selectors and the Ploeg settings under `ploeg:`, which configure the Ploeg release the chart carries ([chart README](../../ops/helm/unfold/README.md#ploeg)). Leave the images alone: a published chart already names each by its released digest. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Put Unfold's Ploeg consumer token there under the name `config.ploeg.tokenEnv` gives; the gateway master key belongs to Ploeg, not to Unfold or the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there. `workspaceUserNamespaces` maps the workspace pod into its own user namespace (`hostUsers: false`), so the container's root is an unprivileged uid on the node; user namespaces are generally available from Kubernetes 1.36 and the cluster's container runtime must support them, so it is opt-in and refused together with the sandbox provisioner, where the guest kernel already provides that boundary. `workspacePodRuntimeClassName` puts the pod provisioner's agent and export pods under a RuntimeClass, such as `kata` or `gvisor`, so each runs behind a sandbox runtime ([Run agent code in a sandbox runtime](../../../../docs/how-to/run-agent-code-in-a-sandbox-runtime.md)); it is refused together with `workspaceUserNamespaces` for the same reason. In live mode the chart refuses to render while the provisioner's RuntimeClass is empty, so a pod-provisioner install either names one or sets `workspaceAllowUnsandboxed: true`, which user namespaces without a sandbox runtime also need; the install notes then warn that workspaces run on the node's kernel. `workspaceAgentSecrets` lists Secrets in the workspace namespace whose keys become environment inside the agent container only, never the clone container; an External Secret from OpenBao is the intended way to let an agent pod reach something beyond the repository and the gateway. The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`; the delivery verifier and publisher tokens live only in the application namespace's credentials Secret or a dedicated Secret there. Candidate delivery in the cluster uses the Kubernetes verifier: set `delivery.enabled`, the policies, the inputs volume, `delivery.verifier.image` and, for publication, `delivery.publisher.existingSecret`; the [chart README](../../ops/helm/unfold/README.md#candidate-delivery) lists the values and the [delivery contract](../contracts/candidate-delivery.md#kubernetes-verifier) how each check pod is isolated. Register `unfold-kubernetes-v1` as the verifier ID in Ploeg's delivery policy. The chart's deny-all NetworkPolicy only isolates check pods where the network plugin enforces NetworkPolicy; the verifier probes from inside every check pod and fails the check as `network_reachable` when it is not enforced.
 
 Use **one application replica** with persistent storage and the chart's `Recreate` rollout strategy. Configure a separate workspace namespace, storage class/size, CPU/memory limits (`workspaceCpu`, `workspaceMemory`) and what each workspace reserves (`workspaceCpuRequest`, `workspaceMemoryRequest`, the limits when empty; see [workspace size](../../ops/helm/unfold/README.md#workspace-size)), an agent image and an inference gateway URL reachable by agent Pods. The control plane needs the chart's narrowly scoped workspace-management RBAC. Agent Pods must not mount the control-plane service account or LiteLLM master credential.
 

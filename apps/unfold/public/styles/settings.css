@@ -1074,6 +1074,11 @@
   list-style: none;
 }
 
+.status-residency {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .status-page .settings-item-main {
   min-width: 0;
 }

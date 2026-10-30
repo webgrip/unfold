@@ -48,6 +48,21 @@ export function defaultMemberships(role: UserRole): Membership[] {
   return [{ kind: 'tenant', tenant: defaultTenant, role: accountRoles[role] }];
 }
 
+/**
+ * The memberships a credential acting with `role` keeps from two sets it must satisfy at once, such as what the
+ * account held when the credential was minted and what it holds now: a Tenant held in both, at the lowest of the two
+ * roles and of the Access Role `role` maps to, and a Client membership held in both. Never more than either set.
+ */
+export function narrowedMemberships(held: readonly Membership[], allowed: readonly Membership[], role: UserRole): Membership[] {
+  const rank = (value: AccessRole) => accessRoles.indexOf(value);
+  const cap = rank(accountRoles[role]);
+  return canonical(held.map(entry => {
+    if (entry.kind === 'client') return allowed.some(other => other.kind === 'client' && other.tenant === entry.tenant && other.client === entry.client) ? entry : undefined;
+    const other = allowed.find((candidate): candidate is TenantMembership => candidate.kind === 'tenant' && candidate.tenant === entry.tenant);
+    return other ? { kind: 'tenant', tenant: entry.tenant, role: accessRoles[Math.min(rank(entry.role), rank(other.role), cap)] } : undefined;
+  }));
+}
+
 /** Stored memberships read back: each well-formed entry, sorted and without duplicates; undefined when `value` is no list. */
 export function storedMemberships(value: unknown): Membership[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -74,4 +89,50 @@ function canonical(items: Array<Membership | undefined>): Membership[] {
     ...[...tenants].sort(([left], [right]) => byName(left, right)).map(([tenant, role]): TenantMembership => ({ kind: 'tenant', tenant, role })),
     ...[...clients.values()].sort((left, right) => byName(left.tenant, right.tenant) || byName(left.client, right.client)),
   ];
+}
+
+/** Who owns a configured repository or task source: one Tenant, and within it at most one Client (system ADR-0017). */
+export type Ownership = { tenant: string; client?: string };
+
+/** The owner `entry` names: its `tenant`, or the default Tenant when it names none, and its `client` when it names one. */
+export function ownership(entry: { tenant?: string; client?: string }): Ownership {
+  return { tenant: entry.tenant ?? defaultTenant, ...(entry.client !== undefined ? { client: entry.client } : {}) };
+}
+
+/** Whether two owners are the same Tenant with the same Client, or the same Tenant with no Client. */
+export function sameOwnership(left: Ownership, right: Ownership): boolean {
+  return left.tenant === right.tenant && left.client === right.client;
+}
+
+/** An owner in words for configuration errors, such as `Tenant default` or `Tenant agency, Client acme`. */
+export function describeOwnership(owner: Ownership): string {
+  return owner.client === undefined ? `Tenant ${owner.tenant}` : `Tenant ${owner.tenant}, Client ${owner.client}`;
+}
+
+/**
+ * The optional `tenant` and `client` of a configuration entry, checked: each, when present, is a Tenant or Client id.
+ * Throws an error that starts with `label` otherwise. Only the fields the entry sets are returned.
+ */
+export function configuredOwnership(entry: Record<string, unknown>, label: string): { tenant?: string; client?: string } {
+  for (const key of ['tenant', 'client'] as const) if (entry[key] !== undefined && !validTenancyId(entry[key])) throw new Error(`${label} ${key} must be lower-case letters, digits and inner hyphens, at most 63 characters`);
+  return { ...(entry.tenant !== undefined ? { tenant: entry.tenant as string } : {}), ...(entry.client !== undefined ? { client: entry.client as string } : {}) };
+}
+
+/**
+ * The instance-qualified key of a repository URL: its forge host and its `owner/name` path, lower-cased and without
+ * `.git`, so the HTTPS and SSH URLs of one repository share a key. A local path keys by the path itself.
+ */
+export function repositoryKey(url: string): string {
+  const scp = /^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):(?!\/)(.+)$/.exec(url);
+  let host: string;
+  let path: string;
+  if (scp) { host = scp[1]; path = scp[2]; }
+  else {
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { return `path:${url.replace(/\/+$/, '')}`; }
+    if (parsed.protocol === 'file:') return `path:${decodeURIComponent(parsed.pathname).replace(/\/+$/, '')}`;
+    host = parsed.hostname;
+    path = decodeURIComponent(parsed.pathname);
+  }
+  return `${host.toLowerCase()}/${path.replace(/^\/+|\/+$/g, '').replace(/\.git$/i, '').toLowerCase()}`;
 }

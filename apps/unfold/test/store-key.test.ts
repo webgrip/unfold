@@ -79,7 +79,7 @@ test('UNFOLD_STORE_KEY takes 32 bytes as base64, base64url or hex and refuses an
 
 test('the chart hands the workbench its store key from a named Secret', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
   const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
-  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
+  const render = (...sets: string[]) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'ploeg.enabled=false', '--set', 'mode=live', '--set', 'workspacePodRuntimeClassName=kata', ...sets.flatMap(set => ['--set', set])], { encoding: 'utf8' });
   const keyed = render('storeKey.existingSecret=unfold-store', 'storeKey.secretKey=store-key');
   assert.equal(keyed.status, 0, keyed.stderr);
   assert.match(keyed.stdout, /- name: UNFOLD_STORE_KEY\n\s+valueFrom:\n\s+secretKeyRef:\n\s+name: unfold-store\n\s+key: store-key/);

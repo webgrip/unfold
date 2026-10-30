@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
-import { Auth, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
+import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
@@ -17,7 +17,8 @@ import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
-import { personProof } from './person-proof.ts';
+import { personProof, type PersonProofStatus } from './person-proof.ts';
+import { PloegAttribution } from './ploeg-attribution.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
@@ -25,7 +26,10 @@ import { PloegClient, PloegContractIncompatible, PloegError, contextInput, conte
 import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.ts';
+import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
 import { TaskHandoff } from './task-handoff.ts';
+import { TenantScope } from './tenant-scope.ts';
+import { membershipsFromGroups } from './tenancy.ts';
 import { StaticFiles } from './static.ts';
 import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
@@ -57,8 +61,10 @@ import { LinkedConversation, conversationRoute } from './linked-conversation.ts'
 import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
+import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
+import { AuditTrail } from './audit/service.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -193,20 +199,25 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
   });
 }
 
+const personProofLine = (line: PersonProofStatus | undefined) => line ? { personProof: line } : {};
+
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
+  const audit = new AuditTrail({ store, settings: config.audit, config, exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
-  const proof = personProof(config, store, oidc?.configured() ? refreshToken => oidc.refresh(refreshToken) : undefined);
-  ploeg.usePersonProof(proof);
-  engine.usePersonProof(proof);
-  agentHost?.usePersonProof(proof);
+  const attribution = new PloegAttribution();
+  const proof = personProof(config, store, oidc?.configured() ? refreshToken => oidc.refresh(refreshToken) : undefined, attribution);
+  ploeg.usePersonProof(proof, attribution);
+  engine.usePersonProof(proof, attribution);
+  agentHost?.usePersonProof(proof, attribution);
   const delivery = new DeliveryService(config, store);
   delivery.useContract(ploegCompatibility);
-  delivery.usePersonProof(proof);
+  delivery.usePersonProof(proof, attribution);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
+  const tenants = new TenantScope(config);
   const linked = new LinkedSessions(store.db, config, ploeg);
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
   const takeOver = new TakeOver(ploeg);
@@ -274,6 +285,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -304,15 +316,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
     return value;
   }
-  const account = (record: { id: string; name: string; role: User['role'] } | undefined): User | undefined => record ? { id: record.id, name: record.name, role: record.role } : undefined;
   const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
     settings: config.mcp,
     subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
-    findUser: id => account(store.getUser(id)),
+    findUser: id => { const record = store.getUser(id); return record ? signedInUser(record) : undefined; },
     entitle: claims => entitledRole(config.auth.oidc!, claims),
+    memberships: claims => membershipsFromGroups(claims[config.auth.oidc!.groupsClaim]),
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
     apiUrl: () => loopbackUrl(server.address() as AddressInfo),
     linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
+    audit: entry => audit.mcp(entry),
     version: applicationVersion,
   }) : undefined;
   function visible(id: string, user: User): Session {
@@ -518,6 +531,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (path === '/api/admin/audit' || path === '/api/admin/audit/verify') return await audit.serve(res, { method, path, query: url.searchParams, user });
         const flagOverride = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/override$/);
         const flagRollout = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/rollout$/);
         const flagSegment = path.match(/^\/api\/admin\/flag-segments\/([a-z][a-z0-9-]{0,63})$/);
@@ -551,15 +565,15 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
           reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
-          repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
-          taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
+          repositories: tenants.repositories(user).map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
+          taskSources: tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
           teams: config.teams, crews: config.teams, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions,
           flags: await flags.clientValues(flagContext(user))
         }));
-        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize({ ...await status.report(user), ...(proof ? { personProof: proof.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined) } : {}) }));
+        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize({ ...await status.report(user), ...personProofLine(attribution.status(user.id, proof?.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined))) }));
         if (method === 'POST' && path === '/api/status/notes') return json(res, 201, sanitize(status.addNote(user, await body(req))));
         const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
         if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
@@ -572,7 +586,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, folders: [...repositoryFolderPaths(config.repositories)].map(([repositoryId, folder]) => ({ repositoryId, name: config.repositories.find(repo => repo.id === repositoryId)?.name ?? repositoryId, path: folder })), vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, folders: [...repositoryFolderPaths(config.repositories)].filter(([repositoryId]) => tenants.repository(user, repositoryId)).map(([repositoryId, folder]) => ({ repositoryId, name: config.repositories.find(repo => repo.id === repositoryId)?.name ?? repositoryId, path: folder })), vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
           }
           if (method === 'GET' && agentsWindowLink) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to open.');
@@ -635,24 +649,25 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (!linked) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
           return { ...source, token: linked!.token, ...(source.provider === 'gitlab' && linked!.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) };
         };
-        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize((config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
+        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize(tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
         const handoffRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks\/([a-zA-Z0-9_-]+)\/(ploeg|handoff)$/);
         if (handoffRoute) {
-          const source = config.taskSources?.find(item => item.id === handoffRoute[1]);
+          const source = tenants.source(user, handoffRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           if (handoffRoute[3] === 'ploeg' && method === 'GET') return json(res, 200, sanitize(await handoff.status(user, source!, handoffRoute[2], url.searchParams.get('refresh') === '1')));
           if (handoffRoute[3] === 'handoff' && (method === 'POST' || method === 'DELETE')) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot hand tasks to Ploeg.');
+            if (!tenants.mayAct(user, source!)) fault(403, 'forbidden', 'Handing off needs a Developer or Admin membership of the Tenant that owns this connection.');
             if (method === 'DELETE') return json(res, 200, sanitize(await handoff.takeBack(user, source!, handoffRoute[2], text(url.searchParams.get('team'), 'Team', 100))));
             const data = await body(req);
             return json(res, 200, sanitize(await handoff.handOff(user, source!, handoffRoute[2], text(data.team, 'Team', 100), text(data.revision, 'Task revision', 128))));
           }
           fault(405, 'method', 'Unsupported method.');
         }
-        if (method === 'GET' && path === '/api/tasks/lookup') return json(res, 200, sanitize(await handoff.lookup(url.searchParams.get('provider'), url.searchParams.get('id'))));
+        if (method === 'GET' && path === '/api/tasks/lookup') return json(res, 200, sanitize(await handoff.lookup(url.searchParams.get('provider'), url.searchParams.get('id'), tenants.sources(user))));
         const taskRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks(?:\/([a-zA-Z0-9_-]+))?$/);
         if (method === 'GET' && taskRoute) {
-          const source = config.taskSources?.find(item => item.id === taskRoute[1]);
+          const source = tenants.source(user, taskRoute[1]);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           const resolved = await withUserToken(source!);
           if (taskRoute[2]) return json(res, 200, sanitize(presentTask(resolved, await engine.previewTask(await getTask(resolved, taskRoute[2], url.searchParams.get('truncate') === '1'), user))));
@@ -668,8 +683,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const revision = text(data.revision, 'Task revision', 128);
           const teamId = teamInput(data);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
-          const source = config.taskSources?.find(item => item.id === sourceId);
+          const source = tenants.source(user, sourceId);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
+          if (!tenants.mayAct(user, source!)) fault(403, 'forbidden', 'Importing needs a Developer or Admin membership of the Tenant that owns this connection.');
           if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
           if (!runtimeKinds.includes(runtime) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
@@ -685,7 +701,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const repositoryId = text(data.repositoryId, 'Repository', 64);
           const teamId = teamInput(data);
-          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
+          if (!runtimeKinds.includes(runtime) || !tenants.repository(user, repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const trackerUrl = text(data.trackerUrl, 'Tracker link', 2048, true);
           if (trackerUrl) {
@@ -819,6 +835,34 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
           return json(res, 200, sanitize(await asks.mine(user)));
         }
+        const signOffRoute = /^\/api\/ploeg\/work-items\/([^/]+)\/client-sign-off(\/withdraw)?$/.exec(path);
+        if (signOffRoute || path === '/api/client-sign-off/exclusions') {
+          try {
+            if (!signOffs) fault(503, 'facts_unavailable', 'Client Sign-off needs a connected Ploeg with delivery facts; the deterministic demo has none.');
+            if (!signOffRoute) {
+              if (method === 'GET') return json(res, 200, sanitize({ exclusions: signOffs.store.allExclusions(unassignedClient) }));
+              if (method !== 'PUT') fault(405, 'method', 'Read Client Sign-off exclusions with GET and set them with PUT.');
+              if (user.role !== 'admin') fault(403, 'forbidden', 'Only administrators set Client Sign-off exclusions.');
+              const data = await body(req);
+              const repository = text(data.repository, 'Repository', 300).trim().toLowerCase();
+              if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) fault(400, 'sign_off_repository', 'Name the repository as owner/name.');
+              const entry = { client: unassignedClient, repository, exclude: exclusionGlobs(data.exclude), keep: exclusionGlobs(data.keep, 'Kept paths'), repositoryFile: data.repositoryFile === true, updatedAt: new Date().toISOString(), updatedBy: user.id };
+              signOffs.store.setExclusions(entry);
+              return json(res, 200, sanitize(entry));
+            }
+            const id = signOffRoute[1];
+            await ploeg.detail(user, id, true);
+            if (method === 'GET' && !signOffRoute[2]) return json(res, 200, sanitize(await signOffs.view(id)));
+            if (method !== 'POST') fault(405, 'method', 'Record or withdraw a Client Sign-off with POST.');
+            const proven = proof?.status(user.id, auth.scope(req) === 'browser' ? auth.signIn(req) : undefined).state === 'proven';
+            const person = { id: user.id, name: user.name, role: user.role, attribution: proven ? 'proven' as const : 'asserted' as const };
+            if (signOffRoute[2]) return json(res, 200, sanitize(await signOffs.withdraw(person, id)));
+            return json(res, 201, sanitize(await signOffs.record(person, id, await body(req))));
+          } catch (error) {
+            if (error instanceof ClientSignOffError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
+        }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
           const attribution = /^\/api\/ploeg\/work-items\/([^/]+)\/(cracks|evolved)$/.exec(path);
@@ -908,6 +952,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
               if (ploeg.isDemo) return json(res, 200, { demo: true, window });
               return json(res, 200, sanitize(await readDeliveryEconomics(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), fresh })));
+            }
+            if (path === '/api/ploeg/deliveries') {
+              const window = url.searchParams.get('window') ?? '7d';
+              const format = url.searchParams.get('format') ?? 'json';
+              if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
+              if (!['json', 'csv'].includes(format)) fault(400, 'ploeg_filter', 'Choose a format of json or csv.');
+              const ledger = ploeg.isDemo ? null : sanitize(await readDeliveryLedger(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), calendar: config.acceptanceCalendar, fresh }));
+              if (format === 'json') return json(res, 200, ledger ?? { demo: true, window });
+              res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="unfold-deliveries-${ledger ? '' : 'demo-'}${window}.csv"`, 'Cache-Control': 'no-store' });
+              res.end(deliveriesCsv(ledger?.rows ?? [])); return;
             }
             if (path === '/api/ploeg/runs') return json(res, 200, sanitize(await ploeg.runs(user, { team: optional('team'), state: optional('state'), outcome: optional('outcome'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));
@@ -1091,6 +1145,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     }
   };
   const server = createServer((req, res) => {
+    audit.watch(req, res, auth, () => parsedBodies.get(req));
     const method = req.method || 'GET';
     const requested = new URL(req.url || '/', 'http://localhost');
     const path = requested.pathname;
@@ -1112,5 +1167,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }

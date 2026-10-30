@@ -1,6 +1,9 @@
 # Design — client-sign-off
 
-Everything here is proposed. No code implements it.
+Everything here is proposed. The owner answered the open questions on
+2026-10-29; D3, D5, D9 and D10 record those answers, and
+[Decisions recorded](#decisions-recorded-2026-10-29) lists them. Only P2.2's
+core (task group 4) is being built, behind a flag that is off by default.
 
 ## Context
 
@@ -66,8 +69,9 @@ Clients. This is the brief for the ploeg-hq change, written in Ploeg's words:
 > cannot enter a Shift, through approve, requeue or a direct Shift open,
 > until that approval is recorded at the current revision.
 
-Unfold names `client`, and `agency` when the Agency requires its own. These
-names live only in Unfold's configuration.
+Unfold names `approver` for the approval of the Client's Approver (D9), and
+`agency` when the Agency requires its own as well. These names live only in
+Unfold's configuration; Ploeg never learns what an Approver or a Client is.
 
 Alternative: enforce in Unfold alone. Rejected, because any other consumer or
 a requeue could start the Shift, and ADR-0007's Confirmation names Ploeg.
@@ -78,13 +82,19 @@ Unfold keeps no approval state of its own; it reads the recorded approvals
 from Work Item detail. One source of truth avoids the two-places problem R22
 names for Review.
 
-### D3. Client Sign-off is a new term, not a Verdict
+### D3. Client Sign-off is the name, and it is input to Acceptance
 
-"Verdict" already means a reviewing Run's answer, and "approval" now means
-D1's Work Item approval. The working name is **Client Sign-off** (proposed),
-with answers "looks good" and "needs changes". The comment key stays
-`client-verdict` as the brief named it; it is renamed with the term if the
-owner picks another (open question 1).
+Decided by the owner on 2026-10-29. The term is **Client Sign-off**, with the
+answers "looks good" and "needs changes". "Verdict" already means a reviewing
+Run's answer and "approval" means D1's Work Item approval, so neither is used
+for it. Its weight is unchanged: a Client Sign-off is input to the Agency's
+Acceptance, never Acceptance itself (R11, R22). The pull request comment key is
+`client-sign-off`.
+
+Proposed, not decided: a per-Agency option to require a current Client
+Sign-off before Acceptance. It would change the Acceptance definition, which
+counts a merge and ten working days of silence, so it needs its own decision.
+The commit status in D5 is how it would be enforced.
 
 ### D4. Head binding and dismissal from delivery facts
 
@@ -98,19 +108,52 @@ back to the signed commit. This mirrors a forge's "dismiss stale approvals".
 Alternative: dismiss on a forge webhook. Rejected: Unfold has no forge
 webhook of its own, and the facts are the record Unfold already trusts.
 
-### D5. Sign-off Paths live in the Client Profile
+### D5. Sign-off Paths: the whole change minus the Agency's exclusions
 
-The Client Profile already holds the Client's Definitions of Ready and Done.
-Sign-off Paths are globs per repository, matched with the same glob rules as
-`.unfold/attention` Attention Paths. Coverage is reported, never assumed: a
-truncated or missing path list never yields "whole change". Who writes the
-globs is open question 2.
+Decided by the owner on 2026-10-29: options 1, 2 and 5 below, with the best
+part of 3 and of 4.
+
+1. **Default: the whole change.** With no setup, a Client Sign-off covers
+   every path the pull request changes at its head (`changedPaths`).
+2. **Agency exclusions.** The Agency sets exclusion globs per Client and
+   repository in the Client Profile, such as `infra/**` or `.forgejo/**`.
+   Excluded paths are listed as not covered.
+3. **A repository file may propose exclusions.** A file such as
+   `.unfold/sign-off.yml` holds exclusion globs that are versioned with the
+   code. The Client Profile wins on a conflict: a path the Client Profile
+   keeps is covered even when the file excludes it. The file holds globs only,
+   never a Client's name or identity.
+4. **Enforcement is optional.** A commit status `client-sign-off` that the
+   Agency may make required in its branch protection. It needs a generic Ploeg
+   keyed commit status contract and waits on that Ploeg ADR.
+5. **Later: change categories.** Categories such as UI, copy, content, prices
+   and email, computed from globs and labels on top of the same scope. A
+   judge may only advise on them. Proposed and future.
+
+Coverage is reported, never assumed: a truncated or missing path list never
+yields "whole change". The scope is a rule over the changed paths, so a later
+part adds to the rule and needs no store migration: a stored Sign-off keeps
+the scope it was given.
+
+The five options the owner chose from, with the boundary each one draws.
+Ploeg knows no Client, Agency or Sign-off; it offers only generic contracts.
+
+| Option | What it is | Where it lives | Ploeg's part |
+|---|---|---|---|
+| 1 | The whole pull request diff, no setup | Unfold, from delivery facts | None beyond today's `changedPaths` |
+| 2 | Agency exclusion globs per Client and repository | Unfold's Client Profile | None |
+| 3 | A repository file such as `.unfold/sign-off.yml`, or Client handles in `CODEOWNERS` | The Agency's repository, read by Unfold | A generic read of a file at the head, if Unfold cannot read it otherwise. Client handles in `CODEOWNERS` were rejected: they put Client identities in the repository |
+| 4 | Change categories from path globs and labels, the judge only advising | Unfold | None |
+| 5 | A commit status `client-sign-off` the Agency may make required | The forge, written through Ploeg | A generic keyed commit status contract, a sibling of ADR-0079's keyed pull request comments, written in Ploeg's words only |
+
+The recommendation was 1 + 2 + 5; the owner added the repository file from 3
+and the categories from 4 as optional and later parts.
 
 ### D6. The comment follows the Agent Trace comment
 
 A `ClientSignOffComments` class with the same source interface as
 `AgentTraceComments` (`factsSupported`, `workItemFacts`,
-`putPullRequestComment`), the flag `client.verdict-comment` evaluated per Team
+`putPullRequestComment`), the flag `client.sign-off-comment` evaluated per Team
 (`kind: permission`, default off, `client: false`), a digest to skip unchanged
 text, and no timer loop. It writes on a sign-off, on a dismissal and after a
 restart when the stored text differs. It names the Client, not the person,
@@ -146,8 +189,9 @@ must also be signed in is part of P2.5's design once previews exist.
 
 - [A Client reads "looks good" as accepted] → The control, the client view
   and the comment all say that the Agency decides.
-- [Sign-off Paths drift from the repository layout] → Coverage lists
-  uncovered paths, so a stale glob shows up as a partial sign-off.
+- [Exclusion globs drift from the repository layout] → Every Sign-off
+  lists the paths it left out, so a stale glob shows up as an unexpected
+  list for the Agency to fix.
 - [Client-written notes are untrusted input] → A note is shown, never put in
   a prompt, until a decision says otherwise (ADR-0007's injection concern).
 - [Facts lag a push] → Submit names the head, so a lag can refuse a sign-off
@@ -161,25 +205,59 @@ Nothing to migrate. Each slice ships behind its own flag, default off, and
 P2.1 stays off until the pinned Ploeg carries D1. Rollback is turning the
 flag off; stored sign-offs stay.
 
+### D9. Each Client has an Approver
+
+Decided by the owner on 2026-10-29. The **Approver** (proposed term) is the
+party that approves a Client's proposed Work Items. By default it is the
+Client. An Agency may set it, per Client, to itself or to the party that sits
+in front of the work and pays for it, such as a main contractor or a reseller.
+The Approver's approval is the one Unfold names to Ploeg as `approver` (D1);
+the Agency's own additional approval stays optional (ADR-0007). An approval
+recorded by someone other than the Approver is recorded on its behalf, as
+ADR-0007 already allows for the Agency.
+
+Proposed idea for the owner's pricing design, not a decision: the party that
+approves a Quote could be the bill-to party of that Work Item. The owner is
+still designing pricing, so nothing here builds anything about money.
+
+### D10. Client-view copy is English first
+
+Decided by the owner on 2026-10-29. The client view's copy is English for
+now; translations come later. Once they exist, the Client Profile sets each
+Client's default language. The Agency's brand shows first, and the Agency
+may override the copy.
+
+### D11. Only Agency people record a Sign-off until Client memberships exist
+
+Until ADR-0017's Client memberships and `tenancy.enforce` are in place, the
+P2.2 core lets only an `admin` or `operator` record or withdraw a Client
+Sign-off, on the Client's behalf. The route checks the person's role in one
+place, which is the seam a Client user's check replaces. P2.2 does not scope by
+Tenant or Client itself.
+
+## Decisions recorded 2026-10-29
+
+The owner answered the four open questions. System
+[ADR-0049](../../../docs/adr/adr-0049-a-client-sign-off-is-input-to-acceptance-bound-to-the-head-commit-and-each-client-has-an-approver.md)
+(proposed) records answers 1, 2 and 4.
+
+1. **Name and weight.** Client Sign-off; input to the Agency's Acceptance,
+   never Acceptance (D3). A per-Agency option to require it is proposed.
+2. **Sign-off Paths.** The whole change minus the Agency's exclusion globs in
+   the Client Profile, an optional repository file whose exclusions the
+   Client Profile overrides, an optional commit status waiting on a Ploeg
+   contract, and change categories later (D5).
+3. **Client-view copy.** English for now, translations later with a default
+   language per Client, Agency brand first, Agency may override (D10).
+4. **Who approves.** An Approver per Client, the Client by default (D9).
+
 ## Open Questions
 
-These wait on the owner.
-
-1. **Name and weight of the Client Sign-off.** Is "Client Sign-off" the term,
-   or "Client Verdict" or "Client Approval"? (Verdict and approval already
-   mean other things.) Is it only input to the Agency's Acceptance, as the
-   domain model says today? May an Agency require a current, whole-change
-   sign-off before Acceptance? If yes, the only way Unfold can hold back a
-   merge is a commit status, such as `unfold/client-sign-off`, that the Agency
-   makes required in its branch rule. That would also change the Acceptance
-   definition, which counts a merge and ten working days of silence.
-2. **Who defines the Sign-off Paths.** The Agency admin per Client and
-   repository; the Client, with Agency approval; or derived from CODEOWNERS
-   with a Client team. And does "no Sign-off Paths" mean the Client covers
-   nothing (this design) or everything?
-3. **Client-view copy.** Dutch and English wording for the answers, the
-   "Agency decides" line, the dismissal notice and the empty states, with the
-   Agency's brand first. Which language is the default per Client, and may
-   the Agency rewrite the copy?
-4. **Agency approval default.** This design defaults to Client approval only.
-   Should a new Client start with both required?
+1. **Requiring a Sign-off before Acceptance.** Proposed per-Agency option
+   (D3); it changes the Acceptance definition and needs its own decision.
+2. **The commit status contract.** Its shape is for ploeg-hq to decide in
+   its own ADR (D5 part 4).
+3. **Change categories.** Which categories, from which globs and labels, and
+   how the judge's advice shows (D5 part 5).
+4. **The Approver and the Quote.** Whether the Approver is the bill-to party
+   is part of the owner's pricing design (D9).

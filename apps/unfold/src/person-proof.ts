@@ -1,6 +1,7 @@
 import { actionContext } from './action-records.ts';
 import type { PersonGrant, Store } from './store.ts';
 import type { AppConfig } from './types.ts';
+import { ploegReason, type PloegAttribution } from './ploeg-attribution.ts';
 
 /** Where Unfold exchanges a person's access token for a Ploeg-audience token (RFC 8693), from `ploeg.personTokens`. */
 export type PersonTokenSettings = { tokenUrl: string; clientId: string; clientSecretEnv: string; audience: string };
@@ -26,7 +27,7 @@ export type DelegatedProof =
 type RequestProof = Extract<DelegatedProof, { source: 'request' }>;
 
 /** Why a person's actions reach Ploeg as asserted instead of proven. */
-export type ProofGap = 'no_grant' | 'expired' | 'refused' | 'unreachable' | 'unconfigured' | 'rejected' | 'mismatch';
+export type ProofGap = 'no_grant' | 'expired' | 'refused' | 'unreachable' | 'unconfigured' | 'rejected' | 'mismatch' | 'required';
 
 /** What the Status page tells a person about how Ploeg records their actions. */
 export type PersonProofStatus = { state: 'proven' | 'degraded'; gap?: ProofGap; summary: string; since?: string };
@@ -46,6 +47,7 @@ const summaries: Record<ProofGap, string> = {
   unconfigured: 'Unfold cannot ask the identity provider for proof of who you are, so Ploeg records your actions as named by Unfold, not proven. An administrator should check the person-token settings.',
   rejected: 'Ploeg did not accept the proof Unfold sent for your last action, so it recorded the action as named by Unfold, not proven. An administrator should check the person-token settings of Unfold and Ploeg.',
   mismatch: 'The identity provider returned proof for someone other than you, so Unfold did not send it and Ploeg recorded your action as named by Unfold. An administrator should check the token exchange settings.',
+  required: 'Ploeg refused your last change because it needs proof it is you, so nothing changed. Sign out and sign in again with single sign-on.',
 };
 
 function jwtShaped(value: unknown): value is string {
@@ -87,11 +89,14 @@ export class PersonProof {
   private readonly inflight = new Map<string, Promise<string | undefined>>();
   private readonly gaps = new Map<string, { gap: ProofGap; at: number }>();
   private readonly carriedTokens = new WeakMap<RequestProof, Promise<string | undefined>>();
+  private readonly rejections = new WeakMap<Response, { reason?: string }>();
+  private readonly attribution: PloegAttribution | undefined;
 
-  constructor(settings: PersonTokenSettings, store: Store, options: { refresh?: RefreshTokens; fetch?: typeof fetch; now?: () => number } = {}) {
+  constructor(settings: PersonTokenSettings, store: Store, options: { refresh?: RefreshTokens; fetch?: typeof fetch; now?: () => number; attribution?: PloegAttribution } = {}) {
     this.settings = settings;
     this.store = store;
     this.refresh = options.refresh;
+    this.attribution = options.attribution;
     this.fetchImpl = options.fetch ?? fetch;
     this.now = options.now ?? Date.now;
   }
@@ -117,7 +122,9 @@ export class PersonProof {
    * same person, otherwise as before. A request through a delegated credential uses only the proof that credential
    * carries for that same person: `unfold-mcp` over HTTP exchanges the access token of that request, the chat uses the
    * person's kept sign-in. A change Ploeg refuses for the person token alone (HTTP 401) is sent once more without it;
-   * Ploeg refuses such a request before acting on it, so the retry never repeats work.
+   * Ploeg refuses such a request before acting on it, so the retry never repeats work. Once Ploeg has shown it refuses
+   * every change without a person token, a rejected token (`invalid_token`) is answered as it is, without the retry.
+   * Either way {@link rejection} then names the rejected token's cause on the response the caller receives.
    */
   async send(person: string, actingUser: string | undefined, call: (headers: Record<string, string>) => Promise<Response>): Promise<Response> {
     if (actingUser !== undefined && actingUser !== person) return call({});
@@ -137,11 +144,22 @@ export class PersonProof {
     if (!value) return call({});
     const response = await call({ [personTokenHeader]: value });
     if (response.status !== 401) return response;
-    await response.body?.cancel().catch(() => undefined);
+    const refusal = await refusalOf(response);
     drop();
     this.note(key, 'rejected');
-    return call({});
+    const rejection = refusal.reason ? { reason: refusal.reason } : {};
+    if (refusal.code === 'invalid_token' && this.attribution?.requiresProof) {
+      this.rejections.set(response, rejection);
+      return response;
+    }
+    await response.body?.cancel().catch(() => undefined);
+    const retried = await call({});
+    this.rejections.set(retried, rejection);
+    return retried;
   }
+
+  /** Whether `response` answers a change whose person token Ploeg rejected with HTTP 401, and Ploeg's words for why. */
+  rejection(response: Response): { reason?: string } | undefined { return this.rejections.get(response); }
 
   /**
    * What the Status page says to a person about how Ploeg records their actions: for the browser login `browserSignIn`
@@ -261,8 +279,16 @@ export class PersonProof {
   }
 }
 
+async function refusalOf(response: Response): Promise<{ code?: string; reason?: string }> {
+  if (Number(response.headers.get('content-length') ?? 0) > 65_536) return {};
+  try {
+    const data = await response.clone().json() as { error?: { code?: unknown; message?: unknown } };
+    return { ...(typeof data?.error?.code === 'string' ? { code: data.error.code } : {}), ...(ploegReason(data?.error?.message) ? { reason: ploegReason(data?.error?.message) } : {}) };
+  } catch { return {}; }
+}
+
 /** The person-proof service a configuration asks for, or undefined when `ploeg.personTokens` or single sign-on is absent. */
-export function personProof(config: AppConfig, store: Store, refresh?: RefreshTokens): PersonProof | undefined {
+export function personProof(config: AppConfig, store: Store, refresh?: RefreshTokens, attribution?: PloegAttribution): PersonProof | undefined {
   const settings = config.ploeg?.personTokens;
-  return settings && config.auth.oidc && !config.ploeg?.demo ? new PersonProof(settings, store, { refresh }) : undefined;
+  return settings && config.auth.oidc && !config.ploeg?.demo ? new PersonProof(settings, store, { refresh, attribution }) : undefined;
 }

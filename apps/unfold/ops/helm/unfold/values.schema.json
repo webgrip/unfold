@@ -66,6 +66,7 @@
     "workspaceWarmPool": { "type": "string" },
     "workspaceUserNamespaces": { "type": "boolean" },
     "workspacePodRuntimeClassName": { "type": "string", "pattern": "^([A-Za-z0-9_.-]{1,253})?$" },
+    "workspaceAllowUnsandboxed": { "type": "boolean" },
     "workspaceRetentionDays": { "type": "integer", "minimum": 0, "maximum": 365 },
     "workspaceVolumeDeleteAnnotations": { "type": "object", "maxProperties": 8, "additionalProperties": { "type": "string" } },
     "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },
@@ -85,6 +86,32 @@
       "properties": {
         "teams": { "type": "array", "items": { "type": "object" }, "description": "The Teams sessions run with: each {id, name, description, roles}. Unset means Unfold's default Teams." },
         "crews": { "type": "array", "items": { "type": "object" }, "deprecated": true, "description": "Deprecated name of config.teams (system ADR-0036). Still read; set teams instead. Setting both with different lists stops Unfold from starting." },
+        "repositories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tenant": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", "description": "The Tenant that owns this repository (system ADR-0017). Unset means the default Tenant, default." },
+              "client": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", "description": "Optional. The Client inside the Tenant that owns this repository." }
+            }
+          }
+        },
+        "tenancy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional. enforce: true limits every person to the repositories, task sources and Work Items their Tenant and Client memberships reach (system ADR-0017). Off when absent.",
+          "properties": { "enforce": { "type": "boolean" } }
+        },
+        "taskSources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tenant": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", "description": "The Tenant that owns this task source (system ADR-0017); it must own the source's repository too. Unset means the default Tenant, default." },
+              "client": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", "description": "Optional. The Client inside the Tenant that owns this task source. A repository a Client owns takes task sources of that Client only." }
+            }
+          }
+        },
         "ploeg": {
           "type": "object",
           "properties": {
