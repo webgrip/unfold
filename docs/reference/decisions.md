@@ -48,6 +48,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0041](../adr/adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md) | A Ploeg release opens Unfold's pin pull request by running Unfold's recipe | 2026-10-18 | — |
 | System | [0043](../adr/adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md) | An Unfold release is one chart that carries the Ploeg it was tested with | 2026-10-19 | — |
 | System | [0045](../adr/adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md) | Agent code runs under Kata or gVisor, chosen by what the node and the work need | 2026-10-24 | — |
+| System | [0050](../adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md) | Unfold integrates through open standards and registries and never locks a customer in | 2026-10-30 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -285,6 +286,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0055](../../apps/unfold/docs/adrs/0055-unfold-proves-the-person-to-ploeg-with-a-token-exchanged-from-their-sign-in.md) | Unfold proves the person to Ploeg with a token exchanged from their sign-in | 2026-10-24 | unknown | — |
 | Unfold | [0056](../../apps/unfold/docs/adrs/0056-a-person-snoozes-rows-on-their-own-now-and-nothing-shared-changes.md) | A person snoozes rows on their own Now, and nothing shared changes | 2026-10-27 | unknown | — |
 | Unfold | [0057](../../apps/unfold/docs/adrs/0057-a-delivery-brief-is-one-evidence-backed-record-rendered-per-audience.md) | A Delivery Brief is one evidence-backed record, rendered per audience | 2026-10-29 | unknown | — |
+| Unfold | [0058](../../apps/unfold/docs/adrs/0058-an-acp-editor-uses-unfold-as-the-agent-unfold-which-follows-one-work-item.md) | An ACP editor uses Unfold as the agent `unfold`, which follows one Work Item | 2026-10-30 | unknown | — |
 | Unfold | [0059](../../apps/unfold/docs/adrs/0059-the-identity-provider-provisions-and-deprovisions-people-through-scim-and-pushed-shared-signals.md) | The identity provider provisions and deprovisions people through SCIM and pushed Shared Signals | 2026-10-30 | unknown | — |
 
 ## Other statuses

@@ -37,6 +37,10 @@ nav:
           - Runbooks: ploeg/how-to/index.md
       - Operate Unfold: unfold/index.md
       - Feature flags: unfold/operations/feature-flags.md
+      - Outbound webhooks: unfold/operations/outbound-events.md
+      - "Leaving Unfold: export a Tenant": unfold/operations/leaving-unfold.md
+      - Receive Requests from feedback tools and email: unfold/operations/request-intake.md
+      - Get notified (ntfy and Web Push): unfold/operations/notifications.md
       - Provision and deprovision people: unfold/operations/provision-and-deprovision-people.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md

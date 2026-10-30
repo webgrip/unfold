@@ -32,6 +32,8 @@ export type DeliveryEconomics = {
 export type DemoEconomics = { demo: true; window: EconomicsWindow };
 /** The source of facts pages, as `PloegClient.factsPage` reads them. */
 export type FactsSource = { factsPage(query: FactsQuery, fresh?: boolean): Promise<FactsPage> };
+/** Whether the reader may see one Work Item's facts, such as the Tenant and Client check on its target repository. */
+export type FactsReach = (facts: WorkItemFacts) => boolean;
 
 /** Whether `value` names one of the Insights windows. */
 export const isEconomicsWindow = (value: unknown): value is EconomicsWindow => typeof value === 'string' && Object.hasOwn(economicsWindows, value);
@@ -132,15 +134,15 @@ export type WindowFacts = { facts: WorkItemFacts[]; truncated: boolean };
 
 /**
  * Reads the facts of every Work Item with activity since `since`, page by page up to `maxPages`, and keeps the Teams in
- * `teams`. `truncated` says the bound stopped it.
+ * `teams` and the Work Items `reaches` accepts; the rest never reach a figure. `truncated` says the bound stopped it.
  */
-export async function readWindowFacts(source: FactsSource, { since, teams, fresh = false, maxPages = economicsPageBound }: { since: number; teams: readonly string[]; fresh?: boolean; maxPages?: number }): Promise<WindowFacts> {
+export async function readWindowFacts(source: FactsSource, { since, teams, reaches = () => true, fresh = false, maxPages = economicsPageBound }: { since: number; teams: readonly string[]; reaches?: FactsReach; fresh?: boolean; maxPages?: number }): Promise<WindowFacts> {
   const allowed = new Set(teams);
   const facts: WorkItemFacts[] = [];
   let before: string | undefined;
   for (let page = 0; page < maxPages; page++) {
     const result = await source.factsPage({ since: new Date(since).toISOString(), limit: 25, ...(before ? { before } : {}) }, fresh);
-    facts.push(...result.facts.filter(entry => allowed.has(entry.workItem.team)));
+    facts.push(...result.facts.filter(entry => allowed.has(entry.workItem.team) && reaches(entry)));
     if (!result.nextBefore) return { facts, truncated: false };
     before = result.nextBefore;
   }
@@ -149,10 +151,11 @@ export async function readWindowFacts(source: FactsSource, { since, teams, fresh
 
 /**
  * Reads the facts of every Work Item with activity inside the window, page by page up to `maxPages`, keeps the Teams
- * in `teams`, and measures them with `deliveryEconomics`. It says it truncated when the bound stopped it.
+ * in `teams` and the Work Items `reaches` accepts, and measures them with `deliveryEconomics`. It says it truncated
+ * when the bound stopped it.
  */
-export async function readDeliveryEconomics(source: FactsSource, { window, teams, now = Date.now(), fresh = false, maxPages = economicsPageBound }: { window: EconomicsWindow; teams: readonly string[]; now?: number; fresh?: boolean; maxPages?: number }): Promise<DeliveryEconomics> {
+export async function readDeliveryEconomics(source: FactsSource, { window, teams, reaches, now = Date.now(), fresh = false, maxPages = economicsPageBound }: { window: EconomicsWindow; teams: readonly string[]; reaches?: FactsReach; now?: number; fresh?: boolean; maxPages?: number }): Promise<DeliveryEconomics> {
   const since = now - economicsWindows[window];
-  const { facts, truncated } = await readWindowFacts(source, { since, teams, fresh, maxPages });
+  const { facts, truncated } = await readWindowFacts(source, { since, teams, reaches, fresh, maxPages });
   return deliveryEconomics(facts, { window, since, until: now, truncated });
 }

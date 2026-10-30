@@ -102,6 +102,16 @@
           "description": "Optional. enforce: true limits every person to the repositories, task sources and Work Items their Tenant and Client memberships reach (system ADR-0017). Off when absent.",
           "properties": { "enforce": { "type": "boolean" } }
         },
+        "billing": {
+          "type": "object",
+          "required": ["exporter"],
+          "description": "Optional. Writes one line per accepted Work Item into the Agency's billing tool (system ADR-0006). exporter names a registered adapter (simplicate, file); the exporter's own block holds its settings, and simplicate.tokenEnv names a variable from credentialsSecret holding key:secret. Also needs the billing.export flag per Tenant. Refused in demo mode. Off when absent.",
+          "properties": {
+            "exporter": { "type": "string", "description": "A registered billing exporter, such as simplicate or file." },
+            "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+            "syncMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 }
+          }
+        },
         "taskSources": {
           "type": "array",
           "items": {

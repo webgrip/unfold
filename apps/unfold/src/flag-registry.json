@@ -189,6 +189,20 @@
         "labs": false
       }
     },
+    "intake.requests": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Request intake",
+        "description": "Lets senders deliver Requests to POST /api/intake/<source-id>, signed as Standard Webhooks, with a vendor signature or with a token, and lets administrators add intake sources under Settings. A webhook payload is mapped by a template; an email arrives as raw MIME or an inbound-parse JSON body and replies thread onto their Request. A Request waits for Refinement: it never becomes a Run and Unfold never writes back to the sender. Evaluated per Tenant for deliveries (the context carries tenantId) and per person for Settings.",
+        "client": true,
+        "labs": false
+      }
+    },
     "client.sign-off": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
@@ -217,6 +231,62 @@
         "labs": false
       }
     },
+    "audit.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Audit export",
+        "description": "Lets a Tenant's OCSF security audit leave Unfold: as OTLP logs to UNFOLD_AUDIT_OTLP_URL, and as NDJSON from GET /api/admin/audit for the Tenant's administrators. Recording, retention and chain verification run whatever the flag says. Evaluated per Tenant: the context carries tenantId, with targetingKey tenant:<id>.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "tenant.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Tenant export",
+        "description": "Lets an administrator export everything Unfold holds for a Tenant as one bundle (system ADR-0050 rule 6): a gzip-compressed tar of JSON Lines, one file per entity, a JSON Schema per entity and a manifest with row counts and SHA-256 checksums. No secrets are exported. The export runs as a background job and its download expires after 24 hours. Browser sign-in only; every start, download and deletion is logged and kept as an Action Record.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "billing.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Bill accepted Work Items in the Agency's tool",
+        "description": "Writes one line per accepted Work Item (merged, approved or silent, system ADR-0006), and one credit line per Reversal an administrator confirms, into the billing tool the billing block configures, such as Simplicate, at the Agency's own price per Client. Needs a billing block and a mapping per Client in Settings. The tool makes and sends the invoice; Unfold never does. Evaluated per Tenant: the context carries the Tenant.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "notifications.push": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Notifications over ntfy and Web Push",
+        "description": "Lets a person choose to be told, over ntfy or Web Push, when a Work Item needs them, a question or tool permission waits for them, a pull request is ready for review, a Client Sign-off was recorded or a budget threshold was crossed (docs/operations/notifications.md). Each person opts in per channel and trigger, with optional quiet hours. Evaluated per person on the server; while it is off for a person, Unfold queues nothing for them and refuses changes to their choices. The demo sends nothing.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
@@ -241,6 +311,20 @@
         "created": "2026-10-19",
         "title": "Decider progress checks",
         "description": "Lets the decider read what the Team's running agents write (RFC-0009): each thought or message of 40 characters or more is scored 0 to 3 on three checks (thinks the work is already done, asks for a person, off the brief), and a Run no rule recognises gets a Work Kind guessed from its title. Same free EU-hosted decider, key and rate limit as the tripwire, off the Run's path. Hits scoring 2 or more are listed on the Work Item page with right and wrong controls, and a 3 on a shown check raises the Run's health to Watch; it never stops, cancels, steers or notes a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "events.webhooks": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Outbound webhooks",
+        "description": "Lets an administrator subscribe a URL to Unfold's product events, delivered as signed CloudEvents over Standard Webhooks from a durable outbox with retries (docs/operations/outbound-events.md). Evaluated per Tenant on the server: the context carries tenantId and a targetingKey of tenant:<id>. While it is off for a Tenant, Unfold refuses new subscriptions there and queues and sends nothing for it.",
         "client": false,
         "labs": false
       }

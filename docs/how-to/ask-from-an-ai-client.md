@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner]
 owner: unfold
-last_verified: 2026-10-17
-verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts, apps/unfold/src/auth.ts and apps/ploeg cmd/ploeg-mcp; ran apps/unfold/test/mcp.test.ts, apps/unfold/test/mcp-actions.test.ts and go test ./cmd/ploeg-mcp. The action tools were not checked against a real client or the homelab."
+last_verified: 2026-10-30
+verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts and apps/unfold/src/auth.ts against the MCP 2026-07-28 versioning, stdio and MRTR pages; ran apps/unfold/test/mcp.test.ts and apps/unfold/test/mcp-actions.test.ts. The Ploeg section was read against apps/ploeg cmd/ploeg-mcp on 2026-10-17. The action tools were not checked against a real client or the homelab."
 ---
 
 # Ask Unfold and Ploeg from an AI client
@@ -52,7 +52,12 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 
 ## Act on work
 
-`unfold` also changes work, as you, through the same Unfold API routes the browser uses, so your role and Teams decide what you may do. Each action tool first asks you to confirm in your client: the message names the Work Item, task or session with its id and title, says exactly what will happen, and says what it may spend. Only **accept** with the box ticked acts. Declining, closing the question or not answering changes nothing. A client that cannot ask you (no form elicitation) is refused with a link to the Unfold page where you can do it yourself. A viewer is refused before anything is asked.
+`unfold` also changes work, as you, through the same Unfold API routes the browser uses, so your role and Teams decide what you may do. Each action tool first asks you to confirm in your client: the message names the Work Item, task or session with its id and title, says exactly what will happen, and says what it may spend. Only **accept** with the box ticked acts. Declining, closing the question or not answering changes nothing; when the question was closed without an answer, the result also gives the link to the Unfold page, in case your client never showed it to you. A client that cannot ask you (no form elicitation) is refused with that link. A viewer is refused before anything is asked.
+
+How your client asks depends on the MCP revision it speaks; `unfold-mcp` serves every client on one stdio process:
+
+* **2026-07-28.** No `initialize`; each request names its revision and capabilities in `_meta`. The first call returns `input_required` with the question, and your client calls the tool again with your answer and the `requestState` it received. That state works once, for you, for that exact action, for 10 minutes. A retry without an answer is asked again.
+* **2025-11-25, 2025-06-18 and 2025-03-26.** After `initialize`, `unfold-mcp` sends your client an `elicitation/create` request on stdio and waits up to five minutes for the answer.
 
 | Tool | Does | Unfold route |
 | --- | --- | --- |
@@ -84,4 +89,5 @@ Where Ploeg serves `ploeg-mcp` over HTTPS ([Serve Ploeg's MCP tools over HTTPS](
 | `login` says Unfold answered 404 | Single sign-on is not configured on this Unfold | Configure OIDC, or use the demo, which needs no token |
 | "Not found, or outside the Teams…" | Your Unfold user is not mapped to that Work Item's Team | Ask an admin to add the Team to your user |
 | An action tool says the client cannot confirm | Your client declares no form elicitation, or speaks 2025 over HTTPS | Use the link it gives and act in Unfold, or use a client that supports elicitation |
-| The client lists no `unfold` tools | It speaks a revision `unfold-mcp` does not list | `unfold-mcp` answers `initialize` for 2025-11-25, 2025-06-18 and 2025-03-26, and per-request `_meta` for 2026-07-28; update the client |
+| An action says "the confirmation was closed without an answer", and you never saw a question | Your client declares elicitation but cancels it unseen. Claude Code's VS Code extension runs in print mode and cancels within about 50 ms | Open the link it gives and act in Unfold, or use the terminal `claude` |
+| The client lists no `unfold` tools | It speaks a revision `unfold-mcp` does not list | `unfold-mcp` answers `initialize` for 2025-11-25, 2025-06-18 and 2025-03-26, and per-request `_meta` for 2026-07-28, where `server/discover` lists them; update the client |

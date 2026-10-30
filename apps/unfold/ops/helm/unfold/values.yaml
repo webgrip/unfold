@@ -155,9 +155,22 @@ config:
   # optional `client`. One repository, or one tracker project on one instance, registered for two owners stops startup.
   repositories: []
   taskSources: []
+  # trustedProxies (optional, none when absent): IP addresses and CIDR ranges of the reverse proxies in front of
+  # Unfold, whose X-Forwarded-For names the client. The Request intake keys its rate limit on that address.
+  # trustedProxies: ["10.42.0.0/16"]
+  # intake.rateLimit (optional): token buckets of the public Request intake; these are the defaults.
+  # intake:
+  #   rateLimit: {client: {perMinute: 60, burst: 30}, source: {perMinute: 300, burst: 60}, failureCost: 5}
   # tenancy.enforce (optional, off when absent): limit each person to what their Tenant and Client memberships reach.
   # tenancy:
   #   enforce: true
+  # billing (optional, off when absent): one line per accepted Work Item into the Agency's billing tool, also behind
+  # the billing.export flag per Tenant. tokenEnv names a variable from credentialsSecret that holds key:secret.
+  # billing:
+  #   exporter: simplicate
+  #   simplicate:
+  #     domain: agency
+  #     tokenEnv: UNFOLD_SIMPLICATE_TOKEN
   # ploeg.personTokens (optional, off when absent; Unfold ADR 0055): exchange each person's sign-in token for a
   # Ploeg-audience token sent with every change Unfold makes for them. The secret comes from credentialsSecret.
   # ploeg:

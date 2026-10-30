@@ -15,6 +15,8 @@ import type { NowSnooze } from './now-snoozes.ts';
 import { storedMemberships, type Membership } from './tenancy.ts';
 
 export type StoredUser = User & { passwordHash: string };
+/** One write to a stored account: the account before (undefined for a new one) and after, inside the write's transaction. */
+export type AccountChange = { before?: StoredUser; after: StoredUser };
 /** One change to an administrator flag override. */
 export type FlagAuditEntry = { flagKey: string; action: 'override_set' | 'override_cleared' | 'rollout_set' | 'rollout_cleared' | 'segment_set' | 'segment_deleted'; variant: string | null; reason: string; actor: string; at: string };
 /** Distinct people who saw each variant of a flag, and who then did each tracked thing, with the summed values. */
@@ -178,6 +180,17 @@ export class Store {
   }
 
   close(): void { this.db.close(); }
+
+  private readonly accountObservers: Array<(change: AccountChange) => void> = [];
+
+  /** Calls `observer` after each account write by {@link Store.addUser}, {@link Store.upsertUser} or {@link Store.setMemberships}. */
+  observeAccounts(observer: (change: AccountChange) => void): void { this.accountObservers.push(observer); }
+
+  private accountWritten(before: StoredUser | undefined, id: string): void {
+    if (!this.accountObservers.length) return;
+    const after = this.getUser(id);
+    if (after) for (const observer of this.accountObservers) observer({ ...(before ? { before } : {}), after });
+  }
 
   /** Refreshes the query planner's statistics for tables whose contents changed enough to need it. */
   optimize(): void { this.db.exec('PRAGMA optimize'); }
@@ -427,17 +440,19 @@ export class Store {
 
   addUser(user: StoredUser): void {
     const insert = () => this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?)').run(user.id, user.name, user.role, user.passwordHash);
-    if (!user.memberships) { insert(); return; }
     const memberships = user.memberships;
-    this.transaction(() => { insert(); this.setMemberships(user.id, memberships); });
+    const write = () => { insert(); if (memberships) this.writeMemberships(user.id, memberships); this.accountWritten(undefined, user.id); };
+    if (this.db.isTransaction) write(); else this.transaction(write);
   }
 
   /** Stores a user by id and returns the name it holds: `user.name`, or a numbered variant when another account already holds that name. `memberships`, when given, replace the stored ones; otherwise they stay as they are. */
   upsertUser(user: StoredUser): string {
     return this.transaction(() => {
+      const before = this.accountObservers.length ? this.getUser(user.id) : undefined;
       const name = this.nameFreeFor(user.id, user.name);
       this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, role=excluded.role').run(user.id, name, user.role, user.passwordHash);
-      if (user.memberships) this.setMemberships(user.id, user.memberships);
+      if (user.memberships) this.writeMemberships(user.id, user.memberships);
+      this.accountWritten(before, user.id);
       return name;
     });
   }
@@ -460,6 +475,12 @@ export class Store {
 
   /** Replaces the Tenant and Client memberships stored for an existing user. */
   setMemberships(userId: string, memberships: Membership[]): void {
+    const before = this.accountObservers.length ? this.getUser(userId) : undefined;
+    this.writeMemberships(userId, memberships);
+    if (before) this.accountWritten(before, userId);
+  }
+
+  private writeMemberships(userId: string, memberships: Membership[]): void {
     this.db.prepare('INSERT INTO user_memberships(user_id,memberships,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET memberships=excluded.memberships, updated_at=excluded.updated_at')
       .run(userId, JSON.stringify(storedMemberships(memberships) ?? []), new Date().toISOString());
   }

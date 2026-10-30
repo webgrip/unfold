@@ -1,0 +1,19 @@
+{
+  "name": "@webgrip/unfold-acp-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The unfold Agent Client Protocol agent: PhpStorm, Zed, Neovim and other ACP editors follow, ask about and steer Unfold Work Items as an agent.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "unfold-acp-agent": "bin/unfold-acp-agent.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ]
+}

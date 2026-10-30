@@ -20,8 +20,12 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
+- [Bill accepted tickets through Simplicate](operations/billing-simplicate.md): one line per accepted Work Item in your own billing tool
+- [Get notified (ntfy and Web Push)](operations/notifications.md)
 - [Provision and deprovision people](operations/provision-and-deprovision-people.md): SCIM provisioning and the Shared Signals receiver
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
+- [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export
+- [Leaving Unfold: export a Tenant](operations/leaving-unfold.md): the export bundle, its formats and how to use it elsewhere
 - [Release procedure](operations/release.md)
 
 ## Integrate
@@ -30,6 +34,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Ploeg execution](contracts/ploeg-execution.md)
 - [Canonical tracker binding](contracts/ploeg-tracker-binding.md)
 - [Candidate verification and approval](contracts/candidate-delivery.md)
+- [AI output marking](contracts/ai-marking.md): the sentence, marker, label and commit trailers on what agents write through Unfold, and how a transparency notice points to them
 - [Card themes](contracts/card-themes.md): theme format v1, assets, resolution and generated art (proposed)
 
 ## Understand and change
