@@ -198,7 +198,7 @@ export class AuditTrail {
             fact = { ...fact, agent: { name: channel.replace(/^mcp:/, '') }, ...(bearer ? { delegation: { uid: tokenUid(bearer) } } : {}) };
           }
           const actor: AuditActor = { ...(captured.actor ? { user: person(captured.actor) } : {}), ...(signIn ? { session: signIn.slice(0, 16) } : {}) };
-          this.record({ fact, actor, origin, ...(captured.target !== undefined ? { target: captured.target } : {}) });
+          this.record({ fact, actor, origin, ...(captured.target !== undefined ? { target: captured.target } : {}), ...(captured.tenants ? { tenants: captured.tenants } : {}) });
         } catch (error) {
           this.log(JSON.stringify({ level: 'error', event: 'audit.record_failed', message: String((error as Error)?.message ?? error).slice(0, 300) }));
         }

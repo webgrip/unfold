@@ -9,6 +9,10 @@ info:
     `intake/routes.ts`, `billing.ts`, `tenant-export-jobs.ts`, the notification, audit and outbound webhook
     services and the workspace relay. The prose contract, [HTTP contract](api.md), carries the full behaviour of each route;
     this document carries its shape. `test/openapi.test.ts` fails when a route exists in one and not the other.
+    SCIM 2.0 under `/scim/v2` and the Shared Signals receiver at `/ssf/events` sit outside `/api/` and are not
+    described here: the identity provider calls them with their own bearer token or signed SET, SCIM describes
+    itself through `/scim/v2/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas` (RFC 7644), and the
+    [HTTP contract](api.md#provisioning-and-shared-signals) lists both.
 
     Conventions:
 

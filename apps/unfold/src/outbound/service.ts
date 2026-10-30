@@ -8,10 +8,12 @@ import type { FactsPage, WorkItemFacts } from '../cards/facts.ts';
 import type { TenantScope } from '../tenant-scope.ts';
 import { defaultTenant, validTenancyId } from '../tenancy.ts';
 import { deliveryRow, defaultAcceptanceCalendar, type AcceptanceCalendar } from '../delivery-ledger.ts';
-import { cloudEvent, eventTypes, validFilter, type CloudEvent, type EventOwner } from './catalogue.ts';
+import { cloudEvent, eventTypes, ploegEventType, validFilter, type CloudEvent, type EventOwner } from './catalogue.ts';
 import { webhookHeaders, newSecret } from './signing.ts';
 import { TargetError, guardedLookup, parseTarget, resolveTarget, targetAllowlist, type OutboundEventsSettings, type TargetAllowlist } from './address.ts';
 import { OutboundStore, type Delivery, type Subscription } from './store.ts';
+
+export { ploegEventType };
 
 /** The waits after each failed attempt, in milliseconds: Standard Webhooks' example schedule. The tenth failure is final. */
 export const retrySchedule: readonly number[] = [5_000, 300_000, 1_800_000, 7_200_000, 18_000_000, 36_000_000, 50_400_000, 72_000_000, 86_400_000];
@@ -97,24 +99,6 @@ export type OutboundOptions = {
   random?: () => number;
   resolver?: Parameters<typeof resolveTarget>[2];
 };
-
-const ploegSuffixes: Record<string, string> = {
-  'work_item.proposed': 'work_item.proposed',
-  'work_item.approved': 'work_item.approved',
-  'operator.work_item.admitted': 'work_item.handed_off',
-  'work_item.needs_human': 'work_item.needs_you',
-  'work_item.stale': 'work_item.needs_you',
-  'work_item.awaiting_review': 'work_item.ready_for_review',
-  'work_item.done': 'work_item.done',
-};
-
-/** The catalogue type a Ploeg audit event becomes, or `undefined` when Unfold publishes nothing for it. */
-export function ploegEventType(event: Pick<PloegEvent, 'action' | 'detail'>): string | undefined {
-  if (Object.hasOwn(ploegSuffixes, event.action)) return ploegSuffixes[event.action];
-  if (event.action === 'checkpoint.written' && event.detail.phase === 'pr_opened') return 'pull_request.opened';
-  if (/^outcome\.[a-z_]{1,64}$/.test(event.action)) return 'run.finished';
-  return undefined;
-}
 
 /**
  * Unfold's outbound events: it turns recorded facts into CloudEvents, keeps them in a durable outbox in the store, and

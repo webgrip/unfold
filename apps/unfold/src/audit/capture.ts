@@ -1,5 +1,6 @@
 import { describeAction, isAction, recordedInputs, type ActionTarget } from '../action-records.ts';
 import type { User } from '../types.ts';
+import { defaultTenant, validTenancyId } from '../tenancy.ts';
 import type { AuditFact, AuditOutcome, AuditPerson } from './ocsf.ts';
 import { isLinkProvider, linkProviderLabel } from '../links.ts';
 
@@ -22,8 +23,8 @@ export type TapRequest = {
   editorLabel(code: string, user: User): string | undefined;
 };
 
-/** One audit fact the tap found, with the person who acted and what the request targeted. */
-export type Captured = { fact: AuditFact; actor?: User; target?: ActionTarget | null };
+/** One audit fact the tap found, with the person who acted, what the request targeted and the Tenant whose chain it belongs to, when the route names one. */
+export type Captured = { fact: AuditFact; actor?: User; target?: ActionTarget | null; tenants?: string[] };
 
 const outcome = (status: number): AuditOutcome => status >= 200 && status < 400 ? 'success' : 'failure';
 const person = (user: User | undefined): AuditPerson => user ? { id: user.id, name: user.name, role: user.role, ...(user.memberships ? { memberships: user.memberships } : {}) } : {};
@@ -47,7 +48,51 @@ const downloads: Array<{ pattern: RegExp; resource: (match: RegExpExecArray, que
   { pattern: /^\/api\/admin\/flags\/export$/, resource: () => ({ type: 'Feature flag rules', name: 'Feature flag rules' }) },
   { pattern: /^\/api\/linked-sessions\/([^/]+)\/agent-trace$/, resource: match => ({ type: 'Agent Trace records', uid: match[1], name: `Agent Trace records of Linked Session ${match[1]}` }) },
   { pattern: /^\/api\/admin\/audit$/, resource: (_match, query) => ({ type: 'Audit records', ...(query.get('tenant') ? { uid: query.get('tenant')! } : {}), name: `Audit records${query.get('tenant') ? ` of Tenant ${query.get('tenant')}` : ''}` }) },
+  { pattern: /^\/api\/admin\/tenant-exports\/([^/]+)\/download$/, resource: match => ({ type: 'Tenant export', uid: match[1], name: `Tenant export ${match[1]}` }) },
+  { pattern: /^\/api\/billing\/lines$/, resource: (_match, query) => ({ type: 'Billing lines', name: `Billing lines (${query.get('format') ?? 'csv'})` }) },
+  { pattern: /^\/api\/ploeg\/cost-export$/, resource: (_match, query) => ({ type: 'FOCUS cost export', name: `FOCUS cost export (${query.get('format') ?? 'csv'})` }) },
 ];
+
+type EntityRule = { method: string; pattern: RegExp; entity: string; action: 'create' | 'update' | 'delete' | 'deactivate'; change?: string; tenant?: 'body' | 'query'; owner?: true };
+
+const entityRules: readonly EntityRule[] = [
+  { method: 'POST', pattern: /^\/api\/admin\/webhooks$/, entity: 'Webhook subscription', action: 'create', tenant: 'body' },
+  { method: 'PATCH', pattern: /^\/api\/admin\/webhooks\/([^/]+)$/, entity: 'Webhook subscription', action: 'update' },
+  { method: 'DELETE', pattern: /^\/api\/admin\/webhooks\/([^/]+)$/, entity: 'Webhook subscription', action: 'delete' },
+  { method: 'POST', pattern: /^\/api\/admin\/webhooks\/([^/]+)\/rotate-secret$/, entity: 'Webhook subscription', action: 'update', change: 'secret_rotated' },
+  { method: 'POST', pattern: /^\/api\/intake\/sources$/, entity: 'Intake source', action: 'create', tenant: 'body' },
+  { method: 'DELETE', pattern: /^\/api\/intake\/sources\/([^/]+)$/, entity: 'Intake source', action: 'delete' },
+  { method: 'POST', pattern: /^\/api\/intake\/sources\/([^/]+)\/secret$/, entity: 'Intake source', action: 'update', change: 'secret_replaced' },
+  { method: 'PUT', pattern: /^\/api\/billing\/mappings$/, entity: 'Billing mapping', action: 'update', tenant: 'body', owner: true },
+  { method: 'DELETE', pattern: /^\/api\/billing\/mappings$/, entity: 'Billing mapping', action: 'delete', tenant: 'query', owner: true },
+  { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/send$/, entity: 'Billing line', action: 'update', change: 'sent_again' },
+  { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/found$/, entity: 'Billing line', action: 'update', change: 'marked_found' },
+  { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/price$/, entity: 'Billing line', action: 'update', change: 'priced' },
+  { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/reverse$/, entity: 'Billing line', action: 'deactivate', change: 'reversed' },
+  { method: 'DELETE', pattern: /^\/api\/admin\/tenant-exports\/([^/]+)$/, entity: 'Tenant export', action: 'delete' },
+];
+
+function namedTenant(request: TapRequest, from: 'body' | 'query'): string[] | undefined {
+  if (outcome(request.status) !== 'success') return undefined;
+  const value = from === 'body' ? request.inputs().tenant : request.query.get('tenant');
+  if (value === undefined || value === null || value === '') return [defaultTenant];
+  return validTenancyId(value) ? [value] : undefined;
+}
+
+function entityChange(request: TapRequest, user: User): Captured | undefined {
+  for (const rule of entityRules) {
+    if (rule.method !== request.method) continue;
+    const match = rule.pattern.exec(request.path);
+    if (!match) continue;
+    const named = (field: string) => text(rule.tenant === 'body' ? request.inputs()[field] : request.query.get(field), 100);
+    const owner = rule.owner ? [named('tenant') ?? defaultTenant, named('client')].filter(Boolean).join('/') : undefined;
+    const uid = match[1] ?? owner;
+    const data = rule.change ? { change: rule.change } : undefined;
+    const tenants = rule.tenant ? namedTenant(request, rule.tenant) : undefined;
+    return { actor: user, ...(tenants ? { tenants } : {}), fact: { kind: 'entity', action: rule.action, entity: { type: rule.entity, ...(uid ? { uid } : {}), ...(data ? { data } : {}) }, outcome: outcome(request.status), ...(reason(request.status) ? { reason: reason(request.status) } : {}) } };
+  }
+  return undefined;
+}
 
 /**
  * The security-relevant fact one finished request carries, or undefined. Sign-in, sign-out, credentials, linked
@@ -110,6 +155,13 @@ export function capture(request: TapRequest): Captured | undefined {
     const repository = text(request.inputs().repository, 300);
     return { actor: user, fact: { kind: 'entity', action: 'update', entity: { type: 'Client Sign-off exclusions', ...(repository ? { uid: repository } : {}), name: `Client Sign-off exclusions${repository ? ` of ${repository}` : ''}` }, outcome: done, ...(reason(status) ? { reason: reason(status) } : {}) } };
   }
+  if (method === 'POST' && path === '/api/admin/tenant-exports') {
+    const tenant = text(request.inputs().tenant, 100) ?? defaultTenant;
+    const tenants = namedTenant(request, 'body');
+    return { actor: user, ...(tenants ? { tenants } : {}), fact: { kind: 'download', activity: 'export', resource: { type: 'Tenant export', name: `Tenant export of Tenant ${tenant}` }, outcome: done, ...(reason(status) ? { reason: reason(status) } : {}) } };
+  }
+  const changed = method === 'GET' ? undefined : entityChange(request, user);
+  if (changed) return changed;
   if (method === 'GET') return undefined;
   const { action, target } = describeAction(method, path);
   const inputs = recordedInputs({ ...request.inputs(), ...(request.query.size ? { query: Object.fromEntries(request.query) } : {}) }) as Record<string, unknown>;

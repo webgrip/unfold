@@ -106,7 +106,10 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'intake-requests', table: 'intake_requests', scope: byTenant('tenant'), json: ['body'], collect: 'id', description: 'Requests received through intake, with their state.' },
   { entity: 'intake-messages', table: 'intake_messages', scope: { by: 'parent', parent: 'intake-requests', column: 'request_id' }, description: 'Which mail message belongs to which Request, so replies stay on their Request.' },
   { entity: 'notify-preferences', table: 'notify_preferences', scope: person('user_id'), json: ['body'], description: 'The channels and triggers each person chose to be notified on.' },
-  { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], description: 'Outbound webhook subscriptions: the URL, the event types and whether each is active. No signing secret.' },
+  { entity: 'notify-targets', table: 'notify_targets', scope: person('user_id'), drop: ['address_key', 'address'], description: 'Which ntfy topics and Web Push subscriptions each person has, by channel and date. The topic, the push endpoint and its keys are secrets and left out; people subscribe again at the destination.' },
+  { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], collect: 'id', description: 'Outbound webhook subscriptions: the URL, the event types and whether each is active. No signing secret.' },
+  { entity: 'outbound-events', table: 'outbound_events', scope: byTenant('tenant'), json: ['body'], description: 'Webhook events still in the outbox, as the CloudEvents they are sent as. They are signed when sent, so no secret is stored with them.' },
+  { entity: 'outbound-deliveries', table: 'outbound_deliveries', scope: { by: 'parent', parent: 'outbound-subscriptions', column: 'subscription_id' }, description: 'Each webhook delivery to a subscription still in the delivery log: its status, attempts and the receiver\'s last answer.' },
 ];
 
 /** Every table Unfold keeps that the bundle leaves out. Secrets are never exported. */
@@ -117,14 +120,11 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'linked_session_notice_snapshots', reason: 'Cache: the last notice check of each Linked Session, rebuilt on the next check.' },
   { table: 'card_import', reason: 'Operational: progress of the one-time import of card records from Ploeg.' },
   { table: 'sqlite_sequence', reason: 'SQLite internal: the next AUTOINCREMENT value of each table.' },
-  { table: 'notify_targets', reason: 'Secret: Web Push subscription endpoints and authentication keys, and ntfy topics. People subscribe again at the destination.' },
   { table: 'audit_exports', reason: 'Operational: how far the audit trail of each Tenant was sent to its log collector.' },
   { table: 'ssf_seen', reason: 'Deduplication: the ids of Shared Signals events already handled, forgotten after a while.' },
   { table: 'intake_deliveries', reason: 'Deduplication: the delivery ids each intake source already received and their outcome, kept for a few hours.' },
   { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy and Web Push.' },
   { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
-  { table: 'outbound_events', reason: 'Delivery queue: webhook events kept only until every subscription received them. The records they describe are exported themselves.' },
-  { table: 'outbound_deliveries', reason: 'Delivery queue: each webhook delivery to a subscription, its attempts and status.' },
   { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },
   { table: 'outbound_sign_off_changes', reason: 'Operational: Client Sign-off changes waiting to become webhook events. The sign-offs are exported as client-sign-offs.' },
 ];

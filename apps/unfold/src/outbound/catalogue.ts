@@ -1,3 +1,5 @@
+import type { PloegEvent } from '../ploeg.ts';
+
 /** The prefix of every event type Unfold publishes. */
 export const eventTypePrefix = 'dev.unfold.';
 /** The URI of the CloudEvent schema every published event conforms to. */
@@ -113,4 +115,22 @@ export function cloudEvent(input: { id: string; suffix: string; owner: EventOwne
     datacontenttype: 'application/json', dataschema: `${cloudEventSchemaUrl}#/$defs/data/${input.suffix}`, tenant: input.owner.tenant,
     ...(input.owner.client ? { client: input.owner.client } : {}), data: input.data,
   };
+}
+
+const ploegSuffixes: Record<string, string> = {
+  'work_item.proposed': 'work_item.proposed',
+  'work_item.approved': 'work_item.approved',
+  'operator.work_item.admitted': 'work_item.handed_off',
+  'work_item.needs_human': 'work_item.needs_you',
+  'work_item.stale': 'work_item.needs_you',
+  'work_item.awaiting_review': 'work_item.ready_for_review',
+  'work_item.done': 'work_item.done',
+};
+
+/** The catalogue type a Ploeg audit event becomes, or `undefined` when Unfold publishes nothing for it. */
+export function ploegEventType(event: Pick<PloegEvent, 'action' | 'detail'>): string | undefined {
+  if (Object.hasOwn(ploegSuffixes, event.action)) return ploegSuffixes[event.action];
+  if (event.action === 'checkpoint.written' && event.detail.phase === 'pr_opened') return 'pull_request.opened';
+  if (/^outcome\.[a-z_]{1,64}$/.test(event.action)) return 'run.finished';
+  return undefined;
 }
