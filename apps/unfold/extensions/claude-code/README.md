@@ -2,17 +2,19 @@
 
 This plugin reports your own Claude Code sessions to Unfold and links each one to the Work Items it works on. For every commit it records which lines the agent wrote, as an [Agent Trace](https://agent-trace.dev/) 0.1 record. To install and use it, see [Link your Claude Code sessions to Work Items](../../../../docs/how-to/link-claude-code-sessions.md). The decision behind it is [ADR 0047](../../docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md).
 
-The same directory is also an [Agent Plugin](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md) (specification 1.0.0), so GitHub Copilot CLI and VS Code 1.143 install it too. There it brings the `link-work-item` skill only. Session reporting and Agent Trace need the hooks, and only Claude Code runs them.
+The same directory is also an [Agent Plugin](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md) (specification 1.0.0), so Codex, GitHub Copilot CLI, VS Code, Cursor and Kiro install it too: [Install the Unfold plugin in Codex, Cursor, Copilot and VS Code](../../../../docs/how-to/install-the-unfold-plugin.md). There it brings the skills only: `unfold` (how to use Unfold's MCP tools), `link-work-item`, and `brief`, whose scripts need Claude Code. Session reporting and Agent Trace need the hooks, and only Claude Code runs them.
 
 ## What each client reads
 
 | Client | Manifest it reads | What it loads from this plugin |
 | --- | --- | --- |
 | Claude Code | `.claude-plugin/plugin.json` ([manifest reference](https://code.claude.com/docs/en/plugins-reference)) | `hooks/hooks.json`, `skills/`, `commands/`, and the `unfold-channel` MCP server it declares |
+| Codex | `plugin.json`. A root manifest with the Agent Plugins 1.0.0 `$schema` wins over `.codex-plugin/`, `.claude-plugin/` and `.cursor-plugin/plugin.json` | `skills/`. It would read `mcp.json`, which does not ship |
 | GitHub Copilot CLI | `plugin.json`. A root manifest with the Agent Plugins `$schema` takes precedence over `.claude-plugin/plugin.json` ([plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
-| VS Code 1.143 | `plugin.json`. VS Code checks for the Agent Plugins format before the Claude format ([authoring reference](https://code.visualstudio.com/docs/agents/reference/agent-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
+| VS Code 1.144 | `plugin.json`. VS Code checks for the Agent Plugins format before the Claude format ([authoring reference](https://code.visualstudio.com/docs/agents/reference/agent-plugin-reference)) | `skills/` for its Copilot and Codex harnesses, remote MCP servers only for its Claude harness. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
+| Cursor, Kiro | `plugin.json` | `skills/`, from a copied or imported folder |
 
-All three read the marketplace at [`/.claude-plugin/marketplace.json`](../../../../.claude-plugin/marketplace.json). Copilot CLI and VS Code look for `marketplace.json`, `.plugin/marketplace.json` and `.github/plugin/marketplace.json` first, so the repository has none of those. Keep `version` equal in `plugin.json` and `.claude-plugin/plugin.json`; the tests check it.
+Codex, Copilot CLI, VS Code and Claude Code read the marketplace at [`/.claude-plugin/marketplace.json`](../../../../.claude-plugin/marketplace.json). Copilot CLI and VS Code look for `marketplace.json`, `.plugin/marketplace.json` and `.github/plugin/marketplace.json` first, and Codex looks for `.agents/plugins/marketplace.json` first, so the repository has none of those. Its entry is a path inside this repository, so it follows the branch you added; a pinned entry lives in an installation's own marketplace ([below](#mcp-servers)). Keep `version` equal in `plugin.json` and `.claude-plugin/plugin.json`; the tests check it.
 
 ### Why the hooks stay in `hooks/hooks.json`
 
@@ -20,33 +22,25 @@ Agent Plugins 1.0.0 standardizes skills and MCP servers only. Anything client-sp
 
 Not checked: VS Code's Claude agent passes plugins on to the Claude Agent SDK, which reads `.claude-plugin/plugin.json`. VS Code's architecture notes say an Agent Plugins package is not passed on that way, so in VS Code's Claude agent sessions the hooks may not run.
 
-## Install in Copilot CLI or VS Code
+## Install in other clients
 
-Copilot CLI:
-
-```sh
-copilot plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
-copilot plugin install unfold@unfold
-```
-
-VS Code: add the repository to the `chat.plugins.marketplaces` setting, then install **unfold** from the plugin list.
-
-```json
-"chat.plugins.marketplaces": ["https://forgejo.webgrip.dev/webgrip/unfold.git"]
-```
-
-The marketplace names the plugin by a path inside this repository, so you get whatever the branch holds. To pin a version, list the plugin in your own marketplace with a `git-subdir` source: `url` set to this repository, `path` set to `apps/unfold/extensions/claude-code` and `sha` set to a full 40-character commit. Claude Code and VS Code accept that source. Copilot CLI documents `sha` on its `github` and `url` sources.
+See [Install the Unfold plugin in Codex, Cursor, Copilot and VS Code](../../../../docs/how-to/install-the-unfold-plugin.md), with an install link for VS Code.
 
 ## MCP servers
 
 `.claude-plugin/plugin.json` declares one local server, `unfold-channel` (`channel/unfold-channel.mjs`), and binds a [channel](https://code.claude.com/docs/en/channels-reference) to it. It is a one-way channel: it declares the `claude/channel` capability and no tools, and pushes `notifications/claude/channel` with `meta` `kind` and `sender`. It pushes nothing unless `UNFOLD_CHANNEL=1`, and then only while the hooks last saw the session stop. Independently, unless `UNFOLD_CONVERSATION=0`, it relays the session's conversation: it holds `POST /api/linked-sessions/<id>/conversation/wants` open, and for each read the owner's browser makes it reads the transcript the hooks recorded (`transcriptPath` in `sessions/<id>.json`) with `scripts/conversation.mjs` and posts the entries to `…/conversation/answers/<want>`. Entries are prompts and text replies with secrets masked, and one `permissionSummary` line per tool call; never tool results, thinking or subagent turns ([how-to](../../../../docs/how-to/link-claude-code-sessions.md#6-read-the-conversation-in-unfold)). It finds its session through `processes/<its parent pid>.json`, which the `SessionStart` hook writes, because Claude Code gives an MCP server no session id. It answers `initialize` with protocol revision 2025-11-25 or older, because Claude Code does not register a channel that negotiates 2026-07-28. How to turn it on is in the [how-to](../../../../docs/how-to/link-claude-code-sessions.md#when-the-session-is-idle-the-unfold-channel).
 
-The plugin ships no `mcp.json` and no `.mcp.json`, and no remote server, because it works with any Unfold installation. Agent Plugins 1.0.0 forbids placeholder and environment-variable expansion in a remote server's `url` and `headers`, and it has no field for an OAuth client id. A shipped definition would therefore name one Unfold installation and still lack its client id. Add the servers yourself:
+The plugin ships no `mcp.json` and no `.mcp.json`, and no remote server, because it works with any Unfold installation. Agent Plugins 1.0.0 forbids placeholder and environment-variable expansion in a remote server's `url` and `headers`, and it has no field for an OAuth client id ([agent-plugins-spec #7](https://github.com/agentplugins/agent-plugins-spec/issues/7), open). A shipped definition would therefore name one Unfold installation and still lack its client id.
+
+An installation's own marketplace adds the server instead. [`scripts/agent-plugin-marketplace.mjs`](../../scripts/agent-plugin-marketplace.mjs) takes the installation's `UNFOLD_MCP_RESOURCE` (or `--mcp-url`) and a 40-character commit, and writes a marketplace with two entries: this plugin as a `git-subdir` source pinned by `sha`, and a generated `unfold-mcp` Agent Plugin whose `mcp.json` names that URL as a `streamable-http` server. The file holds no headers and no credential; the client signs in through the browser. `ploeg-mcp` stays out: people reach Ploeg through Unfold, and it has the same client id gap. `test/agent-plugin.test.ts` validates both manifests and the `mcp.json` against the vendored [schemas](schemas/agent-plugins/1.0.0/), and checks that the URL is the configured one and carries no secret.
+
+Without such a marketplace, add the server yourself:
 
 * **VS Code:** the [Unfold extension](../vscode/README.md) provides the Ploeg MCP server from the workbench it is connected to.
-* **Claude Code:** `claude mcp add --scope user --transport http --client-id unfold-mcp unfold https://<your Unfold>/mcp`, as in [Serve unfold-mcp over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md).
+* **Claude Code:** `claude mcp add --scope user --transport http --client-id unfold-mcp unfold https://<your Unfold>/mcp`, as in [Serve unfold-mcp over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md). Claude Code reads `.mcp.json`, not the Agent Plugins `mcp.json`, so the generated `unfold-mcp` plugin gives it nothing.
+* **Other clients:** [Install the Unfold plugin](../../../../docs/how-to/install-the-unfold-plugin.md) lists each client's own setting.
 
-When the specification allows configuration per installation, the plugin can ship its MCP servers.
+When the specification allows configuration per installation, this plugin can ship its MCP servers itself.
 
 ## What each hook does
 
