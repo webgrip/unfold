@@ -5,7 +5,6 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { setTimeout as delay } from 'node:timers/promises';
 import { Store } from '../src/store.ts';
 import { CardStore } from '../src/cards/card-store.ts';
 import { ClientSignOffStore } from '../src/client-sign-off.ts';
@@ -20,6 +19,7 @@ import { ustarHeader } from '../src/tar-writer.ts';
 import type { AppConfig, Session } from '../src/types.ts';
 import { application, login, request } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
+import { waitFor } from './timeframes.ts';
 
 type Bundle = { members: Map<string, Buffer>; manifest: TenantExportManifest; bytes: number; sha256: string };
 
@@ -333,8 +333,7 @@ test('administrators export a Tenant through the API once the flag is on, and ev
   const started = await request(app.url, '/api/admin/tenant-exports', { method: 'POST', cookie: admin.cookie, body: { confirm: 'default' } });
   assert.equal(started.status, 202, started.text);
   const id = started.body.export.id;
-  let job = started.body.export;
-  for (let attempt = 0; job.state === 'running' && attempt < 400; attempt++) { await delay(25); job = (await request(app.url, `/api/admin/tenant-exports/${id}`, { cookie: admin.cookie })).body.export; }
+  const job = await waitFor(async () => (await request(app.url, `/api/admin/tenant-exports/${id}`, { cookie: admin.cookie })).body.export, polled => polled.state !== 'running', { reason: 'the export never finished', withinMs: 30_000 });
   assert.equal(job.state, 'ready', JSON.stringify(job));
   assert.ok(Date.parse(job.expiresAt) > Date.now());
   assert.equal((await request(app.url, `/api/admin/tenant-exports/${id}`, { cookie: operator.cookie })).status, 403);
