@@ -3,6 +3,7 @@ import { traceLines, type AgentTraceRecord } from './agent-trace.ts';
 import type { LinkedSession, LinkedSessionStore } from './linked-sessions.ts';
 import type { CommentRequest, CommentResult } from './cards/service.ts';
 import type { FactsPullRequest, WorkItemFacts } from './cards/facts.ts';
+import { markAiMarkdown, pullRequestReview } from './ai-marking.ts';
 
 /** The key of Unfold's Agent Trace comment on a Work Item's pull request (Ploeg ADR-0079). */
 export const agentTraceCommentKey = 'agent-trace';
@@ -132,8 +133,9 @@ export class AgentTraceComments {
     if (!pullRequest) return 'no_pull_request';
     const entries = this.store.forWorkItem(id, agentTraceCommentLimits.sessions).filter(session => sameRepository(session, pullRequest)).reverse()
       .map(session => ({ session, records: this.store.traces({ sessionId: session.id }, agentTraceCommentLimits.records).map(entry => entry.record) }));
-    const markdown = agentTraceCommentMarkdown(entries, base);
-    if (!markdown) return 'no_records';
+    const table = agentTraceCommentMarkdown(entries, base);
+    if (!table) return 'no_records';
+    const markdown = markAiMarkdown(table, { subject: 'pull-request', review: pullRequestReview(pullRequest), agentTraces: entries.flatMap(entry => entry.records.map(record => record.id)) });
     const digest = createHash('sha256').update(`${pullRequest.number}\n${markdown}`).digest('hex');
     if (this.written.get(id) === digest) return 'unchanged';
     await this.source.putPullRequestComment(id, agentTraceCommentKey, { markdown, number: pullRequest.number });

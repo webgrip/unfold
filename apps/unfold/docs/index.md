@@ -30,6 +30,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Ploeg execution](contracts/ploeg-execution.md)
 - [Canonical tracker binding](contracts/ploeg-tracker-binding.md)
 - [Candidate verification and approval](contracts/candidate-delivery.md)
+- [AI output marking](contracts/ai-marking.md): the sentence, marker, label and commit trailers on what agents write through Unfold, and how a transparency notice points to them
 - [Card themes](contracts/card-themes.md): theme format v1, assets, resolution and generated art (proposed)
 
 ## Understand and change
