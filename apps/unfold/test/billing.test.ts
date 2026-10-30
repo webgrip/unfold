@@ -9,7 +9,7 @@ import { test, type TestContext } from 'node:test';
 import type { FactsPullRequest, WorkItemFacts } from '../src/cards/facts.ts';
 import { amountText, billingCsv, billingSettings, billingTarget, priceCents, ublInvoiceLines, type BillingLine, type BillingSettings } from '../src/billing-export.ts';
 import { billingExporters } from '../src/billing-exporters.ts';
-import { BillingService, BillingStore, billingRoute } from '../src/billing.ts';
+import { BillingService, BillingStore, billingLineJob, billingRoute } from '../src/billing.ts';
 import { refuseDemoCredentials } from '../src/config.ts';
 import { hashPassword } from '../src/auth.ts';
 import { TenantScope } from '../src/tenant-scope.ts';
@@ -254,6 +254,27 @@ test('a per-Size price waits for the administrator’s price while Ploeg records
   const restarted = make().store.get(line.id)!;
   assert.equal(restarted.state, 'failed');
   assert.equal(restarted.uncertain, true);
+});
+
+test('a send whose lease runs out is never repeated: the job is dead-lettered and a restart marks the line uncertain', async t => {
+  const simplicate = await fakeSimplicate(t, [{ status: 429, body: 'Too Many Requests' }]);
+  const { service, make, clock } = world(t, simplicate.apiUrl, [facts('41', 'shop')]);
+  map(service, 'acme', 'project:acme');
+  await service.sync();
+  const [line] = service.store.recent(1);
+  assert.equal(service.store.jobs.get(billingLineJob, line.id)!.guarantee, 'at_most_once');
+  clock.now += 61_000;
+  const [leased] = service.store.jobs.lease(billingLineJob, clock.now, 1, 1_000);
+  assert.equal(leased.key, line.id);
+  service.store.save({ ...service.store.get(line.id)!, state: 'sending' });
+  clock.now += 1_000;
+  assert.deepEqual(await service.sendDue(), { sent: 0, failed: 0, waiting: 0 }, 'the lost send is not tried again');
+  const job = service.store.jobs.get(billingLineJob, line.id)!;
+  assert.equal(job.state, 'dead');
+  assert.match(job.lastError!, /lease_lost/);
+  assert.equal(simplicate.requests.length, 1);
+  const restarted = make().store.get(line.id)!;
+  assert.deepEqual([restarted.state, restarted.uncertain], ['failed', true]);
 });
 
 test('with tenancy enforced, an administrator sees and changes only the Tenants they reach, and others get 404', async t => {

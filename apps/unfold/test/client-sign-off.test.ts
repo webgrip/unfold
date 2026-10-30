@@ -2,9 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import {
-  ClientSignOffError, ClientSignOffStore, ClientSignOffs, clientSignOffCommentKey, globMatches, mayRecordSignOff, parseSignOffFile,
+  ClientSignOffError, ClientSignOffStore, ClientSignOffs, clientSignOffCommentDelayMs, clientSignOffCommentJob, clientSignOffCommentKey, globMatches, mayRecordSignOff, parseSignOffFile,
   signOffCommentMarkdown, signOffCommitStatus, wholeChangeMinusExclusions, type ClientSignOffSource, type SignOffCommitStatus, type SignOffPerson,
 } from '../src/client-sign-off.ts';
+import { Store } from '../src/store.ts';
+import { JobQueue } from '../src/jobs/queue.ts';
+import { JobWorker } from '../src/jobs/worker.ts';
 import type { CommentRequest } from '../src/cards/service.ts';
 import type { FactsPullRequest } from '../src/cards/facts.ts';
 
@@ -24,7 +27,8 @@ function fixture(options: { team?: string; enabled?: boolean; comment?: boolean;
   const world = { pullRequests: [pullRequest()] };
   const puts: { id: string; key: string; body: CommentRequest }[] = [];
   const statuses: SignOffCommitStatus[] = [];
-  const timers: (() => void)[] = [];
+  const clock = { value: at.getTime() };
+  const jobs = new JobWorker(new JobQueue(new Store(':memory:'), clock.value), { clock: () => clock.value, log: () => {} });
   const logged: string[] = [];
   const source: ClientSignOffSource = {
     async factsSupported() { return true; },
@@ -39,14 +43,14 @@ function fixture(options: { team?: string; enabled?: boolean; comment?: boolean;
   const signOffs = new ClientSignOffs(source, store, {
     enabled: async () => options.enabled ?? true,
     commentEnabled: async () => options.comment ?? true,
-    schedule: run => timers.push(run),
-    now: () => at,
+    jobs,
+    now: () => new Date(clock.value),
     log: (_level, event, detail) => logged.push(`${event}:${detail.outcome ?? detail.message}`),
     ...(options.readFile !== undefined ? { readFile: async () => options.readFile ?? null } : {}),
     ...(options.status ? { writeStatus: async (_id: string, status: SignOffCommitStatus) => { statuses.push(status); } } : {}),
   });
-  const flush = async () => { for (const run of timers.splice(0)) run(); await new Promise(done => setImmediate(done)); };
-  return { world, puts, statuses, timers, logged, store, signOffs, flush };
+  const flush = async () => { clock.value += clientSignOffCommentDelayMs; await jobs.drain(clientSignOffCommentJob); };
+  return { world, puts, statuses, jobs, logged, store, signOffs, flush };
 }
 
 const refused = (code: string) => (error: unknown) => error instanceof ClientSignOffError && error.code === code;
@@ -160,11 +164,11 @@ test('a withdrawal ends the current Sign-off with the person and time and keeps 
 });
 
 test('the comment is written once per window under key client-sign-off, names no person, note or money, and is skipped when unchanged', async () => {
-  const { signOffs, puts, timers, logged, flush } = fixture();
+  const { signOffs, puts, logged, flush } = fixture();
   await signOffs.record(operator, '184', { answer: 'needs_changes', note: 'Olga thinks €40 is too much', headSha: shaA });
   await signOffs.withdraw(operator, '184');
   await signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA });
-  assert.equal(timers.length, 1, 'three changes inside the window make one write');
+  assert.deepEqual(signOffs.pending(), ['184'], 'three changes inside the window make one queued write');
   await flush();
   assert.equal(puts.length, 1);
   assert.equal(puts[0].key, clientSignOffCommentKey);
@@ -192,12 +196,13 @@ test('a dismissal rewrites the comment, and a Team without the comment flag gets
   assert.equal(off.puts.length, 0);
 });
 
-test('a failed comment write is logged once, is not retried in a loop and leaves the Sign-off stored', async () => {
-  const { signOffs, logged, timers, flush, store } = fixture({ failWrite: true });
+test('a failed comment write is logged once, is retried later with backoff rather than in a loop, and leaves the Sign-off stored', async () => {
+  const { signOffs, logged, jobs, flush, store } = fixture({ failWrite: true });
   await signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA });
   await flush();
   assert.deepEqual(logged, ['client_sign_off.comment_failed:ploeg answered 403 person_token_required']);
-  assert.equal(timers.length, 0);
+  assert.equal(await jobs.drain(clientSignOffCommentJob), 0, 'nothing is tried again at once');
+  assert.deepEqual([jobs.queue.get(clientSignOffCommentJob, '184')!.state, jobs.queue.get(clientSignOffCommentJob, '184')!.attempts], ['pending', 1]);
   assert.equal(store.forWorkItem('184')[0].state, 'current');
 });
 
@@ -233,7 +238,7 @@ test('after a restart the same stored Sign-off is written again under the same k
     factsSupported: async () => true,
     workItemFacts: async id => ({ workItem: { id, team: 'bronze' } as never, pullRequests: [pullRequest()] }),
     putPullRequestComment: async (id, key, body) => { puts.push({ id, key, body }); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: false }; },
-  }, store, { enabled: async () => true, commentEnabled: async () => true, schedule: () => undefined });
+  }, store, { enabled: async () => true, commentEnabled: async () => true });
   assert.equal(await restarted.publish('184'), 'published');
   assert.equal(await restarted.publish('184'), 'unchanged');
   assert.deepEqual(puts.map(put => put.key), [clientSignOffCommentKey, clientSignOffCommentKey]);

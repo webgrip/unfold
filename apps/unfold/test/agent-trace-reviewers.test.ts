@@ -4,7 +4,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { LinkedSessions, parseLinkedEvent, type LinkedPloeg } from '../src/linked-sessions.ts';
 import { foreignTool, parseAgentTrace, type AgentTraceRecord } from '../src/agent-trace.ts';
 import { aiHunksFirst, attributeHunks } from '../src/agent-trace-hunks.ts';
-import { AgentTraceComments, agentTraceCommentKey, agentTraceCommentMarkdown, commentPullRequest, sameRepository, type AgentTraceCommentSource } from '../src/agent-trace-comments.ts';
+import { Store } from '../src/store.ts';
+import { JobQueue } from '../src/jobs/queue.ts';
+import { JobWorker } from '../src/jobs/worker.ts';
+import { AgentTraceComments, agentTraceCommentJob, agentTraceCommentKey, agentTraceCommentMarkdown, commentPullRequest, sameRepository, type AgentTraceCommentSource } from '../src/agent-trace-comments.ts';
 import type { CommentRequest } from '../src/cards/service.ts';
 import type { FactsPullRequest } from '../src/cards/facts.ts';
 import type { AppConfig, User } from '../src/types.ts';
@@ -81,16 +84,20 @@ test('the comment goes on the newest open pull request, for sessions of its repo
 test('stored records schedule one comment write per Work Item and window, a repeat with the same text writes nothing, and a Team without the flag gets none', async () => {
   const { linked, id } = await linkedWithTraces();
   const { source, puts } = fakeSource();
-  const timers: { run: () => void; ms: number }[] = [];
+  const now = { value: at.getTime() };
+  const jobStore = new Store(':memory:');
+  const jobs = new JobWorker(new JobQueue(jobStore, now.value), { clock: () => now.value, log: () => {} });
   let flag = true;
   const logged: string[] = [];
-  const comments = new AgentTraceComments(source, linked.store, { enabled: async team => flag && team === 'bronze', schedule: (run, ms) => timers.push({ run, ms }), log: (_level, event, detail) => logged.push(`${event}:${detail.outcome ?? detail.message}`) });
+  const comments = new AgentTraceComments(source, linked.store, { enabled: async team => flag && team === 'bronze', jobs, clock: () => now.value, log: (_level, event, detail) => logged.push(`${event}:${detail.outcome ?? detail.message}`) });
   comments.notice(['184'], base);
   comments.notice(['184', '184'], base);
-  assert.deepEqual(timers.map(timer => timer.ms), [300_000], 'a burst of records makes one write five minutes later');
   assert.deepEqual(comments.pending(), ['184']);
-  timers[0].run();
-  await new Promise(done => setImmediate(done));
+  assert.equal(jobs.queue.get(agentTraceCommentJob, '184')!.runAt, new Date(now.value + 300_000).toISOString(), 'a burst of records makes one durable write five minutes later');
+  now.value += 299_999;
+  assert.equal(await jobs.drain(agentTraceCommentJob), 0);
+  now.value += 1;
+  assert.equal(await jobs.drain(agentTraceCommentJob), 1);
   assert.deepEqual(comments.pending(), []);
   assert.equal(puts.length, 1);
   assert.equal(puts[0].key, agentTraceCommentKey);
@@ -110,11 +117,13 @@ test('stored records schedule one comment write per Work Item and window, a repe
   assert.equal(await new AgentTraceComments(fakeSource([pullRequest({ state: 'merged' })]).source, linked.store, { enabled: async () => true }).publish('184', base), 'no_pull_request');
   assert.equal(await new AgentTraceComments(fakeSource([pullRequest({ repo: 'other' })]).source, linked.store, { enabled: async () => true }).publish('184', base), 'no_records', 'sessions of another repository are left out');
   const failing = { ...fakeSource().source, async putPullRequestComment(): Promise<never> { throw new Error('ploeg down'); } };
-  const later: (() => void)[] = [];
-  new AgentTraceComments(failing, linked.store, { enabled: async () => true, schedule: run => later.push(run), log: (_level, event, detail) => logged.push(`${event}:${detail.message}`) }).notice(['184'], base);
-  later[0]();
-  await new Promise(done => setImmediate(done));
+  const failingJobs = new JobWorker(new JobQueue(new Store(':memory:'), now.value), { clock: () => now.value, log: () => {} });
+  new AgentTraceComments(failing, linked.store, { enabled: async () => true, jobs: failingJobs, delayMs: 0, clock: () => now.value, log: (_level, event, detail) => logged.push(`${event}:${detail.message}`) }).notice(['184'], base);
+  assert.equal(await failingJobs.drain(agentTraceCommentJob), 1);
   assert.equal(logged.at(-1), 'agent_trace.comment_failed:ploeg down', 'a failed write is logged, never thrown into the request');
+  const retried = failingJobs.queue.get(agentTraceCommentJob, '184')!;
+  assert.deepEqual([retried.state, retried.lastError], ['pending', 'ploeg down'], 'and retried later with backoff');
+  jobStore.close();
 });
 
 test('each hunk of a diff carries its AI-written line count, and AI hunks read first', () => {

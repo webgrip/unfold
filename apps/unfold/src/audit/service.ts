@@ -13,6 +13,11 @@ import { AuditCheckpoints } from './checkpoints.ts';
 import { ObjectStore } from './object-store.ts';
 import { OpenBaoTransitSigner } from './signer.ts';
 import { defaultRetentionDays } from './settings.ts';
+import { JobQueue } from '../jobs/queue.ts';
+import { JobWorker } from '../jobs/worker.ts';
+
+/** The job kind that sends the audit records the OTLP collector has not taken yet. */
+export const auditExportJob = 'audit.export';
 import { ocsfEvent, type AuditActor, type AuditEntry, type AuditFact, type AuditOrigin, type AuditOutcome, type AuditPerson } from './ocsf.ts';
 
 const hourMs = 3_600_000;
@@ -36,6 +41,8 @@ export type AuditTrailOptions = {
   fetch?: typeof fetch;
   now?: () => Date;
   log?: (line: string) => void;
+  /** The application's job worker; with `schedule` and no worker, the trail makes its own. */
+  jobs?: JobWorker;
 };
 
 const person = (user: User | StoredUser): AuditPerson => ({ id: user.id, name: user.name, role: user.role, ...(user.memberships ? { memberships: user.memberships } : {}) });
@@ -61,7 +68,8 @@ export class AuditTrail {
   private readonly exporter: AuditOtlpExporter | undefined;
   private readonly timers: NodeJS.Timeout[] = [];
   private readonly schedule: boolean;
-  private flushTimer: NodeJS.Timeout | undefined;
+  private readonly jobs: JobWorker | undefined;
+  private readonly ownJobs: boolean;
   private readonly lastWarnAt = new Map<string, number>();
 
   constructor(options: AuditTrailOptions) {
@@ -79,6 +87,13 @@ export class AuditTrail {
     const storage = settings?.checkpointStorage ? new ObjectStore(settings.checkpointStorage, { now: this.now, ...(options.fetch ? { fetch: options.fetch } : {}) }) : undefined;
     this.checkpoints = signer || storage ? new AuditCheckpoints({ chain: this.chain, ...(signer ? { signer } : {}), ...(storage ? { storage } : {}), now: this.now, warn: message => this.warn('audit.checkpoint_failed', message), info: fields => this.log(JSON.stringify({ level: 'info', ...fields })) }) : undefined;
     options.store.observeAccounts(change => this.account(change));
+    this.ownJobs = this.schedule && Boolean(this.exporter) && !options.jobs;
+    this.jobs = this.schedule && this.exporter ? options.jobs ?? new JobWorker(new JobQueue(options.store), { clock: () => this.now().getTime() }) : undefined;
+    this.jobs?.register({
+      kind: auditExportJob, leaseMs: 120_000, backoff: { baseMs: 30_000, maxMs: hourMs }, retainMs: dayMs,
+      run: async () => (await this.exporter!.flush()) ? { done: true } : { retry: 'the collector did not take the records' },
+    });
+    if (this.ownJobs) this.jobs!.start();
     if (this.schedule) {
       this.prune();
       if (this.checkpoints) {
@@ -86,7 +101,7 @@ export class AuditTrail {
         first.unref();
         this.timers.push(first);
       }
-      const hourly = setInterval(() => { this.prune(); void this.flush(); void this.checkpoint(); }, hourMs);
+      const hourly = setInterval(() => { this.prune(); this.queueExport(0); void this.checkpoint(); }, hourMs);
       hourly.unref();
       this.timers.push(hourly);
     }
@@ -98,10 +113,7 @@ export class AuditTrail {
       const entry: AuditEntry = { fact: input.fact, actor: input.actor ?? {}, ...(input.origin ? { origin: input.origin } : {}), at: input.at ?? this.now() };
       const event = ocsfEvent(entry);
       const stored = this.tenantsFor(input).map(tenant => this.chain.append(tenant, event));
-      if (this.schedule && this.exporter && !this.flushTimer) {
-        this.flushTimer = setTimeout(() => { this.flushTimer = undefined; void this.flush(); }, 1000);
-        this.flushTimer.unref();
-      }
+      this.queueExport(1000);
       return stored;
     } catch (error) {
       this.log(JSON.stringify({ level: 'error', event: 'audit.record_failed', kind: input.fact.kind, message: String((error as Error)?.message ?? error).slice(0, 300) }));
@@ -248,6 +260,12 @@ export class AuditTrail {
   /** Sends pending records to the OTLP endpoint, when one is configured. */
   async flush(): Promise<void> { await this.exporter?.flush(); }
 
+  private queueExport(delayMs: number): void {
+    if (!this.jobs) return;
+    const now = this.now().getTime();
+    this.jobs.queue.enqueue(auditExportJob, 'otlp', {}, now, { runAt: now + delayMs, maxAttempts: 24, repeat: 'when_finished' });
+  }
+
   private warn(event: string, message: string): void {
     const now = this.now().getTime();
     if (now - (this.lastWarnAt.get(event) ?? -Infinity) < hourMs) return;
@@ -302,7 +320,6 @@ export class AuditTrail {
   stop(): void {
     for (const timer of this.timers) clearInterval(timer);
     this.timers.length = 0;
-    if (this.flushTimer) clearTimeout(this.flushTimer);
-    this.flushTimer = undefined;
+    if (this.ownJobs) this.jobs!.stop();
   }
 }

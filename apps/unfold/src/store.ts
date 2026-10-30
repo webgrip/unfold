@@ -815,11 +815,6 @@ export class Store {
     return (this.db.prepare('SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ?').all(userId, limit) as Record<string, string | number | null>[]).map(storedReport);
   }
 
-  /** Reports waiting to be filed whose next attempt is due at `now`, oldest first. */
-  dueReports(now: string): StoredReport[] {
-    return (this.db.prepare("SELECT * FROM reports WHERE status IN ('pending','retrying') AND next_attempt_at IS NOT NULL AND next_attempt_at <= ? ORDER BY created_at LIMIT 20").all(now) as Record<string, string | number | null>[]).map(storedReport);
-  }
-
   /** Records the outcome of one filing attempt. */
   updateReport(id: string, change: { status: StoredReport['status']; attempts?: number; nextAttemptAt?: string | null; lastError?: string | null; url?: string | null; filedAt?: string | null; issue?: StoredReportIssue }): void {
     this.db.prepare('UPDATE reports SET status=?, attempts=COALESCE(?,attempts), next_attempt_at=?, last_error=?, url=COALESCE(?,url), filed_at=COALESCE(?,filed_at), issue=COALESCE(?,issue) WHERE id=?')

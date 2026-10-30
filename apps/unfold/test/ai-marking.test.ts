@@ -125,7 +125,7 @@ test('path: the Client Sign-off comment opens with the AI marking of the agentâ€
     factsSupported: async () => true,
     workItemFacts: async id => ({ workItem: { id, team: 'bronze' } as never, pullRequests: world.pullRequests }),
     putPullRequestComment: async (_id, _key, body) => { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 }; },
-  }, new ClientSignOffStore(new DatabaseSync(':memory:')), { enabled: async () => true, commentEnabled: async () => true, schedule: () => undefined });
+  }, new ClientSignOffStore(new DatabaseSync(':memory:')), { enabled: async () => true, commentEnabled: async () => true });
   const person: SignOffPerson = { id: 'u-olga', name: 'olga', role: 'operator', attribution: 'proven' };
   await signOffs.record(person, '184', { answer: 'looks_good', headSha: shaA });
   assert.equal(await signOffs.publish('184'), 'published');
@@ -151,7 +151,7 @@ test('path: the Agent Trace comment carries the marker with the record ids it co
     async workItemFacts(id) { return { workItem: { id, team: 'bronze' } as never, pullRequests: [pullRequest({ reviews: [approvedBy('dev-ann')] })] }; },
     async putPullRequestComment(_id, _key, body) { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: true }; },
   };
-  const comments = new AgentTraceComments(source, linked.store, { enabled: async () => true, schedule: () => undefined });
+  const comments = new AgentTraceComments(source, linked.store, { enabled: async () => true });
   assert.equal(await comments.publish('184', base), 'published');
   assert.match(puts[0].markdown, new RegExp(`^<!-- unfold:ai-generated v=1 subject=pull-request review=approved reviewer=dev-ann agent-trace=${traceId} -->\\n_Written by an AI agent and reviewed by dev-ann\\._\\n\\n### Which lines agents wrote`));
 });

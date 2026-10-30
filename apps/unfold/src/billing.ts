@@ -7,6 +7,11 @@ import { defaultAcceptanceCalendar, deliveryRow, type AcceptanceCalendar } from 
 import { ownership, validTenancyId, type Ownership } from './tenancy.ts';
 import { actsFor, reaches, type TenantScope } from './tenant-scope.ts';
 import type { User } from './types.ts';
+import { JobQueue } from './jobs/queue.ts';
+import { JobWorker, type JobOutcome } from './jobs/worker.ts';
+
+/** The job kind of sending one billing line. At most once: a lost lease makes it dead, never sends it again. */
+export const billingLineJob = 'billing.line';
 
 /**
  * Where a line stands. `pending` waits for its next attempt, `needs_price` waits for an administrator to enter its price,
@@ -42,14 +47,23 @@ const fail = (status: number, code: string, message: string): never => { throw n
 /** The billing outbox and the Client mappings, in the workbench database. */
 export class BillingStore {
   private readonly db: DatabaseSync;
+  /** The durable job queue that holds each pending line's next attempt. */
+  readonly jobs: JobQueue;
   constructor(db: DatabaseSync) {
     this.db = db;
+    this.jobs = new JobQueue(db);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS billing_mappings (tenant TEXT NOT NULL, client TEXT NOT NULL, updated_at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (tenant, client));
       CREATE TABLE IF NOT EXISTS billing_lines (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, tenant TEXT NOT NULL, client TEXT NOT NULL, work_item_id TEXT NOT NULL, state TEXT NOT NULL, next_attempt_at TEXT, created_at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS billing_lines_due ON billing_lines(state, next_attempt_at);
       CREATE INDEX IF NOT EXISTS billing_lines_created ON billing_lines(created_at);
     `);
+    for (const record of this.inState('pending')) this.queue(record);
+  }
+  private queue(record: BillingRecord): void {
+    if (record.state !== 'pending') return;
+    const now = Date.parse(record.updatedAt);
+    this.jobs.enqueue(billingLineJob, record.id, { lineId: record.id }, now, { runAt: record.nextAttemptAt ? Date.parse(record.nextAttemptAt) : now, guarantee: 'at_most_once', maxAttempts: 64, repeat: 'when_finished' });
   }
   /** Every mapping, by Tenant then Client. */
   mappings(): BillingMapping[] { return (this.db.prepare('SELECT body FROM billing_mappings ORDER BY tenant, client').all() as { body: string }[]).map(row => JSON.parse(row.body)); }
@@ -66,11 +80,14 @@ export class BillingStore {
   deleteMapping(owner: Ownership): boolean { return Number(this.db.prepare('DELETE FROM billing_mappings WHERE tenant=? AND client=?').run(owner.tenant, owner.client ?? '').changes) === 1; }
   /** Adds `record` unless a line with its key exists; true when it was added. */
   add(record: BillingRecord): boolean {
-    return Number(this.db.prepare('INSERT OR IGNORE INTO billing_lines(id,key,tenant,client,work_item_id,state,next_attempt_at,created_at,body) VALUES(?,?,?,?,?,?,?,?,?)').run(record.id, record.line.key, record.line.tenant, record.line.client ?? '', record.line.workItemId, record.state, record.nextAttemptAt, record.createdAt, JSON.stringify(record)).changes) === 1;
+    const added = Number(this.db.prepare('INSERT OR IGNORE INTO billing_lines(id,key,tenant,client,work_item_id,state,next_attempt_at,created_at,body) VALUES(?,?,?,?,?,?,?,?,?)').run(record.id, record.line.key, record.line.tenant, record.line.client ?? '', record.line.workItemId, record.state, record.nextAttemptAt, record.createdAt, JSON.stringify(record)).changes) === 1;
+    if (added) this.queue(record);
+    return added;
   }
   /** Saves a changed `record`. */
   save(record: BillingRecord): void {
     this.db.prepare('UPDATE billing_lines SET state=?, next_attempt_at=?, body=? WHERE id=?').run(record.state, record.nextAttemptAt, JSON.stringify(record), record.id);
+    this.queue(record);
   }
   /** Moves `record` from `from` to its own state, only when it is still in `from`; true when this caller moved it. */
   claim(record: BillingRecord, from: BillingLineState): boolean {
@@ -82,10 +99,6 @@ export class BillingStore {
   byKey(key: string): BillingRecord | undefined { const row = this.db.prepare('SELECT body FROM billing_lines WHERE key=?').get(key) as { body: string } | undefined; return row ? JSON.parse(row.body) : undefined; }
   /** Lines in `state`, oldest first. */
   inState(state: BillingLineState): BillingRecord[] { return (this.db.prepare('SELECT body FROM billing_lines WHERE state=? ORDER BY created_at, id').all(state) as { body: string }[]).map(row => JSON.parse(row.body)); }
-  /** Pending lines due by `at`, oldest first, at most `limit`. */
-  due(at: string, limit: number): BillingRecord[] {
-    return (this.db.prepare("SELECT body FROM billing_lines WHERE state='pending' AND (next_attempt_at IS NULL OR next_attempt_at<=?) ORDER BY created_at, id LIMIT ?").all(at, limit) as { body: string }[]).map(row => JSON.parse(row.body));
-  }
   /** The newest lines, newest first, at most `limit`. */
   recent(limit: number): BillingRecord[] { return (this.db.prepare('SELECT body FROM billing_lines ORDER BY created_at DESC, id DESC LIMIT ?').all(limit) as { body: string }[]).map(row => JSON.parse(row.body)); }
 }
@@ -116,17 +129,21 @@ export class BillingService {
   private readonly options: BillingOptions;
   private readonly now: () => number;
   private timers: NodeJS.Timeout[] = [];
-  private sweeping: Promise<unknown> | undefined;
+  private readonly jobs: JobWorker;
+  private tally: Pick<BillingSyncResult, 'sent' | 'failed' | 'waiting'> | undefined;
 
   constructor(store: BillingStore, options: BillingOptions) {
     this.store = store;
     this.options = options;
     this.now = options.now ?? Date.now;
+    this.jobs = new JobWorker(store.jobs, { clock: this.now, ...(options.log ? { log: options.log } : {}) });
+    this.jobs.register<{ lineId: string }>({ kind: billingLineJob, leaseMs: 300_000, retainMs: 90 * day, run: job => this.sendJob(job.payload.lineId) });
     for (const record of store.inState('sending')) this.finish(record, { state: 'failed', uncertain: true, lastError: 'Unfold stopped while it was sending this line, so the tool may have it. Check the tool before you send it again.' });
     if (options.schedule !== false && this.active) {
       const sync = () => { void this.sync().catch(error => this.log('warn', 'billing.sync_failed', { message: String((error as Error).message).slice(0, 200) })); };
       const send = () => { void this.sendDue().catch(error => this.log('warn', 'billing.send_failed', { message: String((error as Error).message).slice(0, 200) })); };
       this.timers.push(setTimeout(sync, 60_000).unref(), setInterval(sync, options.settings!.syncMinutes * 60_000).unref(), setInterval(send, 60_000).unref());
+      this.timers.push(setInterval(() => store.jobs.prune(this.now() - 90 * day, billingLineJob), 3_600_000).unref());
     }
   }
 
@@ -208,23 +225,32 @@ export class BillingService {
     this.store.save({ ...record, revertDetected: { reference: `${revert.owner}/${revert.repo}#${revert.number}`, mergedAt: revert.mergedAt }, updatedAt: this.iso() });
   }
 
-  /** Sends the lines that are due, one at a time and at most `billingLimits.sendsPerSweep`, skipping Tenants whose flag is off. */
+  /**
+   * Sends the lines that are due through the job queue, one at a time and at most `billingLimits.sendsPerSweep`; a
+   * line whose Tenant has its flag off waits a minute and is not counted.
+   */
   async sendDue(): Promise<Pick<BillingSyncResult, 'sent' | 'failed' | 'waiting'>> {
     const tally = { sent: 0, failed: 0, waiting: 0 };
     if (!this.active) return tally;
-    if (this.sweeping) { await this.sweeping.catch(() => undefined); return tally; }
-    const run = (async () => {
-      for (const record of this.store.due(this.iso(), billingLimits.sendsPerSweep)) {
-        if (!(await this.options.enabled(record.line.tenant))) continue;
-        const after = await this.attempt(record);
-        if (after.state === 'sent') tally.sent++;
-        else if (after.state === 'failed') tally.failed++;
-        else tally.waiting++;
-      }
-    })();
-    this.sweeping = run;
-    try { await run; } finally { this.sweeping = undefined; }
+    this.tally = tally;
+    try { await this.jobs.drain(billingLineJob, billingLimits.sendsPerSweep); } finally { this.tally = undefined; }
     return tally;
+  }
+
+  private async sendJob(id: string): Promise<JobOutcome> {
+    const record = this.store.get(id);
+    const now = this.now();
+    if (!record || record.state !== 'pending') return { done: true };
+    if (!this.active) return { later: now + 3_600_000 };
+    if (record.nextAttemptAt && Date.parse(record.nextAttemptAt) > now) return { later: Date.parse(record.nextAttemptAt) };
+    if (!(await this.options.enabled(record.line.tenant))) return { later: now + 60_000 };
+    const after = await this.attempt(record);
+    const tally = this.tally ?? { sent: 0, failed: 0, waiting: 0 };
+    if (after.state === 'sent') { tally.sent++; return { done: true }; }
+    if (after.state === 'failed') { tally.failed++; return { dead: after.lastError ?? 'failed' }; }
+    tally.waiting++;
+    if (after.state === 'pending') return { retry: after.lastError ?? 'retrying', afterMs: Math.max(0, Date.parse(after.nextAttemptAt ?? '') - this.now() || 0) };
+    return { done: true };
   }
 
   private finish(record: BillingRecord, change: Partial<BillingRecord>): BillingRecord {

@@ -3,6 +3,12 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Store } from '../store.ts';
 import { followsHandedOff, noPreferences, type Preferences } from './preferences.ts';
 import type { NotificationMessage } from './triggers.ts';
+import { JobQueue } from '../jobs/queue.ts';
+
+/** The job kind of one notice's delivery. */
+export const noticeJob = 'notify.notice';
+/** The queue's own cap on a notice's attempts; the notice gives up by its retry schedule before it. */
+export const noticeJobAttempts = 10;
 
 /** Where a notice stands: waiting to be sent, sent, given up, or dropped because the person's choice or target went away. */
 export type OutboxState = 'pending' | 'delivered' | 'dead' | 'dropped';
@@ -29,9 +35,12 @@ const target = (row: Row): Target => ({ id: String(row.id), userId: String(row.u
 export class NotifyStore {
   readonly db: DatabaseSync;
   readonly store: Store;
+  /** The durable job queue that holds every pending notice's next attempt. */
+  readonly jobs: JobQueue;
   constructor(store: Store) {
     this.store = store;
     this.db = store.db;
+    this.jobs = new JobQueue(store);
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS notify_preferences (user_id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS notify_targets (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, channel TEXT NOT NULL, address_key TEXT NOT NULL, address TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE (channel, user_id, address_key));
@@ -40,6 +49,8 @@ export class NotifyStore {
       CREATE TABLE IF NOT EXISTS notify_cursors (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS notify_handed_transitions (work_item_id TEXT PRIMARY KEY, kind TEXT NOT NULL, event_id TEXT NOT NULL, updated_at TEXT NOT NULL);
     `);
+    const waiting = this.db.prepare("SELECT o.id, o.next_at, o.created_at FROM notify_outbox o LEFT JOIN jobs j ON j.kind=? AND j.key=CAST(o.id AS TEXT) WHERE o.state='pending' AND j.id IS NULL").all(noticeJob) as { id: number; next_at: string; created_at: string }[];
+    for (const row of waiting) this.jobs.enqueue(noticeJob, String(row.id), { noticeId: row.id }, Date.parse(row.created_at), { runAt: Date.parse(row.next_at), maxAttempts: noticeJobAttempts });
   }
 
   preferences(userId: string): Preferences {
@@ -93,11 +104,17 @@ export class NotifyStore {
 
   /** Queues a notice once: a second call with the same person, channel, target and key changes nothing. Answers whether it was queued. */
   enqueue(userId: string, channel: string, targetId: string, dedupeKey: string, message: NotificationMessage, at: string): boolean {
-    return Number(this.db.prepare("INSERT OR IGNORE INTO notify_outbox(user_id,channel,target_id,dedupe_key,message,state,attempts,next_at,created_at,updated_at) VALUES(?,?,?,?,?,'pending',0,?,?,?)")
-      .run(userId, channel, targetId, dedupeKey, JSON.stringify(message), at, at, at).changes) === 1;
+    const added = this.db.prepare("INSERT OR IGNORE INTO notify_outbox(user_id,channel,target_id,dedupe_key,message,state,attempts,next_at,created_at,updated_at) VALUES(?,?,?,?,?,'pending',0,?,?,?)")
+      .run(userId, channel, targetId, dedupeKey, JSON.stringify(message), at, at, at);
+    if (Number(added.changes) !== 1) return false;
+    const id = Number(added.lastInsertRowid);
+    this.jobs.enqueue(noticeJob, String(id), { noticeId: id }, Date.parse(at), { maxAttempts: noticeJobAttempts });
+    return true;
   }
-  due(at: string, limit: number): OutboxEntry[] {
-    return (this.db.prepare("SELECT * FROM notify_outbox WHERE state='pending' AND next_at<=? ORDER BY next_at, id LIMIT ?").all(at, limit) as Row[]).map(entry);
+  /** One notice, or `undefined`. */
+  notice(id: number): OutboxEntry | undefined {
+    const row = this.db.prepare('SELECT * FROM notify_outbox WHERE id=?').get(id) as Row | undefined;
+    return row ? entry(row) : undefined;
   }
   /** Records an attempt's result; `next` keeps it pending until then. */
   settle(id: number, state: OutboxState, at: string, changes: { attempts?: number; nextAt?: string; lastError?: string } = {}): void {
@@ -111,6 +128,7 @@ export class NotifyStore {
   prune(before: string): void {
     this.db.prepare("DELETE FROM notify_outbox WHERE state<>'pending' AND updated_at<?").run(before);
     this.db.prepare('DELETE FROM notify_handed_transitions WHERE updated_at<?').run(before);
+    this.jobs.prune(Date.parse(before), noticeJob);
   }
   /** Forgets everything about a person: preferences, targets and notices. */
   forget(userId: string): void {

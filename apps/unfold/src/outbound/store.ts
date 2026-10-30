@@ -2,6 +2,13 @@ import { randomBytes } from 'node:crypto';
 import type { Store } from '../store.ts';
 import { ClientSignOffStore } from '../client-sign-off.ts';
 import { matchesFilter, type CloudEvent } from './catalogue.ts';
+import { JobQueue } from '../jobs/queue.ts';
+
+/** The job kind of one event's delivery to one subscription. */
+export const deliveryJob = 'outbound.delivery';
+/** The queue's own cap on a delivery's attempts; the delivery gives up by its retry schedule before it. */
+export const deliveryJobAttempts = 12;
+const jobKey = (subscriptionId: string, eventId: string) => `${subscriptionId}:${eventId}`;
 
 /** One webhook subscription, without its secret. */
 export type Subscription = {
@@ -53,8 +60,11 @@ function deliveryFrom(row: Record<string, unknown>): Delivery {
  */
 export class OutboundStore {
   readonly store: Store;
+  /** The durable job queue that holds every pending delivery's next attempt. */
+  readonly jobs: JobQueue;
   constructor(store: Store) {
     this.store = store;
+    this.jobs = new JobQueue(store);
     new ClientSignOffStore(store.db);
     store.db.exec(`
       CREATE TABLE IF NOT EXISTS outbound_subscriptions (id TEXT PRIMARY KEY, tenant TEXT NOT NULL, client TEXT, url TEXT NOT NULL, types TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL, disabled_reason TEXT, created_at TEXT NOT NULL, created_by TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -75,6 +85,21 @@ export class OutboundStore {
         INSERT INTO outbound_sign_off_changes(sign_off_id, state, at) VALUES (NEW.id, NEW.state, COALESCE(json_extract(NEW.body, '$.endedAt'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
       END;
     `);
+    this.adoptPending();
+  }
+
+  private queueDelivery(subscriptionId: string, eventId: string, at: string): void {
+    if (!this.subscription(subscriptionId)) return;
+    const id = (this.store.db.prepare('SELECT id FROM outbound_deliveries WHERE subscription_id=? AND event_id=?').get(subscriptionId, eventId) as { id: number }).id;
+    this.jobs.enqueue(deliveryJob, jobKey(subscriptionId, eventId), { deliveryId: id }, Date.parse(at), { maxAttempts: deliveryJobAttempts });
+  }
+
+  private adoptPending(): void {
+    const rows = this.store.db.prepare("SELECT d.id, d.subscription_id, d.event_id, d.next_attempt_at, d.created_at FROM outbound_deliveries d LEFT JOIN jobs j ON j.kind=? AND j.key=d.subscription_id || ':' || d.event_id WHERE d.status='pending' AND j.id IS NULL AND d.subscription_id NOT IN (SELECT id FROM mcp_event_subscriptions)").all(deliveryJob) as Record<string, string | number>[];
+    for (const row of rows) {
+      const at = Date.parse(String(row.created_at));
+      this.jobs.enqueue(deliveryJob, jobKey(String(row.subscription_id), String(row.event_id)), { deliveryId: Number(row.id) }, at, { runAt: Date.parse(String(row.next_attempt_at ?? row.created_at)), maxAttempts: deliveryJobAttempts });
+    }
   }
 
   /** Every administrator's subscription, oldest first; an MCP client's subscriptions are not among them. */
@@ -108,6 +133,7 @@ export class OutboundStore {
     if (change.active === true) next.disabledReason = null;
     this.store.db.prepare('UPDATE outbound_subscriptions SET url=?, types=?, description=?, active=?, disabled_reason=?, updated_at=? WHERE id=?')
       .run(next.url, JSON.stringify(next.types), next.description, next.active ? 1 : 0, next.disabledReason, at, id);
+    if (change.active === true && kind === 'webhook') this.jobs.wake(deliveryJob, `${id}:`, Date.parse(at));
     return this.subscription(id, kind);
   }
   /** Deletes a subscription, its deliveries and its secret. */
@@ -115,6 +141,7 @@ export class OutboundStore {
     const remove = () => {
       this.store.db.prepare('DELETE FROM outbound_deliveries WHERE subscription_id=?').run(id);
       this.store.db.prepare('DELETE FROM mcp_event_subscriptions WHERE id=?').run(id);
+      this.jobs.drop(deliveryJob, `${id}:`);
       this.store.deleteSecret(secretId(id));
       return Number(this.store.db.prepare('DELETE FROM outbound_subscriptions WHERE id=?').run(id).changes) === 1;
     };
@@ -154,7 +181,9 @@ export class OutboundStore {
       if (!subscription.active || subscription.tenant !== event.tenant) continue;
       if (subscription.client !== null && subscription.client !== event.client) continue;
       if (!matchesFilter(subscription.types, event.type) || Date.parse(subscription.createdAt) > Date.parse(event.time)) continue;
-      queued += Number(insert.run(subscription.id, event.id, event.type, at, at).changes);
+      const added = Number(insert.run(subscription.id, event.id, event.type, at, at).changes);
+      if (added) this.queueDelivery(subscription.id, event.id, at);
+      queued += added;
     }
     return queued;
   }
@@ -162,7 +191,9 @@ export class OutboundStore {
   enqueueTo(subscriptionId: string, event: CloudEvent, recorded: string): number {
     const at = new Date(recorded).toISOString();
     this.store.db.prepare('INSERT OR IGNORE INTO outbound_events(id,type,tenant,client,time,recorded_at,body) VALUES(?,?,?,?,?,?,?)').run(event.id, event.type, event.tenant, event.client ?? null, event.time, at, JSON.stringify(event));
-    return Number(this.store.db.prepare("INSERT OR IGNORE INTO outbound_deliveries(subscription_id,event_id,event_type,status,attempts,next_attempt_at,created_at) VALUES(?,?,?,'pending',0,?,?)").run(subscriptionId, event.id, event.type, at, at).changes);
+    const added = Number(this.store.db.prepare("INSERT OR IGNORE INTO outbound_deliveries(subscription_id,event_id,event_type,status,attempts,next_attempt_at,created_at) VALUES(?,?,?,'pending',0,?,?)").run(subscriptionId, event.id, event.type, at, at).changes);
+    if (added) this.queueDelivery(subscriptionId, event.id, at);
+    return added;
   }
 
   /** Deliveries due at `now` to active subscriptions of one kind, oldest first, at most `limit`, with their event's stored body. */
@@ -170,6 +201,11 @@ export class OutboundStore {
     const rows = this.store.db.prepare(`SELECT d.*, e.body AS body FROM outbound_deliveries d JOIN outbound_events e ON e.id=d.event_id JOIN outbound_subscriptions s ON s.id=d.subscription_id
       WHERE d.status='pending' AND d.next_attempt_at <= ? AND s.active=1 AND ${(kind === 'mcp' ? mcpOnly : adminOnly).replaceAll('id IN', 's.id IN')} ORDER BY d.next_attempt_at, d.id LIMIT ?`).all(now, limit) as Record<string, unknown>[];
     return rows.map(row => ({ delivery: deliveryFrom(row), body: String(row.body) }));
+  }
+  /** One delivery with its event's stored body, or `undefined`. */
+  withBody(id: number): { delivery: Delivery; body: string } | undefined {
+    const row = this.store.db.prepare('SELECT d.*, e.body AS body FROM outbound_deliveries d JOIN outbound_events e ON e.id=d.event_id WHERE d.id=?').get(id) as Record<string, unknown> | undefined;
+    return row ? { delivery: deliveryFrom(row), body: String(row.body) } : undefined;
   }
   /** Records one attempt's result. */
   recordAttempt(id: number, result: { status: DeliveryStatus; attempts: number; nextAttemptAt: string | null; lastStatus: number | null; lastError: string | null; deliveredAt: string | null }): void {
@@ -193,7 +229,12 @@ export class OutboundStore {
   }
   /** Puts a dead delivery back in the queue, due at `at`, with a fresh attempt count. */
   resend(id: number, at: string): boolean {
-    return Number(this.store.db.prepare("UPDATE outbound_deliveries SET status='pending', attempts=0, next_attempt_at=?, last_error=NULL WHERE id=? AND status='dead'").run(at, id).changes) === 1;
+    return this.store.transaction(() => {
+      if (Number(this.store.db.prepare("UPDATE outbound_deliveries SET status='pending', attempts=0, next_attempt_at=?, last_error=NULL WHERE id=? AND status='dead'").run(at, id).changes) !== 1) return false;
+      const delivery = this.delivery(id)!;
+      if (!this.jobs.resend(deliveryJob, jobKey(delivery.subscriptionId, delivery.eventId), Date.parse(at))) this.queueDelivery(delivery.subscriptionId, delivery.eventId, at);
+      return true;
+    });
   }
 
   /** The Client Sign-off changes the triggers recorded, oldest first. */
@@ -213,6 +254,7 @@ export class OutboundStore {
   prune(cutoff: string): number {
     return this.store.transaction(() => {
       const removed = Number(this.store.db.prepare("DELETE FROM outbound_deliveries WHERE status IN ('delivered','dead') AND created_at < ?").run(cutoff).changes);
+      this.jobs.prune(Date.parse(cutoff), deliveryJob);
       this.store.db.prepare('DELETE FROM outbound_events WHERE recorded_at < ? AND id NOT IN (SELECT event_id FROM outbound_deliveries)').run(cutoff);
       return removed;
     });

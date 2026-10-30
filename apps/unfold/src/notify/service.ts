@@ -9,7 +9,8 @@ import { SlackChannel, type SlackPermissions } from './slack.ts';
 import { TeamsChannel } from './teams.ts';
 import { NotifyError, followsHandedOff, parsePreferences, quietUntil, refuse, type Preferences } from './preferences.ts';
 import { defaultBudgetThresholds, type NotificationSettings } from './settings.ts';
-import { NotifyStore, type OutboxEntry } from './store.ts';
+import { NotifyStore, noticeJob, type OutboxEntry } from './store.ts';
+import { JobWorker, type JobOutcome } from '../jobs/worker.ts';
 import { handedOffMessage, permissionMessage, testMessage, triggers, workItemMessage, type NotificationMessage, type TriggerId } from './triggers.ts';
 
 export { NotifyError };
@@ -56,6 +57,8 @@ export type NotificationsOptions = {
   channels?: NotificationChannel[];
   transport?: Transport;
   clock?: () => number;
+  /** The application's job worker; the service makes its own over the same store when absent. */
+  jobs?: JobWorker;
 };
 
 type Recipient = { user: User; preferences: Preferences; channels: Set<string> };
@@ -74,8 +77,9 @@ export class Notifications {
   private readonly options: NotificationsOptions;
   private readonly clock: () => number;
   private readonly thresholds: readonly number[];
+  private readonly jobs: JobWorker;
   private timers: NodeJS.Timeout[] = [];
-  private busy = { dispatch: false, follow: false };
+  private busy = { follow: false };
   private stopped = false;
 
   constructor(store: Store, options: NotificationsOptions) {
@@ -90,24 +94,36 @@ export class Notifications {
       new TeamsChannel(this.store, options.settings?.teams, options.transport),
     ];
     for (const channel of channels) this.registry.register(channel);
+    this.jobs = options.jobs ?? new JobWorker(this.store.jobs, { clock: this.clock });
+    this.jobs.register<{ noticeId: number }>({
+      kind: noticeJob, leaseMs: 120_000, retainMs: retentionDays * 86_400_000,
+      run: async job => {
+        if (this.options.demo) return { later: this.clock() + 3_600_000 };
+        const notice = this.store.notice(job.payload.noticeId);
+        return notice && notice.state === 'pending' ? this.attempt(notice, this.clock()) : { done: true };
+      },
+    });
   }
 
   private now(): string { return new Date(this.clock()).toISOString(); }
   private log(event: string, fields: Record<string, unknown>): void { console.error(JSON.stringify({ level: 'warn', event, ...fields })); }
 
-  /** Starts delivery every 5 seconds and the sources every 15; finished notices are pruned hourly. Does nothing in the demo. */
+  /**
+   * Starts the sources every 15 seconds and prunes finished notices hourly. Notices are delivered by the application's
+   * job worker; a service that made its own worker drains it every 5 seconds. Does nothing in the demo.
+   */
   start(): void {
     if (this.options.demo) return;
     const every = (ms: number, work: () => Promise<unknown>) => {
       const run = () => { if (!this.stopped) void work().catch(error => this.log('notify.loop_failed', { message: String(error?.message ?? error).slice(0, 200) })); };
       this.timers.push(setInterval(run, ms).unref());
     };
-    every(5_000, () => this.dispatch());
+    if (!this.options.jobs) every(5_000, () => this.dispatch());
     every(15_000, () => this.collect());
     every(3_600_000, async () => this.store.prune(new Date(this.clock() - retentionDays * 86_400_000).toISOString()));
   }
   /** Stops the loops. A send in flight finishes; a notice not yet settled is sent again after the next start. */
-  stop(): void { this.stopped = true; for (const timer of this.timers) clearInterval(timer); this.timers = []; }
+  stop(): void { this.stopped = true; if (!this.options.jobs) this.jobs.stop(); for (const timer of this.timers) clearInterval(timer); this.timers = []; }
 
   /** One round of every source and then of delivery; public so a test can drive it. */
   async tick(): Promise<void> { await this.collect(); await this.dispatch(); }
@@ -299,44 +315,39 @@ export class Notifications {
     return queued;
   }
 
-  private async attempt(entry: OutboxEntry, at: number): Promise<void> {
+  private async attempt(entry: OutboxEntry, at: number): Promise<JobOutcome> {
     const iso = new Date(at).toISOString();
-    if (at - Date.parse(entry.createdAt) > maxNoticeAgeMs) return this.store.settle(entry.id, 'dead', iso, { lastError: 'too_old' });
+    if (at - Date.parse(entry.createdAt) > maxNoticeAgeMs) { this.store.settle(entry.id, 'dead', iso, { lastError: 'too_old' }); return { dead: 'too_old' }; }
     const preferences = this.store.preferences(entry.userId);
     const channel = this.registry.get(entry.channel);
     const target = this.store.target(entry.targetId);
-    if (!channel || !target || (entry.message.trigger !== 'test' && !preferences.channels.includes(entry.channel)) || (entry.message.about === 'handed_off' && !followsHandedOff(preferences))) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'not_chosen' });
+    if (!channel || !target || (entry.message.trigger !== 'test' && !preferences.channels.includes(entry.channel)) || (entry.message.about === 'handed_off' && !followsHandedOff(preferences))) { this.store.settle(entry.id, 'dropped', iso, { lastError: 'not_chosen' }); return { done: true }; }
     if (channel.flag) {
       const user = this.userOf(entry.userId);
-      if (!user || !(await this.usable(user)).has(channel.id)) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'channel_off' });
+      if (!user || !(await this.usable(user)).has(channel.id)) { this.store.settle(entry.id, 'dropped', iso, { lastError: 'channel_off' }); return { done: true }; }
     }
     if (entry.message.trigger !== 'test') {
       const until = quietUntil(preferences.quietHours, at);
-      if (until !== null) return this.store.settle(entry.id, 'pending', iso, { nextAt: new Date(until).toISOString() });
+      if (until !== null) { this.store.settle(entry.id, 'pending', iso, { nextAt: new Date(until).toISOString() }); return { later: until }; }
     }
     const outcome: SendOutcome = await channel.send(entry.message, target).catch((error: Error) => ({ kind: 'retry' as const, reason: String(error?.message ?? 'send_failed').slice(0, 64) }));
     const attempts = entry.attempts + 1;
-    if (outcome.kind === 'delivered') return this.store.settle(entry.id, 'delivered', iso, { attempts, lastError: '' });
+    if (outcome.kind === 'delivered') { this.store.settle(entry.id, 'delivered', iso, { attempts, lastError: '' }); return { done: true }; }
     if (outcome.kind === 'gone') {
       this.store.settle(entry.id, 'dropped', iso, { attempts, lastError: outcome.reason });
       this.store.deleteTarget(target.id);
-      return;
+      return { done: true };
     }
-    if (outcome.kind === 'failed' || attempts > retrySchedule.length) return this.store.settle(entry.id, 'dead', iso, { attempts, lastError: outcome.reason });
+    if (outcome.kind === 'failed' || attempts > retrySchedule.length) { this.store.settle(entry.id, 'dead', iso, { attempts, lastError: outcome.reason }); return { dead: outcome.reason }; }
     const wait = Math.max(retrySchedule[attempts - 1], (outcome.kind === 'retry' ? outcome.retryAfterMs : undefined) ?? 0);
     this.store.settle(entry.id, 'pending', iso, { attempts, lastError: outcome.reason, nextAt: new Date(at + wait).toISOString() });
+    return { retry: outcome.reason, afterMs: wait };
   }
 
-  /** Sends every due notice once. Never in the demo. */
+  /** Sends every due notice once, one at a time, through the job queue. Never in the demo. */
   async dispatch(): Promise<number> {
-    if (this.options.demo || this.busy.dispatch) return 0;
-    this.busy.dispatch = true;
-    try {
-      const at = this.clock();
-      const due = this.store.due(new Date(at).toISOString(), 50);
-      for (const entry of due) { if (this.stopped) break; await this.attempt(entry, at); }
-      return due.length;
-    } finally { this.busy.dispatch = false; }
+    if (this.options.demo || this.stopped) return 0;
+    return this.jobs.drain(noticeJob, 50);
   }
 
   private async view(user: User, enabled: boolean): Promise<Record<string, unknown>> {

@@ -3,17 +3,20 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, ReportTarget, User } from './types.ts';
 import type { TaskSourceConfig } from './tasks.ts';
 import type { Store, StoredReport, StoredReportFile, StoredReportIssue } from './store.ts';
+import { JobQueue } from './jobs/queue.ts';
+import { JobWorker, type JobOutcome } from './jobs/worker.ts';
 import { apiRoot, attachToIssue, canUpdateIssueBody, commentOnIssue, createIssue, describeIssueTarget, filesIssues, issueBodyFormat, issueProviderLabels, issueProviderNames, readIssueState, reportTargetProject, TaskError, updateIssueBody, type IssueFile, type IssueState } from './tasks.ts';
 
 export const maxReportBytes = 8 * 1024 * 1024;
 export const maxReportFiles = 5;
 export const retryWindowMs = 24 * 3_600_000;
 export const fileRetentionMs = 90 * 24 * 3_600_000;
+/** The job kind of filing one saved report into the tracker. */
+export const reportFileJob = 'report.file';
 const maxScreenshotBytes = 6 * 1024 * 1024;
 const maxJsonBytes = 256 * 1024;
 const maxConsoleEntries = 50;
 const maxRequestEntries = 50;
-const retryCheckMs = 60_000;
 const firstRetryMs = 60_000;
 const lastRetryGapMs = 3_600_000;
 export const maxReportsPerHour = 10;
@@ -352,7 +355,8 @@ export class ReportService {
   private config: AppConfig;
   private version: string;
   private now: () => Date;
-  private timer: ReturnType<typeof setInterval> | undefined;
+  private readonly jobs: JobWorker;
+  private readonly ownJobs: boolean;
   private retrying: Promise<void> | undefined;
   private stopped = false;
   private recent = new Map<string, number[]>();
@@ -360,14 +364,17 @@ export class ReportService {
   private following: Promise<void> | undefined;
   private followTimer: ReturnType<typeof setInterval> | undefined;
 
-  constructor(store: Store, config: AppConfig, version: string, now: () => Date = () => new Date(), options: { schedule?: boolean } = {}) {
+  constructor(store: Store, config: AppConfig, version: string, now: () => Date = () => new Date(), options: { schedule?: boolean; jobs?: JobWorker } = {}) {
     this.store = store;
     this.config = config;
     this.version = version;
     this.now = now;
+    this.ownJobs = !options.jobs;
+    this.jobs = options.jobs ?? new JobWorker(new JobQueue(store, now().getTime()), { clock: () => this.now().getTime() });
+    this.jobs.register<{ reportId: string }>({ kind: reportFileJob, leaseMs: 600_000, retainMs: fileRetentionMs, run: job => this.retry(job.payload.reportId) });
+    this.adoptWaiting();
     if (options.schedule !== false) {
-      this.timer = setInterval(() => { void this.retryDue(); }, retryCheckMs);
-      this.timer.unref?.();
+      if (this.ownJobs) this.jobs.start(60_000);
       this.followTimer = setInterval(() => { void this.followDue(); }, followCheckMs);
       this.followTimer.unref?.();
     }
@@ -531,6 +538,7 @@ export class ReportService {
       const gap = Math.min(lastRetryGapMs, firstRetryMs * 2 ** (attempts - 1));
       const giveUp = age + gap > retryWindowMs;
       this.store.updateReport(report.id, { status: giveUp ? 'failed' : 'retrying', attempts, nextAttemptAt: giveUp ? null : new Date(this.now().getTime() + gap).toISOString(), lastError: message });
+      if (!giveUp) this.queue(report.id, this.now().getTime() + gap);
       console.error(JSON.stringify({ level: 'warn', event: 'report.file_failed', report: report.id, attempts, giveUp, message }));
       return { id: report.id, status: giveUp ? 'failed' : 'retrying', message: 'Saved. Unfold will file it when the tracker answers.' };
     }
@@ -569,19 +577,35 @@ export class ReportService {
     return issue;
   }
 
-  /** Files every saved report whose next attempt is due, and drops the files of reports filed more than 90 days ago. */
+  private queue(id: string, runAt: number): void {
+    this.jobs.queue.enqueue(reportFileJob, id, { reportId: id }, this.now().getTime(), { runAt, maxAttempts: 64 });
+  }
+
+  private adoptWaiting(): void {
+    const rows = this.store.db.prepare("SELECT r.id, r.next_attempt_at FROM reports r LEFT JOIN jobs j ON j.kind=? AND j.key=r.id WHERE r.status IN ('pending','retrying') AND j.id IS NULL").all(reportFileJob) as { id: string; next_attempt_at: string | null }[];
+    const now = this.now().getTime();
+    for (const row of rows) this.queue(row.id, row.next_attempt_at ? Date.parse(row.next_attempt_at) : now);
+  }
+
+  private async retry(id: string): Promise<JobOutcome> {
+    const report = this.store.report(id);
+    if (!report || (report.status !== 'pending' && report.status !== 'retrying')) return { done: true };
+    const source = this.source();
+    if (!source) return { later: this.now().getTime() + 3_600_000 };
+    await this.attempt(report, source);
+    const after = this.store.report(id);
+    if (!after || after.status === 'filed') return { done: true };
+    if (after.status === 'failed') return { dead: after.lastError ?? 'gave_up' };
+    return { retry: after.lastError ?? 'retrying', afterMs: Math.max(0, Date.parse(after.nextAttemptAt ?? '') - this.now().getTime() || 0) };
+  }
+
+  /** Files every saved report whose next attempt is due, through the job queue, and drops the files of reports filed more than 90 days ago. */
   retryDue(): Promise<void> {
     this.retrying ??= (async () => {
       try {
         if (this.stopped) return;
-        const now = this.now();
-        this.store.pruneReportFiles(new Date(now.getTime() - fileRetentionMs).toISOString());
-        const source = this.source();
-        if (!source) return;
-        for (const report of this.store.dueReports(now.toISOString())) {
-          if (this.stopped) return;
-          await this.attempt(report, source);
-        }
+        this.store.pruneReportFiles(new Date(this.now().getTime() - fileRetentionMs).toISOString());
+        await this.jobs.drain(reportFileJob, 20);
       } catch (error) {
         if (!this.stopped) console.error(JSON.stringify({ level: 'warn', event: 'report.retry_failed', message: String((error as Error)?.message ?? error).slice(0, 200) }));
       }
@@ -591,9 +615,8 @@ export class ReportService {
 
   stop(): void {
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    if (this.ownJobs) this.jobs.stop();
     if (this.followTimer) clearInterval(this.followTimer);
-    this.timer = undefined;
     this.followTimer = undefined;
   }
 }
