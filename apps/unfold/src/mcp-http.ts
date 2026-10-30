@@ -83,6 +83,7 @@ export function createMcpHttp(options: McpHttpOptions) {
   const verifier = new AccessTokenVerifier(settings, { ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
   const confirmations = confirmationLedger();
   const metadata = resourceMetadata(settings);
+  if (settings.audience === 'client-id') console.error(JSON.stringify({ level: 'warn', event: 'mcp.client_audience', message: 'UNFOLD_MCP_TOKEN_AUDIENCE=client-id: a token whose aud names a client id in UNFOLD_MCP_CLIENT_IDS is accepted instead of one for UNFOLD_MCP_RESOURCE, so a token that client got for another resource is accepted too' }));
 
   async function serveEndpoint(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const caller = { ...(req.socket.remoteAddress ? { ip: req.socket.remoteAddress } : {}), ...(header(req, 'user-agent') ? { userAgent: header(req, 'user-agent') } : {}), issuer: settings.issuer };
@@ -141,7 +142,7 @@ export function createMcpHttp(options: McpHttpOptions) {
       const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations });
       answer = await server.handle(message);
     } finally { delegated.revoke(); }
-    console.log(JSON.stringify({ level: 'info', event: 'mcp.request', actor: user.id, method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), protocol: modern ? 'stateless' : 'legacy' }));
+    console.log(JSON.stringify({ level: 'info', event: 'mcp.request', actor: user.id, method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), protocol: modern ? 'stateless' : 'legacy', ...(token.audience === 'client' ? { audience: 'client' } : {}) }));
     const code = answer?.error?.code;
     const status = code === undefined ? 200 : modern && code === -32601 ? 404 : modern || [-32020, -32021, -32022].includes(code) ? 400 : 200;
     options.audit?.({ ...caller, user, ...(token.client ? { client: token.client } : {}), method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), status, outcome: status === 200 && answer?.error === undefined && answer?.result?.isError !== true ? 'success' : 'failure', delegation: delegated.token });
