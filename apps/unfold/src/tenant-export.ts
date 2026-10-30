@@ -27,8 +27,12 @@ export type Scoping =
   | { by: 'repository'; column: string }
   | { by: 'parent'; parent: string; column: string };
 
-/** One entity read straight from one table: its columns as camelCase fields, JSON columns parsed, BLOB columns as base64. */
-export type TableEntity = { entity: string; table: string; scope: Scoping; json?: string[]; drop?: string[]; collect?: string; description: string };
+/**
+ * One entity read straight from one table: its columns as camelCase fields, JSON columns parsed, BLOB columns as base64.
+ * Each `credentialUrls` column is written as its origin, with `<field>Redacted: true` and `<field>Fingerprint`, the
+ * SHA-256 in hex of the full stored URL.
+ */
+export type TableEntity = { entity: string; table: string; scope: Scoping; json?: string[]; drop?: string[]; credentialUrls?: string[]; collect?: string; description: string };
 
 /** A table Unfold keeps that the bundle leaves out, and why. */
 export type ExcludedTable = { table: string; reason: string };
@@ -107,7 +111,7 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'intake-messages', table: 'intake_messages', scope: { by: 'parent', parent: 'intake-requests', column: 'request_id' }, description: 'Which mail message belongs to which Request, so replies stay on their Request.' },
   { entity: 'notify-preferences', table: 'notify_preferences', scope: person('user_id'), json: ['body'], description: 'The channels and triggers each person chose to be notified on.' },
   { entity: 'notify-targets', table: 'notify_targets', scope: person('user_id'), drop: ['address_key', 'address'], description: 'Which ntfy topics and Web Push subscriptions each person has, by channel and date. The topic, the push endpoint and its keys are secrets and left out; people subscribe again at the destination.' },
-  { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], collect: 'id', description: 'Outbound webhook subscriptions: the URL, the event types and whether each is active. No signing secret.' },
+  { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], credentialUrls: ['url'], collect: 'id', description: 'Outbound webhook subscriptions: the origin of the receiver URL with a SHA-256 fingerprint of the full URL, the event types and whether each is active. No signing secret, and no URL path or query, which receivers such as Slack and Power Automate use as a credential.' },
   { entity: 'outbound-events', table: 'outbound_events', scope: byTenant('tenant'), json: ['body'], description: 'Webhook events still in the outbox, as the CloudEvents they are sent as. They are signed when sent, so no secret is stored with them.' },
   { entity: 'outbound-deliveries', table: 'outbound_deliveries', scope: { by: 'parent', parent: 'outbound-subscriptions', column: 'subscription_id' }, description: 'Each webhook delivery to a subscription still in the delivery log: its status, attempts and the receiver\'s last answer.' },
 ];
@@ -132,8 +136,8 @@ export const excludedTables: readonly ExcludedTable[] = [
 /** What the bundle never contains, as the manifest states it. */
 export const secretsStatement = {
   exported: false,
-  statement: 'This bundle contains no secrets. Password hashes, sign-in and editor token hashes, access and refresh tokens, encryption keys, the product event actor key, task source and repository credentials, gateway keys, webhook and intake signing secrets and push subscription keys are left out, and every configured secret value is replaced by [redacted] wherever it appears in a record.',
-  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets', 'intake source signing secrets', 'Web Push subscription keys and ntfy topics'],
+  statement: 'This bundle contains no secrets. Password hashes, sign-in and editor token hashes, access and refresh tokens, encryption keys, the product event actor key, task source and repository credentials, gateway keys, webhook and intake signing secrets, push subscription keys and the path and query of webhook receiver URLs are left out, and every configured secret value is replaced by [redacted] wherever it appears in a record.',
+  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets', 'intake source signing secrets', 'Web Push subscription keys and ntfy topics', 'the path and query of webhook receiver URLs'],
 };
 
 /** A person as the bundle holds them: no password hash. */
@@ -212,10 +216,19 @@ function columnSchema(column: Column, json: boolean): Schema {
 /** The JSON Schema of a table entity, from the table's own column definitions. */
 export function tableSchema(db: DatabaseSync, entity: TableEntity, version = 1): Schema {
   const columns = columnsOf(db, entity.table).filter(column => !entity.drop?.includes(column.name));
+  const properties: [string, Schema][] = columns.flatMap((column): [string, Schema][] => {
+    const name = camel(column.name);
+    if (!entity.credentialUrls?.includes(column.name)) return [[name, columnSchema(column, entity.json?.includes(column.name) === true)]];
+    return [
+      [name, { type: 'string', description: 'The origin (scheme, host and port) of the URL. Its path and query are left out because a receiver may use them as a credential.' }],
+      [`${name}Redacted`, { const: true }],
+      [`${name}Fingerprint`, { type: 'string', pattern: '^[0-9a-f]{64}$', description: 'SHA-256, in hex, of the full URL as stored, to match it against a URL configured again at the destination.' }],
+    ];
+  });
   return {
     $schema: schemaUrl, $id: schemaId(entity.entity, version), title: `Unfold ${entity.entity}`, description: entity.description,
-    type: 'object', additionalProperties: false, required: columns.map(column => camel(column.name)),
-    properties: Object.fromEntries(columns.map(column => [camel(column.name), columnSchema(column, entity.json?.includes(column.name) === true)])),
+    type: 'object', additionalProperties: false, required: properties.map(([name]) => name),
+    properties: Object.fromEntries(properties),
   };
 }
 
@@ -340,10 +353,23 @@ class JsonLinesFile {
   }
 }
 
+function urlOrigin(value: string): string {
+  try {
+    const origin = new URL(value).origin;
+    return origin === 'null' ? '[redacted]' : origin;
+  } catch { return '[redacted]'; }
+}
+
 function tableRow(entity: TableEntity, row: Row): Row {
   const out: Row = {};
   for (const [name, value] of Object.entries(row)) {
     if (entity.drop?.includes(name)) continue;
+    if (entity.credentialUrls?.includes(name)) {
+      out[camel(name)] = urlOrigin(String(value));
+      out[`${camel(name)}Redacted`] = true;
+      out[`${camel(name)}Fingerprint`] = createHash('sha256').update(String(value)).digest('hex');
+      continue;
+    }
     out[camel(name)] = value instanceof Uint8Array ? Buffer.from(value).toString('base64') : entity.json?.includes(name) ? parsed(value) : value;
   }
   return out;
