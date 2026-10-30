@@ -21,6 +21,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
+- [Leaving Unfold: export a Tenant](operations/leaving-unfold.md): the export bundle, its formats and how to use it elsewhere
 - [Release procedure](operations/release.md)
 
 ## Integrate

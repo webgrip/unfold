@@ -651,6 +651,18 @@ Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](.
 | `POST /api/ofrep/v1/evaluate/flags` | OFREP 0.4.0 bulk evaluation for the signed-in person or editor: `{context}` → `{flags: [{key, value, reason, variant, metadata}]}` with an `ETag`; `If-None-Match` with that ETag answers 304. Only browser-visible flags are listed. The context's identity attributes (`targetingKey`, `userId`, `role`, `teams`, `tenantId`, `mode`, `labs`, `labsOff`, `flagVariants`) come from the session, and a client may add up to 32 scalar attributes of its own. Needs no `X-Unfold-Request` header |
 | `POST /api/ofrep/v1/evaluate/flags/:key` | OFREP single evaluation: 200 `{key, value, reason, variant, metadata}`, 404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed |
 
+## Tenant export
+
+One export bundles everything Unfold holds for a Tenant ([Leaving Unfold: export a Tenant](../operations/leaving-unfold.md), [`src/tenant-export-jobs.ts`](../../src/tenant-export-jobs.ts)). Every route needs an administrator signed in through the browser (403 `browser_only` for an editor or MCP credential, 403 `forbidden` for another role) and the `tenant.export` flag on (403 `tenant_export_off`). An export is `{id, tenant, state, requestedBy, createdAt, finishedAt, expiresAt, bytes, sha256, rows, error, downloadUrl}`, `state` one of `running`, `ready` or `failed`; a person sees only the exports they started.
+
+| Method and path | Response |
+| --- | --- |
+| `POST /api/admin/tenant-exports` | `{tenant?, confirm}` → 202 `{export}`, running. `tenant` defaults to `default`; `confirm` must repeat it (400 `tenant_export_confirm`). While `tenancy.enforce` is off only `default` exists, and while it is on the caller needs an Admin membership of the Tenant (404 `tenant_not_found` otherwise). 409 `tenant_export_running` while another export runs |
+| `GET /api/admin/tenant-exports` | `{exports}`, newest first |
+| `GET /api/admin/tenant-exports/:id` | `{export}`. 404 `tenant_export_not_found` once it expired or was deleted |
+| `GET /api/admin/tenant-exports/:id/download` | The bundle, `application/gzip`, with `Content-Disposition`, `Content-Length` and `Repr-Digest: sha-256=:<base64>:`. 409 `tenant_export_not_ready` while running or after a failure. Recorded as an Action Record |
+| `DELETE /api/admin/tenant-exports/:id` | `{deleted}`; removes the bundle before it expires. 409 while running |
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.

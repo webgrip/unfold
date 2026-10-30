@@ -189,6 +189,20 @@
         "labs": false
       }
     },
+    "tenant.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Tenant export",
+        "description": "Lets an administrator export everything Unfold holds for a Tenant as one bundle (system ADR-0050 rule 6): a gzip-compressed tar of JSON Lines, one file per entity, a JSON Schema per entity and a manifest with row counts and SHA-256 checksums. No secrets are exported. The export runs as a background job and its download expires after 24 hours. Browser sign-in only; every start, download and deletion is logged and kept as an Action Record.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

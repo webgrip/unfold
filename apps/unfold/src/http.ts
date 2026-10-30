@@ -64,6 +64,7 @@ import { AgentTraceComments } from './agent-trace-comments.ts';
 import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
+import { TenantExports, isTenantExportRoute, tenantExportRoute } from './tenant-export-jobs.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -284,6 +285,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const tenantExports = new TenantExports({
+    config, store, application: { name: 'unfold', version: applicationVersion },
+    secrets: [...secrets, ...(config.repositories ?? []).flatMap(entry => entry.access?.password ? [entry.access.password] : [])],
+    enabled: user => flags.getBooleanValue('tenant.export', false, flagContext(user)),
+    flagDocument: () => flags.exportDocument(),
+    ...(config.ploeg && !ploeg.isDemo ? {
+      deliveryLedger: async (user: User) => ({ window: '30d', rows: (await readDeliveryLedger(ploeg, { window: '30d', teams: (await ploeg.teams(user)).map(team => team.id), calendar: config.acceptanceCalendar })).rows }),
+      workItemsInTenant: (user: User, tenant: string, ids: string[]) => ploeg.reachableWorkItems({ ...user, memberships: [{ kind: 'tenant', tenant, role: 'admin' }] }, ids),
+    } : {}),
+  });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -554,6 +565,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const override = flags.setOverride(flagOverride[1], variant, user.name, reason);
           console.log(JSON.stringify({ level: 'info', event: override ? 'flag.override_set' : 'flag.override_cleared', actor: user.id, 'feature_flag.key': flagOverride[1], variant }));
           return json(res, 200, await adminFlags(user));
+        }
+        if (isTenantExportRoute(path)) {
+          const answer = await tenantExportRoute(tenantExports, { method, path, user, scope: auth.scope(req), body: () => body(req), res });
+          return answer ? json(res, answer.status, answer.body) : undefined;
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
