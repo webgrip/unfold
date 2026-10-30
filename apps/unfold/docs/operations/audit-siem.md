@@ -67,7 +67,7 @@ Check a Tenant's chain with `GET /api/admin/audit/verify?tenant=<id>`. It answer
 
 ## Sign the chain head and copy it off the box
 
-A SIEM copy is one way to keep a copy Unfold cannot edit. The other is a checkpoint: once a day Unfold signs each Tenant's chain head with an [OpenBao](https://openbao.org/) Transit key and writes it to an S3-compatible bucket whose retention Unfold cannot shorten. Someone who rewrites the database can then neither forge the signature (the key never leaves OpenBao) nor remove the copy (the bucket keeps it). [ADR 0060](../adrs/0060-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) records why.
+A SIEM copy is one way to keep a copy Unfold cannot edit. The other is a checkpoint: once a day Unfold signs each Tenant's chain head with an [OpenBao](https://openbao.org/) Transit key and writes it to an S3-compatible bucket whose retention Unfold cannot shorten. Someone who rewrites the database can then neither forge the signature (the key never leaves OpenBao) nor remove the copy (the bucket keeps it). [ADR 0061](../adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) records why.
 
 A checkpoint is one JSON object:
 
