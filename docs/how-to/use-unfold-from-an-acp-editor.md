@@ -3,12 +3,12 @@ type: how-to
 audience: [owner, integrator]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Read apps/unfold/extensions/acp-agent and src/auth.ts; ran apps/unfold/test/acp-agent.test.ts (a fake ACP client against the deterministic demo and a fake Unfold) and test/editor-sign-in.test.ts. Configuration read against the ACP protocol pages and registry schema, the JetBrains Air and AI Assistant ACP pages and the Zed agent settings on 2026-10-30. No real PhpStorm, Air, Zed or Neovim was run, the npm package is not published and the registry entry is not submitted."
+verified_by: "Read apps/unfold/extensions/acp-agent and src/auth.ts; ran apps/unfold/test/acp-agent.test.ts (a fake ACP client against the deterministic demo and two fake Unfolds: listing, resuming, following Runs and spend, questions by form and by /answer, hand-off) and test/editor-sign-in.test.ts. Methods checked against the stable ACP schema v1.28.0; configuration read against the ACP protocol pages and registry schema, the JetBrains Air and AI Assistant ACP pages and the Zed agent settings on 2026-10-30. No real PhpStorm, Air, Zed or Neovim was run, the npm package is not published and the registry entry is not submitted."
 ---
 
 # Use Unfold from PhpStorm and other ACP editors
 
-Use this when you work in PhpStorm, JetBrains Air, Zed, Neovim or another editor that speaks the [Agent Client Protocol](https://agentclientprotocol.com) (ACP), and want to follow your Work Items without leaving it. Result: the editor lists **Unfold** as an agent. In its chat you see what waits for you, ask about a Work Item, steer its session and answer the tool permissions its Run asks for. Every spend and every change waits for your yes in the editor's own permission dialog.
+Use this when you work in PhpStorm, JetBrains Air, Zed, Neovim or another editor that speaks the [Agent Client Protocol](https://agentclientprotocol.com) (ACP), and want to follow the work you handed off without leaving it. Result: the editor lists **Unfold** as an agent. Its chat history lists your handed-off Work Items; in a chat you follow one Run by Run with what it has spent, answer the question it waits on, see its pull request when it is ready, hand a tracker task to a Team, ask about a Work Item and steer its session. Every spend and every change waits for your yes in the editor's own dialog.
 
 The agent is [`unfold-acp-agent`](../../apps/unfold/extensions/acp-agent/README.md). It needs Node.js 22 or later and has no dependencies. It is not on npm yet, so run it from a checkout of this repository (`npm install --global ./apps/unfold/extensions/acp-agent` puts `unfold-acp-agent` on your `PATH`). Once it is published, `npx @webgrip/unfold-acp-agent` does the same.
 
@@ -91,6 +91,10 @@ Set `UNFOLD_WORK_ITEM` (for example `105`) in the agent's environment to bind ev
 
 ## 3. Work with it
 
+### Pick up work you handed off
+
+An editor that shows an agent's past chats (ACP `session/list`) lists one entry per Work Item you handed off, from any channel (Unfold's **Tasks** page, `unfold-mcp`, an editor or a linked Claude Code session) or approved, and per Work Item that waits for you, newest first. Each entry shows its number, its state and its title. Opening one (ACP `session/resume`) makes the chat follow that Work Item; type `/watch` to follow it live. A Work Item belongs to no folder, so every project shows the same list.
+
 A new chat follows nothing yet; its first message lists what waits for you. Pick a Work Item with the **Work Item** option in the chat's settings, or with a command:
 
 | You type | What happens |
@@ -99,22 +103,34 @@ A new chat follows nothing yet; its first message lists what waits for you. Pick
 | `/work 105`, `/work <session id>` or an Unfold link | The chat follows that Work Item, or your workbench session and its Work Item |
 | a message, in **Ask** mode, or `/ask …` | An Unfold Ask about the Work Item. The team never reads it. From the record it is free; when the record does not answer, the editor asks you to allow a model call, naming the most it spends and what is left of the Team's Ask Allowance |
 | a message, in **Steer** mode, or `/steer …` | After you allow it: a message to your own workbench session for this Work Item, which may spend from its budget, or, when Ploeg runs it without one, a note for its next Run, which costs nothing |
-| `/watch` | Streams the session: the agent's messages, its tool calls and checks, and the end of each Run |
+| `/watch` | Follows the work live. For a Work Item Ploeg runs: its Runs as the chat's plan, and each running Run's messages and tool calls, until it waits for you, its pull request is ready or it stops. For your workbench session: its feed |
+| `/answer …` | Answers the question the Work Item waits on, after you allow what restarting it spends |
+| `/handoff board/42 to shop`, or "hand off board/42 to shop" | Hands tracker task 42 of the `board` source to Team `shop`, after you allow it, as Unfold's **Tasks** page does. With one task source, `/handoff 42 shop` is enough. `/watch` then waits for Ploeg to pick it up and follows the Work Item it makes |
 | `/propose …` | Drafts new work. It is **not** recorded: nothing is admitted and nothing runs (see below) |
 
-While you watch, a tool permission the Run's harness asks for appears as the editor's permission dialog with **Allow once** and **Deny**, and goes to Unfold as your answer. The request text is written by the agent, not checked by Unfold, so read it. Only the person who runs the session is asked; there is no "always allow". If you close the dialog without choosing, the request keeps waiting in Unfold. A question the agent asks you is answered in Unfold, from the link the chat shows.
+While you watch, a tool permission the Run's harness asks for appears as the editor's permission dialog with **Allow once** and **Deny**, and goes to Unfold as your answer. The request text is written by the agent, not checked by Unfold, so read it. Only the person who runs the session is asked; there is no "always allow". If you close the dialog without choosing, the request keeps waiting in Unfold.
+
+When the work waits on a question for you, an editor that shows ACP forms asks it in a form. The form quotes the question (the agent's own words) and says what happens after your answer: whether Ploeg resumes the Round that asked or starts over, and the most that spends from the Team's budget. Submitting the form sends the answer and agrees to that; then the chat keeps following. Declining or closing the form answers nothing, and the question stays open in Unfold. In an editor without forms, the chat shows the question and you answer with `/answer`, which asks for your yes first.
+
+When the pull request is ready, the chat says so with its link and what the work spent. Review it in the forge, then merge it or request changes there; Unfold has no accept or request-changes action, so the chat offers none.
+
+### What it spent
+
+The chat reports what the Work Item spent so far, over all its Shifts, as ACP's session cost (`usage_update`, in US dollars), and again whenever it grows; an editor that shows an agent's cost shows it next to the chat. A chat that follows your workbench session without a Work Item reports that session's spend. The chat itself holds no model context, so its context counts are 0. The demo reports no cost.
 
 Stopping a prompt in the editor (ACP `session/cancel`) only stops the chat from following. It never pauses, cancels or restarts the work.
 
-Answering a Work Item's question, restarting, approving, rejecting or stopping it stay in Unfold and in [`unfold-mcp`](ask-from-an-ai-client.md).
+Restarting, approving, rejecting or stopping a Work Item stay in Unfold and in [`unfold-mcp`](ask-from-an-ai-client.md).
 
 ### Delegating from the editor
 
-A delegation from an editor must be a proposed Work Item that waits for a person, never a Run. Ploeg offers no admission that holds a Work Item as proposed yet, so `/propose` only drafts the text and says so. Until then, put the work in your tracker and hand it to a Team from Unfold's **Tasks** page.
+Work that is already a task in your tracker is handed off with `/handoff` (above): Unfold assigns the Team's tracker user and comments on the task, after you allow it, and Ploeg picks it up as it does any hand-off.
+
+New work from a description must be a proposed Work Item that waits for a person, never a Run. Ploeg offers no admission that holds a Work Item as proposed yet, so `/propose` only drafts the text and says so. Until then, put the work in your tracker and hand it off with `/handoff` or from Unfold's **Tasks** page.
 
 ## What leaves your machine
 
-Your questions, steer messages and notes, and only after you confirm the ones that act. The agent reads no files in your project and ignores the MCP servers the editor offers it.
+Your questions, steer messages, notes, answers and hand-offs, and only after you confirm the ones that act. The agent reads no files in your project and ignores the MCP servers the editor offers it.
 
 ## Against the demo
 

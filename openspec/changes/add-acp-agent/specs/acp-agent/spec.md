@@ -112,7 +112,7 @@ agent SHALL relay it once to the session's owner through
 
 A permission prompt that is cancelled or left unanswered SHALL leave the
 request waiting in Unfold. A person who does not own the session MUST NOT be
-asked, and a question, rather than a permission, MUST be answered in Unfold.
+asked.
 
 #### Scenario: The person closes the dialog
 
@@ -130,3 +130,59 @@ instead.
 
 - **WHEN** a person sends `/propose Add VAT per line`
 - **THEN** no Work Item changes state and the agent says nothing was admitted
+
+### Requirement: The person's handed-off work is listed and resumable
+
+The agent SHALL offer `session/list` and `session/resume`. The list SHALL hold
+the Work Items the person handed off on any channel Unfold records, or
+approved, and those that wait for them, each as the session `unfold-work-<id>`
+with its state in the title. Resuming one MUST bind the session to that Work
+Item and change nothing.
+
+#### Scenario: Picking up a hand-off in Zed
+
+- **WHEN** a person handed task `board/42` to Team `shop` on Unfold's Tasks page
+  and opens the agent's history
+- **THEN** the Work Item Ploeg made of it is listed with its state, and opening
+  it follows it
+
+### Requirement: Work Ploeg runs is followed Run by Run, with its spend
+
+While a prompt watches a Work Item without a workbench session, the agent SHALL
+send its Runs as the session's `plan`, stream each running Run's transcript as
+messages and tool calls, and report the Work Item's cumulative spend as
+`usage_update` `cost` in USD whenever it changes. It MUST stop when the Work
+Item waits for a person, its pull request is ready or it settles, and say so
+with the pull request's link. The demo MUST report no cost.
+
+#### Scenario: The pull request is ready
+
+- **WHEN** the followed Work Item reaches `awaiting_review`
+- **THEN** the agent names the pull request link and what the work spent, and
+  says that review happens in the forge
+
+### Requirement: A question is answered in the editor, and only a submitted answer counts
+
+When the followed Work Item or workbench session waits on a question for the
+person, the agent SHALL ask it with an ACP form elicitation if the client
+offers `elicitation.form`, naming what answering restarts and spends; a
+submitted form is the answer and the agreement. A declined or dismissed form
+MUST answer nothing. Without forms, `/answer` SHALL answer after
+`session/request_permission`.
+
+#### Scenario: The person closes the form
+
+- **WHEN** the editor answers the elicitation with `cancel`
+- **THEN** Unfold receives no answer and the agent says the question stays open
+
+### Requirement: A tracker task is handed off from the editor after a yes
+
+`/handoff <source>/<task> to <team>`, or a message "hand off <task> to <team>",
+SHALL use Unfold's tracker hand-off after `session/request_permission`, and
+`/watch` SHALL then wait for Ploeg's Work Item and follow it.
+
+#### Scenario: The person allows the hand-off
+
+- **WHEN** a person sends "hand off board/43 to shop" and allows it
+- **THEN** Unfold assigns the Team's tracker user with a confirmation, and the
+  chat follows the Work Item Ploeg makes of the task

@@ -21,3 +21,11 @@
 - [x] 3.1 `test/acp-agent.test.ts`: a fake ACP client against the demo and a fake Unfold
 - [x] 3.2 `mise run verify` and `mise run docs-check`, output in the pull request
 - [ ] 3.3 Describe the Ploeg proposal admission (design D6) to ploeg-hq once the owner agrees
+
+## 4. Following hand-offs (owner approval 2026-10-30)
+
+- [x] 4.1 `session/list`, `session/resume` and `session/close` over handed-off and waiting Work Items
+- [x] 4.2 Follow a Work Item Ploeg runs: Runs as the plan, transcripts as messages and tool calls, the ready pull request
+- [x] 4.3 `usage_update` with the Work Item's cumulative cost; none for the demo
+- [x] 4.4 Questions by form elicitation, or `/answer` after a permission prompt; a dismissed form answers nothing
+- [x] 4.5 `/handoff` and "hand off <task> to <Team>" through the confirmed tracker hand-off
