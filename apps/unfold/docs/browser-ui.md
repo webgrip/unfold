@@ -345,7 +345,7 @@ The tones mean: `live` running, `attention` needs you, `review` ready for review
 
 ## Content Security Policy
 
-The server sends `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'` on every response ([`src/http.ts`](../src/http.ts)). For UI code that means:
+The server sends `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'` on every response ([`src/security-headers.ts`](../src/security-headers.ts); the full set is under [security headers](operations/live.md#security-headers)). For UI code that means:
 
 * No `style="…"` attribute and no `<style>` element in markup. Set dynamic geometry with SVG presentation attributes (`width`, `x`, `fill`), with `<meter>` or `<progress>`, or through the CSSOM after render (`element.style.setProperty(…)`), as the style guide does for its swatches.
 * No inline script and no `on…=` attribute. Behaviour goes through `data-action`, `data-form` and the registry.

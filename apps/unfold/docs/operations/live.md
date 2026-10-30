@@ -374,6 +374,8 @@ Register the workbench as an OAuth2 application at the estate's Authentik: a pub
 
 Optional keys: `roleClaim` (default `unfold_role`), `groupsClaim` (default `groups`), `roles` mapping each of admin, operator and viewer to group names (defaults `unfold-admins`, `unfold-operators`, `unfold-viewers`), `scopes`, `clientSecretEnv` for a confidential client, and `subjectNamespace`. Who can sign in is decided by the provider: at the second estate only Workspace accounts reach enrolment, and a person who signs in without one of the admitted groups is refused by the workbench with a message naming the group to ask for. The local password stays as the bootstrap administrator's door until you turn [local sign-in](#local-sign-in) off. The editor extension signs in through the same provider: connecting to a workbench with single sign-on offers "Sign in with Authentik", opens the browser on the workbench's own sign-in with a one-time code, and collects its session once the person has signed in, so the editor holds a session for the same identity as the browser and needs no client registration of its own.
 
+The callback checks the authorization response's issuer as RFC 9207 describes, which stops a different provider's answer from being passed off as this one's. When the answer carries `iss`, it must equal the issuer the provider's discovery document names, character for character, with no trailing-slash or case folding. When discovery sets `authorization_response_iss_parameter_supported` and the answer carries no `iss`, it is refused too. Either refusal sends the browser back with `login_error=oidc_issuer` before the code is exchanged. A provider that neither sends `iss` nor advertises the parameter is accepted.
+
 A person's account is identified by the provider's subject together with `subjectNamespace`, which defaults to the issuer. Authentik puts the application slug in the issuer, so renaming the application changes the issuer, and without a namespace every person who signs in afterwards gets a new, empty account. Set `subjectNamespace` to the issuer the accounts were created under, and keep it when the issuer changes again:
 
 ```json
@@ -435,6 +437,38 @@ Local sign-in is the name-and-password door: the bootstrap administrator from `U
 * A local account's browser sessions, editor credentials and delegated `unfold-mcp` credentials stop working at their next request. The accounts and their rows stay in the database, so turning local sign-in back on restores them; a local account is one with a password, and an account created by single sign-on never has one.
 
 Unfold refuses to start with local sign-in off and no `auth.oidc`, because nobody could sign in; the chart refuses to render the same combination.
+
+## Behind a reverse proxy
+
+Behind an ingress controller or load balancer, the socket's peer is the proxy, not the person's browser. Unfold then counts every local sign-in attempt, every editor sign-in start and every Request intake delivery against the proxy's address, so one client that fails ten passwords locks every other client out for five minutes. Set the top-level `trustedProxies` to the addresses and CIDR ranges of the proxies themselves, in the chart under `config.trustedProxies`:
+
+```json
+"trustedProxies": ["10.42.0.0/16"]
+```
+
+When the peer is one of them, Unfold reads `X-Forwarded-For` from the right and takes the first address that is not a trusted proxy. That address keys the local sign-in throttle (10 failed attempts per five minutes), the editor sign-in start limit (20 per ten minutes), the [Request intake rate limit](request-intake.md#rate-limit), and the source address the [security audit](audit-siem.md) records for a browser request and an `unfold-mcp` request over HTTP. Without `trustedProxies`, or from a peer that is not listed, the header is ignored, because any client can write it. List only the proxies, such as the ingress controller's pod network, never `0.0.0.0/0`: a listed range whose other addresses reach Unfold directly lets those clients choose their own address.
+
+## Security headers
+
+Every response starts with these headers; a route may set a stricter `Content-Security-Policy` of its own, such as the sandboxed policy on retained evidence files, but never removes one.
+
+| Header | Value |
+| --- | --- |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `no-referrer` |
+| `X-Frame-Options` | `DENY` |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'` |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains`, only when `baseUrl` is https |
+
+`Strict-Transport-Security` tells a browser to reach the host only over HTTPS for `max-age` seconds, two years by default, and with `includeSubDomains` every host below it too. Unfold sends it when `baseUrl` starts with `https://` and never for an http `baseUrl`, where browsers ignore it. The top-level `hsts` setting changes it; in the chart it is `config.hsts`:
+
+```json
+"hsts": { "maxAge": 63072000, "includeSubDomains": true, "preload": false }
+```
+
+* `"hsts": false` sends no header, for a host whose subdomains still serve plain HTTP; `maxAge` and `includeSubDomains` alone narrow it.
+* `preload` is off unless you set it. It adds `preload`, which asks browser vendors to ship the host in their built-in HTTPS-only list once you submit it at hstspreload.org. That list covers the whole registrable domain and every subdomain, and leaving it takes months, so set it only when the domain's owner decides every host under it is HTTPS for good. Unfold refuses `preload` without `includeSubDomains` or with a `maxAge` under one year.
+* An explicit `hsts` with an http `baseUrl` stops startup.
 
 ## Proving people to Ploeg
 

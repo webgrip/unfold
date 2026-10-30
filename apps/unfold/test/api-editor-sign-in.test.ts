@@ -178,3 +178,14 @@ test('a VS Code sign-in that names its host shows it on the approval page, and a
   const other = await signInForEditor(old.url, idp);
   assert.equal((await request(server.url, `/api/editor-requests/${old.code}`, { cookie: other.cookie })).body.label, 'VS Code');
 });
+
+test('editor sign-in starts are counted per forwarded client behind a trusted proxy, and per socket without one', async t => {
+  const start = (url: string, client: string) => request(url, '/api/auth/editor', { method: 'POST', body: {}, csrf: false, headers: { 'x-forwarded-for': client } });
+  const trusted = (await workbench(t, { configure: config => { config.trustedProxies = ['127.0.0.1', '::1']; } })).server;
+  for (let index = 0; index < 20; index++) assert.equal((await start(trusted.url, '203.0.113.9')).status, 200);
+  assert.equal((await start(trusted.url, '203.0.113.9')).status, 429);
+  assert.equal((await start(trusted.url, '198.51.100.7')).status, 200, 'another client behind the same proxy keeps its own count');
+  const untrusted = (await workbench(t)).server;
+  for (let index = 0; index < 20; index++) assert.equal((await start(untrusted.url, `203.0.113.${index}`)).status, 200);
+  assert.equal((await start(untrusted.url, '198.51.100.7')).status, 429, 'without trustedProxies X-Forwarded-For is ignored');
+});

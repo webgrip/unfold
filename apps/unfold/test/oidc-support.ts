@@ -4,8 +4,9 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { application } from './api-support.ts';
+import type { AppConfig } from '../src/types.ts';
 
-export async function provider(options: { groups?: string[]; role?: string; wrongNonce?: boolean; wrongAudience?: boolean } = {}) {
+export async function provider(options: { groups?: string[]; role?: string; wrongNonce?: boolean; wrongAudience?: boolean; issParameter?: boolean } = {}) {
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const jwk = { ...(publicKey.export({ format: 'jwk' }) as Record<string, unknown>), kid: 'k1', use: 'sig', alg: 'RS256' };
   let issuer = '';
@@ -14,7 +15,7 @@ export async function provider(options: { groups?: string[]; role?: string; wron
     let body = '';
     for await (const chunk of req) body += chunk;
     res.setHeader('content-type', 'application/json');
-    if (req.url === '/.well-known/openid-configuration') { res.end(JSON.stringify({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks` })); return; }
+    if (req.url === '/.well-known/openid-configuration') { res.end(JSON.stringify({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks`, ...(options.issParameter ? { authorization_response_iss_parameter_supported: true } : {}) })); return; }
     if (req.url === '/jwks') { res.end(JSON.stringify({ keys: [jwk] })); return; }
     if (req.url === '/token' && req.method === 'POST') {
       const params = Object.fromEntries(new URLSearchParams(body));
@@ -41,14 +42,14 @@ export async function provider(options: { groups?: string[]; role?: string; wron
   return { issuer, exchanges, pendingNonce, close: () => new Promise<void>(done => server.close(() => done())) };
 }
 
-export async function workbench(t: test.TestContext, options: Parameters<typeof provider>[0] & { subjectNamespace?: string } = {}) {
+export async function workbench(t: test.TestContext, options: Parameters<typeof provider>[0] & { subjectNamespace?: string; configure?: (config: AppConfig) => void } = {}) {
   const idp = await provider(options);
-  const server = await application('live', config => { config.baseUrl = undefined; (config.auth as any).oidc = { issuer: idp.issuer, ...(options.subjectNamespace ? { subjectNamespace: options.subjectNamespace } : {}), clientId: 'unfold', scopes: ['openid', 'email', 'profile'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } }; });
+  const server = await application('live', config => { config.baseUrl = undefined; (config.auth as any).oidc = { issuer: idp.issuer, ...(options.subjectNamespace ? { subjectNamespace: options.subjectNamespace } : {}), clientId: 'unfold', scopes: ['openid', 'email', 'profile'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } }; options.configure?.(config); });
   t.after(async () => { await server.close(); await idp.close(); });
   return { server, idp };
 }
 
-export async function signIn(server: { url: string }, idp: Awaited<ReturnType<typeof provider>>, code = 'good-code') {
+export async function signIn(server: { url: string }, idp: Awaited<ReturnType<typeof provider>>, code = 'good-code', iss?: string) {
   const start = await fetch(`${server.url}/api/auth/oidc`, { redirect: 'manual' });
   assert.equal(start.status, 303);
   const authorize = new URL(start.headers.get('location')!);
@@ -57,7 +58,7 @@ export async function signIn(server: { url: string }, idp: Awaited<ReturnType<ty
   const state = authorize.searchParams.get('state')!;
   const nonce = authorize.searchParams.get('nonce')!;
   idp.pendingNonce.set('*', nonce);
-  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=${code}&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers: { cookie: start.headers.get('set-cookie')!.split(';')[0] } });
+  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=${code}&state=${encodeURIComponent(state)}${iss === undefined ? '' : `&iss=${encodeURIComponent(iss)}`}`, { redirect: 'manual', headers: { cookie: start.headers.get('set-cookie')!.split(';')[0] } });
   return { callback, state, nonce, challenge: authorize.searchParams.get('code_challenge')! };
 }
 

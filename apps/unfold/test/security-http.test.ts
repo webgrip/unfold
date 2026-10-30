@@ -137,3 +137,40 @@ test('runtime credentials are removed from durable artifacts, nested activity, a
   assert.deepEqual(replayed, events);
   assert(!JSON.stringify(replayed).includes(JSON.stringify(secret).slice(1, -1)));
 });
+
+test('local sign-in attempts are counted per forwarded client behind a trusted proxy, and per socket without one', { timeout: testTimeout(15_000) }, async t => {
+  const attempt = (url: string, client: string) => request(url, '/api/login', { method: 'POST', headers: { 'x-forwarded-for': client }, body: { name: 'admin', password: 'wrong-password' } });
+  const trusted = await application('live', config => { config.trustedProxies = ['127.0.0.1', '::1']; });
+  t.after(() => trusted.close());
+  for (let index = 0; index < 10; index++) assert.equal((await attempt(trusted.url, '203.0.113.9')).status, 401);
+  assert.equal((await attempt(trusted.url, '203.0.113.9')).status, 429);
+  assert.equal((await attempt(trusted.url, '198.51.100.7')).status, 401, 'another client behind the same proxy keeps its own count');
+  await login(trusted.url);
+  const untrusted = await application('live');
+  t.after(() => untrusted.close());
+  for (let index = 0; index < 10; index++) assert.equal((await attempt(untrusted.url, `203.0.113.${index}`)).status, 401);
+  assert.equal((await attempt(untrusted.url, '198.51.100.7')).status, 429, 'without trustedProxies X-Forwarded-For is ignored');
+});
+
+const everyResponse: { method?: string; path: string; csrf?: boolean; body?: unknown }[] = [
+  { path: '/' }, { path: '/healthz' }, { path: '/readyz' }, { path: '/api/bootstrap' }, { path: '/api/auth/methods' }, { path: '/api/openapi.yaml' },
+  { path: '/api/does-not-exist' }, { path: '/does-not-exist.js' }, { method: 'POST', path: '/api/sessions', csrf: false }, { method: 'POST', path: '/api/login', body: { name: 'admin', password: 'wrong' } }, { method: 'DELETE', path: '/healthz' },
+];
+
+test('every response carries the security headers, and Strict-Transport-Security only for an https baseUrl', { timeout: testTimeout(15_000) }, async t => {
+  const https = await application('live', config => { config.baseUrl = 'https://unfold.example'; config.hsts = { maxAge: 63_072_000, includeSubDomains: true, preload: false }; });
+  t.after(() => https.close());
+  const plain = await application('live');
+  t.after(() => plain.close());
+  for (const [server, hsts] of [[https, 'max-age=63072000; includeSubDomains'], [plain, null]] as const) {
+    for (const { method, path, csrf, body } of everyResponse) {
+      const { response } = await request(server.url, path, { ...(method ? { method } : {}), ...(csrf === false ? { csrf } : {}), ...(body ? { body } : {}) });
+      const label = `${method ?? 'GET'} ${path} ${response.status}`;
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff', label);
+      assert.equal(response.headers.get('referrer-policy'), 'no-referrer', label);
+      assert.equal(response.headers.get('x-frame-options'), 'DENY', label);
+      assert.match(response.headers.get('content-security-policy') ?? '', /default-src '(self|none)'/, label);
+      assert.equal(response.headers.get('strict-transport-security'), hsts, label);
+    }
+  }
+});

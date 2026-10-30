@@ -90,3 +90,14 @@ test('the admin audit API answers only an administrator of the Tenant asked for,
   assert.deepEqual(read.events.filter(event => event.class_uid === 3006).map(event => event.user.uid).sort(), ['acme-admin', 'both-admin']);
   assert.equal(verifyExported(read.events).ok, true);
 });
+
+test('the audit records the forwarded client as the source address only behind a trusted proxy', async t => {
+  for (const [trusted, expected] of [[true, '203.0.113.9'], [false, '127.0.0.1']] as const) {
+    const app = await application('live', config => { exportOn(config); if (trusted) config.trustedProxies = ['127.0.0.1', '::1']; });
+    t.after(() => app.close());
+    assert.equal((await request(app.url, '/api/login', { method: 'POST', headers: { 'x-forwarded-for': '203.0.113.9' }, body: { name: 'admin', password: 'wrong-password-123456' } })).status, 401);
+    const admin = await login(app.url);
+    const failed = (await lines(app.url, '/api/admin/audit', admin.cookie)).events.find(event => event.class_uid === 3002 && event.status_id === 2);
+    assert.ok(failed.src_endpoint.ip.endsWith(expected), `${trusted}: ${failed.src_endpoint.ip}`);
+  }
+});

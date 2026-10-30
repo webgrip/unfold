@@ -73,6 +73,8 @@ import { AuditTrail } from './audit/service.ts';
 import { TenantExports, isTenantExportRoute, tenantExportRoute } from './tenant-export-jobs.ts';
 import { Notifications } from './notify/service.ts';
 import { IdentityLifecycle } from './identity/lifecycle.ts';
+import { clientAddress } from './client-address.ts';
+import { securityHeaders } from './security-headers.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -366,6 +368,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
     apiUrl: () => loopbackUrl(server.address() as AddressInfo),
     linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
+    trustedProxies: config.trustedProxies,
     audit: entry => audit.mcp(entry),
     version: applicationVersion,
   }) : undefined;
@@ -374,11 +377,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Session not found.');
     return session as Session;
   }
+  const responseHeaders = securityHeaders(config.hsts);
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    for (const [name, value] of Object.entries(responseHeaders)) res.setHeader(name, value);
     try {
       const url = new URL(req.url || '/', 'http://localhost');
       const path = url.pathname;
@@ -398,7 +399,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (method === 'POST' && path === '/api/login') {
         if (!localLoginEnabled(config)) throw localLoginOff();
         const data = await body(req);
-        const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
+        const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', clientAddress(req, config.trustedProxies));
         res.setHeader('Set-Cookie', result.cookie);
         return json(res, 200, { user: result.user });
       }
@@ -406,7 +407,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: localLoginEnabled(config), oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
         const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
-        const started = auth.beginEditor(req.socket.remoteAddress || 'unknown', editorLabel(requested.client, requested.host));
+        const started = auth.beginEditor(clientAddress(req, config.trustedProxies), editorLabel(requested.client, requested.host));
         return json(res, 200, { code: started.code, secret: started.secret, userCode: started.userCode, expiresIn: started.expiresIn, interval: started.interval, url: `${config.baseUrl ?? `http://${req.headers.host}`}/api/auth/oidc?editor=${encodeURIComponent(started.code)}` });
       }
       if (method === 'POST' && editorCollect) {
@@ -426,7 +427,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const denied = url.searchParams.get('error');
         try {
           if (denied) throw Object.assign(new Error(denied), { code: denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied' });
-          const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req));
+          const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req), url.searchParams.get('iss') ?? undefined);
           if (!lifecycle.admit(identity)) throw Object.assign(new Error('The identity provider turned this account off.'), { code: 'account_disabled' });
           const claimedName = identity.email ?? identity.name;
           const name = store.upsertUser({ id: identity.id, name: claimedName, role: identity.role, passwordHash: '', memberships: identity.memberships });

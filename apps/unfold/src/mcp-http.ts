@@ -6,6 +6,7 @@ import { narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
 import type { User, UserRole } from './types.ts';
 import type { McpAuditEntry } from './audit/service.ts';
+import { clientAddress } from './client-address.ts';
 
 /** What the MCP endpoint inside the Unfold server needs from the rest of it. */
 export type McpHttpOptions = {
@@ -26,6 +27,8 @@ export type McpHttpOptions = {
   version: string;
   fetch?: typeof fetch;
   now?: () => number;
+  /** The reverse proxies whose `X-Forwarded-For` names the caller's address in the security audit. */
+  trustedProxies?: readonly string[];
   /** Receives each authenticated request, and each refused token or account, for the security audit. */
   audit?(entry: McpAuditEntry): void;
 };
@@ -86,7 +89,7 @@ export function createMcpHttp(options: McpHttpOptions) {
   if (settings.audience === 'client-id') console.error(JSON.stringify({ level: 'warn', event: 'mcp.client_audience', message: 'UNFOLD_MCP_TOKEN_AUDIENCE=client-id: a token whose aud names a client id in UNFOLD_MCP_CLIENT_IDS is accepted instead of one for UNFOLD_MCP_RESOURCE, so a token that client got for another resource is accepted too' }));
 
   async function serveEndpoint(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const caller = { ...(req.socket.remoteAddress ? { ip: req.socket.remoteAddress } : {}), ...(header(req, 'user-agent') ? { userAgent: header(req, 'user-agent') } : {}), issuer: settings.issuer };
+    const caller = { ...(req.socket.remoteAddress ? { ip: clientAddress(req, options.trustedProxies) } : {}), ...(header(req, 'user-agent') ? { userAgent: header(req, 'user-agent') } : {}), issuer: settings.issuer };
     const refused = (status: number, reason: string, user?: User, client?: string) => options.audit?.({ ...caller, status, outcome: 'failure', reason, ...(user ? { user } : {}), ...(client ? { client } : {}) });
     const authorization = /^Bearer\s+([A-Za-z0-9._~+/-]+=*)\s*$/i.exec(header(req, 'authorization') ?? '');
     if (!authorization) return problem(res, 401, 'unauthorized', 'Sign in to use this MCP server.', { 'WWW-Authenticate': challenge(settings) });

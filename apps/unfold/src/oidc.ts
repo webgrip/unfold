@@ -5,7 +5,7 @@ import { membershipsFromGroups, type Membership } from './tenancy.ts';
 
 export type OidcSettings = { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
 export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string; memberships: Membership[] };
-type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
+type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; authorization_response_iss_parameter_supported?: boolean };
 type Pending = { verifier: string; nonce: string; createdAt: number; browserBinding: string; editor?: string };
 
 const pendingTtlMs = 10 * 60_000;
@@ -131,8 +131,11 @@ export class Oidc {
     return url.toString();
   }
 
-  /** Completes a sign-in: the person's identity, the editor sign-in it was for, and the tokens the provider returned, which only the server ever holds. */
-  async complete(code: string, state: string, browserBinding: string): Promise<OidcIdentity & { editor?: string; tokens?: SignInTokens }> {
+  /**
+   * Completes a sign-in: the person's identity, the editor sign-in it was for, and the tokens the provider returned, which only the server ever holds.
+   * `issuer` is the authorization response's `iss` parameter (RFC 9207), undefined when the response carries none.
+   */
+  async complete(code: string, state: string, browserBinding: string, issuer?: string): Promise<OidcIdentity & { editor?: string; tokens?: SignInTokens }> {
     const settings = this.required();
     const pending = this.pending.get(state);
     if (!browserBinding || pending?.browserBinding !== browserBinding) throw new OidcError(400, 'oidc_state', 'The sign-in attempt was not started in this browser. Start again.');
@@ -140,6 +143,8 @@ export class Oidc {
     if (!pending || Date.now() - pending.createdAt > pendingTtlMs) throw new OidcError(400, 'oidc_state', 'The sign-in attempt expired or was not started here. Start again.');
     if (!/^[A-Za-z0-9._~-]{1,2048}$/.test(code)) throw new OidcError(400, 'oidc_code', 'The identity provider returned an invalid authorization code.');
     const discovery = await this.discover();
+    if (issuer !== undefined && issuer !== discovery.issuer) throw new OidcError(400, 'oidc_issuer', 'The sign-in answer came from another identity provider than the one it was started at. Start again.');
+    if (issuer === undefined && discovery.authorization_response_iss_parameter_supported === true) throw new OidcError(400, 'oidc_issuer', 'The identity provider promises to name itself in its sign-in answer, and this answer does not. Start again.');
     const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: this.redirectUri(), client_id: settings.clientId, code_verifier: pending.verifier });
     if (settings.clientSecret) body.set('client_secret', settings.clientSecret);
     let response: Response;

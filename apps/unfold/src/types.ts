@@ -8,6 +8,7 @@ import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
 import type { IntakeConfig } from './intake/limiter.ts';
+import type { HstsSettings } from './security-headers.ts';
 import type { IdentitySettings } from './identity/settings.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
 import type { BillingSettings } from './billing-export.ts';
@@ -90,6 +91,8 @@ export type AppConfig = {
   outboundEvents?: { allowedPrivateTargets: string[] };
   /** The reverse proxies whose `X-Forwarded-For` names the client: IP addresses and CIDR ranges. Absent trusts none. */
   trustedProxies?: string[];
+  /** `Strict-Transport-Security` on every response. Absent sends none, as for an http `baseUrl`. */
+  hsts?: HstsSettings;
   /** The Request intake's rate limit. */
   intake?: IntakeConfig;
   /** Where accepted Work Items are written as billing lines: the exporter and its settings. Absent means billing is off. */

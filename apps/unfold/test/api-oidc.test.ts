@@ -120,3 +120,26 @@ test('after an issuer rename, a person whose account predates it signs back in t
   assert.equal(bootstrap.body.user.id, formerId);
   assert.equal(bootstrap.body.user.name, 'person@example.com');
 });
+
+test('an authorization response whose iss is not exactly the discovered issuer is refused before its code is exchanged (RFC 9207)', async t => {
+  const { server, idp } = await workbench(t);
+  for (const iss of [`${idp.issuer}/`, idp.issuer.toUpperCase(), idp.issuer.replace('127.0.0.1', 'localhost'), 'https://attacker.invalid', '']) {
+    const refused = await signIn(server, idp, 'good-code', iss);
+    assert.equal(refused.callback.headers.get('location'), '/?login_error=oidc_issuer', JSON.stringify(iss));
+    assert.equal(refused.callback.headers.get('set-cookie'), null);
+  }
+  assert.equal(idp.exchanges.length, 0);
+  const exact = await signIn(server, idp, 'good-code', idp.issuer);
+  assert.equal(exact.callback.headers.get('location'), '/');
+  assert.equal(idp.exchanges.length, 1);
+});
+
+test('a provider that advertises authorization_response_iss_parameter_supported must name itself in every authorization response', async t => {
+  const { server, idp } = await workbench(t, { issParameter: true });
+  const missing = await signIn(server, idp);
+  assert.equal(missing.callback.headers.get('location'), '/?login_error=oidc_issuer');
+  assert.equal(idp.exchanges.length, 0);
+  const named = await signIn(server, idp, 'good-code', idp.issuer);
+  assert.equal(named.callback.headers.get('location'), '/');
+  assert.equal(idp.exchanges.length, 1);
+});

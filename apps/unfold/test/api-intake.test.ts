@@ -10,7 +10,7 @@ import { Store } from '../src/store.ts';
 import { IntakeService, IntakeStore } from '../src/intake/service.ts';
 import { standardWebhookSignature } from '../src/intake/signatures.ts';
 import type { AppConfig, User } from '../src/types.ts';
-import { clientAddress } from '../src/intake/limiter.ts';
+import { clientAddress } from '../src/client-address.ts';
 import { application, login, request } from './api-support.ts';
 
 type Json = Record<string, any>;
