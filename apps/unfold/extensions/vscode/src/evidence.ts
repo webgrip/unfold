@@ -39,7 +39,7 @@ export class EvidenceDocuments implements vscode.TextDocumentContentProvider, vs
     try {
       const artifact = await this.resolver(match[1], match[2]);
       return artifact ? artifactText(artifact) : 'This evidence item is no longer available. Refresh the session.';
-    } catch (error) { return `The evidence could not be loaded: ${error instanceof Error ? error.message : 'unknown error'}`; }
+    } catch (error) { return `The evidence could not be loaded: ${error instanceof Error ? error.message : 'Unfold did not say why.'}`; }
   }
 
   async openArtifact(sessionId: string, artifact: Artifact, options: { line?: number; preview?: boolean } = {}): Promise<vscode.TextEditor> {

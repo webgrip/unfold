@@ -22,7 +22,7 @@ The goal is one loop: create Work Items (units of work), assign them to agents, 
 Quality goals, in priority order:
 
 1. **Bounded spend.** Every Run has a budget and a model key that stops working when the Run ends.
-2. **A pull request is the only output.** Agents push to a leased branch. People merge.
+2. **A pull request is the only output.** An agent pushes only to the branch its Shift holds the Lease on. People merge.
 3. **Recoverable.** A dead worker loses its Lease. The sweep recovers the Run, and a paid step never repeats silently.
 4. **Replaceable parts.** The tracker, forge, harness and model sit behind adapters.
 

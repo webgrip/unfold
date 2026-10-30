@@ -254,7 +254,7 @@ export const scenarios = {
   },
   stalled: {
     label: 'Stalled: silent for seven minutes',
-    description: 'The Run is still leased but has not made a call for seven minutes, 70 % of its 10-minute idle stop. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
+    description: 'The Run is still running but has not made a call for seven minutes, 70 % of its 10-minute idle stop. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
     input: () => {
       const transcript = steady().map(entry => ({ ...entry, at: new Date(Date.parse(entry.at) - 7 * 60000).toISOString() }));
       return { detail: { ...empty, item: item({ lease: { renewedAt: at(-6), expiresAt: at(1) } }), shifts: [shift('171', -14)], runs: [run('1', '171', -13.5, null, { limits: { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: at(-13.5) }, costStatus: 'observed', usage: { inputTokens: 480000, outputTokens: 12000, costUsd: 0.05 } })] }, transcript, now: fixtureNow, allowance };

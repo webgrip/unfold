@@ -109,7 +109,7 @@ export function failure(error: unknown, id: string | undefined, origin: string):
     if (error.status === 404) return id ? `Work Item ${id} was not found, or it is outside the Teams you may read.` : 'Not found, or outside the Teams you may read.';
     if (error.status === 403) return 'Your Unfold user may not read this.';
   }
-  return `Unfold could not answer: ${error instanceof Error ? clip(error.message, 300) : 'unknown error'}`;
+  return `Unfold could not answer: ${error instanceof Error ? clip(error.message, 300) : 'it did not say why.'}`;
 }
 
 /** A Work Item id from an id or an Unfold link ending `#work/184`, or undefined. */

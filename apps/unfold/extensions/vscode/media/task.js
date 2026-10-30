@@ -403,7 +403,7 @@ export function decisionActions(progress) {
   return [{ ...view, primary: true }, ...list.filter(entry => entry !== view).map(entry => ({ ...entry, primary: false }))];
 }
 
-const gateMarks = { live: ['…', 'in progress'], success: ['✓', 'done'], attention: ['!', 'needs attention'], danger: ['✗', 'failed'], neutral: ['–', 'not available'], review: ['✓', 'done'] };
+const gateMarks = { live: ['…', 'in progress'], success: ['✓', 'done'], attention: ['!', 'needs you'], danger: ['✗', 'failed'], neutral: ['–', 'not available'], review: ['✓', 'done'] };
 
 function gate(tone, title, detail = null, extra = null) {
   const [mark, word] = gateMarks[tone] || gateMarks.neutral;

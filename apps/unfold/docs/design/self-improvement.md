@@ -61,7 +61,7 @@ Choose one explicit preparation strategy:
 
 The remote workspace must reach its forge and inference gateway. It must not reach the control-plane state volume, Kubernetes API through a mounted service account, LiteLLM management endpoint or an unrelated client's repository. Qualify these controls on the real cluster; a NetworkPolicy object existing in YAML is not proof of enforcement.
 
-For a private repository, provision a dedicated clone credential in the workspace namespace. The current Kubernetes design exposes it to the clone init container, not the agent process. Do not give the initial dogfood agent an administrator forge token simply to make publishing convenient.
+For a private repository, provision a dedicated clone credential in the workspace namespace. The current Kubernetes design exposes it to the clone init container, not the agent process. Do not give the initial dogfood agent an administrator forge token only to make publishing convenient.
 
 ### 4. Qualify one paid session before assigning product work
 
@@ -179,7 +179,7 @@ Use three complementary layers:
 2. **Candidate repository checks:** the ordinary source test suite, typecheck, lint/check, browser checks and chart checks. Changes to test scripts, CI, assertions and fixtures are included in the human diff and can trigger elevated review.
 3. **Task-specific acceptance evidence:** a reviewer-approved reproduction or external assertion tied to the ticket. For a UI task, browser interaction and screenshot evidence; for lifecycle work, crash/partition tests; for accounting, delayed/unknown spend fixtures.
 
-Protected evaluation code may be stored in a separate repository or a signed immutable artifact derived from a trusted base revision. The important properties are separate authority and explicit revision binding. Keeping every useful test secret is unnecessary; an external evaluator must simply remain outside the current writer's ability to change the result definition.
+Protected evaluation code may be stored in a separate repository or a signed immutable artifact derived from a trusted base revision. The important properties are separate authority and explicit revision binding. Keeping every useful test secret is unnecessary; an external evaluator must remain outside the current writer's ability to change the result definition.
 
 For Unfold, the initial named gates are:
 

@@ -536,7 +536,7 @@ const statusCauses = new Set(['capacity', 'timeout', 'connectivity', 'missing_ex
 function failureMarkup(session) {
   const failure = session.failure;
   if (!failure && !session.blocker && session.status !== 'interrupted') return '';
-  const title = failure ? `${failureStage(failure)} needs attention` : session.status === 'interrupted' ? 'This session stopped' : 'This session needs attention';
+  const title = failure ? `${failureStage(failure)} failed` : session.status === 'interrupted' ? 'This session stopped' : 'This session is blocked';
   const message = failure?.message || session.blocker || 'The runtime stopped before the role finished. Resume to continue; nothing restarts on its own.';
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';

@@ -280,7 +280,7 @@ function systemText(event, session) {
     case 'workspace.ready': return `Workspace ready${data.backend ? ` · ${data.backend}` : ''}`;
     case 'run.started': return `${role} started`;
     case 'budget.increased': return `Additional authorization: ${currency(data.amountUsd)}`;
-    case 'budget.settled': return data.costStatus === 'settled' ? `Spend settled at ${currency(data.spentUsd)}` : `Awaiting gateway settlement · ${currency(data.reservedUsd || 0)} reserved`;
+    case 'budget.settled': return data.costStatus === 'settled' ? `Spend settled at ${currency(data.spentUsd)}` : `Waiting for the gateway to settle the spend · ${currency(data.reservedUsd || 0)} held`;
     case 'review.recorded': return `${data.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${data.byName || event.actor}${data.note ? `: ${data.note}` : ''}`;
     case 'candidate.ready': return 'Review candidate captured';
     case 'candidate.preparing': return 'Capturing the review candidate';
@@ -358,7 +358,7 @@ function failureNotice(session) {
   const failure = session.failure;
   if (!failure && !session.blocker) return null;
   return element('section', { className: 'notice warning execution-failure', role: 'status', 'aria-labelledby': 'failure-title' },
-    element('strong', { id: 'failure-title' }, failure ? `${failureStage(failure)} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'Decision needed'),
+    element('strong', { id: 'failure-title' }, failure ? `${failureStage(failure)} failed` : session.status === 'interrupted' ? 'Execution was interrupted' : 'Decision needed'),
     element('p', { className: 'preserve' }, failure?.message || session.blocker),
     failure?.remediation ? element('p', { className: 'preserve remediation' }, failure.remediation) : null,
     failure?.detail ? element('details', { className: 'failure-detail-wrap' }, element('summary', {}, 'Recorded error output'), element('pre', { className: 'failure-detail', 'aria-label': 'Recorded error output' }, failure.detail)) : null,

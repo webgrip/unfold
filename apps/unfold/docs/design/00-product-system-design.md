@@ -216,7 +216,7 @@ This is the proposed work-order/attempt product view, not a direct replacement f
 
 Use the Unfold HTTP API for the operator control plane and durable evidence. Use runtime adapters for harness-native sessions. Where an agent supports ACP, negotiate its actual capabilities and preserve the distinction between editor interaction and server-owned execution. The VS Code extension does not need to launch a local agent process to supervise a remote Ploeg/Unfold attempt.
 
-MCP is a tool/data interface, not the queue, lease store or budget authority. A future Ploeg/Unfold MCP server can expose narrowly scoped read tools and explicit mutation tools for an already authenticated operator or approved role. It must enforce the same work-order policy as the HTTP API. Never hand a coding agent a generic administrative connector simply because it speaks MCP.
+MCP is a tool/data interface, not the queue, lease store or budget authority. A future Ploeg/Unfold MCP server can expose narrowly scoped read tools and explicit mutation tools for an already authenticated operator or approved role. It must enforce the same work-order policy as the HTTP API. Never hand a coding agent a generic administrative connector only because it speaks MCP.
 
 A2A may eventually help exchange bounded tasks with an independently operated specialist service. It should remain behind an adapter with an explicit identity, data policy, deadline, budget and evidence contract. It is not necessary to implement the first ticket-to-reviewed-change loop. Interoperability is valuable when a tested workflow uses it, not when a product page lists more acronyms.
 

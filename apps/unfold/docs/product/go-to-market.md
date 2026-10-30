@@ -12,7 +12,7 @@ The opening that sets it apart is narrower than "tickets to pull requests":
 
 > The only product where an agency runs agent work for many clients on its own EU infrastructure, across each client's own forge, lets the client approve ready work, and bills per accepted ticket.
 
-Each part of that sentence carries weight, and none should be sold alone. Copilot, Devin, Rovo Dev, GitLab Duo and Tembo already turn tickets into review-ready pull requests; OpenHands already supports Forgejo; Claude Code, Cursor, Codex, Devin and Factory already run agents on the customer's own machines while keeping the control plane and transcripts in their cloud. What nobody else combines is many client tenants under one agency, each on its own forge, a control plane and execution the agency hosts, approval by the agency's client, and a price per accepted ticket. Client approval and per-agency tenancy are designed, not built; the claim is a direction until they are. The evidence is in the [market research](../research/market-landscape.md#412-october-2026-consolidation-and-self-hosted-runners-added-29-october-2026).
+Each part of that sentence carries weight, and none should be sold alone. Copilot, Devin, Rovo Dev, GitLab Duo and Tembo already turn tickets into review-ready pull requests; OpenHands already supports Forgejo; Claude Code, Cursor, Codex, Devin and Factory already run agents on the customer's own machines while keeping the control plane and transcripts in their cloud. What nobody else combines is many client tenants under one agency, each on its own forge, a control plane and execution the agency hosts, a Client Sign-off from the Agency's Client, and a price per accepted Work Item. Client Sign-off and per-Agency tenancy are designed, not built; the claim is a direction until they are. The evidence is in the [market research](../research/market-landscape.md#412-october-2026-consolidation-and-self-hosted-runners-added-29-october-2026).
 
 The intended result is consistent delivery across existing client toolchains: a ticket keeps its business context, execution happens remotely, a person can intervene, and the returned change carries evidence and attributable cost. The ambition is larger than the current prototype. The first sale should be a measured design-partner engagement that helps prove the missing delivery loop.
 
@@ -45,7 +45,7 @@ Deprioritize prospects who only need autocomplete, have no meaningful review pro
 
 **For product owners and client budget holders:** “Your ticket stays the place where scope and acceptance live. You can see progress, blockers and the proposed outcome without understanding an agent transcript.” The proof is accurate tracker state and a clear acceptance decision. A completed agent session must never be presented as a shipped business outcome.
 
-All three stories meet at one work item. Separate marketing promises for each audience will fail if the implementation creates disconnected histories or hides unresolved costs.
+All three stories meet at one Work Item. Separate marketing promises for each audience will fail if the implementation creates disconnected histories or hides unresolved costs.
 
 ## 4. Landing-page copy: safe to use with the release labels intact
 
@@ -128,7 +128,7 @@ Before any paid agent work, complete the applicable prerequisite tickets. M0 ena
 
 | Gate | Pass evidence |
 | --- | --- |
-| Work authority | Every attempt has one source work item, authorized revision and claimant |
+| Work authority | Every attempt has one source Work Item, authorized revision and claimant |
 | Candidate integrity | Reviewer sees exact base/head identity and complete change evidence |
 | Verification | Required independent checks run against the candidate being reviewed |
 | Operator control | Pause/cancel/takeover work without unexplained duplicate execution |
@@ -145,11 +145,11 @@ Test three commercial structures: paid installation plus support, an operated si
 
 A quote should separate discovery/setup, connector work, recurring platform operation, support assumptions, workspace infrastructure and inference. Where possible, inference uses the customer's gateway account with visible attribution. Define whether unused credits expire, who bears failed attempts and which support actions require authorization before they can create further paid work.
 
-For the customer, measure total cost per accepted work item:
+For the customer, measure total cost per accepted Work Item:
 
 ```text
 (all attempt inference + compute + storage + allocated platform operation
- + preparation + review + rework) / accepted work items
+ + preparation + review + rework) / accepted Work Items
 ```
 
 For the supplier, measure contribution after actual delivery labor, support, infrastructure, third-party licenses and the maintenance reserve. Source availability does not make any of these costs disappear. A pilot that requires a custom engineer for every new repository is a service business until onboarding becomes repeatable.

@@ -939,7 +939,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const sources = bootstrap.taskSources ?? await target.taskSources();
     this.assertTarget(target, generation);
     if (!sources.length) { void vscode.window.showInformationMessage('No task sources are connected. Add a Forgejo, GitHub, GitLab, ClickUp or Vikunja source in the workbench server configuration.'); return; }
-    const sourceChoice = value && 'source' in value ? value.source : (await vscode.window.showQuickPick(sources.map(source => ({ label: source.name, description: `${source.provider} → ${source.repositoryId}`, detail: source.executionOwner === 'ploeg' ? source.ploeg ? 'Ploeg owns execution. Import prepares a session for the existing work item.' : 'Ploeg owns execution. A registered tracker target is required for import.' : 'Import a task snapshot into an operator-led session.', source })), { title: 'Linked tasks · Choose a source', matchOnDescription: true, ignoreFocusOut: true }))?.source;
+    const sourceChoice = value && 'source' in value ? value.source : (await vscode.window.showQuickPick(sources.map(source => ({ label: source.name, description: `${source.provider} → ${source.repositoryId}`, detail: source.executionOwner === 'ploeg' ? source.ploeg ? 'Ploeg owns execution. Import prepares a session for the existing Work Item.' : 'Ploeg owns execution. A registered tracker target is required for import.' : 'Import a task snapshot into an operator-led session.', source })), { title: 'Linked tasks · Choose a source', matchOnDescription: true, ignoreFocusOut: true }))?.source;
     if (!sourceChoice) return;
     let page = value?.kind === 'more' ? value.page : 1;
     while (true) {
@@ -965,7 +965,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async previewTask(task: TaskSnapshot, origin: string): Promise<void> {
-    const facts = [`**${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`}** · ${task.status} · repository \`${task.repositoryId}\``, `Imported revision \`${task.revision.slice(0, 12)}\`${task.updatedAt ? ` · updated ${task.updatedAt}` : ''} · workbench ${origin}`, ...(task.ploeg ? [`Ploeg work item ${task.ploeg.workItemId} → ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}`] : []), ...(safeHttpsUrl(task.url) ? [`[Open in tracker](${safeHttpsUrl(task.url)})`] : [])];
+    const facts = [`**${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`}** · ${task.status} · repository \`${task.repositoryId}\``, `Imported revision \`${task.revision.slice(0, 12)}\`${task.updatedAt ? ` · updated ${task.updatedAt}` : ''} · workbench ${origin}`, ...(task.ploeg ? [`Ploeg Work Item ${task.ploeg.workItemId} → ${task.ploeg.expectedTarget.owner}/${task.ploeg.expectedTarget.repo}@${task.ploeg.expectedTarget.baseBranch}`] : []), ...(safeHttpsUrl(task.url) ? [`[Open in tracker](${safeHttpsUrl(task.url)})`] : [])];
     const body = /<[a-z][\s\S]*>/i.test(task.description) ? plainText(task.description) : task.description;
     await this.documents.openText('task-preview', `${task.sourceId}-${task.id}.md`, `# ${task.title.replace(/\n/g, ' ')}\n\n${facts.join('  \n')}\n\n---\n\n${body || '_No description._'}\n`, 'markdown');
   }
