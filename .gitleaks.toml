@@ -1,0 +1,17 @@
+# Secret scanning for this repository (the guard-secrets hook and any gitleaks run).
+# Default rules apply everywhere. Test fixtures are allowlisted by path so example
+# keys, published RFC test vectors and fake receiver URLs live there as plain data,
+# never split into pieces to get past the scan. Real code stays scanned.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures, and value shapes that are never secrets"
+paths = ['''(^|/)test/fixtures/''']
+# LiteLLM key aliases (ploeg-<12 hex>) name a key, they are not the key; LiteLLM's own
+# redacted form (sk-...abcd) shows four characters; tk_vikunja_secret_<n> is a test stand-in.
+regexes = [
+  '''^ploeg-[0-9a-f]{12}$''',
+  '''sk-\.\.\.[A-Za-z0-9]{4}''',
+  '''^tk_vikunja_secret_[0-9]+$''',
+]
