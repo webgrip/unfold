@@ -183,3 +183,17 @@ test('without UNFOLD_CHANNEL=1 the channel server answers but never asks Unfold 
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.deepEqual(unfold.asked.filter(entry => !entry.path.includes('/conversation/')), []);
 });
+
+test('the channel server never offers protocol 2026-07-28, on which Claude Code cannot deliver channel messages', async t => {
+  const listed = /const versions = \[([^\]]*)\]/.exec(await readFile(channel, 'utf8'))?.[1] ?? '';
+  assert.match(listed, /'2025-11-25'/);
+  assert.doesNotMatch(listed, /2026-/, 'only 2025 and older revisions are negotiated');
+  const server = startChannel({ HOME: tmpdir() });
+  t.after(() => server.stop());
+  for (const [id, asked] of [[1, '2026-07-28'], [2, '2027-01-01']] as const) {
+    server.send({ jsonrpc: '2.0', id, method: 'initialize', params: { protocolVersion: asked, capabilities: {} } });
+    assert.equal((await server.next(line => line.id === id))?.result.protocolVersion, '2025-11-25', asked);
+  }
+  server.send({ jsonrpc: '2.0', id: 3, method: 'server/discover', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } });
+  assert.equal((await server.next(line => line.id === 3))?.error.code, -32601, 'nor does it answer the stateless revision\'s discovery');
+});

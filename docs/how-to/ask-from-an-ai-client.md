@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts and apps/unfold/src/auth.ts against the MCP 2026-07-28 versioning, stdio and MRTR pages; ran apps/unfold/test/mcp.test.ts and apps/unfold/test/mcp-actions.test.ts. The Ploeg section was read against apps/ploeg cmd/ploeg-mcp on 2026-10-17. The action tools were not checked against a real client or the homelab. The MCP Apps section was read against apps/unfold/src/mcp-apps.ts and the MCP Apps 2026-01-26 specification, the client table against each linked page on 2026-10-30, and the card was rendered in headless Chromium through a test host; no real client was tried."
+verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts and apps/unfold/src/auth.ts against the MCP 2026-07-28 versioning, stdio and MRTR pages; ran apps/unfold/test/mcp.test.ts and apps/unfold/test/mcp-actions.test.ts. The Ploeg section was read against apps/ploeg cmd/ploeg-mcp on 2026-10-17. The action tools were not checked against a real client or the homelab. The MCP Apps section was read against apps/unfold/src/mcp-apps.ts and the MCP Apps 2026-01-26 specification, the client table against each linked page on 2026-10-30, and the card was rendered in headless Chromium through a test host; no real client was tried. The hand-off task section was read against apps/unfold/src/mcp.ts and Claude Code's MCP tasks pages on 2026-10-30, and apps/unfold/test/mcp-tasks.test.ts passed; Claude Code itself was not tried."
 ---
 
 # Ask Unfold and Ploeg from an AI client
@@ -72,6 +72,17 @@ How your client asks depends on the MCP revision it speaks; `unfold-mcp` serves 
 | `unfold_steer_session` | Sends a `message` to one of your sessions, or pauses, resumes or cancels it | `POST /api/sessions/:id/messages`, `/pause`, `/resume`, `/cancel` |
 | `unfold_message_session` | Sends a message to one of your linked sessions, such as Claude Code on your machine; the Unfold plugin hands it to the session | `POST /api/linked-sessions/:id/messages` |
 | `unfold_answer_permission` | Allows or denies one tool prompt waiting in your own Claude Code session that turned on [remote approval](link-claude-code-sessions.md#approve-a-tool-from-unfold). The question names the tool and the summary the agent wrote. `unfold_permission_requests` lists the waiting prompts. Called by another agent, this is an agent approving a tool for an agent, so read the question before you accept | `POST /api/linked-sessions/:id/permissions/:requestId/answer` |
+
+### Follow a hand-off as a task
+
+When you hand a task off from Claude Code (terminal sessions, version 2.1.304 or later) connected to Unfold over HTTPS, and the `mcp.tasks` flag is on for you, the hand-off becomes an MCP task. The footer shows `1 MCP task`, and `/tasks` follows it:
+
+* Until Ploeg picks the task up, it says so. Then it shows why the Work Item waits and the fix, as `unfold_now` does, with the Unfold link.
+* When an agent asks you a question, Claude Code opens a form with the question, quoted as the agent's text, and what answering does and may spend. Submitting answers it as `unfold_answer_question` would. Declining or pressing `Esc` leaves the question open in Unfold; answer it there or with `unfold_answer_question`. Close `/tasks` to see the form.
+* Once a pull request waits for review, or the Work Item ends, Claude gets the result: the pull request, what was spent and the link. A withdrawn or stale Work Item is reported as a failure.
+* Stopping the task in `/tasks` only stops following it. The Work Item keeps running; stop it with `unfold_stop_work`.
+
+The VS Code extension, the desktop app, subagents and a one-shot `claude -p` get the hand-off's summary as before. How the server side works is in [Serve Unfold's MCP tools over HTTPS](serve-unfold-mcp-over-https.md#follow-a-hand-off-as-a-task). This has been run against a test client only, not Claude Code itself.
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
 
