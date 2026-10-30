@@ -59,14 +59,46 @@ auth:
   localLogin: true
 mode: demo
 baseUrl: ""
+# Live mode: every key of this Secret becomes the workbench's environment (envFrom).
+# credentialRefs and externalSecrets give single credentials their own Secret instead.
 credentialsSecret: unfold-credentials
+# One Secret key per credential, as {ENV_NAME: {name: <Secret>, key: <key in it>}}, each set as that
+# environment variable through secretKeyRef. Live mode only. A variable listed here wins over the same
+# name in credentialsSecret. Example:
+#   credentialRefs:
+#     PLOEG_OPERATOR_UNFOLD_TOKEN: {name: unfold-operator, key: token}
+#     UNFOLD_VERIFIER_TOKEN: {name: unfold-verifier, key: token}
+#     UNFOLD_EXCHANGE_CLIENT_SECRET: {name: unfold-exchange-client, key: client-secret}
+credentialRefs: {}
 # The key that encrypts the workbench's stored secrets (links, relay credentials, sign-in grants):
-# 32 bytes as base64 or hex in UNFOLD_STORE_KEY, from existingSecret/secretKey, or, with existingSecret
-# empty, from credentialsSecret when it holds UNFOLD_STORE_KEY. Without either the key is a file on the
-# data volume next to the database. See apps/unfold/docs/operations/storage.md#the-store-key.
+# 32 bytes as base64 or hex in UNFOLD_STORE_KEY, from existingSecret/secretKey or externalSecrets.storeKey.
+# Without one the key is a file on the data volume next to the database, which one copy of the volume
+# opens together with the data. In live mode the chart refuses that unless allowFileOnDataVolume is true,
+# and the install notes then warn. The default is true so an install without a store key Secret keeps
+# rendering; set false once the key comes from a Secret. See apps/unfold/docs/operations/storage.md#the-store-key.
 storeKey:
   existingSecret: ""
   secretKey: key
+  allowFileOnDataVolume: true
+# ExternalSecret resources (external-secrets.io/v1) for the store key and single credentials, read from
+# secretStoreRef. Each entry renders its own ExternalSecret and Secret <release>-<name>, so each can have
+# its own vault policy and rotation. Values name where a secret lives in the store, never the secret.
+#   externalSecrets:
+#     enabled: true
+#     secretStoreRef: {kind: ClusterSecretStore, name: vault}
+#     storeKey: {key: unfold/store-key, property: key}
+#     credentials:
+#       PLOEG_OPERATOR_UNFOLD_TOKEN: {key: unfold/operator, property: token}
+externalSecrets:
+  enabled: false
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: ""
+  refreshInterval: 1h
+  storeKey:
+    key: ""
+    property: ""
+  credentials: {}
 workspaceNamespace: unfold-workspaces
 createWorkspaceNamespace: true
 workspaceImage: ""

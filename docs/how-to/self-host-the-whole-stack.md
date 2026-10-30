@@ -58,11 +58,25 @@ Create them in the namespace you install into (here `unfold`), through your secr
 | `agent-litellm-master` | `LITELLM_MASTER_KEY` | Ploeg | [Managed workers](../../apps/ploeg/docs/ops/managed-workers.md#configure-the-controller) |
 | `ploeg-worker-signing`, `ploeg-worker-bootstrap` | The worker signing key and bootstrap registry | Ploeg | [Ploeg quickstart, step 5](../../apps/ploeg/docs/quickstart.md#5-create-ploegs-own-secrets) |
 | `ploeg-operator-unfold` | `token`: Unfold's operator consumer token | Ploeg | [Managed execution](../workflows/managed-execution.md#configure-the-services) |
-| `unfold-credentials` | `PLOEG_OPERATOR_UNFOLD_TOKEN` (the same token), and any variable a `tokenEnv` or `clientSecretEnv` below names | Unfold | [Live operation](../../apps/unfold/docs/operations/live.md#first-managed-session) |
+| `unfold-credentials` | `PLOEG_OPERATOR_UNFOLD_TOKEN` (the same token), and any variable a `tokenEnv` or `clientSecretEnv` below names that has no Secret of its own | Unfold | [Live operation](../../apps/unfold/docs/operations/live.md#first-managed-session) |
 | `unfold-store-key` | `key`: 32 random bytes as base64 or hex | Unfold | [The store key](../../apps/unfold/docs/operations/storage.md#the-store-key) |
 | `repository-readonly`, in `unfold-workspaces` | A read credential for the repositories | Workspace clone containers | `workspaceGitSecretName` in [Live operation](../../apps/unfold/docs/operations/live.md#kubernetes) |
 
-With `storeKey.existingSecret` set, the key that encrypts Unfold's stored secrets never touches the data volume, so a copy of the volume or of a backup does not open them.
+With `storeKey.existingSecret` set, the key that encrypts Unfold's stored secrets never touches the data volume, so a copy of the volume or of a backup does not open them. Set `storeKey.allowFileOnDataVolume: false` too, so the chart refuses to render if the key Secret is ever dropped from the values.
+
+Everything in `unfold-credentials` reaches the workbench through one `envFrom`, so whoever reads that Secret reads every credential in it. To split them, give a credential its own Secret and name it in `credentialRefs`: for example the verifier token, so it rotates and is readable apart from the operator token. With External Secrets Operator (v0.17.0 or later, `external-secrets.io/v1`), `externalSecrets` renders those Secrets and the store key's from your vault instead ([chart README](../../apps/unfold/ops/helm/unfold/README.md#secrets-and-the-store-key)):
+
+```yaml
+externalSecrets:
+  enabled: true
+  secretStoreRef: {kind: ClusterSecretStore, name: vault}
+  storeKey: {key: unfold/store-key, property: key}
+  credentials:
+    PLOEG_OPERATOR_UNFOLD_TOKEN: {key: unfold/operator, property: token}
+    UNFOLD_VERIFIER_TOKEN: {key: unfold/verifier, property: token}
+```
+
+With `externalSecrets.storeKey` set, leave `storeKey.existingSecret` empty: the chart refuses both.
 
 ## 4. Write the values
 
@@ -73,6 +87,7 @@ mode: live
 baseUrl: https://unfold.example.com
 storeKey:
   existingSecret: unfold-store-key
+  allowFileOnDataVolume: false
 ingress:
   enabled: true
   className: nginx
@@ -240,7 +255,7 @@ Then:
 | What | How | Restore |
 | --- | --- | --- |
 | Unfold's state: `/data/workbench` on the application volume, with `unfold.sqlite`, its WAL and retained evidence | A SQLite-aware snapshot, or stop the single replica and copy the directory ([Routine intervention and recovery](../../apps/unfold/docs/operations/live.md#routine-intervention-and-recovery)) | [When the check fails](../../apps/unfold/docs/operations/storage.md#when-the-check-fails) |
-| Unfold's store key | In your vault, apart from the database backups. A key still in `unfold.sqlite.key` can be moved there ([Moving the key off the volume](../../apps/unfold/docs/operations/storage.md#moving-the-key-off-the-volume)) | The same key opens every backup taken under it |
+| Unfold's store key | In your vault, apart from the database backups. A key still in `unfold.sqlite.key` can be moved there ([Moving the key off the volume](../../apps/unfold/docs/operations/storage.md#moving-the-key-off-the-volume)), and a new key replaces it with one restart ([Rotating the key](../../apps/unfold/docs/operations/storage.md#rotating-the-key)) | The same key opens every backup taken under it |
 | Ploeg's PostgreSQL | Your PostgreSQL's own backup tool | [Restore Ploeg after a database outage](../../apps/ploeg/docs/how-to/restore-after-a-database-outage.md) |
 | Workspace volumes | Kept for `workspaceRetentionDays` (default 7) after a finished session; a captured candidate lives in Unfold's data directory, not on the volume | Not needed to review or accept a candidate |
 

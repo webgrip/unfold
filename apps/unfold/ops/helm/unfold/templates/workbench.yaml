@@ -120,7 +120,7 @@ spec:
             - name: UNFOLD_ERROR_ENVIRONMENT
               value: {{ .Values.errorReports.environment | quote }}
             {{- end }}
-            {{- if and .Values.delivery.enabled .Values.delivery.publisher.enabled }}
+            {{- if and .Values.delivery.enabled .Values.delivery.publisher.enabled .Values.delivery.publisher.existingSecret }}
             - name: {{ .Values.delivery.publisher.tokenEnv }}
               valueFrom:
                 secretKeyRef:
@@ -134,12 +134,19 @@ spec:
                   name: {{ .Values.decider.existingSecret }}
                   key: {{ .Values.decider.secretKey }}
             {{- end }}
-            {{- if .Values.storeKey.existingSecret }}
+            {{- with fromJson (include "unfold.storeKeyRef" .) }}
             - name: UNFOLD_STORE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.storeKey.existingSecret }}
-                  key: {{ .Values.storeKey.secretKey }}
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- range $env, $ref := fromJson (include "unfold.credentialRefs" .) }}
+            - name: {{ $env }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ref.name }}
+                  key: {{ $ref.key }}
             {{- end }}
             {{- if .Values.featureFlags }}
             - name: UNFOLD_FLAGS_FILE

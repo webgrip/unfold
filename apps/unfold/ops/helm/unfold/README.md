@@ -107,6 +107,52 @@ Live mode reaches services the chart cannot guess, and none of them has a defaul
 
 Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold live](../../../docs/operations/live.md#kubernetes) explains each setting and the credentials Secret.
 
+## Secrets and the store key
+
+In live mode the workbench reads its credentials from the environment. Three values decide where each one comes from:
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `credentialsSecret` | `unfold-credentials` | A Secret mounted with `envFrom`: every key becomes a variable. One Secret for everything is the simplest setup, and anyone who can read it reads every credential. |
+| `credentialRefs` | `{}` | One Secret key per credential, as `{ENV_NAME: {name, key}}`, each set through `secretKeyRef`. Put the operator token, the verifier token, the exchange client secret or the Sentry DSN each in its own Secret, with its own RBAC and rotation. A variable listed here wins over the same name in `credentialsSecret`, which stays mounted. Live mode only. |
+| `storeKey.existingSecret`, `secretKey` | `""`, `key` | The Secret holding `UNFOLD_STORE_KEY`, the 32 bytes that encrypt people's links, sign-in grants and relay credentials. A key kept in `credentialsSecret` is named the same way: `existingSecret: unfold-credentials`, `secretKey: UNFOLD_STORE_KEY`. |
+| `storeKey.allowFileOnDataVolume` | `true` | Without a store key Secret the workbench keeps the key in `unfold.sqlite.key` beside the database, so one copy of the volume or of a backup opens every stored secret. In live mode the chart refuses that when this is `false`; with `true` the install notes print a warning. The default keeps installs without a store key Secret rendering; the [live example](values.live.example.yaml) sets `false`. The demo keeps its key file either way. |
+
+```yaml
+credentialRefs:
+  PLOEG_OPERATOR_UNFOLD_TOKEN: {name: unfold-operator, key: token}
+  UNFOLD_VERIFIER_TOKEN: {name: unfold-verifier, key: token}
+  UNFOLD_EXCHANGE_CLIENT_SECRET: {name: unfold-exchange-client, key: client-secret}
+storeKey:
+  existingSecret: unfold-store-key
+  allowFileOnDataVolume: false
+```
+
+The chart refuses a `credentialRefs` entry for `UNFOLD_STORE_KEY` (set `storeKey`), for a variable another value already sets (`errorReports.sentry.existingSecret`, `delivery.publisher.existingSecret`, `decider.existingSecret` or `extraEnv`), and for a Secret that `workspaceAgentSecrets` lists. A Secret change reaches the workbench at its next start; add a Reloader annotation through `podAnnotations` to restart it on change. [The store key](../../../docs/operations/storage.md#the-store-key) describes moving and rotating the key.
+
+### External Secrets
+
+With `externalSecrets.enabled: true` the chart renders one `ExternalSecret` (`external-secrets.io/v1`, served by External Secrets Operator from v0.17.0) per credential and for the store key ([ExternalSecret API](https://external-secrets.io/latest/api/externalsecret/)). Each fills its own Secret, so a vault policy can grant each path separately. The values name where a secret lives in the store, never the secret.
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `externalSecrets.secretStoreRef.kind`, `name` | `ClusterSecretStore`, `""` | The store every ExternalSecret reads from; `kind` is `SecretStore` or `ClusterSecretStore`. `name` is required when enabled. |
+| `externalSecrets.refreshInterval` | `1h` | How often the operator reads the store again. |
+| `externalSecrets.storeKey` | `{key: "", property: ""}` | The store key's `remoteRef`. A `key` renders the Secret `<release>-store-key` (key `key`) and sets `UNFOLD_STORE_KEY` from it. Refused together with `storeKey.existingSecret`. |
+| `externalSecrets.credentials` | `{}` | `{ENV_NAME: {key, property, version}}`, one `remoteRef` per variable. Each renders the Secret `<release>-<name>`, where `<name>` is the variable in lower case with `_` as `-` and a leading `UNFOLD_` dropped, and sets the variable from its key `ENV_NAME`. Refused together with a `credentialRefs` entry of the same name. |
+
+```yaml
+externalSecrets:
+  enabled: true
+  secretStoreRef: {kind: SecretStore, name: openbao}
+  storeKey: {key: unfold/store-key, property: key}
+  credentials:
+    PLOEG_OPERATOR_UNFOLD_TOKEN: {key: ploeg/unfold-operator, property: token}
+    UNFOLD_VERIFIER_TOKEN: {key: ploeg/unfold-verifier, property: token}
+```
+
+Each ExternalSecret owns its Secret (`creationPolicy: Owner`) and keeps it when the store entry disappears (`deletionPolicy: Retain`), so a deleted vault path does not erase the store key under a running workbench.
+
 ## Sign-in
 
 | Value | Default | Sets |
@@ -134,11 +180,11 @@ Each agent workspace is one pod. `workspaceCpu` and `workspaceMemory` are its li
 
 | Value | Default | Sets |
 | --- | --- | --- |
-| `delivery.verifierTokenEnv` | `UNFOLD_VERIFIER_TOKEN` | The environment variable holding Ploeg's verifier credential. It comes from `credentialsSecret`. |
+| `delivery.verifierTokenEnv` | `UNFOLD_VERIFIER_TOKEN` | The environment variable holding Ploeg's verifier credential. It comes from `credentialsSecret`, or from its own Secret through `credentialRefs` or `externalSecrets.credentials`. |
 | `delivery.policies` | `[]` | `config.delivery.policies`, one per repository. Point `approvedBaseBundle` and `directory` under `delivery.inputs.mountPath`; every `image` must be `name@sha256:…`. |
 | `delivery.inputs.volume` | `{}` | A Kubernetes volume source (for example a read-only `persistentVolumeClaim`) mounted read-only at `delivery.inputs.mountPath` (default `/var/lib/unfold-delivery`), holding approved-base bundles and policy files. The path must be outside `/data`. |
 | `delivery.publisher.enabled` | `false` | Adds `config.delivery.publisher` (`kind: forgejo`, `apiUrl`, `tokenEnv`, optional `username`). |
-| `delivery.publisher.existingSecret`, `secretKey` | `""`, `token` | The dedicated Secret whose key becomes the `delivery.publisher.tokenEnv` variable (default `UNFOLD_PUBLISHER_TOKEN`) in the workbench container only. Required when the publisher is enabled. |
+| `delivery.publisher.existingSecret`, `secretKey` | `""`, `token` | The dedicated Secret whose key becomes the `delivery.publisher.tokenEnv` variable (default `UNFOLD_PUBLISHER_TOKEN`) in the workbench container only. Required when the publisher is enabled, unless `credentialRefs` or `externalSecrets.credentials` holds `tokenEnv`. |
 | `delivery.verifier.namespace` | `unfold-verifier` | Where check pods run; must differ from the release namespace. `createNamespace` (default `true`) creates it with the `restricted` Pod Security level. |
 | `delivery.verifier.runtimeClassName` | `kata` | The check pods' RuntimeClass. |
 | `delivery.verifier.image` | `""` | Required. A digest-pinned image with a statically linked `/bin/busybox`, such as a `busybox:*-musl` digest. |
@@ -152,4 +198,4 @@ In the verifier namespace the chart renders:
 - a NetworkPolicy selecting `dev.webgrip.unfold/network: none` with `policyTypes: [Ingress, Egress]` and no rules, which the verifier checks for before each verification and probes from inside each pod;
 - a Role bound to the workbench service account: `pods` get, create and delete; `pods/attach` and `pods/exec` get and create (the WebSocket upgrade is a GET; newer API servers authorize it as create); `networkpolicies` list. It has no `pods/log`, Secret or list-pods access.
 
-The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`, `delivery.publisher.existingSecret` or `decider.existingSecret`.
+The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`, `delivery.publisher.existingSecret`, `decider.existingSecret`, a `credentialRefs` Secret or a Secret `externalSecrets` renders.

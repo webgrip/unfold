@@ -70,13 +70,51 @@
     "workspaceRetentionDays": { "type": "integer", "minimum": 0, "maximum": 365 },
     "workspaceVolumeDeleteAnnotations": { "type": "object", "maxProperties": 8, "additionalProperties": { "type": "string" } },
     "workspaceAgentSecrets": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" } },
-    "credentialsSecret": { "type": "string", "minLength": 1 },
+    "credentialsSecret": { "type": "string", "minLength": 1, "description": "Live mode: every key of this Secret becomes the workbench's environment through envFrom." },
+    "credentialRefs": {
+      "type": "object",
+      "description": "One Secret key per credential: each entry sets the environment variable it is named after from {name, key} through secretKeyRef, ahead of credentialsSecret. Live mode only.",
+      "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]{0,127}$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "key"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$" },
+          "key": { "type": "string", "pattern": "^[-._a-zA-Z0-9]{1,253}$" }
+        }
+      }
+    },
     "storeKey": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "existingSecret": { "type": "string" },
-        "secretKey": { "type": "string", "minLength": 1 }
+        "secretKey": { "type": "string", "minLength": 1 },
+        "allowFileOnDataVolume": { "type": "boolean", "description": "Live mode without a store key Secret: true keeps the key in a file on the data volume and the install notes warn; false makes the chart refuse to render." }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "ExternalSecret resources (external-secrets.io/v1) for the store key and single credentials. Values name where each secret lives in the store, never the secret itself.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretStoreRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["SecretStore", "ClusterSecretStore"] },
+            "name": { "type": "string", "pattern": "^([a-z0-9]([a-z0-9.-]*[a-z0-9])?)?$" }
+          }
+        },
+        "refreshInterval": { "type": "string", "pattern": "^(0|([0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h))+)$" },
+        "storeKey": { "$ref": "#/definitions/remoteRef" },
+        "credentials": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]{0,127}$" },
+          "additionalProperties": { "$ref": "#/definitions/remoteRef" }
+        }
       }
     },
     "delivery": {"type": "object", "additionalProperties": false, "properties": {"enabled": {"type": "boolean"}, "verifierTokenEnv": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,100}$"}, "policies": {"type": "array", "items": {"type": "object"}}, "inputs": {"type": "object", "additionalProperties": false, "properties": {"mountPath": {"type": "string", "pattern": "^/[^\\s]*$"}, "volume": {"type": "object"}}}, "publisher": {"type": "object", "additionalProperties": false, "properties": {"enabled": {"type": "boolean"}, "apiUrl": {"type": "string", "pattern": "^(https://.+)?$"}, "username": {"type": "string"}, "tokenEnv": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,100}$"}, "existingSecret": {"type": "string"}, "secretKey": {"type": "string", "minLength": 1}}}, "verifier": {"type": "object", "additionalProperties": false, "properties": {"namespace": {"type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"}, "createNamespace": {"type": "boolean"}, "runtimeClassName": {"type": "string", "minLength": 1}, "image": {"type": "string", "pattern": "^$|^[a-zA-Z0-9._:/-]+@sha256:[a-f0-9]{64}$"}, "resources": {"type": "object", "additionalProperties": false, "required": ["requests", "limits"], "properties": {"requests": {"type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": {"cpu": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$"}, "memory": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$"}}}, "limits": {"type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": {"cpu": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$"}, "memory": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$"}}}}}, "timeoutSeconds": {"type": "integer", "minimum": 31, "maximum": 3600}, "networkProbe": {"type": "object", "additionalProperties": false, "properties": {"host": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}}}, "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}}, "affinity": {"type": "object"}, "tolerations": {"type": "array", "items": {"type": "object"}}, "imagePullSecrets": {"type": "array", "items": {"type": "string"}}}}}},
@@ -151,5 +189,17 @@
       "required": ["enabled"]
     }
   },
-  "required": ["mode", "workspaceNamespace", "credentialsSecret"]
+  "required": ["mode", "workspaceNamespace", "credentialsSecret"],
+  "definitions": {
+    "remoteRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Where a secret lives in the store: remoteRef key, and optionally property and version. An empty key renders nothing.",
+      "properties": {
+        "key": { "type": "string" },
+        "property": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    }
+  }
 }
