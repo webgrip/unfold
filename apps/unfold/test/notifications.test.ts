@@ -69,7 +69,7 @@ test('settings name variables, never values, and refuse credentials in the ntfy 
   assert.throws(() => notificationSettings({ ntfy: { server: 'https://user:pw@ntfy.example.org' } }), /without credentials/);
   assert.throws(() => notificationSettings({ ntfy: { server: 'https://ntfy.example.org', tokenEnv: 'tk_abc' } }), /environment variable/);
   assert.throws(() => notificationSettings({ webPush: { subject: 'ops', publicKeyEnv: 'A', privateKeyEnv: 'B' } }), /mailto/);
-  assert.throws(() => notificationSettings({ slack: {} }), /does not take slack/);
+  assert.throws(() => notificationSettings({ email: {} }), /does not take email/);
 });
 
 test('preferences default to nothing and refuse unknown channels, triggers and time zones', async () => {

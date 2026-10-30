@@ -12,6 +12,8 @@ const stateWords = { pending: ['Waiting', 'attention'], delivered: ['Sent', 'suc
 const channelHelp = {
   ntfy: 'Install the ntfy app, add the server below and subscribe to your topic. Anyone who knows the topic can read it, so keep it to yourself; get a new one if it leaked.',
   'web-push': 'Notices arrive in this browser even when Unfold is closed. On iPhone and iPad, add Unfold to the Home Screen first.',
+  slack: 'Notices arrive as direct messages from the Unfold app. Give the email address of your Slack account; Slack then asks you there to confirm the link.',
+  teams: 'In Teams, open Workflows, create one from the template "Send webhook alerts to a chat" or "… to a channel", copy its webhook URL and paste it here. Everyone who can read that chat or channel sees your notices.',
 };
 
 /** Whether this browser can subscribe to Web Push. */
@@ -49,6 +51,19 @@ function channelBlock(channel) {
     const list = subscriptions.length ? `<ul class="sessions-list">${subscriptions.map(entry => `<li><span class="mono">${escape(entry.host)}</span> · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-push-remove', data: { id: entry.id } })}</li>`).join('')}</ul>` : '<p class="meta">No browser subscribed yet.</p>';
     const add = pushSupported() ? button({ label: 'Subscribe this browser', size: 'sm', icon: 'bell', action: 'notify-push-subscribe', busy: view.busy === 'subscribe' }) : '<p class="meta">This browser cannot receive Web Push.</p>';
     return `<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Web Push</p><p class="settings-row-hint">${escape(channelHelp['web-push'])}</p>${list}${add}</div></div>`;
+  }
+  if (channel.id === 'slack') {
+    const linked = channel.linked ? `<p class="meta">Linked to Slack member <span class="mono">${escape(channel.linked.slackUserId)}</span> since ${timeAt(channel.linked.linkedAt)}</p>${button({ label: 'Unlink', size: 'sm', variant: 'danger-ghost', action: 'notify-slack-unlink' })}` : '';
+    const pending = channel.pending ? `<p class="meta">Confirm the link in Slack before ${timeAt(channel.pending.expiresAt)}.</p>` : '';
+    const ask = channel.linked ? '' : `<form data-form="notify-slack-link" class="flag-rule-grid"><div class="field"><label class="field-label" for="notify-slack-email">Slack email address</label><input id="notify-slack-email" name="email" type="email" autocomplete="email" required></div>${button({ type: 'submit', label: 'Link Slack', size: 'sm' })}</form>`;
+    const answers = channel.permissionAnswers ? '<p class="meta">You can review and answer tool prompts of your own sessions from Slack.</p>' : '';
+    return `<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Slack</p><p class="settings-row-hint">${escape(channelHelp.slack)}</p>${linked}${pending}${answers}${ask}</div></div>`;
+  }
+  if (channel.id === 'teams') {
+    const hooks = channel.webhooks ?? [];
+    const list = hooks.length ? `<ul class="sessions-list">${hooks.map(entry => `<li><span class="mono">${escape(entry.host)}</span>${entry.label ? ` · ${escape(entry.label)}` : ''} · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-teams-remove', data: { id: entry.id } })}</li>`).join('')}</ul>` : '<p class="meta">No workflow added yet.</p>';
+    const add = `<form data-form="notify-teams-add" class="flag-rule-grid"><div class="field"><label class="field-label" for="notify-teams-url">Workflow webhook URL</label><input id="notify-teams-url" name="url" type="url" autocomplete="off" required></div><div class="field"><label class="field-label" for="notify-teams-label">Name</label><input id="notify-teams-label" name="label" type="text" maxlength="60" autocomplete="off"></div>${button({ type: 'submit', label: 'Add workflow', size: 'sm' })}</form>`;
+    return `<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Microsoft Teams</p><p class="settings-row-hint">${escape(channelHelp.teams)}</p>${list}${add}</div></div>`;
   }
   return `<p class="meta">${escape(channel.label)}</p>`;
 }
@@ -135,9 +150,13 @@ export default {
     'notify-push-remove': removeSubscription,
     'notify-ntfy-topic': async () => { show(await api(`${path}/channels/ntfy/topic`, { method: 'POST', body: '{}' })); notify('Subscribe to the new topic in the ntfy app.'); },
     'notify-test': async () => { const answer = await api(`${path}/test`, { method: 'POST', body: '{}' }); notify(answer.demo ? 'The demo sends no notifications.' : answer.queued ? 'A test notice is on its way.' : 'No channel to send to: choose one and save first.'); await load(); },
+    'notify-slack-unlink': async () => { show(await api(`${path}/channels/slack/link`, { method: 'DELETE' })); notify('Slack is unlinked.'); },
+    'notify-teams-remove': async button => { show(await api(`${path}/channels/teams/webhooks/${encodeURIComponent(button.dataset.id)}`, { method: 'DELETE' })); notify('The workflow is removed.'); },
     'notify-forget': async () => { show(await api(path, { method: 'DELETE' })); notify('Notifications are off and your choices are forgotten.'); },
   },
   forms: {
+    'notify-slack-link': async data => { show(await api(`${path}/channels/slack/link`, { method: 'POST', body: JSON.stringify({ email: data.email }) })); notify('Slack sent you a message: confirm the link there.'); },
+    'notify-teams-add': async data => { show(await api(`${path}/channels/teams/webhooks`, { method: 'POST', body: JSON.stringify({ url: data.url, label: data.label }) })); notify('The workflow is added. Send a test notice to try it.'); },
     'notify-preferences': async data => {
       const body = preferencesFrom(data, view.data.channels.map(channel => channel.id), view.data.triggers.map(trigger => trigger.id));
       show(await api(path, { method: 'PUT', body: JSON.stringify(body) }));

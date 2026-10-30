@@ -15,8 +15,8 @@ export type PermissionDecision = typeof permissionDecisions[number];
  * `expired` when nobody answered in time.
  */
 export type PermissionState = 'pending' | 'answered' | 'delivered' | 'withdrawn' | 'expired';
-/** Which credential made a request: the browser, an editor credential, or one `unfold-mcp` over HTTP delegated. */
-export type PermissionScope = 'browser' | 'editor' | 'mcp' | undefined;
+/** Which credential made a request: the browser, an editor credential, one `unfold-mcp` over HTTP delegated, or a signed chat interaction of a linked chat account. */
+export type PermissionScope = 'browser' | 'editor' | 'mcp' | 'chat' | undefined;
 
 /** A tool-permission prompt of a Linked Session, as the plugin reported it, and its answer. */
 export type PermissionRequest = {
@@ -163,7 +163,7 @@ export class LinkedPermissions {
     if (!request || request.sessionId !== session.id) return fail(404, 'not_found', 'Permission request not found.');
     if (!this.store.optedIn(session.id)) return fail(409, 'remote_approval_off', 'This session did not turn on remote approval, so Unfold cannot answer its prompts.');
     if (caller.scope === 'editor' && caller.credential && caller.credential === request.credential) return fail(403, 'remote_approval_same_credential', 'The credential your plugin reports with cannot answer its own prompts. Answer in the browser, or give unfold-mcp its own credential.');
-    if ((caller.scope === 'editor' || caller.scope === 'mcp') && !caller.confirmation) return fail(403, 'confirmation_required', 'Answering a prompt from an editor or an agent needs the person’s confirmation.');
+    if ((caller.scope === 'editor' || caller.scope === 'mcp' || caller.scope === 'chat') && !caller.confirmation) return fail(403, 'confirmation_required', 'Answering a prompt from an editor, an agent or a chat needs the person’s confirmation.');
     const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
     if (!permissionDecisions.includes(raw.decision as PermissionDecision)) return fail(400, 'permission_decision', 'decision must be allow or deny. Unfold never answers "always allow".');
     const decision = raw.decision as PermissionDecision;

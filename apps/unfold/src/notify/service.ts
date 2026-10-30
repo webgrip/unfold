@@ -5,6 +5,8 @@ import type { WorkItemFacts } from '../cards/facts.ts';
 import type { TaskTarget } from '../tasks.ts';
 import { ploegEventType } from '../outbound/catalogue.ts';
 import { ChannelRegistry, NtfyChannel, WebPushChannel, type NotificationChannel, type SendOutcome, type Transport } from './channels.ts';
+import { SlackChannel, type SlackPermissions } from './slack.ts';
+import { TeamsChannel } from './teams.ts';
 import { NotifyError, parsePreferences, quietUntil, refuse, type Preferences } from './preferences.ts';
 import { defaultBudgetThresholds, type NotificationSettings } from './settings.ts';
 import { NotifyStore, type OutboxEntry } from './store.ts';
@@ -19,6 +21,7 @@ export const maxNoticeAgeMs = 86_400_000;
 /** How long finished notices are kept for the person's recent list. */
 export const retentionDays = 14;
 const ploegCursor = 'ploeg-events';
+const publicPrefix = '/api/notifications/channels/';
 const permissionCursor = 'linked-permissions';
 const signOffCursor = 'client-sign-offs';
 
@@ -34,18 +37,22 @@ export type NotificationsOptions = {
   settings?: NotificationSettings;
   /** Whether the `notifications.push` flag is on for a person. */
   enabled: (user: User) => Promise<boolean>;
+  /** Whether a channel's own flag, such as `notifications.slack`, is on for a person. Absent, every channel with a flag is off. */
+  flagOn?: (user: User, flag: string) => Promise<boolean>;
+  /** The tool-permission answers a chat channel may give for a session's owner. */
+  permissions?: SlackPermissions;
   /** Whether a person may read a Work Item of `team` with `target`: its Team in their scope and its owner within their reach. */
   canRead: (user: User, team: string, target: TaskTarget | null) => boolean;
   ploeg?: NotifyPloeg;
   baseUrl?: string;
   demo?: boolean;
-  /** Channels to register instead of ntfy and Web Push from `settings`. */
+  /** Channels to register instead of ntfy, Web Push, Slack and Microsoft Teams from `settings`. */
   channels?: NotificationChannel[];
   transport?: Transport;
   clock?: () => number;
 };
 
-type Recipient = { user: User; preferences: Preferences };
+type Recipient = { user: User; preferences: Preferences; channels: Set<string> };
 const reasonOf = (facts: WorkItemFacts | undefined) => facts?.shifts.at(-1)?.closeReason ?? '';
 
 /**
@@ -72,6 +79,8 @@ export class Notifications {
     const channels = options.channels ?? [
       new NtfyChannel(this.store, options.settings?.ntfy, options.transport),
       new WebPushChannel(this.store, options.settings?.webPush, options.transport, process.env, this.clock),
+      new SlackChannel(this.store, options.settings?.slack, { permissions: options.permissions, baseUrl: options.baseUrl, clock: this.clock }),
+      new TeamsChannel(this.store, options.settings?.teams, options.transport),
     ];
     for (const channel of channels) this.registry.register(channel);
   }
@@ -104,15 +113,30 @@ export class Notifications {
     await this.followPloeg();
   }
 
+  /** The channels a person may use now: configured, and with the channel's own flag on for them. */
+  private async usable(user: User): Promise<Set<string>> {
+    const usable = new Set<string>();
+    for (const channel of this.registry.list()) {
+      if (!channel.available()) continue;
+      if (channel.flag && !await (this.options.flagOn?.(user, channel.flag) ?? Promise.resolve(false)).catch(() => false)) continue;
+      usable.add(channel.id);
+    }
+    return usable;
+  }
+
+  private userOf(userId: string): User | undefined {
+    const stored = this.store.store.getUser(userId);
+    return stored ? { id: stored.id, name: stored.name, role: stored.role, ...(stored.memberships ? { memberships: stored.memberships } : {}) } : undefined;
+  }
+
   private async recipients(want: TriggerId, filter: (user: User) => boolean): Promise<Recipient[]> {
     const found: Recipient[] = [];
     for (const { userId, preferences } of this.store.subscribers()) {
       if (!preferences.triggers.includes(want)) continue;
-      const stored = this.store.store.getUser(userId);
-      if (!stored) continue;
-      const user: User = { id: stored.id, name: stored.name, role: stored.role, ...(stored.memberships ? { memberships: stored.memberships } : {}) };
+      const user = this.userOf(userId);
+      if (!user) continue;
       if (!filter(user) || !await this.options.enabled(user).catch(() => false)) continue;
-      found.push({ user, preferences });
+      found.push({ user, preferences, channels: await this.usable(user) });
     }
     return found;
   }
@@ -121,10 +145,9 @@ export class Notifications {
   private queue(recipients: Recipient[], key: string, message: NotificationMessage): number {
     const at = this.now();
     let queued = 0;
-    for (const { user, preferences } of recipients) {
+    for (const { user, preferences, channels } of recipients) {
       for (const id of preferences.channels) {
-        const channel = this.registry.get(id);
-        if (!channel?.available()) continue;
+        if (!channels.has(id)) continue;
         for (const target of this.store.targets(user.id, id)) if (this.store.enqueue(user.id, id, target.id, key, message, at)) queued++;
       }
     }
@@ -217,7 +240,7 @@ export class Notifications {
     for (const row of this.rowsAfter('linked_session_permissions', permissionCursor, 'id, session_id, state, body')) {
       if (row.state !== 'pending') continue;
       const ownerId = String(JSON.parse(String(row.body)).ownerId ?? '');
-      queued += this.queue(await this.recipients('question', user => user.id === ownerId), `question:permission-${row.id}`, permissionMessage(String(row.session_id), this.options.baseUrl));
+      queued += this.queue(await this.recipients('question', user => user.id === ownerId), `question:permission-${row.id}`, permissionMessage(String(row.session_id), this.options.baseUrl, String(row.id)));
     }
     return queued;
   }
@@ -245,6 +268,10 @@ export class Notifications {
     const channel = this.registry.get(entry.channel);
     const target = this.store.target(entry.targetId);
     if (!channel || !target || (entry.message.trigger !== 'test' && !preferences.channels.includes(entry.channel))) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'not_chosen' });
+    if (channel.flag) {
+      const user = this.userOf(entry.userId);
+      if (!user || !(await this.usable(user)).has(channel.id)) return this.store.settle(entry.id, 'dropped', iso, { lastError: 'channel_off' });
+    }
     if (entry.message.trigger !== 'test') {
       const until = quietUntil(preferences.quietHours, at);
       if (until !== null) return this.store.settle(entry.id, 'pending', iso, { nextAt: new Date(until).toISOString() });
@@ -274,13 +301,14 @@ export class Notifications {
     } finally { this.busy.dispatch = false; }
   }
 
-  private view(user: User, enabled: boolean): Record<string, unknown> {
+  private async view(user: User, enabled: boolean): Promise<Record<string, unknown>> {
     const demo = this.options.demo === true;
     if (!enabled) return { enabled: false, demo };
+    const usable = await this.usable(user);
     return {
       enabled: true, demo, triggers,
       preferences: this.store.preferences(user.id),
-      channels: this.registry.list().map(channel => ({ id: channel.id, label: channel.label, available: channel.available(), ...(channel.available() ? channel.describe(user.id) : {}) })),
+      channels: this.registry.list().filter(channel => !channel.flag || usable.has(channel.id)).map(channel => ({ id: channel.id, label: channel.label, available: usable.has(channel.id), ...(usable.has(channel.id) ? channel.describe(user.id) : {}) })),
       recent: this.store.recent(user.id, 20).map(entry => ({ id: entry.id, trigger: entry.message.trigger, title: entry.message.title, channel: entry.channel, state: entry.state, attempts: entry.attempts, createdAt: entry.createdAt, updatedAt: entry.updatedAt, lastError: entry.lastError })),
     };
   }
@@ -293,27 +321,51 @@ export class Notifications {
     const enabled = await this.options.enabled(user).catch(() => false);
     const rest = path.slice('/api/me/notifications'.length).split('/').filter(Boolean);
     const at = this.now();
-    if (!rest.length && method === 'GET') return { status: 200, body: this.view(user, enabled) };
+    if (!rest.length && method === 'GET') return { status: 200, body: await this.view(user, enabled) };
     if (!enabled) return refuse(404, 'notifications_off', 'Notifications are not switched on for you.');
     if (!rest.length && method === 'PUT') {
-      const preferences = parsePreferences(await readBody(), this.registry.available());
+      const preferences = parsePreferences(await readBody(), [...await this.usable(user)]);
       for (const id of preferences.channels) this.registry.get(id)!.enable(user.id, at);
       this.store.setPreferences(user.id, preferences, at);
-      return { status: 200, body: this.view(user, true) };
+      return { status: 200, body: await this.view(user, true) };
     }
-    if (!rest.length && method === 'DELETE') { this.store.forget(user.id); return { status: 200, body: this.view(user, true) }; }
+    if (!rest.length && method === 'DELETE') {
+      for (const channel of this.registry.list()) channel.forget?.(user.id);
+      this.store.forget(user.id);
+      return { status: 200, body: await this.view(user, true) };
+    }
     if (rest.length === 1 && rest[0] === 'test' && method === 'POST') {
       if (this.options.demo) return { status: 200, body: { demo: true, queued: 0, message: 'The demo sends no notifications.' } };
       const preferences = this.store.preferences(user.id);
-      const queued = this.queue([{ user, preferences }], `test:${at}`, testMessage(this.options.baseUrl));
+      const queued = this.queue([{ user, preferences, channels: await this.usable(user) }], `test:${at}`, testMessage(this.options.baseUrl));
       return { status: 202, body: { demo: false, queued } };
     }
     if (rest[0] === 'channels' && rest[1]) {
       const channel = this.registry.get(rest[1]);
-      if (!channel?.route) return refuse(404, 'not_found', 'Unknown notification channel.');
+      if (!channel?.route || (channel.flag && !(await this.usable(user)).has(channel.id))) return refuse(404, 'not_found', 'Unknown notification channel.');
       const answer = await channel.route(user.id, method, rest.slice(2), readBody, at);
-      return { status: answer.status, body: { ...this.view(user, true), result: answer.body } };
+      return { status: answer.status, body: { ...await this.view(user, true), result: answer.body } };
     }
     return refuse(rest.length ? 404 : 405, rest.length ? 'not_found' : 'method', rest.length ? 'Unknown notifications route.' : 'Unsupported method.');
+  }
+
+  /** Whether `path` is a channel's public route, which its provider calls without an Unfold sign-in. */
+  handlesPublic(path: string): boolean { return path.startsWith(publicPrefix); }
+
+  /**
+   * Answers `/api/notifications/channels/<id>/…`, which a channel's provider calls without an Unfold sign-in, such
+   * as Slack's signed interactions. Each channel verifies its provider itself. Not found in the demo.
+   */
+  async publicRoute(method: string, path: string, headers: Record<string, string | string[] | undefined>, rawBody: Buffer): Promise<{ status: number; body: unknown }> {
+    const [id, ...rest] = path.slice(publicPrefix.length).split('/').filter(Boolean);
+    const channel = id ? this.registry.get(id) : undefined;
+    if (!channel?.publicRoute) return refuse(404, 'not_found', 'Unknown notification channel.');
+    if (method !== 'POST') return refuse(405, 'method', 'A channel provider posts to this route.');
+    if (this.options.demo || !channel.available()) return refuse(404, 'not_found', 'Unknown notification channel.');
+    const allowed = async (userId: string) => {
+      const user = this.userOf(userId);
+      return Boolean(user) && await this.options.enabled(user!).catch(() => false) && (await this.usable(user!)).has(channel.id);
+    };
+    return channel.publicRoute({ method, rest, headers, rawBody, at: this.now() }, { allowed });
   }
 }

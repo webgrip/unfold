@@ -369,6 +369,7 @@ export function refuseDemoCredentials(raw: Record<string, unknown>, env: NodeJS.
   for (const source of Array.isArray(raw.taskSources) ? raw.taskSources : []) {
     if (plain(source) && source.tokenEnv !== undefined) throw demoRefusal(`the token of task source ${String(source.id)} (tokenEnv)`, 'Remove its tokenEnv, or set mode: live');
   }
+  if (plain(raw.notifications) && raw.notifications.slack !== undefined) throw demoRefusal('notifications.slack: its bot token and signing secret would act in a real Slack workspace for every visitor', 'Remove notifications.slack, or set mode: live');
   if (plain(raw.reports) && raw.reports.tokenEnv !== undefined) throw demoRefusal('reports.tokenEnv, which files reports into a real tracker', 'Remove reports, or set mode: live');
   const providers = plain(raw.flags) && Array.isArray(raw.flags.providers) ? raw.flags.providers : [];
   if (providers.some(provider => plain(provider) && (provider.apiKeyEnv !== undefined || provider.tokenEnv !== undefined))) throw demoRefusal('a flag provider credential (flags.providers apiKeyEnv or tokenEnv)', 'Remove the credential, or set mode: live');

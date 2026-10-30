@@ -88,7 +88,7 @@ for (const path of files) {
 }
 const flagRegistryPath = resolve(root, 'src/flag-registry.json');
 const flagGuide = resolve(root, 'docs/operations/feature-flags.md');
-const flagCall = /(?:\benabled|\bflag|\bexposed|get(?:Boolean|String|Number|Object)(?:Value|Details)|\.details)\(\s*['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]|flags\?\.\[['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]\]/g;
+const flagCall = /(?:\benabled|\bflag|\bexposed|get(?:Boolean|String|Number|Object)(?:Value|Details)|\.details)\(\s*['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]|flags\?\.\[['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]\]|\breadonly flag = ['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]/g;
 let flagCount = 0;
 if (existsSync(flagRegistryPath)) {
   const registered = JSON.parse(readFileSync(flagRegistryPath, 'utf8')).flags ?? {};
@@ -98,7 +98,7 @@ if (existsSync(flagRegistryPath)) {
     const area = relative(root, path);
     if (!/^(src|public)\//.test(area) || !/\.(ts|js|mjs)$/.test(path) || area.startsWith('public/vendor/')) continue;
     for (const match of readFileSync(path, 'utf8').matchAll(flagCall)) {
-      const key = match[1] ?? match[2];
+      const key = match[1] ?? match[2] ?? match[3];
       if (!used.has(key)) used.set(key, path);
     }
   }
