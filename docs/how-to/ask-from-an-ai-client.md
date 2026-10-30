@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts and apps/unfold/src/auth.ts against the MCP 2026-07-28 versioning, stdio and MRTR pages; ran apps/unfold/test/mcp.test.ts and apps/unfold/test/mcp-actions.test.ts. The Ploeg section was read against apps/ploeg cmd/ploeg-mcp on 2026-10-17. The action tools were not checked against a real client or the homelab."
+verified_by: "Read apps/unfold/src/mcp.ts, apps/unfold/scripts/mcp.ts and apps/unfold/src/auth.ts against the MCP 2026-07-28 versioning, stdio and MRTR pages; ran apps/unfold/test/mcp.test.ts and apps/unfold/test/mcp-actions.test.ts. The Ploeg section was read against apps/ploeg cmd/ploeg-mcp on 2026-10-17. The action tools were not checked against a real client or the homelab. The MCP Apps section was read against apps/unfold/src/mcp-apps.ts and the MCP Apps 2026-01-26 specification, the client table against each linked page on 2026-10-30, and the card was rendered in headless Chromium through a test host; no real client was tried."
 ---
 
 # Ask Unfold and Ploeg from an AI client
@@ -74,6 +74,39 @@ How your client asks depends on the MCP revision it speaks; `unfold-mcp` serves 
 | `unfold_answer_permission` | Allows or denies one tool prompt waiting in your own Claude Code session that turned on [remote approval](link-claude-code-sessions.md#approve-a-tool-from-unfold). The question names the tool and the summary the agent wrote. `unfold_permission_requests` lists the waiting prompts. Called by another agent, this is an agent approving a tool for an agent, so read the question before you accept | `POST /api/linked-sessions/:id/permissions/:requestId/answer` |
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
+
+## See a Work Item as a card
+
+Some AI clients can draw interactive panels inside the chat. The open standard for this is [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx), stable since 26 January 2026. When your client supports it, `unfold_get_work` shows a card instead of only text. The card holds:
+
+- the state and why the Work Item waits, with the fix;
+- the question the agent asked;
+- links to the pull request and to Unfold;
+- the last five Runs;
+- spend against the latest Shift's budget, in `US$ 1.234,50` form.
+
+`unfold_now` shows the list of what waits for you, and clicking an item opens its card. Clients without MCP Apps get the same text and structured answers as before.
+
+From the card you can:
+
+- **Ask** a question. It is answered free from the record when the record answers it. Otherwise the card offers **Ask a model…**.
+- **Answer** the question the Work Item waits on.
+- **Leave a note** for the next Run.
+- **Approve** a proposal.
+
+These buttons call the same tools the model calls, and each tool asks you to confirm in your client as described in [Act on work](#act-on-work). The card never confirms for you. If your client runs the card's call without showing you the question, the card says nothing changed and gives the Unfold link. The card loads nothing from the network: its HTML, styles and script are all inline, and its Content Security Policy blocks every connection ([contract](../../apps/unfold/docs/contracts/api.md#mcp-apps)).
+
+Which clients render it, as of 30 October 2026. "Verified" means the client's own documentation says it supports MCP Apps. No client has been tried against a real Unfold yet. The card itself was only rendered in a test host in headless Chromium.
+
+| Client | Renders MCP Apps | Reaches `unfold-mcp` | Source |
+| --- | --- | --- | --- |
+| Claude (claude.ai, Desktop, iOS, Android) | Yes, verified | Over HTTPS as a connector. claude.ai cannot reach `localhost`. Whether Claude Desktop renders apps from a local stdio server is not confirmed | [Claude blog, 26 January 2026](https://claude.com/blog/interactive-tools-in-claude), [Help Center](https://support.claude.com/en/articles/13454812-use-interactive-connectors-in-claude) |
+| ChatGPT | Yes, verified: it implements MCP Apps and also reads `openai/outputTemplate` | Over HTTPS, or through its Secure MCP Tunnel | [MCP Apps in ChatGPT](https://developers.openai.com/apps-sdk/mcp-apps-in-chatgpt), [Connect from ChatGPT](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) |
+| VS Code (GitHub Copilot Chat) | Yes, verified, since 1.109 | Over HTTPS. Over stdio is not confirmed | [VS Code blog, 26 January 2026](https://code.visualstudio.com/blogs/2026/01/26/mcp-apps-support), [1.109 release notes](https://code.visualstudio.com/updates/v1_109) |
+| Claude Code | No, per the MCP client matrix | Text answers as before | [MCP client matrix](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/extensions/client-matrix.mdx) |
+| Goose, Cursor, Microsoft 365 Copilot, Postman, MCPJam | Listed in the MCP client matrix; not confirmed in each client's own documentation | Not confirmed | [MCP client matrix](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/extensions/client-matrix.mdx) |
+
+Over HTTPS, a client that speaks a 2025 revision gets the card only when it declared MCP Apps in `initialize` within the last 24 hours. The same Unfold process must also have seen that `initialize`. Reconnecting the client brings the card back after a restart.
 
 ## Ploeg
 

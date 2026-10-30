@@ -627,3 +627,32 @@ test('ping belongs to the 2025 revisions: a 2025-11-25 client pings, a 2026-07-2
   assert.equal(both.headers.get('mcp-session-id'), null);
   assert.equal((await post(unfold.url, {}, { token: token(), method: 'DELETE' })).status, 405, 'there is no session to delete');
 });
+
+test('over HTTP, MCP Apps reaches only clients that declare it: per request for 2026-07-28, and remembered from initialize for 2025', async t => {
+  const { unfold, token } = await served(t);
+  const ui = { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } };
+  const viewOf = (answer: { json: any }) => answer.json.result.tools.find((tool: { name: string }) => tool.name === 'unfold_get_work')._meta?.ui?.resourceUri;
+
+  const discovered = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta(ui) } }, { token: token() });
+  assert.deepEqual(discovered.json.result.capabilities.extensions, { 'io.modelcontextprotocol/ui': {} });
+  assert.equal(viewOf(await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: { _meta: meta(ui) } }, { token: token() })), 'ui://unfold/work-item');
+  assert.equal(viewOf(await post(unfold.url, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, { token: token() })), undefined);
+  const read = { jsonrpc: '2.0', id: 4, method: 'resources/read', params: { uri: 'ui://unfold/work-item', _meta: meta(ui) } };
+  const unnamed = await post(unfold.url, read, { token: token() });
+  assert.equal(unnamed.status, 400);
+  assert.equal(unnamed.json.error.code, -32020, 'resources/read names its URI in Mcp-Name');
+  const named = await post(unfold.url, read, { token: token(), headers: { 'mcp-name': 'ui://unfold/work-item' } });
+  assert.equal(named.status, 200, named.text);
+  assert.equal(named.json.result.contents[0].mimeType, 'text/html;profile=mcp-app');
+
+  const legacy = (id: number, method: string, agent: string, params?: Record<string, unknown>) => post(unfold.url, { jsonrpc: '2.0', id, method, ...(params ? { params } : {}) }, { token: token(), version: '2025-11-25', headers: { 'user-agent': agent } });
+  assert.equal(viewOf(await legacy(5, 'tools/list', 'host-a')), undefined, 'nothing is assumed before initialize');
+  const init = await legacy(6, 'initialize', 'host-a', { protocolVersion: '2025-11-25', capabilities: ui, clientInfo: { name: 'host-a', version: '1' } });
+  assert.deepEqual(init.json.result.capabilities.extensions, { 'io.modelcontextprotocol/ui': {} });
+  assert.equal(viewOf(await legacy(7, 'tools/list', 'host-a')), 'ui://unfold/work-item', 'a later stateless request of the same client gets the view');
+  assert.equal((await legacy(8, 'resources/list', 'host-a')).json.result.resources.length, 2);
+  assert.equal(viewOf(await legacy(9, 'tools/list', 'host-b')), undefined, 'another client of the same person does not');
+  await legacy(10, 'initialize', 'host-a', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'host-a', version: '1' } });
+  assert.equal(viewOf(await legacy(11, 'tools/list', 'host-a')), undefined, 'initializing without the extension forgets it');
+  assert.equal((await legacy(12, 'resources/list', 'host-a')).json.error.code, -32601);
+});
