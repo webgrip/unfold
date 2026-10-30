@@ -230,6 +230,20 @@
         "client": false,
         "labs": false
       }
+    },
+    "events.webhooks": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Outbound webhooks",
+        "description": "Lets an administrator subscribe a URL to Unfold's product events, delivered as signed CloudEvents over Standard Webhooks from a durable outbox with retries (docs/operations/outbound-events.md). Evaluated per Tenant on the server: the context carries tenantId and a targetingKey of tenant:<id>. While it is off for a Tenant, Unfold refuses new subscriptions there and queues and sends nothing for it.",
+        "client": false,
+        "labs": false
+      }
     }
   }
 }
