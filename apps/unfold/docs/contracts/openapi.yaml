@@ -2400,9 +2400,11 @@ paths:
                 title: { type: string }
                 brief: { type: string, minLength: 1, maxLength: 20000 }
                 requestId: { type: string }
+                context: { $ref: '#/components/schemas/LinkedHandoffContext' }
       responses:
         '201': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -2417,7 +2419,7 @@ paths:
       x-unfold-role: viewer
       responses:
         '200':
-          description: '`{workItems: [{id, title, state, available, reason}]}`'
+          description: '`{workItems: [{id, title, state, team, baseBranch, budgetUsd, available, reason}]}`'
           content:
             application/json:
               schema: { type: object, properties: { workItems: { type: array, items: { type: object } } } }
@@ -2431,7 +2433,7 @@ paths:
       tags: [Linked Sessions]
       operationId: handLinkedSessionToPloeg
       summary: 'Let Ploeg finish this'
-      description: 'Requeues the Work Item from Round 1 with a note naming the session''s branch, last commit and pull request. Owner or administrator, on a Work Item the session is linked to (else 409 `handoff_not_linked`).'
+      description: 'Requeues the Work Item from Round 1 with a note naming the session''s branch, last commit and pull request, or, with `context` from `/unfold:handoff`, the pushed hand-off branch, counts and the session''s findings as untrusted notes. Owner or administrator, on a Work Item the session is linked to (else 409 `handoff_not_linked`); with `context`, owner only. An editor credential needs `X-Unfold-Confirmation` (else 403 `confirmation_required`).'
       x-unfold-role: viewer
       security:
         - { sessionCookie: [], unfoldRequest: [] }
@@ -2440,9 +2442,11 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, properties: { commandId: { type: string } } }
+            schema: { type: object, properties: { commandId: { type: string }, context: { $ref: '#/components/schemas/LinkedHandoffContext' } } }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -5348,6 +5352,27 @@ components:
         name: { type: string }
         role: { type: string, enum: [admin, operator, viewer] }
         memberships: { type: array, items: { type: object } }
+    LinkedHandoffContext:
+      type: object
+      description: 'What `/unfold:handoff` found in the person''s checkout. Never the diff itself.'
+      properties:
+        branch: { type: string, description: 'The branch the work was pushed to, or empty when nothing was pushed.' }
+        commit: { type: string, pattern: '^([0-9a-f]{40}|[0-9a-f]{64})?$' }
+        base: { type: string }
+        baseCommit: { type: string, pattern: '^([0-9a-f]{40}|[0-9a-f]{64})?$' }
+        sessionBranch: { type: string }
+        commits: { type: integer, minimum: 0 }
+        uncommitted: { type: boolean }
+        files: { type: integer, minimum: 0 }
+        insertions: { type: integer, minimum: 0 }
+        deletions: { type: integer, minimum: 0 }
+        untracked: { type: integer, minimum: 0 }
+        findings:
+          type: object
+          properties:
+            tried: { type: array, maxItems: 8, items: { type: string } }
+            hypotheses: { type: array, maxItems: 8, items: { type: string } }
+            left: { type: array, maxItems: 8, items: { type: string } }
     Session:
       type: object
       description: 'A public session view. Every session carries both `teamId` and the deprecated `crewId`.'
