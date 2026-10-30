@@ -128,8 +128,10 @@ function safeUrl(value: string | undefined, base?: string): string | undefined {
 }
 
 function wrap(marker: string, inner: string): string {
-  const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(inner)!;
-  return match[2] ? `${match[1]}${marker}${match[2]}${marker}${match[3]}` : inner;
+  const body = inner.trim();
+  if (!body) return inner;
+  const start = inner.length - inner.trimStart().length;
+  return `${inner.slice(0, start)}${marker}${body}${marker}${inner.slice(start + body.length)}`;
 }
 
 function codeSpan(text: string): string {
@@ -279,7 +281,7 @@ export function htmlToMarkdown(html: string, base?: string, dialect: MarkdownDia
 
 /** Reports whether tracker text contains HTML markup rather than plain text or Markdown. */
 export function looksLikeHtml(text: string): boolean {
-  return /<\/?(?:p|br|div|span|strong|b|em|i|s|u|code|pre|ul|ol|li|h[1-6]|blockquote|a|hr|img|table|tr|td|th|label|input)(?:\s[^>]*)?\/?>/i.test(text);
+  return /<\/?(?:p|br|div|span|strong|b|em|i|s|u|code|pre|ul|ol|li|h[1-6]|blockquote|a|hr|img|table|tr|td|th|label|input)(?:\s[^<>]*)?\/?>/i.test(text);
 }
 
 /**

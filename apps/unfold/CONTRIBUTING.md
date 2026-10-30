@@ -28,6 +28,8 @@ rather than after.
 
 Follow [How work on Unfold is done](../../docs/contributing/way-of-working.md). `mise run verify` from the repository root runs every gate CI runs, including this application's. Read [AGENTS.md](AGENTS.md) for how this application expects work to be done, and [docs/adrs/](docs/adrs/README.md) for decisions that are already settled: an ADR is the place to argue with one, not a pull request that quietly reverses it.
 
+[`test/fuzz.test.ts`](test/fuzz.test.ts) runs property-based tests ([fast-check](https://fast-check.dev/)) over the parsers that read untrusted input: webhook signatures, inbound mail, SCIM filters, Markdown and transcripts, and every route in the OpenAPI description. Each property runs 200 random cases with a new seed; `UNFOLD_FUZZ_RUNS=5000` runs more, and a failure prints the seed and path that `UNFOLD_FUZZ_SEED` replays.
+
 ## Reporting something
 
 Open an issue on [the project forge](https://forgejo.webgrip.dev/webgrip/unfold) and choose the

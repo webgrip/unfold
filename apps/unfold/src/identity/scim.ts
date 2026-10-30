@@ -123,12 +123,18 @@ function userFields(data: Record<string, unknown>, base?: UserFields): UserField
   };
 }
 
-type Filter = { field: string; value: string };
+/** One SCIM filter Unfold supports: an attribute equal to a value. */
+export type ScimFilter = { field: string; value: string };
 
-function parseFilter(raw: string | null, fields: Record<string, string>): Filter | undefined {
+/**
+ * Reads a SCIM `filter` of the one form Unfold supports, `<attribute> eq "<value>"`, where `fields` maps each
+ * lower-cased attribute to the field it filters. Undefined without a filter; anything else throws a 400
+ * `invalidFilter` error.
+ */
+export function parseFilter(raw: string | null, fields: Record<string, string>): ScimFilter | undefined {
   if (raw === null || raw.trim() === '') return undefined;
   const match = /^\s*([A-Za-z][\w.$:-]*)\s+eq\s+"((?:[^"\\]|\\.){0,512})"\s*$/i.exec(raw);
-  const field = match ? fields[match[1].toLowerCase()] : undefined;
+  const field = match && Object.hasOwn(fields, match[1].toLowerCase()) ? fields[match[1].toLowerCase()] : undefined;
   if (!match || !field) return fail(400, `Only "<attribute> eq \\"value\\"" filters on ${Object.keys(fields).join(', ')} are supported.`, 'invalidFilter');
   return { field, value: match[2].replace(/\\(.)/g, '$1') };
 }

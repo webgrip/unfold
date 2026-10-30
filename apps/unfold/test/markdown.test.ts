@@ -56,6 +56,15 @@ test('HTML detection distinguishes tracker markup from plain text and Markdown',
   assert(looksLikeHtml('<ul data-type="taskList"><li>x</li></ul>'));
   assert(!looksLikeHtml('Plain text with a < b and **Markdown**'));
   assert(!looksLikeHtml('Use decimal totals.\n\n<script>alert(1)</script>'));
+  assert(looksLikeHtml('<a href="https://x.example/">x</a>'));
+});
+
+test('HTML detection and emphasis around long line breaks stay linear', () => {
+  const started = threadCpuMilliseconds();
+  assert(!looksLikeHtml('<p '.repeat(200_000)));
+  assert.equal(htmlToMarkdown(`<b>a${'<br>'.repeat(60_000)}b</b>`).startsWith('**a'), true);
+  assert.equal(htmlToMarkdown('<b>  a  </b>x'), '**a** x');
+  assert(threadCpuMilliseconds() - started < scaledTimeout(2000), `took ${Math.round(threadCpuMilliseconds() - started)} ms of CPU`);
 });
 
 const { markdown: render } = await import(new URL('../public/core/markdown.js', import.meta.url).href) as { markdown: (text: string) => string };

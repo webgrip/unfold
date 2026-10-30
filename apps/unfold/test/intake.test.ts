@@ -6,6 +6,7 @@ import { applies, applyMapping, resolvePointer, validateMapping, MappingError } 
 import { intakeTemplate, intakeTemplates } from '../src/intake/templates.ts';
 import { intakeVerifier, standardWebhookSignature } from '../src/intake/signatures.ts';
 import { htmlToText, mailbox, parseInboundJson, parseMime, withoutQuote } from '../src/intake/mail.ts';
+import { scaledTimeout, threadCpuMilliseconds } from './timeframes.ts';
 
 const payloads = JSON.parse(readFileSync(new URL('./fixtures/intake/payloads.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
@@ -208,4 +209,33 @@ test('the Postmark inbound JSON and Unfold\'s own mail JSON parse like raw MIME'
   assert.equal(parseInboundJson({ hello: 'world' }), undefined);
   assert.equal(parseInboundJson({ raw: 'From: a@b.example\r\nSubject: wrapped\r\n\r\nbody' })?.subject, 'wrapped');
   assert.deepEqual(mailbox('jane@example.com (Jane Doe)'), { name: 'Jane Doe', email: 'jane@example.com' });
+});
+
+test('hostile HTML and sender addresses parse in time linear in their length', () => {
+  const started = threadCpuMilliseconds();
+  const size = 400_000;
+  const fill = (piece: string) => piece.repeat(Math.ceil(size / piece.length));
+  for (const piece of ['<a href="https://x.example/">', '<a', '<script>', '<style ', '<!--', '<', '</script ', '<a href=\'x\'></a ', '<br', '&lt;']) {
+    assert.doesNotMatch(htmlToText(fill(piece)), /<script|<a\b/i, piece);
+    parseMime(`From: x@example.com\r\nContent-Type: text/html\r\n\r\n${fill(piece)}`);
+  }
+  for (const piece of ['a', 'a@', '<a@', '<', '(', '<a@b', '"']) mailbox(fill(piece));
+  const spent = threadCpuMilliseconds() - started;
+  assert(spent < scaledTimeout(3000), `took ${Math.round(spent)} ms of CPU`);
+});
+
+test('HTML to text keeps links, drops raw-text elements and leaves unclosed ones as text', () => {
+  assert.equal(htmlToText('<p>See <a href="https://x.example/a">the <b>page</b></a> or <a href="https://x.example/b">https://x.example/b</a>.</p>'), 'See the page (https://x.example/a) or https://x.example/b.');
+  assert.equal(htmlToText('<a href="mailto:a@b.example">mail</a> <a href=\'/relative\'>rel</a>'), 'mail rel');
+  assert.equal(htmlToText('<STYLE>p{}</style ><SCRIPT type=x>a()</SCRIPT>kept'), 'kept');
+  assert.equal(htmlToText('before<script>after'), 'beforeafter');
+  assert.equal(htmlToText('<a href="https://x.example/">never closed'), 'never closed');
+  assert.equal(htmlToText('1 < 2 and 3 > 2<br/>x'), '1 2\nx');
+  assert.equal(htmlToText('a<!-- never closed <b>bold</b>'), 'a', 'an unclosed comment runs to the end, as in a browser');
+  assert.equal(htmlToText('<ul><li>one<li>two</ul>'), '- one\n- two');
+  assert.deepEqual(mailbox('"Smith, J" <J@Example.com> <k@example.com>'), { name: 'Smith, J', email: 'j@example.com' });
+  assert.deepEqual(mailbox('<not an address> Jane <jane@example.com>'), { name: '<not an address> Jane', email: 'jane@example.com' });
+  assert.deepEqual(mailbox('reach me at (Jane) jane@example.com, thanks'), { name: 'Jane', email: 'jane@example.com' });
+  assert.equal(mailbox('@example.com'), null);
+  assert.equal(mailbox('jane@'), null);
 });

@@ -78,6 +78,7 @@ import { TenantExports, isTenantExportRoute, tenantExportRoute } from './tenant-
 import { Notifications } from './notify/service.ts';
 import { IdentityLifecycle } from './identity/lifecycle.ts';
 import { clientAddress } from './client-address.ts';
+import { RateLimiter, isSignIn, personLimits, type AddressLimit, type Refusal } from './rate-limits.ts';
 import { securityHeaders } from './security-headers.ts';
 import { listHandOffs } from './handoffs.ts';
 
@@ -403,6 +404,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     return session as Session;
   }
   const responseHeaders = securityHeaders(config.hsts);
+  const limiter = new RateLimiter(config.rateLimits);
+  const refuse = (res: ServerResponse, refusal: Refusal, scim: boolean) => {
+    const message = `Too many requests; retry in ${refusal.retryAfter} seconds.`;
+    res.writeHead(429, { 'Content-Type': scim ? 'application/scim+json; charset=utf-8' : 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': String(refusal.retryAfter) });
+    res.end(JSON.stringify(scim ? { schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'], status: '429', detail: message } : { error: { code: 'rate_limited', message, limit: refusal.limit } }));
+  };
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     for (const [name, value] of Object.entries(responseHeaders)) res.setHeader(name, value);
     try {
@@ -413,6 +420,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         if (path === '/readyz') store.ping();
         return json(res, 200, { status: 'ok', version: applicationVersion, ...(path === '/healthz' && ploegCompatibility ? { ploegContract: ploegCompatibility.status } : {}) });
+      }
+      const addressLimit: AddressLimit | undefined = mcp?.handles(path) ? 'mcp' : lifecycle.handles(path) ? 'scim' : notifications.handlesPublic(path) ? 'webhook' : isSignIn(method, path) ? 'signIn' : undefined;
+      if (addressLimit) {
+        const refusal = limiter.take([addressLimit], clientAddress(req, config.trustedProxies));
+        if (refusal) return refuse(res, refusal, addressLimit === 'scim');
+      } else if (path.startsWith('/api/') && !path.startsWith('/api/relay/')) {
+        const limits = personLimits(method, path);
+        const caller = limits.length ? auth.user(req) : undefined;
+        const refusal = caller && limiter.take(limits, config.mode === 'demo' ? `address:${clientAddress(req, config.trustedProxies)}` : `user:${caller.id}`);
+        if (refusal) return refuse(res, refusal, false);
       }
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;

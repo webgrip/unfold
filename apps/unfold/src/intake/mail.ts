@@ -86,20 +86,66 @@ function decodeEntities(text: string): string {
  * a link keeps its address in brackets, every remaining tag is removed and entities are decoded. No HTML survives.
  */
 export function htmlToText(html: string): string {
-  const text = html
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|head|template|noscript)\b[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<a\b[^>]*?\bhref\s*=\s*("([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a\s*>/gi, (_, __, double: string | undefined, single: string | undefined, inner: string) => {
-      const href = decodeEntities(double ?? single ?? '').trim();
-      const label = inner.replace(/<[^>]*>/g, '').trim();
-      return /^https?:\/\//i.test(href) && decodeEntities(label) !== href ? `${label} (${href})` : label;
-    })
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<li\b[^>]*>/gi, '\n- ')
-    .replace(/<\/(p|div|h[1-6]|tr|table|blockquote|ul|ol|section|article|header|footer)\s*>/gi, '\n\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/[<>]/g, '');
-  return tidy(decodeEntities(text));
+  const lower = html.toLowerCase();
+  const out: string[] = [];
+  const closes = new Map<string, number>();
+  const closing = (name: string, from: number): number | undefined => {
+    let at = Math.max(closes.get(name) ?? from, from);
+    if (closes.get(name) === -1) return undefined;
+    for (;;) {
+      at = lower.indexOf(`</${name}`, at);
+      if (at === -1) { closes.set(name, -1); return undefined; }
+      let end = at + name.length + 2;
+      while (end < html.length && /\s/.test(html[end])) end++;
+      if (html[end] === '>') { closes.set(name, at); return end + 1; }
+      at = end;
+    }
+  };
+  let nextGt = 0;
+  let commentEnd = 0;
+  let link: { at: number; href: string } | undefined;
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) { out.push(html.slice(i)); break; }
+    out.push(html.slice(i, lt));
+    if (html.startsWith('<!--', lt)) {
+      if (commentEnd < lt + 4) commentEnd = html.indexOf('-->', lt + 4);
+      if (commentEnd === -1) break;
+      i = commentEnd + 3;
+      continue;
+    }
+    if (nextGt !== -1 && nextGt <= lt) nextGt = html.indexOf('>', lt + 1);
+    const nextLt = html.indexOf('<', lt + 1);
+    if (nextGt === -1 || (nextLt !== -1 && nextLt < nextGt)) { i = lt + 1; continue; }
+    const tag = html.slice(lt, nextGt + 1);
+    i = nextGt + 1;
+    const head = /^<(\/?)([a-z][a-z0-9]*)\b/i.exec(tag);
+    if (!head) continue;
+    const name = head[2].toLowerCase();
+    if (head[1]) {
+      if (name === 'a' && link && /^<\/a\s*>$/i.test(tag)) {
+        const label = out.splice(link.at).join('').trim();
+        out.push(/^https?:\/\//i.test(link.href) && decodeEntities(label) !== link.href ? `${label} (${link.href})` : label);
+        link = undefined;
+      } else if (!link && /^(p|div|h[1-6]|tr|table|blockquote|ul|ol|section|article|header|footer)$/.test(name) && /^<\/[a-z0-9]+\s*>$/i.test(tag)) out.push('\n\n');
+      continue;
+    }
+    if (['script', 'style', 'head', 'template', 'noscript'].includes(name)) {
+      const end = closing(name, lt + name.length + 1);
+      if (end !== undefined) i = end;
+      continue;
+    }
+    if (name === 'a' && !link) {
+      const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+      if (href && closing('a', i) !== undefined) link = { at: out.length, href: decodeEntities(href[1] ?? href[2] ?? '').trim() };
+      continue;
+    }
+    if (link) continue;
+    if (name === 'br' && /^<br\s*\/?>$/i.test(tag)) out.push('\n');
+    else if (name === 'li') out.push('\n- ');
+  }
+  return tidy(decodeEntities(out.join('').replace(/[<>]/g, '')));
 }
 
 function tidy(text: string): string {
@@ -119,15 +165,24 @@ export function withoutQuote(text: string): string {
 export function mailbox(value: string | undefined | null): { name: string | null; email: string } | null {
   if (!value) return null;
   const decoded = decodeWords(value).trim();
-  const angle = /^(.*?)<\s*([^<>\s]+@[^<>\s]+)\s*>/.exec(decoded);
-  if (angle) {
-    const name = angle[1].trim().replace(/^"(.*)"$/, '$1').replace(/\\(.)/g, '$1').trim();
-    return { name: name || null, email: angle[2].toLowerCase() };
+  let end = 0;
+  for (let at = decoded.indexOf('<'); at !== -1;) {
+    const next = decoded.indexOf('<', at + 1);
+    if (end <= at) end = decoded.indexOf('>', at + 1);
+    if (end === -1) break;
+    const address = next !== -1 && next < end ? null : /^<\s*([^<>\s]+)\s*>$/.exec(decoded.slice(at, end + 1));
+    if (address && address[1].slice(1, -1).includes('@')) {
+      const name = decoded.slice(0, at).trim().replace(/^"(.*)"$/, '$1').replace(/\\(.)/g, '$1').trim();
+      return { name: name || null, email: address[1].toLowerCase() };
+    }
+    at = next;
   }
-  const bare = /([^\s<>(),;:"]+@[^\s<>(),;:"]+)/.exec(decoded);
+  const bare = decoded.split(/[\s<>(),;:"]+/).find(word => word.slice(1, -1).includes('@'));
   if (!bare) return null;
-  const comment = /\(([^)]*)\)/.exec(decoded)?.[1]?.trim();
-  return { name: comment || null, email: bare[1].toLowerCase() };
+  const open = decoded.indexOf('(');
+  const close = open === -1 ? -1 : decoded.indexOf(')', open + 1);
+  const comment = close === -1 ? undefined : decoded.slice(open + 1, close).trim();
+  return { name: comment || null, email: bare.toLowerCase() };
 }
 
 /** Every `<message-id>` in a Message-ID, In-Reply-To or References value. */

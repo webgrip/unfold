@@ -5,6 +5,7 @@ import { Validator } from '@seriousme/openapi-schema-validator';
 import { parse } from 'yaml';
 import { delegatedRoutes } from '../src/auth.ts';
 import { openApiDocument } from '../src/http.ts';
+import { defaultRateLimits, rateLimitSettings } from '../src/rate-limits.ts';
 import { application, createSession, request } from './api-support.ts';
 import { testTimeout } from './timeframes.ts';
 
@@ -239,6 +240,7 @@ test('the server answers exactly the methods the OpenAPI description declares, a
     config.flags = { document: { flags: { 'intake.requests': { defaultVariant: 'on' }, 'notifications.push': { defaultVariant: 'on' }, 'notifications.slack': { defaultVariant: 'on' }, 'notifications.teams': { defaultVariant: 'on' }, 'events.webhooks': { defaultVariant: 'on' } } }, unknown: [] };
     config.notifications = { budgetThresholds: [1], teams: { allowedHosts: ['logic.azure.com'] }, slack: { tokenEnv: 'UNFOLD_PROBE_SLACK_TOKEN', signingSecretEnv: 'UNFOLD_PROBE_SLACK_SECRET', apiUrl: 'http://127.0.0.1:9/slack', permissionAnswers: false } };
     config.outboundEvents = { allowedPrivateTargets: ['127.0.0.1'] };
+    config.rateLimits = rateLimitSettings(Object.fromEntries(Object.keys(defaultRateLimits).map(name => [name, { perMinute: 100_000, burst: 100_000 }])));
   });
   t.after(() => { delete process.env.UNFOLD_PROBE_SLACK_TOKEN; delete process.env.UNFOLD_PROBE_SLACK_SECRET; return server.close(); });
   const session = await createSession(server.url);

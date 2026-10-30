@@ -12,6 +12,22 @@ Every authenticated `POST`, `PUT`, `PATCH` or `DELETE` under `/api/`, except sig
 
 With `ploeg.personTokens` configured, every change Unfold makes in Ploeg for the person it names also carries `X-Ploeg-Person-Token`, a token the identity provider exchanged from that person's sign-in, so Ploeg records it as proven ([ADR 0055](../adrs/0055-unfold-proves-the-person-to-ploeg-with-a-token-exchanged-from-their-sign-in.md)). A change through `unfold-mcp` over HTTP carries a token exchanged from that request's own access token. Reads and a change an administrator makes for someone else's session carry none, and any change goes out with the headers alone when no token can be had.
 
+## Rate limits
+
+Unfold counts requests in token buckets, each a `burst` that refills at `perMinute`, and refuses a request whose bucket is empty with 429 and a `Retry-After` header in whole seconds. The body is `{"error":{"code":"rate_limited","message":"...","limit":"<name>"}}`, or a SCIM error (`status: "429"`) under `/scim/v2`. The top-level `rateLimits` block sets each limit as `{perMinute, burst}`; a limit it leaves out keeps its default.
+
+| Limit | Counts | Per | Default |
+| --- | --- | --- | --- |
+| `mutation` | every signed-in `POST`, `PUT`, `PATCH` and `DELETE` under `/api/`, except OFREP evaluation and the conversation read wait (`.../conversation/wants`) | person | 300 a minute, burst 120 |
+| `ask` | `POST /api/ploeg/work-items/:id/asks` and `POST /api/card-art/generate`, which spend model money | person | 20 a minute, burst 10 |
+| `export` | `GET /api/ploeg/cost-export`, `GET /api/admin/flags/export`, `POST /api/admin/tenant-exports`, `GET /api/admin/tenant-exports/:id/download`, `GET /api/billing/lines`, `POST /api/billing/sync`, `GET /api/sessions/:id/candidate/download`, `GET /api/sessions/:id/delivery/download` and `GET /api/linked-sessions/:id/agent-trace` | person | 20 a minute, burst 10 |
+| `scim` | SCIM under `/scim/v2` and the Shared Signals receiver at `/ssf/events` | client address | 600 a minute, burst 300 |
+| `mcp` | `unfold-mcp` over HTTP and its OAuth metadata | client address | 300 a minute, burst 120 |
+| `webhook` | the public notification receivers under `/api/notifications/channels/`, such as Slack interactions | client address | 120 a minute, burst 60 |
+| `signIn` | `POST /api/login`, `POST /api/auth/editor`, `GET /api/auth/oidc`, its callback and the link callbacks | client address | 30 a minute, burst 60 |
+
+A request can count against two limits, such as an Ask (`mutation` and `ask`); it is refused when either is empty. Anonymous requests to signed-in routes are refused for the missing sign-in and not counted. The deterministic demo, where everyone is the same demo operator, counts per client address instead of per person. Request intake deliveries keep their own limit ([Rate limit](../operations/request-intake.md#rate-limit)), the login and editor sign-in throttles above still apply, and the workspace relay is not limited. The client address honours `X-Forwarded-For` only from `trustedProxies` ([behind a reverse proxy](../operations/live.md#behind-a-reverse-proxy)): without it, every client behind one proxy shares that proxy's buckets. The buckets live in memory per Unfold process, so a restart refills them and each replica counts on its own.
+
 Operators can read and change sessions they own. Administrators can access all sessions and authorize budget additions. Viewers cannot mutate work. Inaccessible session IDs return 404. The current API does not expose shared team membership or invitation management.
 
 | Method and path | Request or response |
