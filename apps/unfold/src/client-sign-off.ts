@@ -4,6 +4,7 @@ import type { User } from './types.ts';
 import type { CommentRequest, CommentResult } from './cards/service.ts';
 import type { FactsChangedPath, FactsPullRequest, WorkItemFacts } from './cards/facts.ts';
 import { commentPullRequest } from './agent-trace-comments.ts';
+import { markAiMarkdown, pullRequestReview } from './ai-marking.ts';
 
 /** The key of Unfold's Client Sign-off comment on a Work Item's pull request (Ploeg ADR-0079, system ADR-0049). */
 export const clientSignOffCommentKey = 'client-sign-off';
@@ -400,7 +401,7 @@ export class ClientSignOffs {
     if (!latest) return 'no_sign_off';
     if (this.options.writeStatus && head) await this.options.writeStatus(workItemId, signOffCommitStatus(latest.state === 'current' ? latest : null, head));
     if (!(await this.options.commentEnabled(facts.workItem.team))) return 'flag_off';
-    const markdown = signOffCommentMarkdown(latest, head);
+    const markdown = markAiMarkdown(signOffCommentMarkdown(latest, head), { subject: 'pull-request', review: pullRequestReview(pullRequest) });
     const digest = createHash('sha256').update(`${pullRequest.number}\n${markdown}`).digest('hex');
     if (this.written.get(workItemId) === digest) return 'unchanged';
     await this.source.putPullRequestComment(workItemId, clientSignOffCommentKey, { markdown, number: pullRequest.number });

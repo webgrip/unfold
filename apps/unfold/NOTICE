@@ -31,3 +31,9 @@ the Agent Plugins 1.0.0 manifest schema
 (extensions/claude-code/schemas/agent-plugins/1.0.0/plugin.schema.json), from
 https://github.com/agentplugins/agent-plugins-spec at commit
 ff8ab5e392cc87bd88d87c060815a87490e51003, licensed under the Apache License 2.0.
+
+The tests include an extract of the Open Cybersecurity Schema Framework 1.9.0
+(test/fixtures/ocsf/), Copyright OCSF a Series of LF Projects, LLC, licensed
+under the Apache License 2.0. scripts/vendor-ocsf.mjs reads it from the OCSF
+schema server. The OCSF schema includes the ICD Schema developed by Symantec, a
+division of Broadcom.

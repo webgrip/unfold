@@ -6,9 +6,9 @@ import { createInterface } from 'node:readline';
 import { strictBase64url } from './mcp-auth.ts';
 import type { Readable, Writable } from 'node:stream';
 
-/** Protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
+/** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
 export const mcpProtocolVersions = ['2025-11-25', '2025-06-18', '2025-03-26'] as const;
-/** Stateless protocol revisions, which carry their version in each request's `_meta` instead of an `initialize` handshake. */
+/** Modern protocol revisions, which carry their version and client capabilities in each request's `_meta` instead of an `initialize` handshake. */
 export const mcpModernProtocolVersions = ['2026-07-28'] as const;
 
 const versionKey = 'io.modelcontextprotocol/protocolVersion';
@@ -331,12 +331,13 @@ export function createMcpServer(options: McpOptions) {
           }
         }
         const notConfirmed = { summary: 'Not asked: the spend was not confirmed. Nothing was spent.', asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
+        const refusedBy = (decision: Json | undefined) => decision?.action === 'cancel' ? { ...notConfirmed, summary: `Not asked: the confirmation was closed without an answer, so nothing was spent. If your client never showed it to you, ask in Unfold: ${page}` } : notConfirmed;
         const requestedSchema = { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] };
         const subject = createHash('sha256').update(JSON.stringify(['unfold_ask', id, question])).digest('base64url');
-        if (call.modern && call.requestState !== undefined) {
+        if (call.modern && call.requestState !== undefined && elicitAnswer(call.inputResponses?.confirm_spend)) {
           const agreed = redeemConfirmation(confirmations, call.requestState, principal, subject, clock());
-          const decision = call.inputResponses?.confirm_spend;
-          if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
+          const decision = call.inputResponses!.confirm_spend;
+          if (decision.action !== 'accept' || decision.content?.confirm !== true) return refusedBy(decision);
           return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, agreed));
         }
         if (call.modern ? !formElicitation(call.capabilities) : !clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
@@ -347,7 +348,7 @@ export function createMcpServer(options: McpOptions) {
         let decision: Json;
         try { decision = await outbound!('elicitation/create', { message, requestedSchema }); }
         catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
-        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
+        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return refusedBy(decision);
         return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, `${randomBytes(12).toString('base64url')}:${createHash('sha256').update(message).digest('hex')}`));
       },
     },
@@ -618,15 +619,16 @@ export function createMcpServer(options: McpOptions) {
   async function confirmThen(tool: string, page: string, subjectParts: unknown[], call: Call, plan: (demo: boolean) => Promise<Planned>): Promise<Json | InputRequired> {
     const subject = createHash('sha256').update(JSON.stringify(subjectParts)).digest('base64url');
     const unchanged = { summary: 'Not done: you did not confirm. Nothing was changed.', done: false, demo: false, link: page, result: null };
+    const refusedBy = (decision: Json | undefined) => decision?.action === 'cancel' ? { ...unchanged, summary: `Not done: the confirmation was closed without an answer, so nothing was changed. If your client never showed it to you, do it in Unfold: ${page}` } : unchanged;
     const mayAct = async (): Promise<boolean> => {
       const boot = options.role === undefined ? await get('/api/bootstrap') : { user: { role: options.role }, mode: undefined };
       if (boot?.user?.role === 'viewer') throw new Error('Your Unfold role is viewer, which cannot change work. Nothing was changed.');
       return boot?.mode === 'demo';
     };
-    if (call.modern && call.requestState !== undefined) {
+    if (call.modern && call.requestState !== undefined && elicitAnswer(call.inputResponses?.confirm_action)) {
       const agreed = redeemConfirmation(confirmations, call.requestState, principal, subject, clock(), { other: 'another action', after: `Nothing was changed; call ${tool} again to be asked to confirm.` });
-      const decision = call.inputResponses?.confirm_action;
-      if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return unchanged;
+      const decision = call.inputResponses!.confirm_action;
+      if (decision.action !== 'accept' || decision.content?.confirm !== true) return refusedBy(decision);
       const planned = await plan(await mayAct());
       const [nonce, hash] = agreed.split(':');
       if (createHash('sha256').update(planned.message).digest('hex') !== hash) throw new Error(`What ${tool} would do changed since you confirmed, so nothing was changed. Call it again to see what it would do now.`);
@@ -638,7 +640,7 @@ export function createMcpServer(options: McpOptions) {
     let decision: Json;
     try { decision = await outbound!('elicitation/create', { message: planned.message, requestedSchema: actionSchema }); }
     catch { throw new Error('The confirmation did not come back, so nothing was changed.'); }
-    if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return unchanged;
+    if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return refusedBy(decision);
     const nonce = randomBytes(12).toString('base64url');
     return planned.perform(`${nonce}:${createHash('sha256').update(planned.message).digest('hex')}`, nonce);
   }
@@ -673,7 +675,9 @@ export function createMcpServer(options: McpOptions) {
       case 'server/discover':
         if (!call.modern) return failure(id, -32601, `Method ${method} is not supported.`);
         return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: { tools: {} }, instructions, ttlMs: 3_600_000, cacheScope: 'public' });
-      case 'ping': return complete({});
+      case 'ping':
+        if (call.modern) return failure(id, -32601, 'Method ping is not part of protocol 2026-07-28.');
+        return complete({});
       case 'tools/list': return complete({ tools: tools.map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, annotations: tool.readOnly === false ? { title: tool.title, readOnlyHint: false, destructiveHint: tool.destructive === true, idempotentHint: false, openWorldHint: true } : { title: tool.title, readOnlyHint: true, idempotentHint: true, openWorldHint: false } })), ...(call.modern ? { ttlMs: 3_600_000, cacheScope: 'public' } : {}) });
       case 'tools/call': return callTool(id, params, call, complete);
       default: return failure(id, -32601, `Method ${method} is not supported.`);
@@ -767,6 +771,10 @@ function workItemId(value: unknown): string {
 function result(id: unknown, value: Json): Json { return { jsonrpc: '2.0', id, result: value }; }
 
 function failure(id: unknown, code: number, message: string, data?: Json): Json { return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data ? { data } : {}) } }; }
+
+function elicitAnswer(value: unknown): value is Json {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && ['accept', 'decline', 'cancel'].includes((value as Json).action);
+}
 
 function formElicitation(capabilities: Json): boolean {
   const elicitation = capabilities?.elicitation;

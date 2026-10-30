@@ -68,6 +68,8 @@ export type AppConfig = {
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
+  /** The security audit's retention and OTLP endpoint (`src/audit/settings.ts`). */
+  audit?: AuditConfig;
   errorReports?: ErrorReportConfig;
   mcpServers?: McpServersConfig;
   productEvents?: boolean;
@@ -88,6 +90,8 @@ export type ReportTarget = { source: TaskSourceConfig; project: string; acknowle
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 /** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
 export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
+/** How long the security audit keeps records, and where its OTLP logs go when export is on. */
+export type AuditConfig = { retentionDays: number; otlp?: { url: string; headers: Record<string, string> } };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };
