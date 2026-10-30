@@ -4713,14 +4713,15 @@ paths:
     get:
       tags: [Administration]
       operationId: verifyAuditChain
-      summary: 'Check a Tenant''s audit hash chain'
-      description: 'Checked from the chain''s newest retention anchor, whatever the `audit.export` flag says. The Tenant rules of `GET /api/admin/audit` apply.'
+      summary: 'Check a Tenant''s audit hash chain and its signed checkpoints'
+      description: 'Checked from the chain''s newest retention anchor, whatever the `audit.export` flag says, and against the newest signed checkpoint (every one with `checkpoints=all`) when a checkpoint signer or bucket is configured. The Tenant rules of `GET /api/admin/audit` apply.'
       x-unfold-role: admin
       parameters:
         - { name: tenant, in: query, required: false, schema: { type: string } }
+        - { name: checkpoints, in: query, required: false, schema: { type: string, enum: [all] } }
       responses:
         '200':
-          description: '`{tenant, ok, checked, anchor, head, break}`; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`.'
+          description: '`{tenant, ok, checked, anchor, head, break, checkpoints}`; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. `checkpoints` is null when none are configured. `ok` is false when the chain or its checkpoints fail.'
           content:
             application/json:
               schema:
@@ -4732,6 +4733,26 @@ paths:
                   anchor: {}
                   head: {}
                   break: { oneOf: [{ type: 'null' }, { type: object, properties: { sequence: { type: integer }, reason: { type: string, enum: [sequence_gap, previous_hash, hash, unreadable] } } }] }
+                  checkpoints:
+                    oneOf:
+                      - { type: 'null' }
+                      - type: object
+                        properties:
+                          source: { type: string, enum: [object_storage, local] }
+                          ok: { type: boolean }
+                          checked: { type: integer }
+                          pruned: { type: integer }
+                          newest: { oneOf: [{ type: 'null' }, { type: object, properties: { sequence: { type: integer }, hash: { type: string }, time: { type: string }, signed: { type: boolean }, keyVersion: { type: [integer, 'null'] } } }] }
+                          problems:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                reason: { type: string, enum: [ahead_of_chain, hash_mismatch, missing_record, bad_signature, unsigned, signer_unavailable, unreadable, wrong_tenant, stale, storage_unavailable] }
+                                sequence: { type: integer }
+                                time: { type: string }
+                                key: { type: string }
+                                detail: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
         '403': { $ref: '#/components/responses/Forbidden' }
 

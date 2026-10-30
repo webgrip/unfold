@@ -9,11 +9,15 @@ import { capture, readsUserFirst } from './capture.ts';
 import { clientAddress } from '../client-address.ts';
 import { AuditChain, type StoredAuditRecord } from './chain.ts';
 import { AuditOtlpExporter, maxPage, ndjson } from './export.ts';
+import { AuditCheckpoints } from './checkpoints.ts';
+import { ObjectStore } from './object-store.ts';
+import { OpenBaoTransitSigner } from './signer.ts';
 import { defaultRetentionDays } from './settings.ts';
 import { ocsfEvent, type AuditActor, type AuditEntry, type AuditFact, type AuditOrigin, type AuditOutcome, type AuditPerson } from './ocsf.ts';
 
 const hourMs = 3_600_000;
 const dayMs = 86_400_000;
+const startupCheckpointDelayMs = 1_000;
 
 /** What the audit trail receives: a fact, who did it, from where, and optionally its Tenants and target. */
 export type AuditInput = { fact: AuditFact; actor?: AuditActor; origin?: AuditOrigin; at?: Date; tenants?: string[]; target?: ActionTarget | null };
@@ -27,7 +31,7 @@ export type AuditTrailOptions = {
   config?: Pick<AppConfig, 'mode' | 'repositories' | 'taskSources' | 'auth' | 'trustedProxies'>;
   /** Whether a Tenant's records may leave Unfold: the `audit.export` flag. Off when absent. */
   exportEnabled?: (tenant: string) => Promise<boolean>;
-  /** Runs retention at start and hourly, and sends to the OTLP endpoint after each record. */
+  /** Runs retention and checkpoints at start and hourly, and sends to the OTLP endpoint after each record. */
   schedule?: boolean;
   fetch?: typeof fetch;
   now?: () => Date;
@@ -47,6 +51,8 @@ const personal = new Set<AuditFact['kind']>(['sign_in', 'sign_out', 'credential'
 export class AuditTrail {
   readonly chain: AuditChain;
   readonly retentionDays: number;
+  /** The daily signed and copied chain heads, when a signer or a bucket is configured. */
+  readonly checkpoints: AuditCheckpoints | undefined;
   private readonly store: Store;
   private readonly config: AuditTrailOptions['config'];
   private readonly exportEnabled: (tenant: string) => Promise<boolean>;
@@ -56,7 +62,7 @@ export class AuditTrail {
   private readonly timers: NodeJS.Timeout[] = [];
   private readonly schedule: boolean;
   private flushTimer: NodeJS.Timeout | undefined;
-  private lastWarnAt = 0;
+  private readonly lastWarnAt = new Map<string, number>();
 
   constructor(options: AuditTrailOptions) {
     this.store = options.store;
@@ -68,10 +74,19 @@ export class AuditTrail {
     this.log = options.log ?? (line => console.error(line));
     this.schedule = options.schedule === true;
     this.exporter = options.settings?.otlp ? new AuditOtlpExporter({ chain: this.chain, target: options.settings.otlp, enabled: this.exportEnabled, environment: options.config?.mode ?? 'live', ...(options.fetch ? { fetch: options.fetch } : {}), warn: message => this.warn('audit.export_failed', message) }) : undefined;
+    const settings = options.settings;
+    const signer = settings?.openbao ? new OpenBaoTransitSigner(settings.openbao, options.fetch ? { fetch: options.fetch } : {}) : undefined;
+    const storage = settings?.checkpointStorage ? new ObjectStore(settings.checkpointStorage, { now: this.now, ...(options.fetch ? { fetch: options.fetch } : {}) }) : undefined;
+    this.checkpoints = signer || storage ? new AuditCheckpoints({ chain: this.chain, ...(signer ? { signer } : {}), ...(storage ? { storage } : {}), now: this.now, warn: message => this.warn('audit.checkpoint_failed', message), info: fields => this.log(JSON.stringify({ level: 'info', ...fields })) }) : undefined;
     options.store.observeAccounts(change => this.account(change));
     if (this.schedule) {
       this.prune();
-      const hourly = setInterval(() => { this.prune(); void this.flush(); }, hourMs);
+      if (this.checkpoints) {
+        const first = setTimeout(() => void this.checkpoint(), startupCheckpointDelayMs);
+        first.unref();
+        this.timers.push(first);
+      }
+      const hourly = setInterval(() => { this.prune(); void this.flush(); void this.checkpoint(); }, hourMs);
       hourly.unref();
       this.timers.push(hourly);
     }
@@ -225,19 +240,25 @@ export class AuditTrail {
     } catch (error) { this.warn('audit.prune_failed', String((error as Error)?.message ?? error)); }
   }
 
+  /** Signs and copies each Tenant's chain head once a day, when a signer or a bucket is configured; never throws. */
+  async checkpoint(): Promise<void> {
+    try { await this.checkpoints?.run(); } catch (error) { this.warn('audit.checkpoint_failed', String((error as Error)?.message ?? error)); }
+  }
+
   /** Sends pending records to the OTLP endpoint, when one is configured. */
   async flush(): Promise<void> { await this.exporter?.flush(); }
 
   private warn(event: string, message: string): void {
     const now = this.now().getTime();
-    if (now - this.lastWarnAt < hourMs) return;
-    this.lastWarnAt = now;
+    if (now - (this.lastWarnAt.get(event) ?? -Infinity) < hourMs) return;
+    this.lastWarnAt.set(event, now);
     this.log(JSON.stringify({ level: 'warn', event, message: message.slice(0, 200) }));
   }
 
   /**
-   * Serves `GET /api/admin/audit` (NDJSON, paged by sequence) and `GET /api/admin/audit/verify` (the chain check) to an
-   * administrator of the Tenant asked for. The records route answers only while the Tenant's `audit.export` flag is on.
+   * Serves `GET /api/admin/audit` (NDJSON, paged by sequence) and `GET /api/admin/audit/verify` (the chain check, and
+   * the check of its checkpoints when they are configured; `checkpoints=all` checks every one) to an administrator of the
+   * Tenant asked for. The records route answers only while the Tenant's `audit.export` flag is on.
    */
   async serve(res: ServerResponse, request: { method: string; path: string; query: URLSearchParams; user: User }): Promise<void> {
     const fail = (status: number, code: string, message: string) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify({ error: { code, message } })); };
@@ -248,8 +269,10 @@ export class AuditTrail {
     if (!tenant) return fail(400, 'audit_tenant', `Name the Tenant with ?tenant=. You administer ${administered.length ? administered.join(', ') : 'no Tenant'}.`);
     if (!administered.includes(tenant)) return fail(403, 'audit_tenant_forbidden', 'You are not an administrator of this Tenant.');
     if (request.path === '/api/admin/audit/verify') {
+      const chain = this.chain.verify(tenant);
+      const checkpoints = this.checkpoints ? await this.checkpoints.verify(tenant, { all: request.query.get('checkpoints') === 'all' }) : null;
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify(this.chain.verify(tenant)));
+      res.end(JSON.stringify({ ...chain, ok: chain.ok && (checkpoints?.ok ?? true), checkpoints }));
       return;
     }
     if (request.path !== '/api/admin/audit') return fail(404, 'not_found', 'API route not found.');

@@ -100,6 +100,7 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'decider-kinds', table: 'decider_kinds', scope: workItem('work_item_id'), description: 'The Work Kind the decider guessed for a Run.' },
   { entity: 'audit-records', table: 'audit_records', scope: byTenant('tenant_id'), json: ['event'], description: 'The security audit trail of the Tenant as OCSF events, each chained to the one before it by its SHA-256 hash.' },
   { entity: 'audit-anchors', table: 'audit_anchors', scope: byTenant('tenant_id'), description: 'Retention anchors: the last hash of audit records removed by retention, from which the remaining chain still verifies.' },
+  { entity: 'audit-checkpoints', table: 'audit_checkpoints', scope: byTenant('tenant_id'), json: ['checkpoint'], description: 'The daily checkpoints of the audit chain head: sequence, hash, time and the OpenBao Transit signature, and when each was copied to object storage.' },
   { entity: 'billing-mappings', table: 'billing_mappings', scope: byTenant('tenant'), json: ['body'], description: 'The price and billing tool target each Client\'s accepted Work Items are billed at.' },
   { entity: 'billing-lines', table: 'billing_lines', scope: byTenant('tenant'), json: ['body'], description: 'One billing line per accepted Work Item and per reversal, with its state and what the billing tool answered.' },
   { entity: 'account-states', table: 'account_states', scope: person('user_id'), description: 'Accounts that were disabled, by whom and why.' },
