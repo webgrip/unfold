@@ -2,27 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { markdown } from '../public/core/markdown.js';
 import { scaledTimeout, threadCpuMilliseconds } from './timeframes.ts';
-
-const tagPattern = /<(\/?)([a-z0-9]+)([^>]*)>/g;
-const allowed = {
-  p: /^$/, br: /^$/, ul: /^$/, ol: /^(?: start="\d+")?$/, li: /^(?: class="md-task")?$/, strong: /^$/, em: /^$/, del: /^$/, code: /^$/, hr: /^$/, blockquote: /^$/,
-  h3: /^$/, h4: /^$/, h5: /^$/, h6: /^$/,
-  pre: /^ class="md-code"(?: data-lang="[a-z0-9_-]+")?$/,
-  span: /^ class="(?:md-check(?: done)?" aria-hidden="true"|sr-only")$/,
-  a: /^ href="https?:\/\/[^"\s<>]+" target="_blank" rel="noopener noreferrer"$/,
-  div: /^ class="md-table"$/, table: /^$/, thead: /^$/, tbody: /^$/, tr: /^$/,
-  th: /^(?: class="md-align-(?:left|center|right)")? scope="col"$/,
-  td: /^(?: class="md-align-(?:left|center|right)")?$/,
-};
-
-function assertInert(html, label) {
-  const tags = [...html.matchAll(tagPattern)];
-  for (const [, closing, tag, attributes] of tags) {
-    assert(Object.hasOwn(allowed, tag), `${label}: emitted <${closing}${tag}>`);
-    if (!closing) assert.match(attributes, allowed[tag], `${label}: <${tag}${attributes}>`);
-  }
-  assert.equal(html.split('<').length - 1, tags.length, `${label}: a stray angle bracket reached the markup`);
-}
+import { assertInert } from './markdown-inert.mjs';
 
 const textOf = html => html.replace(/<br>\n/g, '\n').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 

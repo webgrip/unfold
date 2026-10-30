@@ -48,6 +48,7 @@
     "@seriousme/openapi-schema-validator": "2.11.0",
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
+    "fast-check": "4.10.2",
     "html-to-image": "1.11.13",
     "hyparquet": "1.31.5",
     "playwright": "1.64.1",
