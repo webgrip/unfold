@@ -66,7 +66,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: '/api/linked-sessions' }, { method: 'GET', path: '/api/linked-permissions' }, { method: 'POST', path: `/api/linked-sessions/${id}/permissions/${id}/answer` }, { method: '*', path: `/api/linked-sessions/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/work-items/${id}` }, { method: 'POST', path: `/api/linked-sessions/${id}/work-items/${id}/handoff` }, { method: 'GET', path: `/api/agent-trace/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
-  { method: '*', path: '/api/billing' }, { method: '*', path: `/api/billing/${id}` }, { method: 'POST', path: `/api/billing/lines/${id}/${id}` },
+  { method: '*', path: '/api/billing' }, { method: '*', path: `/api/billing/${id}` }, { method: 'GET', path: '/api/ploeg/cost-export' }, { method: 'POST', path: `/api/billing/lines/${id}/${id}` },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: '*', path: '/api/intake/sources' }, { method: '*', path: `/api/intake/sources/${id}` }, { method: 'POST', path: `/api/intake/sources/${id}/secret` }, { method: 'GET', path: '/api/intake/requests' }, { method: 'GET', path: '/api/intake/templates' },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },

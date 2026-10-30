@@ -27,6 +27,7 @@ import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { isEconomicsWindow, readDeliveryEconomics } from './delivery-economics.ts';
 import { deliveriesCsv, readDeliveryLedger } from './delivery-ledger.ts';
+import { FocusQueryError, focusExportQuery, focusFile, readFocusExport } from './focus-export.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { TenantScope } from './tenant-scope.ts';
 import { membershipsFromGroups } from './tenancy.ts';
@@ -1023,6 +1024,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (format === 'json') return json(res, 200, ledger ?? { demo: true, window });
               res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="unfold-deliveries-${ledger ? '' : 'demo-'}${window}.csv"`, 'Cache-Control': 'no-store' });
               res.end(deliveriesCsv(ledger?.rows ?? [])); return;
+            }
+            if (path === '/api/ploeg/cost-export') {
+              if (user.role === 'viewer') fault(403, 'forbidden', 'Only operators and administrators export cost.');
+              let query; try { query = focusExportQuery(url.searchParams); } catch (error) { if (error instanceof FocusQueryError) fault(400, 'cost_export_filter', error.message); throw error; }
+              const result = ploeg.isDemo ? null : sanitize(await readFocusExport(ploeg, query, { teams: (await ploeg.teams(user, fresh)).map(team => team.id), reaches: facts => tenants.reachesWorkItem(user, facts.workItem.target), owner: facts => tenants.workItemOwner(facts.workItem.target), fresh }));
+              const file = focusFile(result, query);
+              res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Disposition': `attachment; filename="${file.filename}"`, 'Cache-Control': 'no-store', ...file.headers });
+              res.end(file.body); return;
             }
             if (path === '/api/ploeg/runs') return json(res, 200, sanitize(await ploeg.runs(user, { team: optional('team'), state: optional('state'), outcome: optional('outcome'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));

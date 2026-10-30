@@ -351,6 +351,17 @@ export function deliveriesCsvLink(view, windowId, demo, { escape }) {
   return `<a class="button secondary sm" id="insights-deliveries-csv" href="/api/ploeg/deliveries?window=${escape(encodeURIComponent(windowId))}&amp;format=csv" download>Download CSV</a>`;
 }
 
+/**
+ * The FinOps FOCUS 1.4 cost download for this calendar month, beside the Deliveries CSV, for operators and administrators
+ * (`helpers.costExport`). The demo exports nothing and says so.
+ */
+export function focusCostLink(view, demo, { escape, costExport }) {
+  if (!costExport) return '';
+  if (demo || view.deliveries?.demo) return `<span class="meta" id="insights-focus-demo">${escape('Demo · no cost to export')}</span>`;
+  if (!view.deliveries) return '';
+  return `<a class="button secondary sm" id="insights-focus-csv" href="/api/ploeg/cost-export?format=csv" download title="${escape('This month’s settled model cost per Run as FinOps FOCUS 1.4, in US$')}">Download FOCUS cost</a>`;
+}
+
 function teamTable({ caption, columns, rows }, { escape }) {
   const keyed = columns.map(([label, numeric], index) => ({ key: String(index), label, numeric }));
   const cells = rows.map(([name, values]) => Object.fromEntries([escape(name), ...values].map((value, index) => [String(index), value])));
@@ -425,7 +436,7 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
   const workBody = `<div class="stat-row insights-stats insights-stats-work">${workTiles}</div><div class="card flush insights-tables">${workTable}</div>`;
   const cards = `<section class="section insights-cards" aria-label="Per Team"><div class="insights-teams">${data.teams.map(teamCard).join('')}</div></section>`;
   const outcomesBody = `<div class="stat-row insights-stats insights-stats-outcomes">${outcomeTiles}</div>${data.demo ? '' : openSpendNote(view.economics, helpers)}`;
-  return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', outcomesBody, helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers)}${insightsSection('insights-deliveries', 'Deliveries', `Last ${windowName} · figures only, nothing is charged`, deliveriesMarkup(view, windowName, data.demo, helpers), helpers, deliveriesCsvLink(view, windowId, data.demo, helpers))}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
+  return page('insights', demoNote(data.demo), stale, `<div class="insights"${view.loading ? ' aria-busy="true"' : ''}>${insightsSection('insights-outcomes', 'Outcomes', 'How much of the work lands', outcomesBody, helpers, switcher)}${insightsSection('insights-runs', 'Runs and spend', `Last ${windowName} · ${plural(data.teams.length, 'Team')}`, runsBody, helpers)}${insightsSection('insights-deliveries', 'Deliveries', `Last ${windowName} · figures only, nothing is charged`, deliveriesMarkup(view, windowName, data.demo, helpers), helpers, `${deliveriesCsvLink(view, windowId, data.demo, helpers)}${focusCostLink(view, data.demo, helpers)}`)}${insightsSection('insights-work', 'Work Items', 'Right now, whatever the window', workBody, helpers)}${cards}</div>`);
 }
 
 function eventItem(entry, helpers, now, user) {

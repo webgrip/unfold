@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, approveDialogMarkup, deliveriesCsvLink, deliveriesMarkup, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, deliveriesCsvLink, deliveriesMarkup, focusCostLink, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';
 import { modelName, tokens } from '../public/core/format.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
 import { auditActor } from '../public/core/states.js';
@@ -620,6 +620,9 @@ test('Insights lists Deliveries with Acceptance, Token Charge base and unsettled
   assert.match(demo, /Demo · no model calls/);
   assert.doesNotMatch(demo, /US\$/);
   assert.equal(deliveriesCsvLink({ deliveries: { demo: true } }, '30d', true, helpers), '');
+  assert.match(focusCostLink({ deliveries }, false, { ...helpers, costExport: true }), /href="\/api\/ploeg\/cost-export\?format=csv" download title="[^"]*FinOps FOCUS 1\.4[^"]*">Download FOCUS cost</);
+  assert.equal(focusCostLink({ deliveries }, false, { ...helpers, costExport: false }), '', 'a viewer gets no cost export');
+  assert.match(focusCostLink({ deliveries: { demo: true } }, true, { ...helpers, costExport: true }), /Demo · no cost to export/);
   assert.match(deliveriesMarkup({ deliveries: null, deliveriesError: { code: 'ploeg_unsupported' } }, '30 days', false, helpers), /Not reported by this Ploeg/);
   const none = { ...deliveries, rows: [], totals: { ...deliveries.totals, kinds: { merged: 0, approved: 0, silent: 0, closed_without_acceptance: 0, open: 0 } } };
   assert.match(deliveriesMarkup({ deliveries: none }, '7 days', false, helpers), /No Work Item was attempted in the last 7 days\./);

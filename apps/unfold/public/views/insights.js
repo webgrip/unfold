@@ -1,4 +1,4 @@
-import { insightsWindow, overviewMarkup, ploegWindows } from '../ploeg-activity.js';
+import { canDecide, insightsWindow, overviewMarkup, ploegWindows } from '../ploeg-activity.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { announce, renderHtml } from '../core/dom.js';
@@ -13,7 +13,7 @@ const windows = ploegWindows.map(([id]) => id);
 function renderInsights() {
   const view = state.ploegSummary;
   const actions = refreshButton({ busy: view.loading, shown: Boolean(view.data) || !view.error });
-  renderHtml(shell(overviewMarkup(view, ploegHelpers()), { title: 'Insights', subtitle: 'Throughput and spend per Team, and where the work stands now.', actions }));
+  renderHtml(shell(overviewMarkup(view, { ...ploegHelpers(), costExport: canDecide(state.bootstrap?.user) }), { title: 'Insights', subtitle: 'Throughput and spend per Team, and where the work stands now.', actions }));
 }
 
 const summaryPath = (view, fresh) => `/api/ploeg/summary?window=${encodeURIComponent(view.window)}${fresh ? '&refresh=1' : ''}`;
