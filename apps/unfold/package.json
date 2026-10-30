@@ -45,12 +45,14 @@
     "@microsoft/agent-host-protocol": "1.0.0",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/conformance": "0.1.16",
+    "@seriousme/openapi-schema-validator": "2.11.0",
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
     "html-to-image": "1.11.13",
     "playwright": "1.64.1",
     "three": "0.186.1",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
   },
   "dependencies": {
     "ws": "8.22.0"

@@ -274,7 +274,7 @@ test('unfold_ask answers standing questions free and never spends without a pers
 test('unfold_ask asks a model only after the person accepts the confirmation over stdio', async t => {
   const unfold = askingUnfold(t);
   const url = await unfold.ready;
-  for (const [decision, expectAsked] of [[{ action: 'accept', content: { confirm: true } }, true], [{ action: 'decline' }, false], [{ action: 'accept', content: { confirm: false } }, false]] as const) {
+  for (const [decision, expectAsked] of [[{ action: 'accept', content: { confirm: true } }, true], [{ action: 'decline' }, false], [{ action: 'accept', content: { confirm: false } }, false], [{ action: 'cancel' }, false]] as const) {
     unfold.posted.length = 0;
     const input = new PassThrough();
     const output = new PassThrough();
@@ -302,7 +302,8 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
       assert.equal(spent.client, 'claude-code 2.1.296');
       assert.match(String(spent.confirmation), new RegExp(`^[A-Za-z0-9_-]{16}:${createHash('sha256').update(elicited.params.message).digest('hex')}$`));
     }
-    if (!expectAsked) assert.equal(answer.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
+    if (!expectAsked && decision.action === 'cancel') assert.equal(answer.summary, `Not asked: the confirmation was closed without an answer, so nothing was spent. If your client never showed it to you, ask in Unfold: ${url}/#work/184`, 'a client that closes the form unseen, as the VS Code extension does, is sent to Unfold');
+    else if (!expectAsked) assert.equal(answer.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
   }
 });
 
@@ -463,4 +464,57 @@ test('unfold-mcp links and unlinks the caller’s agent session with PUT and DEL
   assert.equal(calls.at(-1)!.url, 'https://unfold.example.org/api/linked-sessions?workItemId=184');
   assert.equal(listed.structuredContent.sessions[0].untrusted.title, 'Fix login');
   assert.match(listed.structuredContent.summary, /1 linked sessions on Work Item 184; 1 working or waiting/);
+});
+
+test('one stdio process serves a 2025-11-25 client and a 2026-07-28 client side by side, and asks the modern one by retry', async t => {
+  const unfold = askingUnfold(t);
+  const url = await unfold.ready;
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const replies = new Map<unknown, any>();
+  const outbound: any[] = [];
+  output.on('data', chunk => {
+    for (const line of String(chunk).split('\n').filter(Boolean)) {
+      const message = JSON.parse(line);
+      if (message.method) { outbound.push(message); input.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { action: 'accept', content: { confirm: true } } })}\n`); }
+      else replies.set(message.id, message);
+    }
+  });
+  const served = serveStdio(createMcpServer({ url, token: `vle_${'h'.repeat(43)}`, principal: 'stdio' }), input, output);
+  const send = async (message: Record<string, unknown>) => {
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`);
+    const deadline = Date.now() + scaledTimeout(5000);
+    while (!replies.has(message.id)) { if (Date.now() > deadline) throw new Error(`no reply to ${String(message.id)}`); await new Promise(resolve => setTimeout(resolve, 5)); }
+    return replies.get(message.id);
+  };
+  const modern = (capabilities: Record<string, unknown> = { elicitation: { form: {} } }) => ({ _meta: modernMeta(capabilities) });
+  const ask = (id: string, extra: Record<string, unknown> = {}) => send({ id, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true }, ...modern(), ...extra } });
+
+  const discovered = await send({ id: 'probe', method: 'server/discover', params: modern({}) });
+  assert.deepEqual(discovered.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'], 'a dual-era client probing with server/discover learns this server is modern');
+  assert.equal((await send({ id: 'modern-ping', method: 'ping', params: modern({}) })).error.code, -32601, 'ping is gone from 2026-07-28');
+  assert.equal((await send({ id: 'modern-list', method: 'tools/list', params: modern({}) })).result.resultType, 'complete');
+
+  const init = await send({ id: 'init', method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'legacy', version: '1' } } });
+  assert.equal(init.result.protocolVersion, '2025-11-25');
+  assert.deepEqual((await send({ id: 'legacy-ping', method: 'ping' })).result, {});
+  assert.equal((await send({ id: 'legacy-list', method: 'tools/list' })).result.resultType, undefined, 'the 2025 client keeps the 2025 result shape');
+
+  const first = (await ask('ask-1')).result;
+  assert.equal(first.resultType, 'input_required');
+  assert.equal(outbound.length, 0, 'a modern request is never answered with a server-to-client request');
+  const unanswered = (await ask('ask-2', { requestState: first.requestState })).result;
+  assert.equal(unanswered.resultType, 'input_required', 'a retry that lacks the answer is asked again');
+  assert.equal(unfold.posted.length, 0);
+  const done = (await ask('ask-3', { requestState: first.requestState, inputResponses: { confirm_spend: { action: 'accept', content: { confirm: true } } } })).result;
+  assert.equal(done.structuredContent.asked, true, JSON.stringify(done));
+  assert.deepEqual(unfold.posted.map(body => body.askModel), [true]);
+  const closing = (await ask('ask-4')).result;
+  const cancelled = (await ask('ask-5', { requestState: closing.requestState, inputResponses: { confirm_spend: { action: 'cancel' } } })).result;
+  assert.match(cancelled.structuredContent.summary, /closed without an answer, so nothing was spent\. If your client never showed it to you, ask in Unfold: /);
+  assert.equal(unfold.posted.length, 1, 'nothing more was spent');
+  const legacyAsk = await send({ id: 'legacy-ask', method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true } } });
+  assert.match(legacyAsk.result.content[0].text, /cannot ask you to confirm a spend/, 'the 2025 client declared no elicitation, whatever the modern one declares');
+  input.end();
+  await served;
 });

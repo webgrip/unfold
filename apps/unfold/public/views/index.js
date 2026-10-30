@@ -12,6 +12,7 @@ import insights from './insights.js';
 import ploegFeeds from './ploeg-common.js';
 import account from './account.js';
 import system from './system.js';
+import webhooks from './webhooks.js';
 import status from './status.js';
 import preferences from './preferences.js';
 import palette from './palette.js';
@@ -34,4 +35,4 @@ import linkedPermissions from './linked-permissions.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, connections, intake, status, preferences, cardIdentity, editors, labs, linkedSessions, linkedPermissions, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, webhooks, connections, intake, status, preferences, cardIdentity, editors, labs, linkedSessions, linkedPermissions, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

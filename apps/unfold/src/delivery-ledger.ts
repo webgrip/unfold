@@ -1,5 +1,5 @@
 import type { FactsPullRequest, WorkItemFacts } from './cards/facts.ts';
-import { economicsPageBound, economicsWindows, handedOverAt, readWindowFacts, runSpend, type EconomicsWindow, type FactsSource } from './delivery-economics.ts';
+import { economicsPageBound, economicsWindows, handedOverAt, readWindowFacts, runSpend, type EconomicsWindow, type FactsReach, type FactsSource } from './delivery-economics.ts';
 
 /** How a Work Item stands against ADR-0006's Acceptance: accepted by merge, by approval or by silence, closed without it, or still open. */
 export type AcceptanceKind = 'merged' | 'approved' | 'silent' | 'closed_without_acceptance' | 'open';
@@ -178,10 +178,13 @@ export function deliveryLedger(facts: WorkItemFacts[], { window, since, until, c
   };
 }
 
-/** Reads the facts of every Work Item with activity inside the window within `teams` and builds the ledger as of `now`. */
-export async function readDeliveryLedger(source: FactsSource, { window, teams, calendar = defaultAcceptanceCalendar, now = Date.now(), fresh = false, maxPages = economicsPageBound }: { window: EconomicsWindow; teams: readonly string[]; calendar?: AcceptanceCalendar; now?: number; fresh?: boolean; maxPages?: number }): Promise<DeliveryLedger> {
+/**
+ * Reads the facts of every Work Item with activity inside the window within `teams` that `reaches` accepts, and
+ * builds the ledger as of `now`.
+ */
+export async function readDeliveryLedger(source: FactsSource, { window, teams, reaches, calendar = defaultAcceptanceCalendar, now = Date.now(), fresh = false, maxPages = economicsPageBound }: { window: EconomicsWindow; teams: readonly string[]; reaches?: FactsReach; calendar?: AcceptanceCalendar; now?: number; fresh?: boolean; maxPages?: number }): Promise<DeliveryLedger> {
   const since = now - economicsWindows[window];
-  const { facts, truncated } = await readWindowFacts(source, { since, teams, fresh, maxPages });
+  const { facts, truncated } = await readWindowFacts(source, { since, teams, reaches, fresh, maxPages });
   return deliveryLedger(facts, { window, since, until: now, calendar, truncated });
 }
 

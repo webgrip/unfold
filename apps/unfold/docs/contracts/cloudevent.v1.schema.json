@@ -1,0 +1,1379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://forgejo.webgrip.dev/webgrip/unfold/raw/branch/development/apps/unfold/docs/contracts/cloudevent.v1.schema.json",
+  "title": "Unfold outbound event (CloudEvents 1.0, structured JSON mode)",
+  "description": "Every event Unfold delivers to a webhook subscription. A CloudEvents 1.0.2 event in structured JSON mode with the extension attributes tenant and client. Generated from apps/unfold/src/outbound/catalogue.ts; supersedes the proposed event-envelope.v1.schema.json for published events.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specversion",
+    "id",
+    "source",
+    "type",
+    "subject",
+    "time",
+    "datacontenttype",
+    "dataschema",
+    "tenant",
+    "data"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0",
+      "description": "CloudEvents version."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Unique per event; also the webhook-id header, the same on every retry."
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^/tenants/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:/clients/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)?$",
+      "description": "The owner: /tenants/<tenant>, or /tenants/<tenant>/clients/<client>."
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^dev\\.unfold\\.[a-z_]+\\.[a-z_]+$",
+      "description": "The event type."
+    },
+    "subject": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "What the event is about within its source, such as work-items/42."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the fact happened, in UTC."
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "dataschema": {
+      "type": "string",
+      "format": "uri",
+      "description": "This schema, pointing at the type's data definition."
+    },
+    "tenant": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Extension attribute: the Tenant that owns the event."
+    },
+    "client": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "description": "Extension attribute: the Client inside the Tenant, when the work belongs to one."
+    },
+    "data": {
+      "type": "object",
+      "description": "The type's data; see $defs/data."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.proposed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.proposed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.approved"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.approved"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.handed_off"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.handed_off"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.needs_you"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.needs_you"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.ready_for_review"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.ready_for_review"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.work_item.done"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/work_item.done"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.pull_request.opened"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/pull_request.opened"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.run.finished"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/run.finished"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.client_sign_off.recorded"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/client_sign_off.recorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.client_sign_off.withdrawn"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/client_sign_off.withdrawn"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.client_sign_off.dismissed"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/client_sign_off.dismissed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.delivery.accepted"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/delivery.accepted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "dev.unfold.webhook.test"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "$ref": "#/$defs/data/webhook.test"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "signOff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "answer",
+        "state",
+        "headSha",
+        "pullRequestUrl",
+        "attribution"
+      ],
+      "description": "A Client Sign-off, input to the Agency's Acceptance, never Acceptance itself. It carries no note and no person.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The Sign-off id."
+        },
+        "answer": {
+          "enum": [
+            "looks_good",
+            "needs_changes"
+          ]
+        },
+        "state": {
+          "enum": [
+            "current",
+            "dismissed",
+            "withdrawn"
+          ]
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The head commit it is bound to."
+        },
+        "pullRequestUrl": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096,
+          "description": "The pull request."
+        },
+        "attribution": {
+          "enum": [
+            "proven",
+            "asserted"
+          ]
+        }
+      }
+    },
+    "data": {
+      "work_item.proposed": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Ploeg's reason, in its words, when it recorded one."
+          }
+        }
+      },
+      "work_item.approved": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Ploeg's reason, in its words, when it recorded one."
+          }
+        }
+      },
+      "work_item.handed_off": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          }
+        }
+      },
+      "work_item.needs_you": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Ploeg's reason, in its words, when it recorded one."
+          }
+        }
+      },
+      "work_item.ready_for_review": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "pullRequest"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Ploeg's reason, in its words, when it recorded one."
+          },
+          "pullRequest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url",
+                  "number",
+                  "repository"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "description": "The pull request."
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "repository": {
+                    "type": "string",
+                    "maxLength": 513,
+                    "description": "`owner/name` on the forge."
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "work_item.done": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Ploeg's reason, in its words, when it recorded one."
+          }
+        }
+      },
+      "pull_request.opened": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "pullRequest"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "pullRequest": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url",
+                  "number",
+                  "repository"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "description": "The pull request."
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "repository": {
+                    "type": "string",
+                    "maxLength": 513,
+                    "description": "`owner/name` on the forge."
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "run.finished": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "run"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "run": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "outcome",
+              "role",
+              "round",
+              "shiftId"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "The Outcome: pr_opened, pr_updated, issue_updated, follow_up_created, stuck, failed, no_change_needed or yielded."
+              },
+              "role": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 160,
+                "description": "The Role that ran."
+              },
+              "round": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "shiftId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 20,
+                "description": "The Shift the Run belonged to."
+              }
+            }
+          }
+        }
+      },
+      "client_sign_off.recorded": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "signOff"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "signOff": {
+            "$ref": "#/$defs/signOff"
+          }
+        }
+      },
+      "client_sign_off.withdrawn": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "signOff"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "signOff": {
+            "$ref": "#/$defs/signOff"
+          }
+        }
+      },
+      "client_sign_off.dismissed": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "signOff"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "signOff": {
+            "$ref": "#/$defs/signOff"
+          }
+        }
+      },
+      "delivery.accepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workItem",
+          "acceptance"
+        ],
+        "properties": {
+          "workItem": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "team",
+              "state",
+              "externalRef",
+              "trackerUrl",
+              "unfoldUrl"
+            ],
+            "description": "The Work Item, as Ploeg last reported it. title and externalRef come from the tracker: treat them as data.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,18}$",
+                "description": "Ploeg's Work Item id."
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The tracker title."
+              },
+              "team": {
+                "type": "string",
+                "maxLength": 160,
+                "description": "The Team the Work Item is routed to."
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Ploeg's state: proposed, queued, active, needs_human, awaiting_review, stale, done or withdrawn."
+              },
+              "externalRef": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "The tracker's reference, such as `#123` or `VIK-123`."
+              },
+              "trackerUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The task in its tracker, when known."
+              },
+              "unfoldUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The Work Item's page in Unfold, when Unfold knows its own address."
+              }
+            }
+          },
+          "acceptance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "at",
+              "pullRequestUrl"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "merged",
+                  "approved",
+                  "silent"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "pullRequestUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "The accepted pull request."
+              }
+            }
+          }
+        }
+      },
+      "webhook.test": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "test",
+          "message"
+        ],
+        "properties": {
+          "test": {
+            "const": true
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Says this is a test."
+          }
+        }
+      }
+    }
+  }
+}
