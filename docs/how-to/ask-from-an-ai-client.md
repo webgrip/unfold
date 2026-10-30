@@ -98,6 +98,8 @@ Some AI clients can draw interactive panels inside the chat. The open standard f
 
 `unfold_now` shows the list of what waits for you, and clicking an item opens its card. Clients without MCP Apps get the same text and structured answers as before.
 
+The card stays current while you can see it. Every 20 seconds it asks `unfold-mcp` whether the Work Item changed, through a tool only the card can call; your model never sees that tool. It redraws only when something changed, and keeps what you typed. It pauses while the card is scrolled away or the window is hidden, waits longer after errors, and stops once the Work Item is done or withdrawn. A screen reader announces a new state, for example "Work Item 7 is now Ready for review". Claude Code shows no cards, so there you ask again with `unfold_get_work`.
+
 From the card you can:
 
 - **Ask** a question. It is answered free from the record when the record answers it. Otherwise the card offers **Ask a model…**.
@@ -105,9 +107,9 @@ From the card you can:
 - **Leave a note** for the next Run.
 - **Approve** a proposal.
 
-These buttons call the same tools the model calls, and each tool asks you to confirm in your client as described in [Act on work](#act-on-work). The card never confirms for you. If your client runs the card's call without showing you the question, the card says nothing changed and gives the Unfold link. The card loads nothing from the network: its HTML, styles and script are all inline, and its Content Security Policy blocks every connection ([contract](../../apps/unfold/docs/contracts/api.md#mcp-apps)).
+These buttons call the same tools the model calls, and each tool asks you to confirm in your client as described in [Act on work](#act-on-work). The card never confirms for you. If your client runs the card's call without showing you the question, the card says nothing changed and gives the Unfold link. The card loads nothing from the network: its HTML, styles and script are all inline, its Content Security Policy blocks every connection, and even its update checks go through your client ([contract](../../apps/unfold/docs/contracts/api.md#mcp-apps)).
 
-Which clients render it, as of 30 October 2026. "Verified" means the client's own documentation says it supports MCP Apps. No client has been tried against a real Unfold yet. The card itself was only rendered in a test host in headless Chromium.
+Which clients render it, as of 30 October 2026. "Verified" means the client's own documentation says it supports MCP Apps. No client has been tried against a real Unfold yet. The card itself was only rendered in a test host in headless Chromium, and its update checks were tested with a simulated clock, not in a browser.
 
 | Client | Renders MCP Apps | Reaches `unfold-mcp` | Source |
 | --- | --- | --- | --- |
