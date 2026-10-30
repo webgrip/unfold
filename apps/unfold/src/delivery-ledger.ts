@@ -23,7 +23,7 @@ export type DeliveryRow = {
 /** The Delivery read model for a window: phase 1 of billing per accepted Work Item, figures only, never a charge. */
 export type DeliveryLedger = {
   demo: false; window: EconomicsWindow; since: string; until: string;
-  calendar: { workingDays: 'monday-friday'; nonWorkingDates: string[]; silentAfterWorkingDays: number; timeZone: 'UTC'; proposed: true };
+  calendar: { workingDays: 'monday-friday'; nonWorkingDates: string[]; silentAfterWorkingDays: number; timeZone: 'UTC' };
   readyForReview: 'last_writing_run';
   rows: DeliveryRow[];
   totals: { kinds: Record<AcceptanceKind, number>; tokenChargeBaseUsd: number; unsettledUsd: number; unsettledRuns: number; unknownRuns: number };
@@ -171,7 +171,7 @@ export function deliveryLedger(facts: WorkItemFacts[], { window, since, until, c
   for (const row of rows) { kinds[row.acceptance.kind]++; charge += row.tokenChargeBaseUsd; unsettledUsd += row.unsettled.usd; unsettledRuns += row.unsettled.runs; unknownRuns += row.unknownRuns; }
   return {
     demo: false, window, since: new Date(since).toISOString(), until: new Date(until).toISOString(),
-    calendar: { workingDays: 'monday-friday', nonWorkingDates: [...calendar.nonWorkingDates], silentAfterWorkingDays: silentAcceptanceWorkingDays, timeZone: 'UTC', proposed: true },
+    calendar: { workingDays: 'monday-friday', nonWorkingDates: [...calendar.nonWorkingDates], silentAfterWorkingDays: silentAcceptanceWorkingDays, timeZone: 'UTC' },
     readyForReview: 'last_writing_run',
     rows, totals: { kinds, tokenChargeBaseUsd: rounded(charge), unsettledUsd: rounded(unsettledUsd), unsettledRuns, unknownRuns },
     scanned: seen.size, truncated: truncated || rows.some(row => row.runsTruncated),

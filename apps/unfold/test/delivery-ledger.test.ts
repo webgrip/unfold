@@ -115,7 +115,7 @@ test('the ledger lists attempted Work Items newest Acceptance first, open ones l
   assert.equal(ledger.totals.tokenChargeBaseUsd, 4);
   assert.equal(ledger.scanned, 5);
   assert.equal(ledger.truncated, true);
-  assert.deepEqual(ledger.calendar, { workingDays: 'monday-friday', nonWorkingDates: [], silentAfterWorkingDays: 10, timeZone: 'UTC', proposed: true });
+  assert.deepEqual(ledger.calendar, { workingDays: 'monday-friday', nonWorkingDates: [], silentAfterWorkingDays: 10, timeZone: 'UTC' });
   assert.equal(ledger.readyForReview, 'last_writing_run');
 });
 
