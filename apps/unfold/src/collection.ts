@@ -316,7 +316,7 @@ export class Collection {
     const teams = (await this.source.teams(user)).map(entry => entry.id);
     const selected = team ?? teams[0];
     if (!selected) return { demo: this.demo, team: null, teams, quarters: recentQuarters(now), quarter: quarterAt(now), aggregates: null, source: null };
-    if (!teams.includes(selected)) throw new CollectionError(404, 'team_not_found', 'Team not found in your teams.');
+    if (!teams.includes(selected)) throw new CollectionError(404, 'team_not_found', 'There is no such Team among your Teams.');
     const current = quarterAt(now);
     const early = !quarterId && now - Date.parse(current.start) < 7 * day;
     const quarter = quarterId ? quarterById(quarterId) : early ? quarterAt(Date.parse(current.start) - day) : current;

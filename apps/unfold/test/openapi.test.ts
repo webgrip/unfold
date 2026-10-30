@@ -247,7 +247,7 @@ test('the server answers exactly the methods the OpenAPI description declares, a
     assert.equal(created.status, 201, created.text);
     return String(created.body.subscription.id);
   };
-  const unrouted = new Set(['API route not found.', 'Ploeg operator view not found.', 'Action not found.', 'Unknown OFREP path.', 'Relay route not found.', 'Unknown notifications route.']);
+  const unrouted = new Set(['The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.', 'Ploeg operator view not found.', 'A session takes no such action. The API reference at /api/openapi.yaml lists the actions it takes.', 'Unknown OFREP path.', 'Relay route not found.', 'Unknown notifications route.']);
   async function probe(path: string, method: string, declared: boolean, header = true): Promise<{ status: number; code?: string; routed: boolean }> {
     const body = method === 'GET' ? undefined : declared ? 'probe' : '{}';
     const controller = new AbortController();

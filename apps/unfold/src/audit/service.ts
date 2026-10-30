@@ -275,7 +275,7 @@ export class AuditTrail {
       res.end(JSON.stringify({ ...chain, ok: chain.ok && (checkpoints?.ok ?? true), checkpoints }));
       return;
     }
-    if (request.path !== '/api/admin/audit') return fail(404, 'not_found', 'API route not found.');
+    if (request.path !== '/api/admin/audit') return fail(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
     if (!await this.exportEnabled(tenant)) return fail(404, 'audit_export_off', 'Audit export is off for this Tenant. Turn on the audit.export flag to read it here or send it to a SIEM.');
     const since = request.query.get('since');
     if (since !== null && (!/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/.test(since) || Number.isNaN(Date.parse(since)))) return fail(400, 'audit_since', 'since must be an ISO 8601 UTC time, such as 2026-10-01T00:00:00Z.');

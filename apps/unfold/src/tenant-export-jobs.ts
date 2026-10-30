@@ -112,7 +112,7 @@ export class TenantExports {
       log('tenant_export.ready', { actor: user.id, tenant: job.tenant, export: job.id, rows: job.rows, bytes: job.bytes, sha256: job.sha256 });
     } catch (error) {
       rmSync(this.bundle(job.id), { force: true });
-      Object.assign(job, { state: 'failed', finishedAt: this.now().toISOString(), error: 'The export could not be completed. Check the server log.' });
+      Object.assign(job, { state: 'failed', finishedAt: this.now().toISOString(), error: 'Unfold hit a fault of its own and did not finish the export. Start a new export; if it fails again, report a problem.' });
       console.error(JSON.stringify({ level: 'error', event: 'tenant_export.failed', actor: user.id, tenant: job.tenant, export: job.id, message: String((error as Error).message).slice(0, 300) }));
     } finally {
       if (snapshot) { if (snapshot.isTransaction) snapshot.exec('COMMIT'); snapshot.close(); }
@@ -233,5 +233,5 @@ export async function tenantExportRoute(service: TenantExports, request: TenantE
     if (method === 'DELETE') { await service.remove(user, match[1]); return { status: 200, body: { deleted: match[1] } }; }
     refuse(405, 'method', 'Read an export with GET or delete it with DELETE.');
   }
-  return refuse(404, 'not_found', 'API route not found.');
+  return refuse(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
 }

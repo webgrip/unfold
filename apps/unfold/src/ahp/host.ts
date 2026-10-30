@@ -38,6 +38,7 @@ import { ChatSessions, chatChatUri, chatProvider, chatSessionUri } from './chats
 import type { ChatService } from '../chat/service.ts';
 import { accountDisabled } from '../identity/accounts.ts';
 import { agentHostOriginAllowed, renewedExpiry, reportUnlistedOrigin, upgradeToken } from './upgrade-auth.ts';
+import { catalogueMessage, publicError } from '../error-catalogue.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -170,7 +171,7 @@ const engineCodes: Record<number, number> = { 400: codes.invalidParams, 403: cod
 function asRpcError(error: unknown): RpcError {
   if (error instanceof RpcError) return error;
   const status = Number((error as { status?: unknown })?.status);
-  return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? error.message : 'Internal error');
+  return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? publicError(error, true).message : catalogueMessage('internal_error'));
 }
 
 /** The events by which the host records a choice it offered in a chat, the person's answer and what came of it. */
@@ -858,7 +859,7 @@ export class AgentHost {
     const channel = String(params.channel ?? '');
     if (parseChannel(channel)?.kind !== 'changeset') throw new RpcError(codes.invalidParams, 'channel must be an ahp-changeset channel');
     const session = this.sessionFor(client.user, channel);
-    if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (!session) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     const operation = this.operations(session).find(item => item.id === params.operationId);
     if (!operation) throw new RpcError(codes.invalidParams, `This changeset offers no operation ${JSON.stringify(params.operationId)}`);
     if (params.target !== undefined) throw new RpcError(codes.invalidParams, `${operation.label} applies to the whole candidate, not to a file or range`);
@@ -880,18 +881,18 @@ export class AgentHost {
     const candidate = candidateContent.exec(uri);
     const artifact = candidate ? undefined : artifactContent.exec(uri);
     const session = candidate || artifact ? this.sessionFor(user, sessionChannel((candidate ?? artifact)![1])) : undefined;
-    if (!session) throw new RpcError(codes.notFound, 'Resource not found');
+    if (!session) throw new RpcError(codes.notFound, 'Unfold has no such resource. Reopen it from the Unfold view.');
     if (candidate) {
       const key = this.candidateKey(session);
       if (key) await this.loadCandidate(session);
       const file = key ? this.candidates.get(key)?.files[Number(candidate[2])] : undefined;
       const blob = candidate[3] === 'before' ? file?.baseBlob : file?.blob;
-      if (!blob || !session.candidate?.sha256) throw new RpcError(codes.notFound, 'Resource not found');
+      if (!blob || !session.candidate?.sha256) throw new RpcError(codes.notFound, 'Unfold has no such resource. Reopen it from the Unfold view.');
       return { data: await readCandidateBlob(this.config.dataDir, session.id, session.candidate.sha256.bundle, blob), contentType: 'text/plain' };
     }
     const entry = diffEntries(session.artifacts.filter(item => item.kind === 'diff')[Number(artifact![2])]?.content ?? '')[Number(artifact![3])];
     const value = entry?.[artifact![4]];
-    if (typeof value !== 'string') throw new RpcError(codes.notFound, 'Resource not found');
+    if (typeof value !== 'string') throw new RpcError(codes.notFound, 'Unfold has no such resource. Reopen it from the Unfold view.');
     return { data: Buffer.from(value), contentType: 'text/plain' };
   }
 
@@ -1326,7 +1327,7 @@ export class AgentHost {
       const result = await this.request(client, message.method, params);
       this.send(client, { jsonrpc: '2.0', id: message.id, result });
     } catch (error) {
-      const rpc = error instanceof RpcError ? error : new RpcError(codes.internal, error instanceof Error && 'status' in error ? String(error.message) : 'Internal error');
+      const rpc = error instanceof RpcError ? error : new RpcError(codes.internal, error instanceof Error && 'status' in error ? publicError(error, true).message : catalogueMessage('internal_error'));
       this.send(client, { jsonrpc: '2.0', id: message.id, error: { code: rpc.code, message: rpc.message, ...(rpc.data !== undefined ? { data: rpc.data } : {}) } });
       if (rpc.code === codes.unsupportedVersion) { this.clients.delete(client); client.connection.close(1000, 'Unsupported protocol version'); }
     }
@@ -1355,12 +1356,12 @@ export class AgentHost {
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     if (parsed.run) { const session = this.sessionFor(client.user, channel); const state = session && runChatState(this.projection(session).runs, parsed.run, this.spelling(session, client)); if (!state) throw new RpcError(codes.notFound, 'Unknown channel'); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const pending = this.pending.get(parsed.id);
-    if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     if (pending && parsed.kind === 'session') return { resource: channel, state: this.pendingState(pending, client), fromSeq: this.serverSeq };
     if (pending && parsed.kind === 'chat') return { resource: channel, state: { ...this.pendingChat(pending, client), turns: pending.refusedTurns ?? [] }, fromSeq: this.serverSeq };
     if (pending) throw new RpcError(codes.notFound, 'Unknown channel');
     const session = this.sessionFor(client.user, channel);
-    if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (!session) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session, client), fromSeq: this.serverSeq };
     if (parsed.kind === 'chat') {
       const workItemId = session.execution?.workItemId;
@@ -1449,7 +1450,7 @@ export class AgentHost {
   private async subscribe(client: Client, channel: string): Promise<Json> {
     if (parseAnnotationsChannel(channel)) {
       let snapshot: Json;
-      try { snapshot = this.review.annotationsSnapshot(client.user, channel); } catch { throw new RpcError(codes.sessionNotFound, 'Session not found'); }
+      try { snapshot = this.review.annotationsSnapshot(client.user, channel); } catch { throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.'); }
       client.subscriptions.add(channel);
       return snapshot;
     }
@@ -1597,7 +1598,7 @@ export class AgentHost {
     const chat = String(params.chat ?? '');
     const chatId = sessionIdFrom(channel);
     if (chatId && this.chats.has(chatId)) {
-      if (!this.chats.owns(client.user, chatId)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+      if (!this.chats.owns(client.user, chatId)) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
       const named = parseChannel(chat);
       if (named?.kind !== 'chat' || named.id !== chatId || named.run) throw new RpcError(codes.conflict, `A chat with Unfold has exactly one chat: ${chatChatUri(chatId, client.scheme)}`);
       client.subscriptions.add(chat);
@@ -1606,14 +1607,14 @@ export class AgentHost {
     }
     const pending = this.pendingFor(channel);
     if (pending) {
-      if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+      if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
       if (channelKey(chat) !== channelKey(chatChannel(pending.id))) throw new RpcError(codes.conflict, `An Unfold session has exactly one chat: ${chatChannel(pending.id, client.scheme)}`);
       client.subscriptions.add(chat);
       if (params.initialMessage?.text) queueMicrotask(() => void this.startFromPending(pending, params.initialMessage, { clientId: client.clientId!, clientSeq: 0 }));
       return {};
     }
     const session = this.sessionFor(client.user, channel);
-    if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (!session) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     throw new RpcError(codes.conflict, 'An Unfold session has exactly one chat; subscribe to its default chat');
   }
 
@@ -1621,7 +1622,7 @@ export class AgentHost {
     const channel = String(params.channel ?? '');
     const workItem = sessionIdFrom(channel);
     if (workItem && this.chats.has(workItem)) {
-      if (!this.chats.owns(client.user, workItem)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+      if (!this.chats.owns(client.user, workItem)) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
       this.chats.dispose(client.user, workItem);
       for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (subscribedSessionId(subscription) === workItem) item.subscriptions.delete(subscription);
       if (this.activeClients.delete(workItem)) this.persistActiveClients();
@@ -1631,7 +1632,7 @@ export class AgentHost {
     if (workItem && isWorkItemSession(workItem)) throw new RpcError(this.workItems.remembered(client.user, workItem) ? codes.permissionDenied : codes.sessionNotFound, this.workItems.remembered(client.user, workItem) ? workItemRefusals.dispose : 'Session not found');
     const pending = this.pendingFor(channel);
     if (pending) {
-      if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
+      if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
       this.pending.delete(pending.id);
       this.store.deleteAgentHostViews(pending.id);
       if (this.activeClients.delete(pending.id)) this.persistActiveClients();
@@ -1639,7 +1640,7 @@ export class AgentHost {
       return {};
     }
     const session = this.sessionFor(client.user, channel);
-    if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (!session) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
     for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (subscribedSessionId(subscription) === publicId) item.subscriptions.delete(subscription);
@@ -1749,8 +1750,8 @@ export class AgentHost {
     const workItemId = workItemIdOf(parsed.id);
     let found: Awaited<ReturnType<WorkItemSessions['session']>>;
     try { found = workItemId ? await this.workItems.session(client.user, workItemId) : undefined; }
-    catch (error) { throw new RpcError(codes.internal, error instanceof Error && 'status' in error ? error.message : 'Ploeg could not be read'); }
-    if (!found) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    catch (error) { throw new RpcError(codes.internal, error instanceof Error && 'status' in error ? publicError(error, true).message : 'Unfold could not read this Work Item from Ploeg. Try again in a minute.'); }
+    if (!found) throw new RpcError(codes.sessionNotFound, 'Unfold has no such session, or it is not yours. Reopen it from the Unfold view.');
     if (!parsed.run) this.settleWorkItemPrompts(client.user, found.entry, found.detail);
     const spelling = this.workItemSpelling(parsed.id, client);
     const flags = this.viewOf(client, parsed.id);

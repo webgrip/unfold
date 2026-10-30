@@ -180,7 +180,7 @@ export class ScimService {
       await this.route(req, res, url, target);
     } catch (error) {
       if (res.headersSent) { res.end(); return; }
-      const known = error instanceof ScimError ? error : new ScimError(500, 'The request could not be completed. Check the server log.');
+      const known = error instanceof ScimError ? error : new ScimError(500, 'Unfold hit a fault of its own and did not finish the provisioning request. Your identity provider retries it; if it keeps failing, report a problem to the Unfold administrator.');
       if (!(error instanceof ScimError)) console.error(JSON.stringify({ level: 'error', event: 'scim.failed', message: String((error as Error)?.message).slice(0, 200) }));
       send(res, known.status, { schemas: [errorSchema], status: String(known.status), ...(known.scimType ? { scimType: known.scimType } : {}), detail: known.message }, known.status === 401 ? { 'WWW-Authenticate': 'Bearer realm="scim"' } : {});
     }

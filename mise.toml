@@ -76,6 +76,11 @@ description = "Regenerate the domain pages and the combined glossary from the mo
 run = "node apps/unfold/scripts/ploeg-words.mjs"
 description = "Regenerate the Ploeg words reference page from docs/domain/ploeg-words.json"
 
+[tasks.error-codes]
+dir = "apps/unfold"
+run = "node scripts/error-codes.ts"
+description = "Regenerate Unfold's error codes page, apps/unfold/docs/contracts/error-codes.md, from src/error-catalogue.ts"
+
 [tasks.domain-check]
 run = "uv run --frozen python scripts/docs.py --domain-check"
 description = "Check the domain pages, the combined glossary, the decision register and the landscape explorer against the models and the pinned Ploeg contract; the ploeg-docs pull request check"

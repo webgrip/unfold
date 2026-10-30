@@ -4,8 +4,8 @@ import { PloegError, contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { canHandOff, taskBindingConfiguration, type PloegTaskSource, type TaskSnapshot, type TaskTarget } from './tasks.ts';
 
-const unavailable = () => new PloegError(503, 'task_binding_unavailable', 'Ploeg could not confirm the existing work item. Refresh before importing or starting work.');
-const mismatch = () => new PloegError(409, 'task_binding_changed', 'The tracker source, Ploeg work item or registered target changed. Refresh the task and review its current binding.');
+const unavailable = () => new PloegError(503, 'task_binding_unavailable', 'Ploeg could not confirm the task\'s Work Item. Reload, then try again.');
+const mismatch = () => new PloegError(409, 'task_binding_changed', 'The task, its Ploeg Work Item or its repository changed. Reload the task and review it before you start.');
 const id = (value: unknown): value is string => typeof value === 'string' && /^[1-9][0-9]{0,19}$/.test(value);
 const timestamp = (value: unknown): value is string => typeof value === 'string' && value.length <= 128 && Number.isFinite(Date.parse(value));
 export function sameTaskTarget(left: TaskTarget, right: TaskTarget): boolean { return ['forge', 'owner', 'repo', 'baseBranch'].every(key => left[key as keyof TaskTarget] === right[key as keyof TaskTarget]); }
@@ -26,8 +26,8 @@ export async function lookupTaskBinding(config: AppConfig, task: TaskSnapshot, c
     const response = await fetch(`${config.ploeg.url}/api/v1/operator/work-items/lookup?${query}`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' }, signal: AbortSignal.timeout(10000), redirect: 'manual' });
     if (!response.ok) {
       await response.body?.cancel();
-      if (response.status === 404 || response.status === 403) throw new PloegError(409, 'task_binding_missing', 'No matching Ploeg work item is available within this connection’s scope. Check the tracker assignment and source registration.');
-      if (response.status === 409) throw new PloegError(409, 'task_binding_conflict', 'This Ploeg work item is changed, already claimed, or has previous execution. Inspect its current work before starting a new session.');
+      if (response.status === 404 || response.status === 403) throw new PloegError(409, 'task_binding_missing', 'Ploeg has no Work Item for this task in this connection\'s scope. Check the task\'s assignment in the tracker.');
+      if (response.status === 409) throw new PloegError(409, 'task_binding_conflict', 'The task\'s Ploeg Work Item changed, is taken by a Team, or already ran. Open the Work Item before you start a new session.');
       throw unavailable();
     }
     if (!response.body || !/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) throw unavailable();

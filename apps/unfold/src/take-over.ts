@@ -38,7 +38,7 @@ export class TakeOver {
 
   /** Where a Work Item's take-over stands, whether the caller may take control or hand it back now, and the latest Run report. */
   async status(user: User, id: string): Promise<TakeOverStatus> {
-    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     const detail = await this.ploeg.detail(user, id, true);
     const viewer = { id: user.id, role: user.role };
     const offer = takeControlOffer(detail, viewer);
@@ -57,7 +57,7 @@ export class TakeOver {
   /** Asks the Work Item's running Runs to stop at their next safe point for the caller, or for `actFor` when an administrator acts for them. */
   async takeControl(user: User, id: string, input: Record<string, unknown>): Promise<PloegTakeOverStarted> {
     if (user.role === 'viewer') fail(403, 'forbidden', 'Viewers cannot change Ploeg work.');
-    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     const commandId = input.commandId === undefined ? `unfold-take-over-${randomUUID()}` : String(input.commandId);
     if (!commandPattern.test(commandId)) fail(400, 'ploeg_command', 'A take-over needs a command id of 1 to 128 identifier characters.');
     const named = typeof input.actFor === 'string' && input.actFor.trim() ? input.actFor.trim() : undefined;
@@ -80,7 +80,7 @@ export class TakeOver {
    */
   async handBack(user: User, id: string, input: Record<string, unknown>): Promise<PloegRequeued> {
     if (user.role === 'viewer') fail(403, 'forbidden', 'Viewers cannot change Ploeg work.');
-    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!workItemPattern.test(id)) fail(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
     const commandId = input.commandId === undefined ? `unfold-hand-back-${randomUUID()}` : String(input.commandId);
     if (!commandPattern.test(commandId)) fail(400, 'ploeg_command', 'A hand-back needs a command id of 1 to 128 identifier characters.');
     const note = typeof input.note === 'string' ? input.note.trim() : '';
@@ -104,7 +104,7 @@ export function isTakeOverRoute(path: string): boolean { return route.test(path)
 /** Serves `GET|POST /api/ploeg/work-items/:id/take-over` and `POST .../hand-back`; refusals throw {@link PloegError}. */
 export async function takeOverRoute(service: TakeOver, request: TakeOverRequest): Promise<{ status: number; body: unknown }> {
   const [, id, part] = route.exec(request.path) ?? [];
-  if (!id) return fail(404, 'not_found', 'API route not found.');
+  if (!id) return fail(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');
   if (part === 'take-over' && request.method === 'GET') return { status: 200, body: await service.status(request.user, id) };
   if (request.method !== 'POST') return fail(405, 'method', part === 'take-over' ? 'Take control with POST; read where it stands with GET.' : 'Hand a Work Item back with POST.');
   if (part === 'take-over') return { status: 202, body: { takeOver: await service.takeControl(request.user, id, await request.body()) } };

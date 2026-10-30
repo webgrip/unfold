@@ -11,7 +11,7 @@ import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, t
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
 /** The Operator Execution states Unfold accepts from Ploeg; `test/ploeg-contract.test.ts` checks them against Ploeg's domain model. */
 export const executionStates = ['admitted', 'running', 'waiting_input', 'pause_requested', 'paused', 'cancel_requested', 'cancelled', 'completed', 'failed', 'interrupted'];
-const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) => Object.assign(new PloegError(503, 'execution_unconfirmed', 'Ploeg could not confirm this operation. Execution remains fenced; reconnect and reconcile before continuing.'), { failure });
+const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) => Object.assign(new PloegError(503, 'execution_unconfirmed', 'Ploeg did not confirm the change, so Unfold holds the session where it is. Wait until Ploeg answers again, reload, and check the session before you continue.'), { failure });
 
 /** How long one authority request may take, except a credential request. */
 export const authorityRequestTimeoutMs = 5000;
@@ -56,7 +56,7 @@ export class ExecutionAuthority {
 
   authorize(user: User): void {
     const team = this.config.execution!.team;
-    if (user.role === 'viewer' || (this.config.ploeg!.teams && !this.config.ploeg!.teams.includes(team)) || (user.role !== 'admin' && !this.config.ploeg!.userTeams?.[user.id]?.includes(team))) throw new PloegError(403, 'execution_scope', 'Your account is not authorized to execute work for this Ploeg team.');
+    if (user.role === 'viewer' || (this.config.ploeg!.teams && !this.config.ploeg!.teams.includes(team)) || (user.role !== 'admin' && !this.config.ploeg!.userTeams?.[user.id]?.includes(team))) throw new PloegError(403, 'execution_scope', 'Your account may not run work for this Team. Ask an administrator to give you access to it.');
   }
 
   private async request(session: Session, path: string, body?: unknown, actingUser = session.ownerId): Promise<Record<string, any>> {
@@ -71,7 +71,7 @@ export class ExecutionAuthority {
       logPloegWarning(response, `executions${path.replace(/^\/[a-f0-9]{32}/, '/{id}').split('?')[0]}`);
       const unproven = body !== undefined ? await unprovenAnswer(response, actingUser, this.attribution, this.proof?.rejection?.(response)) : undefined;
       if (unproven) { await response.body?.cancel().catch(() => undefined); throw Object.assign(new PloegError(403, personUnprovenCode, unprovenMessage(unproven)), { failure: { cause: 'refused', status: 403, reason: 'person_unproven' } satisfies AuthorityFailure }); }
-      if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
+      if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg refused the change because the session changed meanwhile. Reload the page to see where it stands before you continue.' : 'Ploeg did not confirm the change, so nothing new was started. Try again in a minute.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
       if (!response.body || !(response.headers.get('content-type') ?? '').includes('application/json')) throw unavailable();
       const chunks: Uint8Array[] = []; let size = 0;
       const reader = response.body.getReader();
@@ -172,7 +172,7 @@ export class ExecutionAuthority {
         if (account.capabilityState !== 'issued') throw new PloegError(409, 'inference_blocked', 'This session\'s agent key was locked when it stopped, so it cannot continue. Press Duplicate as a new session to try again, or Cancel.');
         return saved;
       }
-      if (account.capabilityState !== 'reserved') throw new PloegError(409, 'inference_unresolved', 'No recoverable execution credential is available. Reconcile the existing authorization before another paid attempt.');
+      if (account.capabilityState !== 'reserved') throw new PloegError(409, 'inference_unresolved', 'No model key can be recovered for this session, and Unfold will not pay for the same work twice. Wait for the previous attempt to settle, then start a new session.');
       const data = await this.request(session, `/${binding.id}/credential`, { generation: binding.generation });
       const c = data.credential;
       if (!c || typeof c.key !== 'string' || !c.key || c.key.length > 4096 || typeof c.alias !== 'string' || c.alias.length > 256 || c.reference !== binding.id || !Number.isFinite(c.budgetUsd) || c.budgetUsd <= 0 || c.budgetUsd > session.budgetUsd) throw unavailable();
