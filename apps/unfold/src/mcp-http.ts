@@ -5,6 +5,7 @@ import { lowerRole, subjectUserId } from './oidc.ts';
 import { narrowedMemberships, type Membership } from './tenancy.ts';
 import type { DelegatedProof } from './person-proof.ts';
 import type { User, UserRole } from './types.ts';
+import type { McpAuditEntry } from './audit/service.ts';
 
 /** What the MCP endpoint inside the Unfold server needs from the rest of it. */
 export type McpHttpOptions = {
@@ -25,6 +26,8 @@ export type McpHttpOptions = {
   version: string;
   fetch?: typeof fetch;
   now?: () => number;
+  /** Receives each authenticated request, and each refused token or account, for the security audit. */
+  audit?(entry: McpAuditEntry): void;
 };
 
 const maxBodyBytes = 1_048_576;
@@ -83,16 +86,18 @@ export function createMcpHttp(options: McpHttpOptions) {
   if (settings.audience === 'client-id') console.error(JSON.stringify({ level: 'warn', event: 'mcp.client_audience', message: 'UNFOLD_MCP_TOKEN_AUDIENCE=client-id: a token whose aud names a client id in UNFOLD_MCP_CLIENT_IDS is accepted instead of one for UNFOLD_MCP_RESOURCE, so a token that client got for another resource is accepted too' }));
 
   async function serveEndpoint(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const caller = { ...(req.socket.remoteAddress ? { ip: req.socket.remoteAddress } : {}), ...(header(req, 'user-agent') ? { userAgent: header(req, 'user-agent') } : {}), issuer: settings.issuer };
+    const refused = (status: number, reason: string, user?: User, client?: string) => options.audit?.({ ...caller, status, outcome: 'failure', reason, ...(user ? { user } : {}), ...(client ? { client } : {}) });
     const authorization = /^Bearer\s+([A-Za-z0-9._~+/-]+=*)\s*$/i.exec(header(req, 'authorization') ?? '');
     if (!authorization) return problem(res, 401, 'unauthorized', 'Sign in to use this MCP server.', { 'WWW-Authenticate': challenge(settings) });
     let token: AccessToken;
     try { token = await verifier.verify(authorization[1]); }
     catch (error) {
-      if (error instanceof TokenRefused) return problem(res, 401, 'unauthorized', `The access token was refused: ${error.reason}.`, { 'WWW-Authenticate': challenge(settings, { code: 'invalid_token', description: error.reason }) });
+      if (error instanceof TokenRefused) { refused(401, `token_refused: ${error.reason}`.slice(0, 120)); return problem(res, 401, 'unauthorized', `The access token was refused: ${error.reason}.`, { 'WWW-Authenticate': challenge(settings, { code: 'invalid_token', description: error.reason }) }); }
       if (error instanceof KeysUnavailable) return problem(res, 503, 'service_unavailable', 'The identity provider\'s signing keys are unavailable; try again shortly.');
       throw error;
     }
-    if (!token.scopes.includes(settings.scope)) return problem(res, 403, 'forbidden', `The access token lacks the scope ${settings.scope}; sign in again and grant it.`, { 'WWW-Authenticate': challenge(settings, { code: 'insufficient_scope', description: `requires ${settings.scope}` }) });
+    if (!token.scopes.includes(settings.scope)) { refused(403, 'insufficient_scope', undefined, token.client); return problem(res, 403, 'forbidden', `The access token lacks the scope ${settings.scope}; sign in again and grant it.`, { 'WWW-Authenticate': challenge(settings, { code: 'insufficient_scope', description: `requires ${settings.scope}` }) }); }
     const origin = header(req, 'origin');
     if (origin !== undefined && origin !== resource.origin) return problem(res, 403, 'forbidden', 'This request came from another origin.');
     if (req.method !== 'POST') return problem(res, 405, 'method_not_allowed', 'This MCP endpoint is stateless and accepts only POST.', { Allow: 'POST' });
@@ -100,11 +105,13 @@ export function createMcpHttp(options: McpHttpOptions) {
     const account = options.findUser(subjectUserId(options.subjectNamespace, token.subject));
     if (!account) {
       console.error(JSON.stringify({ level: 'warn', event: 'mcp.unmapped', client: token.client }));
+      refused(403, 'unmapped', undefined, token.client);
       return problem(res, 403, 'forbidden', `Signed in as ${who}, but no Unfold account belongs to this identity. Sign in to Unfold in the browser once with the same account, then connect again.`);
     }
     const entitled = options.entitle(token.claims);
     if (!entitled) {
       console.error(JSON.stringify({ level: 'warn', event: 'mcp.not_entitled', actor: account.id }));
+      refused(403, 'not_entitled', account, token.client);
       return problem(res, 403, 'forbidden', `Signed in as ${who}, but the token holds none of the groups this workbench admits.`);
     }
     const role = lowerRole(account.role, entitled);
@@ -138,6 +145,7 @@ export function createMcpHttp(options: McpHttpOptions) {
     console.log(JSON.stringify({ level: 'info', event: 'mcp.request', actor: user.id, method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), protocol: modern ? 'stateless' : 'legacy', ...(token.audience === 'client' ? { audience: 'client' } : {}) }));
     const code = answer?.error?.code;
     const status = code === undefined ? 200 : modern && code === -32601 ? 404 : modern || [-32020, -32021, -32022].includes(code) ? 400 : 200;
+    options.audit?.({ ...caller, user, ...(token.client ? { client: token.client } : {}), method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), status, outcome: status === 200 && answer?.error === undefined && answer?.result?.isError !== true ? 'success' : 'failure', delegation: delegated.token });
     send(res, status, answer);
   }
 
