@@ -2741,6 +2741,37 @@ paths:
               schema: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/cost-export:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegCostExport
+      summary: 'Model cost as a FinOps FOCUS 1.4 Cost and Usage file, per Tenant and Client'
+      description: 'One row per settled Run (or per Work Item and day), read like the Delivery ledger within the caller''s Teams and Tenant and Client reach. Costs are US$ unless `currency=EUR` with the rate in `usdToEur`. Unsettled spend is left out, or with `unsettled=include` written at cost 0 with its observed amount in `x_UnfoldObservedCost`. The demo answers a file without rows and `X-Unfold-Demo: true`. 400 `cost_export_filter` for a query it cannot export.'
+      x-unfold-role: operator
+      parameters:
+        - { name: month, in: query, required: false, schema: { type: string, pattern: '^\d{4}-\d{2}$' }, description: 'A UTC calendar month; the current month when neither month nor from and to are given.' }
+        - { name: from, in: query, required: false, schema: { type: string, format: date }, description: 'Inclusive UTC start date, with `to`.' }
+        - { name: to, in: query, required: false, schema: { type: string, format: date }, description: 'Exclusive UTC end date, at most 366 days after `from`.' }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [csv, jsonl], default: csv } }
+        - { name: granularity, in: query, required: false, schema: { type: string, enum: [run, work-item], default: run } }
+        - { name: unsettled, in: query, required: false, schema: { type: string, enum: [exclude, include], default: exclude } }
+        - { name: currency, in: query, required: false, schema: { type: string, enum: [USD, EUR], default: USD } }
+        - { name: usdToEur, in: query, required: false, schema: { type: string, pattern: '^\d{1,3}(\.\d{1,10})?$' }, description: 'The euros one US$ buys; required with `currency=EUR`. Unfold never looks a rate up.' }
+        - { name: tenant, in: query, required: false, schema: { type: string } }
+        - { name: client, in: query, required: false, schema: { type: string } }
+        - { name: provider, in: query, required: false, schema: { type: string, maxLength: 100, default: unknown }, description: 'The model provider, when the requester knows it; written to ServiceProviderName, HostProviderName and InvoiceIssuerName.' }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: 'The file, with `X-Unfold-Focus-Version`, `X-Unfold-Truncated`, `X-Unfold-Unsettled-Runs`, `X-Unfold-Unreported-Runs` and `X-Unfold-Unowned-Work-Items`.'
+          content:
+            text/csv:
+              schema: { type: string }
+            application/x-ndjson:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/runs:
     get:
       tags: [Ploeg]
