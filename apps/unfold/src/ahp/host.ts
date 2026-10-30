@@ -37,6 +37,7 @@ import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type
 import { ChatSessions, chatChatUri, chatProvider, chatSessionUri } from './chats.ts';
 import type { ChatService } from '../chat/service.ts';
 import { accountDisabled } from '../identity/accounts.ts';
+import { agentHostOriginAllowed, renewedExpiry, upgradeToken } from './upgrade-auth.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -277,6 +278,7 @@ export class AgentHost {
   readonly store: Store;
   readonly engine: Engine;
   readonly clients = new Set<Client>();
+  private readonly queryTokens = new Set<string>();
   private readonly sequence: ServerSequence;
   /** The last sequence number the host gave an action. It never moves backwards, also not across a restart. */
   get serverSeq(): number { return this.sequence.current; }
@@ -412,13 +414,16 @@ export class AgentHost {
 
   private persistActiveClients(): void { saveActiveClients(this.store, this.activeClients); }
 
-  /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
+  /** Connection tokens expire after `auth.sessionHours` without use, and never outlive the sign-in that issued them. */
   issueToken(user: User, label = 'agent host', signIn?: string): string {
     const token = connectionToken();
     const key = digest(token);
     const bound = signIn && this.store.liveSignIn(signIn) ? signIn : undefined;
+    const now = Date.now();
+    const signInEnds = bound ? Date.parse(this.store.signInExpiresAt(bound) ?? '') : NaN;
+    const expiresAt = Number.isFinite(signInEnds) ? Math.min(now + this.lifetimeMs(), signInEnds) : now + this.lifetimeMs();
     this.store.transaction(() => {
-      this.store.setSecret(`ahp-token:${key}`, { userId: user.id, name: user.name, role: user.role, label, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + this.lifetimeMs()).toISOString(), ...(bound ? { signIn: bound } : {}) } satisfies TokenRecord);
+      this.store.setSecret(`ahp-token:${key}`, { userId: user.id, name: user.name, role: user.role, label, createdAt: new Date(now).toISOString(), expiresAt: new Date(expiresAt).toISOString(), ...(bound ? { signIn: bound } : {}) } satisfies TokenRecord);
       if (bound) this.store.setSecret(`ahp-sign-in:${bound}`, [...(this.store.getSecret<string[]>(`ahp-sign-in:${bound}`) ?? []), key]);
     });
     return token;
@@ -486,7 +491,8 @@ export class AgentHost {
     if (!record) return undefined;
     const now = Date.now();
     if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.liveSignIn(record.signIn)) || accountDisabled(this.store.db, record.userId)) { this.revoke(key); return undefined; }
-    const expiresAt = now + this.lifetimeMs();
+    const signInEnds = record.signIn ? Date.parse(this.store.signInExpiresAt(record.signIn) ?? '') : NaN;
+    const expiresAt = renewedExpiry(now, this.lifetimeMs(), Date.parse(record.expiresAt), Number.isFinite(signInEnds) ? signInEnds : undefined, Boolean(record.signIn));
     if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) {
       this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
       if (record.signIn) this.store.touchEditorSignIn(record.signIn, new Date(now).toISOString());
@@ -508,8 +514,18 @@ export class AgentHost {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (!['/', '/ahp'].includes(url.pathname)) return false;
     if (!isWebSocketUpgrade(req)) { rejectUpgrade(socket, 400, 'Bad Request'); return true; }
-    const authenticated = this.authenticate(url.searchParams.get('tkn'));
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+    if (!agentHostOriginAllowed(origin, this.config.auth.agentHostOrigins, this.config.baseUrl)) {
+      console.error(JSON.stringify({ level: 'warn', event: 'agent_host.origin_refused', origin: origin!.slice(0, 200) }));
+      rejectUpgrade(socket, 403, 'Forbidden'); return true;
+    }
+    const presented = upgradeToken(req, url);
+    const authenticated = this.authenticate(presented.token);
     if (!authenticated) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
+    if (presented.via === 'query' && !this.queryTokens.has(authenticated.key)) {
+      this.queryTokens.add(authenticated.key);
+      console.error(JSON.stringify({ level: 'info', event: 'agent_host.token_in_query', tokenId: authenticated.key.slice(0, 12), client: String(req.headers['user-agent'] ?? '').slice(0, 120) }));
+    }
     const connection = upgradeToWebSocket(req, socket, head);
     const client: Client = { id: randomUUID(), scheme: provider, protocolVersion: oldestBaseline, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), connectedAt: new Date().toISOString(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
