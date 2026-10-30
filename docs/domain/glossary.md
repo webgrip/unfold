@@ -240,6 +240,15 @@ A Run Card's assessment of its change from 1 to 10 in half steps, from four subg
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
 
+## Intake Source
+*Context: Offering · Owner: Unfold*
+
+One configured way for Requests to reach a Tenant, and optionally one Client in it, from a feedback tool, a form or a mailbox: a signed delivery address with its own secret and a mapping template. What it receives is stored as a Request for Refinement; it never becomes a Run, and Unfold never answers the sender. Behind the intake.requests flag.
+
+**Do not use:** inbox, integration  
+**Not to be confused with** [Integration Account](#integration-account): An account Unfold uses to read a tracker or forge; an Intake Source is posted to by the sender and holds no account.  
+**See also:** [Request](#request), [Client](../reference/glossary.md#client), [Integration Account](#integration-account)  
+
 ## Integration Account
 *Context: Offering · Owner: Unfold*
 
@@ -382,7 +391,7 @@ A Client's ask and the conversation about it, received through the Client Portal
 
 **Do not use:** client ticket  
 **Not to be confused with** [Work Item](../reference/glossary.md#work-item): The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.  
-**See also:** [Client](../reference/glossary.md#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal)  
+**See also:** [Client](../reference/glossary.md#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal), [Intake Source](#intake-source)  
 
 ## Result
 *Context: Work*

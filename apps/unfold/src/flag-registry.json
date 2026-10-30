@@ -161,6 +161,20 @@
         "labs": false
       }
     },
+    "intake.requests": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Request intake",
+        "description": "Lets senders deliver Requests to POST /api/intake/<source-id>, signed as Standard Webhooks, with a vendor signature or with a token, and lets administrators add intake sources under Settings. A webhook payload is mapped by a template; an email arrives as raw MIME or an inbound-parse JSON body and replies thread onto their Request. A Request waits for Refinement: it never becomes a Run and Unfold never writes back to the sender. Evaluated per Tenant for deliveries (the context carries tenantId) and per person for Settings.",
+        "client": true,
+        "labs": false
+      }
+    },
     "client.sign-off": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

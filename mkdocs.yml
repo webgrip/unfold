@@ -37,6 +37,7 @@ nav:
           - Runbooks: ploeg/how-to/index.md
       - Operate Unfold: unfold/index.md
       - Feature flags: unfold/operations/feature-flags.md
+      - Receive Requests from feedback tools and email: unfold/operations/request-intake.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md
   - Reference:

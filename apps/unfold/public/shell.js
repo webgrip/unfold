@@ -8,6 +8,7 @@ import { keyLabel, openShortcuts, singleKeysEnabled } from './core/keys.js';
 import { sessionsNeedingYou } from './core/counts.js';
 import { lockupSvg, markSvg } from './core/brand.js';
 import { avatar } from './core/ui.js';
+import { enabled } from './core/flags.js';
 import { contractBanner } from './core/status-signal.js';
 
 const lockup = lockupSvg({ className: 'app-lockup' });
@@ -31,8 +32,8 @@ const groups = [
 ];
 const cardPages = [['binder', '#binder', 'cards', 'Binder'], ['packs', '#packs', 'pack', 'Packs'], ['season', '#season', 'calendar', 'Season']];
 const quick = ['now', 'work', 'runs'];
-const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['labs', '#settings/labs', 'Labs'], ['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
-const areas = { actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', preferences: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
+const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['labs', '#settings/labs', 'Labs'], ['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['intake', '#settings/intake', 'Request intake'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
+const areas = { actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', intake: 'settings', preferences: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
 const groupOf = { binder: 'Your cards', card: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {
@@ -186,7 +187,7 @@ function headerMarkup(page) {
 
 function settingsMarkup() {
   if (area() !== 'settings') return '';
-  return `<nav class="app-subnav" aria-label="Settings"><ul>${settingsPages.map(([id, href, label]) => `<li><a href="${href}" ${state.view === id ? 'aria-current="page"' : ''}>${escape(label)}</a></li>`).join('')}</ul></nav>`;
+  return `<nav class="app-subnav" aria-label="Settings"><ul>${settingsPages.filter(([id]) => id !== 'intake' || (enabled('intake.requests') && state.bootstrap?.user?.role === 'admin')).map(([id, href, label]) => `<li><a href="${href}" ${state.view === id ? 'aria-current="page"' : ''}>${escape(label)}</a></li>`).join('')}</ul></nav>`;
 }
 
 function tabbarMarkup() {

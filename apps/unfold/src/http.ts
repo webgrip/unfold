@@ -62,6 +62,8 @@ import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
 import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
+import { IntakeService, IntakeStore } from './intake/service.ts';
+import { intakeRoute } from './intake/routes.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
 
@@ -284,6 +286,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const intake = new IntakeService(new IntakeStore(store), { enforced: tenants.enforced, enabled: tenant => flags.getBooleanValue('intake.requests', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }) });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -348,6 +351,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (relay && await relay.handle(req, res, url)) return;
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
+      if (path.startsWith('/api/intake/') && await intakeRoute(req, res, path, url.searchParams, { service: intake, user: () => auth.user(req), guard: () => mutationGuard(req, config), readJson: () => body(req), enabledFor: user => flags.getBooleanValue('intake.requests', false, flagContext(user)), baseUrl: config.baseUrl ?? `http://${req.headers.host}`, send: (status, value) => json(res, status, sanitize(value)) })) return;
       if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect && !ofrep) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         if (!localLoginEnabled(config)) throw localLoginOff();
