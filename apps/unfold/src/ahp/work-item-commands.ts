@@ -3,13 +3,17 @@ import type { User } from '../types.ts';
 import type { Store } from '../store.ts';
 import { PloegError, cancelShiftChanged, type PloegCancellation, type PloegClient, type PloegDecisionResult, type PloegState } from '../ploeg.ts';
 import { listReason } from '../../public/core/reasons.js';
+import { answerLimit } from '../../public/core/blackboard.js';
 import { money } from '../../public/core/format.js';
 import type { WorkItemRecord } from './work-items.ts';
 
 type Json = Record<string, any>;
 
 /** The commands a person gives a Work Item from the Agents window, each only after answering the host's question. */
-export type WorkItemCommandKind = 'decide' | 'withdraw' | 'requeue';
+export type WorkItemCommandKind = 'decide' | 'withdraw' | 'requeue' | 'answer';
+
+/** The questions a Work Item's Runs asked a person that are still waiting (Ploeg ADR-0121), and the resume Ploeg offers once they are answered. */
+export type WorkItemQuestions = { questions: Array<{ id: string; text: string; role: string; round: number | null }>; resume?: { fromRound: number; roundCapUsd: number; poolUsd: number } };
 
 /**
  * One question the host asked a person about a Work Item, and what came of it. It sits in its own turn of the Work Item's
@@ -18,7 +22,7 @@ export type WorkItemCommandKind = 'decide' | 'withdraw' | 'requeue';
 export type WorkItemPrompt = {
   requestId: string; kind: WorkItemCommandKind; userId: string; workItemId: string; team: string; publicId: string;
   turnId: string; ownTurn: boolean; startedAt: string; opening: { text: string; origin: 'user' | 'systemNotification' };
-  explanation: string; request: Json; expectedState: PloegState; expectedShiftId?: string; note?: string; raisedPoolUsd?: number;
+  explanation: string; request: Json; expectedState: PloegState; expectedShiftId?: string; note?: string; raisedPoolUsd?: number; questions?: WorkItemQuestions;
   response?: 'accept' | 'cancel'; answers?: Json; reply?: string; finishedAt?: string; turnState?: 'complete' | 'cancelled';
 };
 
@@ -37,6 +41,11 @@ export const workItemCommandText = {
   poolAboveLimit: 'Raise the Team\'s budget to try again with more.',
   unchanged: 'Nothing changed.',
   noteSaved: 'Saved for the next Round. The running agent won\'t see it until then.',
+  questionOpening: (id: string, count: number) => `${count === 1 ? 'A question' : `${count} questions`} for you on #${id}`,
+  notAnswered: 'Not answered, so nothing was sent and nothing runs. The question still waits for you and is asked again when you next open this session.',
+  answersNeeded: 'Every question needs an answer, so nothing was sent. Answer again.',
+  answerTooLong: `An answer is at most ${answerLimit} characters, so nothing was sent. Answer again.`,
+  noLongerWaiting: (id: string) => `#${id} no longer waits on that question, so nothing was sent.`,
   cancelShiftChanged,
 } as const;
 
@@ -79,6 +88,29 @@ function requeueRequest(requestId: string, entry: WorkItemRecord, note: boolean,
   const question = workItemCommandText.requeueQuestion(entry.item.team, note);
   const options = [{ id: 'restart', label: 'Restart from Round 1' }, ...(raisedPoolUsd !== undefined ? [{ id: 'restart_raised', label: `Restart with a ${money(raisedPoolUsd)} pool` }] : []), { id: 'keep', label: 'Leave it stopped' }];
   return { id: requestId, message: question, questions: [{ id: '0', title: `Restart #${entry.item.id}?`, message: question, kind: 'single-select', required: true, options, allowFreeformInput: false }] };
+}
+
+const askedBy = (question: WorkItemQuestions['questions'][number]) => `${question.role ? `${question.role[0].toUpperCase()}${question.role.slice(1).replace(/[_-]+/g, ' ')}` : 'An agent'} asks${question.round ? ` in Round ${question.round}` : ''}`;
+
+function answerRequest(requestId: string, entry: WorkItemRecord, asked: WorkItemQuestions): Json {
+  const count = asked.questions.length;
+  const send = asked.resume ? `Answer and resume Round ${asked.resume.fromRound}` : 'Answer and start it over';
+  return {
+    id: requestId, message: workItemCommandText.questionOpening(entry.item.id, count),
+    questions: [
+      ...asked.questions.map((question, index) => ({ id: String(index), title: askedBy(question), message: question.text, kind: 'text', required: true })),
+      { id: String(count), title: 'Then', message: `${asked.resume ? 'Resuming' : 'Starting over'} spends from ${entry.item.team}'s budget. Saving only runs nothing.`, kind: 'single-select', required: true, options: [{ id: 'send', label: send }, { id: 'save', label: 'Only save my answers' }], allowFreeformInput: false },
+    ],
+  };
+}
+
+function answerExplanation(entry: WorkItemRecord, asked: WorkItemQuestions): string {
+  const count = asked.questions.length;
+  const lead = count === 1 ? 'An agent asked a question only a person can answer, instead of guessing.' : `Agents asked ${count} questions only a person can answer, instead of guessing.`;
+  const then = asked.resume
+    ? `Answer and resume reopens Round ${asked.resume.fromRound} on the same branch: this Round up to ${money(asked.resume.roundCapUsd)}, in total up to ${money(asked.resume.poolUsd)}, from ${entry.item.team}'s budget.`
+    : `Answer and start it over restarts it from Round 1, spending from ${entry.item.team}'s budget, and its Runs read your answers.`;
+  return `${lead} ${then} Only save my answers sends them to Ploeg and runs nothing. Closing the question sends nothing.`;
 }
 
 const budgetRanOut = (entry: WorkItemRecord) => ['budget_exhausted', 'budget_exhausted_before_fix_round'].includes(String(listReason(entry.item)?.code ?? ''));
@@ -199,13 +231,14 @@ export class WorkItemCommands {
    * open question is closed as replaced, and returned so the host can say so. A restart carries the person's note and, when
    * the last Shift's budget ran out, offers a raised pool.
    */
-  ask(user: User, entry: WorkItemRecord, kind: WorkItemCommandKind, placement: { attachTo?: string; ownTurnId?: string; opening?: WorkItemPrompt['opening']; expectedShiftId?: string } = {}, note?: string): { prompt: WorkItemPrompt; created: boolean; replaced?: WorkItemPrompt } {
+  ask(user: User, entry: WorkItemRecord, kind: WorkItemCommandKind, placement: { attachTo?: string; ownTurnId?: string; opening?: WorkItemPrompt['opening']; expectedShiftId?: string } = {}, note?: string, asked?: WorkItemQuestions): { prompt: WorkItemPrompt; created: boolean; replaced?: WorkItemPrompt } {
+    if (kind === 'answer' && !asked?.questions.length) throw new Error('An answer prompt needs the questions it asks');
     const current = this.open(user.id, entry.workItemId);
     if (current?.kind === kind && note === undefined) return { prompt: current, created: false };
     const replaced = current ? this.close(current, 'cancel', undefined, 'Replaced by your next action.') : undefined;
     const requestId = `${entry.publicId}-${kind}-${randomUUID()}`;
     const ownTurn = !placement.attachTo;
-    const openings: Record<WorkItemCommandKind, string> = { decide: workItemCommandText.decideQuestion(entry.item.id), withdraw: `Stop #${entry.item.id}`, requeue: `Try #${entry.item.id} again` };
+    const openings: Record<WorkItemCommandKind, string> = { decide: workItemCommandText.decideQuestion(entry.item.id), withdraw: `Stop #${entry.item.id}`, requeue: `Try #${entry.item.id} again`, answer: workItemCommandText.questionOpening(entry.item.id, asked?.questions.length ?? 0) };
     const opening = placement.opening ?? { text: openings[kind], origin: 'systemNotification' as const };
     const previousPool = entry.item.latestShift?.budgetUsd ?? 0;
     const raisedPoolUsd = kind === 'requeue' && budgetRanOut(entry) && this.maxPoolUsd > previousPool ? this.maxPoolUsd : undefined;
@@ -213,12 +246,13 @@ export class WorkItemCommands {
       decide: () => `${entry.item.title} waits for approval before Ploeg queues it for ${entry.item.team}.`,
       withdraw: () => workItemCommandText.withdrawQuestion(entry.item.id),
       requeue: () => `${workItemCommandText.requeueQuestion(entry.item.team, Boolean(note))} Ploeg opens a new attempt and tells its Runs why the last one stopped${note ? ' and what you wrote' : ''}.${raisedPoolUsd !== undefined ? ` The last attempt's ${money(previousPool)} budget ran out, so you can restart with up to ${money(raisedPoolUsd)}.` : ''}`,
+      answer: () => answerExplanation(entry, asked!),
     };
-    const requests: Record<WorkItemCommandKind, () => Json> = { decide: () => decideRequest(requestId, entry), withdraw: () => withdrawRequest(requestId, entry), requeue: () => requeueRequest(requestId, entry, Boolean(note), raisedPoolUsd) };
+    const requests: Record<WorkItemCommandKind, () => Json> = { decide: () => decideRequest(requestId, entry), withdraw: () => withdrawRequest(requestId, entry), requeue: () => requeueRequest(requestId, entry, Boolean(note), raisedPoolUsd), answer: () => answerRequest(requestId, entry, asked!) };
     const prompt: WorkItemPrompt = {
       requestId, kind, userId: user.id, workItemId: entry.workItemId, team: entry.item.team, publicId: entry.publicId,
       turnId: placement.attachTo ?? placement.ownTurnId ?? `${entry.publicId}-command-${randomUUID()}`, ownTurn, startedAt: new Date().toISOString(), opening, explanation: explanations[kind](),
-      request: requests[kind](), expectedState: entry.item.state, ...(placement.expectedShiftId !== undefined ? { expectedShiftId: placement.expectedShiftId } : {}), ...(note ? { note } : {}), ...(raisedPoolUsd !== undefined ? { raisedPoolUsd } : {}),
+      request: requests[kind](), expectedState: entry.item.state, ...(placement.expectedShiftId !== undefined ? { expectedShiftId: placement.expectedShiftId } : {}), ...(note ? { note } : {}), ...(raisedPoolUsd !== undefined ? { raisedPoolUsd } : {}), ...(kind === 'answer' ? { questions: asked } : {}),
     };
     const key = `${user.id}:${entry.workItemId}`;
     this.asked.set(key, [...this.prompts(user.id, entry.workItemId), prompt].slice(-keepOpen));
@@ -240,7 +274,7 @@ export class WorkItemCommands {
    */
   async carry(user: User, prompt: WorkItemPrompt): Promise<{ changed: boolean; askAgain: boolean }> {
     const finish = (reply: string, changed = false, askAgain = false) => { this.close(prompt, prompt.response ?? 'cancel', prompt.answers, reply); return { changed, askAgain }; };
-    if (prompt.response !== 'accept') return finish(workItemCommandText.unchanged);
+    if (prompt.response !== 'accept') return finish(prompt.kind === 'answer' ? workItemCommandText.notAnswered : workItemCommandText.unchanged);
     if (!this.mayAct(user, prompt.team)) return finish(workItemCommandText.viewer(prompt.team));
     try {
       if (prompt.kind === 'withdraw') {
@@ -249,6 +283,7 @@ export class WorkItemCommands {
         const result = await this.command(user, prompt.workItemId, 'cancel', guard, commandId => this.ploeg.decide(user, prompt.workItemId, 'cancel', '', { commandId, ...guard })) as PloegCancellation;
         return finish(cancellationReply(prompt.workItemId, result), true);
       }
+      if (prompt.kind === 'answer') return finish(...await this.answer(user, prompt));
       if (prompt.kind === 'requeue') {
         const choice = selected(prompt.answers, '0');
         if (choice !== 'restart' && choice !== 'restart_raised') return finish(workItemCommandText.unchanged);
@@ -267,6 +302,32 @@ export class WorkItemCommands {
       if (error.code === 'pool_above_limit') return finish(workItemCommandText.poolAboveLimit);
       return finish(error.code === 'ploeg_decision_conflict' && prompt.kind === 'decide' ? workItemCommandText.noLongerProposed(prompt.workItemId) : error.message);
     }
+  }
+
+  /**
+   * Sends the person's answers to Ploeg as that person, one per question, and then, when they chose to, resumes the Round
+   * that asked as Ploeg offers it or starts the Work Item over. A question someone else answered first keeps their answer.
+   */
+  private async answer(user: User, prompt: WorkItemPrompt): Promise<[string, boolean, boolean]> {
+    const asked = prompt.questions!;
+    const count = asked.questions.length;
+    const choice = selected(prompt.answers, String(count));
+    if (choice !== 'send' && choice !== 'save') return [workItemCommandText.notAnswered, false, false];
+    const texts = asked.questions.map((_, index) => typed(prompt.answers, String(index)));
+    if (texts.some(text => !text)) return [workItemCommandText.answersNeeded, false, true];
+    if (texts.some(text => text.length > answerLimit)) return [workItemCommandText.answerTooLong, false, true];
+    let before = 0;
+    for (const [index, question] of asked.questions.entries()) {
+      const body = { questionId: question.id, answer: texts[index] };
+      try { await this.command(user, prompt.workItemId, 'answer', body, commandId => this.ploeg.answerQuestion(user, prompt.workItemId, question.id, { commandId, answer: texts[index] })); }
+      catch (error) { if (error instanceof PloegError && error.code === 'already_answered') { before++; continue; } throw error; }
+    }
+    const others = before ? ` Someone had already answered ${before === count ? (count === 1 ? 'it' : 'them') : `${before} of them`}, so Ploeg kept their answer${before === 1 ? '' : 's'}.` : '';
+    const saved = `${count === 1 ? 'Your answer is' : 'Your answers are'} saved for #${prompt.workItemId}'s next Runs.${others}`;
+    if (choice === 'save') return [`${saved} Nothing runs until you restart it.`, true, false];
+    const body = { expectedState: prompt.expectedState, ...(asked.resume ? { resume: true } : {}) };
+    const result = await this.command(user, prompt.workItemId, 'requeue', body, commandId => this.ploeg.requeue(user, prompt.workItemId, { commandId, ...body }));
+    return [`${saved} ${result.resumed ? 'Resumed' : 'Restarted'} #${prompt.workItemId} from Round ${result.fromRound}.`, true, false];
   }
 
   /** Records the command before Ploeg is called and forgets it once Ploeg answered for good, a refusal or a route it lacks included; after an outage the same command, retried, keeps its id. */

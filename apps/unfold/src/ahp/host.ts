@@ -27,10 +27,10 @@ import { CommandLog, clientTerminalState, clientTerminalUri, maxClientTerminals,
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
-import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
+import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemMessageRefusal, workItemQuestions, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
 import { RunLive, type LiveAction } from './run-live.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
-import { PloegClient, PloegError } from '../ploeg.ts';
+import { PloegClient, PloegError, type PloegDetail } from '../ploeg.ts';
 import type { PloegContractGate } from '../ploeg-compatibility.ts';
 import { refusalPlacement, refusalReply } from './refusals.ts';
 import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type EditorWindow } from './editor-window.ts';
@@ -436,9 +436,21 @@ export class AgentHost {
   /** Forgets a person's editor window; links in their Agents window then open only the browser. */
   forgetEditorWindow(user: User): boolean { return this.editorWindows.delete(user.id); }
 
-  private openElsewhere(user: User, target: EditorTarget, page: string, noun: string, partId: string): Json | undefined {
+  private openElsewhere(user: User, target: EditorTarget, page: string, noun: string, partId: string, pullRequest?: { url: string; number: number | null }): Json | undefined {
     const window = this.editorWindows.get(user.id);
-    return openElsewherePart(partId, { editor: window ? editorLink(window, target, this.config.baseUrl) : '', page }, noun);
+    return openElsewherePart(partId, { editor: window ? editorLink(window, target, this.config.baseUrl) : '', page, ...(pullRequest ? { pullRequest } : {}) }, noun);
+  }
+
+  /** Who handed a Work Item off, as this person reads it: "you", the person's name, or their Ploeg id when Unfold does not know them. */
+  private handedOffBy(user: User, workItemId: string): string | undefined {
+    const person = this.workItems.admitter(workItemId);
+    if (!person) return undefined;
+    return person === user.id ? 'you' : this.store.getUser(person)?.name ?? person;
+  }
+
+  /** Whether one of a person's clients follows a session or one of its chats. */
+  private follows(user: User, publicId: string): boolean {
+    return [...this.clients].some(client => client.user.id === user.id && [...client.subscriptions].some(channel => sessionIdFrom(channel) === publicId));
   }
 
   private workItemPage(workItemId: string): string {
@@ -1710,7 +1722,7 @@ export class AgentHost {
   private workItemSpelling(publicId: string, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(publicId, view.scheme), chat: chatChannel(publicId, view.scheme) }; }
 
   private workItemSummary(entry: WorkItemRecord, view: View): Json {
-    const summary = { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) };
+    const summary = { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion, this.handedOffBy(view.user, entry.workItemId)), ...this.workItemProject(entry.item) };
     return this.workItemCommands.open(view.user.id, entry.workItemId) ? this.awaitingPerson(summary) : summary;
   }
 
@@ -1739,13 +1751,15 @@ export class AgentHost {
     try { found = workItemId ? await this.workItems.session(client.user, workItemId) : undefined; }
     catch (error) { throw new RpcError(codes.internal, error instanceof Error && 'status' in error ? error.message : 'Ploeg could not be read'); }
     if (!found) throw new RpcError(codes.sessionNotFound, 'Session not found');
-    if (!parsed.run) this.settleWorkItemPrompts(client.user, found.entry);
+    if (!parsed.run) this.settleWorkItemPrompts(client.user, found.entry, found.detail);
     const spelling = this.workItemSpelling(parsed.id, client);
     const flags = this.viewOf(client, parsed.id);
+    const by = this.handedOffBy(client.user, found.entry.workItemId);
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
-    const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
-    const lead = this.openElsewhere(client.user, { kind: 'work-item', id: found.entry.workItemId }, this.workItemPage(found.entry.workItemId), 'Work Item', `${parsed.id}-open-elsewhere`);
-    const chatState = parsed.kind === 'chat' && !parsed.run ? withLeadingPart(withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)), lead) : undefined;
+    const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id), by), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
+    const pullRequest = found.entry.item.pullRequest;
+    const lead = this.openElsewhere(client.user, { kind: 'work-item', id: found.entry.workItemId }, this.workItemPage(found.entry.workItemId), 'Work Item', `${parsed.id}-open-elsewhere`, pullRequest?.url ? { url: pullRequest.url, number: pullRequest.number } : undefined);
+    const chatState = parsed.kind === 'chat' && !parsed.run ? withLeadingPart(withPrompts(workItemChatState(found.entry, found.detail, spelling, flags, by), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)), lead) : undefined;
     const waiting = (state: Json) => open ? this.awaitingPerson(state) : state;
     const runChat = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : undefined;
     const state = parsed.run ? runChat && await this.runLive.chat(client.user, found.detail, parsed.run, runChat) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;
@@ -1764,6 +1778,10 @@ export class AgentHost {
       this.broadcast(sessionChannel(entry.publicId), viewer => { const summary = this.workItemSummary(entry, viewer); return { type: 'session/chatUpdated', chat: chatChannel(entry.publicId, viewer.scheme), changes: { title: summary.title, status: summary.chats?.[0]?.status ?? summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt } }; }, undefined, own);
     }
     for (const publicId of change.removed) this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), undefined, own);
+    for (const entry of change.changed) {
+      const detail = this.workItems.kept(entry.workItemId);
+      if (detail && !entry.stale && this.follows(user, entry.publicId)) this.settleWorkItemPrompts(user, entry, detail, true);
+    }
   }
 
   /** Sends a Work Item's transcript changes to the clients of every person Ploeg's team authorization lets see it, each in its own spelling. */
@@ -1860,12 +1878,20 @@ export class AgentHost {
     }
   }
 
-  /** Asks a person who may act on a proposed Work Item to approve or reject it, and closes an approval question the Work Item has moved past. */
-  private settleWorkItemPrompts(user: User, entry: WorkItemRecord): void {
+  /**
+   * Asks a person who may act on a Work Item what only a person can answer: whether to approve a proposal, and the
+   * questions its Runs asked a person (Ploeg ADR-0121). Closes, unanswered, a question the Work Item has moved past. A
+   * live change never asks again questions the person already closed; opening the session does.
+   */
+  private settleWorkItemPrompts(user: User, entry: WorkItemRecord, detail: PloegDetail, live = false): void {
     const open = this.workItemCommands.open(user.id, entry.workItemId);
+    const asked = entry.item.state === 'needs_human' && detail.item.id === entry.workItemId ? workItemQuestions(detail) : undefined;
     if (open?.kind === 'decide' && entry.item.state !== 'proposed') this.publishPromptDismissed(user, this.workItemCommands.close(open, 'cancel', undefined, workItemCommandText.noLongerProposed(entry.item.id)));
-    if (entry.item.state !== 'proposed' || this.workItemCommands.open(user.id, entry.workItemId) || !this.workItemCommands.mayAct(user, entry.item.team)) return;
-    this.publishPromptOpened(user, this.workItemCommands.ask(user, entry, 'decide').prompt);
+    const waitingIds = new Set(asked?.questions.map(question => question.id));
+    if (open?.kind === 'answer' && !open.questions?.questions.every(question => waitingIds.has(question.id))) this.publishPromptDismissed(user, this.workItemCommands.close(open, 'cancel', undefined, workItemCommandText.noLongerWaiting(entry.item.id)));
+    if (this.workItemCommands.open(user.id, entry.workItemId) || !this.workItemCommands.mayAct(user, entry.item.team)) return;
+    if (entry.item.state === 'proposed') { if (!live) this.publishPromptOpened(user, this.workItemCommands.ask(user, entry, 'decide').prompt); }
+    else if (asked && !(live && this.workItemCommands.prompts(user.id, entry.workItemId).some(prompt => prompt.kind === 'answer' && asked.questions.every(question => prompt.questions?.questions.some(seen => seen.id === question.id))))) this.publishPromptOpened(user, this.workItemCommands.ask(user, entry, 'answer', {}, undefined, asked).prompt);
   }
 
   /**
@@ -1926,7 +1952,7 @@ export class AgentHost {
     const read = await this.readWorkItem(client, publicId);
     if ('refused' in read) return read.refused;
     if (takesNotes(read.entry.item.state)) return this.noteWorkItem(client, channel, read.entry, projected ?? read.entry, action, origin);
-    const found = this.restartRefusal(client.user, read.entry, workItemRefusals.message);
+    const found = this.restartRefusal(client.user, read.entry, workItemMessageRefusal(read.entry.item));
     if ('refused' in found) return found.refused;
     const message = this.workItemMessage(action);
     if ('refused' in message) return message.refused;
@@ -2007,7 +2033,7 @@ export class AgentHost {
     this.announceWorkItemStatus(user, prompt.publicId);
     const outcome = await this.workItemCommands.carry(user, prompt);
     for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
-    if (outcome.askAgain) { const again = this.workItemCommands.ask(user, entry, prompt.kind); if (again.created) this.publishPromptOpened(user, again.prompt); }
+    if (outcome.askAgain) { const again = this.workItemCommands.ask(user, entry, prompt.kind, {}, undefined, prompt.questions); if (again.created) this.publishPromptOpened(user, again.prompt); }
     if (outcome.changed) await this.workItems.changed(entry.workItemId, entry.item.team);
     return undefined;
   }
