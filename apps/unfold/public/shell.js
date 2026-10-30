@@ -31,8 +31,8 @@ const groups = [
 ];
 const cardPages = [['binder', '#binder', 'cards', 'Binder'], ['packs', '#packs', 'pack', 'Packs'], ['season', '#season', 'calendar', 'Season']];
 const quick = ['now', 'work', 'runs'];
-const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['labs', '#settings/labs', 'Labs'], ['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
-const areas = { actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', preferences: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
+const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['labs', '#settings/labs', 'Labs'], ['notifications', '#settings/notifications', 'Notifications'], ['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
+const areas = { actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', preferences: 'settings', notifications: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
 const groupOf = { binder: 'Your cards', card: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {

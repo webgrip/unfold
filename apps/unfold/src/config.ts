@@ -11,6 +11,7 @@ import { demoRefusesRealPloeg, validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { expectationKinds, expectationSettings } from '../public/core/expectations.js';
 import { validateDeliveryConfig } from './delivery-config.ts';
+import { notificationSettings } from './notify/settings.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
@@ -581,6 +582,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
   config.delivery = validateDeliveryConfig(raw.delivery, config);
   config.reports = reportSettings(raw.reports, config.taskSources, mode);
+  if (raw.notifications !== undefined) config.notifications = notificationSettings(raw.notifications);
 
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);

@@ -8,6 +8,7 @@ import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
+import type { NotificationSettings } from './notify/settings.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -71,6 +72,8 @@ export type AppConfig = {
   errorReports?: ErrorReportConfig;
   mcpServers?: McpServersConfig;
   productEvents?: boolean;
+  /** The notification channels the deployment offers (system ADR-0026). Absent, no channel is configured. */
+  notifications?: NotificationSettings;
   /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
   flags?: FlagSettings;
   reports?: ReportTarget | null;
