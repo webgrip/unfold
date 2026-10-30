@@ -151,6 +151,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/auth/methods:
     get:
       tags: [Identity]
@@ -270,6 +271,7 @@ paths:
       responses:
         '303': { description: Redirect to the provider. }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
   /api/auth/oidc/callback:
     get:
@@ -286,6 +288,7 @@ paths:
         - { name: iss, in: query, required: false, description: 'The issuer of the authorization response (RFC 9207). When present it must equal the discovered issuer exactly; when discovery advertises `authorization_response_iss_parameter_supported` it is required. Otherwise the redirect carries `login_error=oidc_issuer`.', schema: { type: string } }
       responses:
         '303': { description: Redirect back into the workbench. }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/editor-requests/{code}:
     parameters:
       - $ref: '#/components/parameters/EditorCode'
@@ -333,6 +336,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/editor-credentials:
     get:
       tags: [Identity]
@@ -366,6 +370,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/bootstrap:
     get:
@@ -469,6 +474,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/status/notes/{noteId}/resolve:
     parameters:
       - name: noteId
@@ -495,6 +501,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/health:
     get:
       tags: [Workbench]
@@ -663,6 +670,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/reports/similar:
     get:
       tags: [Workbench]
@@ -805,6 +813,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/flags:
     get:
       tags: [Flags]
@@ -829,6 +838,7 @@ paths:
               schema: { type: object, properties: { flags: { type: object } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/flags/{flagKey}/override:
     parameters:
       - $ref: '#/components/parameters/FlagKey'
@@ -858,6 +868,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/flags/{flagKey}/rollout:
     parameters:
       - $ref: '#/components/parameters/FlagKey'
@@ -892,6 +903,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/flag-segments/{segment}:
     parameters:
       - name: segment
@@ -923,6 +935,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Flags]
       operationId: deleteFlagSegment
@@ -938,6 +951,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/ofrep/v1/evaluate/flags:
     post:
       tags: [Flags]
@@ -1047,6 +1061,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Flags]
       operationId: clearNowSnooze
@@ -1063,6 +1078,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/agent-host:
     get:
@@ -1123,6 +1139,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/agent-host/tokens/{tokenId}:
     parameters:
       - name: tokenId
@@ -1149,6 +1166,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/agent-host/editor-window:
     put:
       tags: [Agent host]
@@ -1174,6 +1192,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Agent host]
       operationId: forgetEditorWindow
@@ -1190,6 +1209,7 @@ paths:
               schema: { type: object, properties: { forgotten: { type: boolean } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/agent-host/sessions/{sessionId}/link:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1258,6 +1278,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     put:
       tags: [Linked accounts]
       operationId: pasteLinkToken
@@ -1285,6 +1306,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Linked accounts]
       operationId: unlink
@@ -1301,6 +1323,7 @@ paths:
               schema: { type: object, properties: { ok: { type: boolean } } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/links/{provider}/callback:
     parameters:
       - $ref: '#/components/parameters/LinkProvider'
@@ -1316,6 +1339,7 @@ paths:
         - { name: error, in: query, required: false, schema: { type: string } }
       responses:
         '303': { description: Redirect back into the workbench. }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/task-sources:
     get:
@@ -1478,6 +1502,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/UnprocessableContent' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
@@ -1497,6 +1522,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/tasks/lookup:
@@ -1557,6 +1583,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
@@ -1614,6 +1641,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1727,6 +1755,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}/investigation:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1832,6 +1861,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}/delivery:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1870,6 +1900,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}/delivery/verify:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1894,6 +1925,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/delivery/approve:
     parameters:
@@ -1920,6 +1952,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/delivery/publish:
     parameters:
@@ -1946,6 +1979,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/run-again:
     parameters:
@@ -1967,6 +2001,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}/start:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1979,7 +2014,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
   /api/sessions/{sessionId}/pause:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1993,7 +2028,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/resume:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2007,7 +2042,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/cancel:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2021,7 +2056,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/retry:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2035,7 +2070,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/capture:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2049,7 +2084,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/deliver:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2063,7 +2098,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/close-work-item:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2076,7 +2111,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/review:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2099,7 +2134,7 @@ paths:
               properties:
                 decision: { type: string, enum: [accepted, rejected] }
                 note: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/messages:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2122,7 +2157,7 @@ paths:
               required: [text]
               properties:
                 text: { type: string, minLength: 1, maxLength: 16000 }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/supervision:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2143,7 +2178,7 @@ paths:
               required: [supervision]
               properties:
                 supervision: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/approval:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2165,7 +2200,7 @@ paths:
               required: [approval]
               properties:
                 approval: { type: string, enum: [manual, auto] }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
   /api/sessions/{sessionId}/budget:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -2187,7 +2222,7 @@ paths:
               required: [amountUsd]
               properties:
                 amountUsd: { type: number, exclusiveMinimum: 0 }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '429': { $ref: '#/components/responses/TooManyRequests' } }
 
   /api/actions:
     get:
@@ -2357,6 +2392,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/digest:
     get:
       tags: [Linked Sessions]
@@ -2421,6 +2457,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       tags: [Linked Sessions]
@@ -2437,6 +2474,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/traces:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2486,6 +2524,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/agent-trace:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2505,6 +2544,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/agent-trace/{revision}:
     parameters:
       - name: revision
@@ -2592,6 +2632,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/inbox:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2622,6 +2663,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/start-options:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2728,6 +2770,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/handoff:
     parameters:
@@ -2792,6 +2835,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/conversation:
     parameters:
@@ -2883,6 +2927,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-permissions:
     get:
       tags: [Linked Sessions]
@@ -2951,6 +2996,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/answer:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2986,6 +3032,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/collect:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -3014,6 +3061,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/withdraw:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -3044,6 +3092,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/asks:
     get:
       tags: [Ploeg]
@@ -3271,6 +3320,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/runs:
@@ -3668,6 +3718,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/evolved:
@@ -3698,6 +3749,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/cracks/{crackId}/{step}:
@@ -3741,6 +3793,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/context:
@@ -3799,6 +3852,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/approve:
@@ -3828,6 +3882,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/reject:
@@ -3865,6 +3920,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/cancel:
@@ -3904,6 +3960,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/requeue:
@@ -3953,6 +4010,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/notes:
@@ -4013,6 +4071,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/questions/{questionId}/answer:
@@ -4058,6 +4117,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '501': { $ref: '#/components/responses/NotImplemented' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -4273,6 +4333,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/tripwire:
@@ -4341,6 +4402,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/take-over:
@@ -4423,6 +4485,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '501': { $ref: '#/components/responses/NotImplemented' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -4470,6 +4533,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/claim:
@@ -4525,6 +4589,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/claude-session:
@@ -4561,6 +4626,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/client-sign-off:
@@ -4673,6 +4739,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/client-sign-off/withdraw:
@@ -4739,6 +4806,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/client-sign-off/exclusions:
@@ -4798,6 +4866,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /api/me/card-identity:
@@ -4834,6 +4903,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/binder:
     get:
       tags: [Cards]
@@ -4909,6 +4979,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/cards/{cardId}/seen:
     parameters:
       - $ref: '#/components/parameters/CardId'
@@ -4969,6 +5040,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/cards/{cardId}/world:
     parameters:
@@ -5060,6 +5132,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       tags: [Cards]
@@ -5089,6 +5162,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/packs:
     get:
@@ -5207,6 +5281,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/season:
     get:
       tags: [Cards]
@@ -5389,6 +5464,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Cards]
       operationId: deleteCardTheme
@@ -5407,6 +5483,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/card-themes/{themeId}/versions:
     parameters:
       - $ref: '#/components/parameters/ThemeId'
@@ -5497,6 +5574,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/card-assets/{assetId}:
     parameters:
       - name: assetId
@@ -5611,6 +5689,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Notifications]
       operationId: forgetNotifications
@@ -5625,6 +5704,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/test:
     post:
       tags: [Notifications]
@@ -5651,6 +5731,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/ntfy/topic:
     post:
       tags: [Notifications]
@@ -5669,6 +5750,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/web-push/subscriptions:
     post:
       tags: [Notifications]
@@ -5703,6 +5785,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/web-push/subscriptions/{pushSubscriptionId}:
     parameters:
       - name: pushSubscriptionId
@@ -5724,6 +5807,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/slack/link:
     post:
       tags: [Notifications]
@@ -5766,6 +5850,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/teams/webhooks:
     post:
       tags: [Notifications]
@@ -5794,6 +5879,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/me/notifications/channels/teams/webhooks/{teamsWebhookId}:
     parameters:
       - name: teamsWebhookId
@@ -5815,6 +5901,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/notifications/channels/slack/interactions:
     post:
       tags: [Notifications]
@@ -5854,6 +5941,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/billing:
     get:
@@ -5932,6 +6020,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Billing]
       operationId: deleteBillingMapping
@@ -5953,6 +6042,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/sync:
     post:
       tags: [Billing]
@@ -5981,6 +6071,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/lines:
     get:
       tags: [Billing]
@@ -6009,6 +6100,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/lines/{billingLineId}/send:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -6033,6 +6125,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/lines/{billingLineId}/found:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -6053,6 +6146,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/lines/{billingLineId}/price:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -6083,6 +6177,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/billing/lines/{billingLineId}/reverse:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -6113,6 +6208,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/intake/{intakeSourceId}:
     parameters:
@@ -6240,6 +6336,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/intake/sources/{intakeSourceId}:
     parameters:
       - $ref: '#/components/parameters/IntakeSourceId'
@@ -6261,6 +6358,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/intake/sources/{intakeSourceId}/secret:
     parameters:
       - $ref: '#/components/parameters/IntakeSourceId'
@@ -6285,6 +6383,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/intake/requests:
     get:
       tags: [Request intake]
@@ -6468,6 +6567,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/webhooks/{subscriptionId}:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -6508,6 +6608,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Administration]
       operationId: deleteWebhook
@@ -6525,6 +6626,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/webhooks/{subscriptionId}/rotate-secret:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -6553,6 +6655,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/webhooks/{subscriptionId}/test:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -6576,6 +6679,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/webhooks/{subscriptionId}/deliveries:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -6622,6 +6726,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/admin/tenant-exports:
     get:
@@ -6670,6 +6775,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/tenant-exports/{tenantExportId}:
     parameters:
       - $ref: '#/components/parameters/TenantExportId'
@@ -6704,6 +6810,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/admin/tenant-exports/{tenantExportId}/download:
     parameters:
       - $ref: '#/components/parameters/TenantExportId'
@@ -6727,6 +6834,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/relay/pool/claim:
     get:

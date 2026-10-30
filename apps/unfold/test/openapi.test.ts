@@ -4,6 +4,7 @@ import test from 'node:test';
 import { Validator } from '@seriousme/openapi-schema-validator';
 import { parse } from 'yaml';
 import { delegatedRoutes } from '../src/auth.ts';
+import { isSignIn, personLimits } from '../src/rate-limits.ts';
 import { openApiDocument } from '../src/http.ts';
 import { defaultRateLimits, rateLimitSettings } from '../src/rate-limits.ts';
 import { application, createSession, request } from './api-support.ts';
@@ -190,6 +191,19 @@ test('the OpenAPI description is a valid OpenAPI 3.1 document whose references r
   };
   visit(spec);
   assert.deepEqual(unresolved, []);
+});
+
+test('every operation the rate limiter counts lists 429, and no other does apart from the live-update stream cap', () => {
+  const connectionCapped = new Set(['GET /api/sessions/{sessionId}/events']);
+  const problems: string[] = [];
+  for (const { path, method, operation } of operations()) {
+    if (path.startsWith('/api/relay/')) continue;
+    const verb = method.toUpperCase();
+    const limited = samples(path).some(sample => personLimits(verb, sample).length > 0 || isSignIn(verb, sample) || sample.startsWith('/api/notifications/channels/'));
+    if (connectionCapped.has(`${verb} ${path}`)) continue;
+    if (limited !== Boolean(operation.responses?.['429'])) problems.push(`${verb} ${path}: ${limited ? 'is rate-limited but does not list 429' : 'lists 429 but no rate limit counts it'}`);
+  }
+  assert.deepEqual(problems, []);
 });
 
 test('every example in the OpenAPI description matches its schema', () => {
