@@ -32,6 +32,8 @@ export type McpHttpOptions = {
 
 const maxBodyBytes = 1_048_576;
 const delegationMs = 120_000;
+const appsMemoryMs = 86_400_000;
+const appsMemoryEntries = 10_000;
 const knownVersions: readonly string[] = [...mcpModernProtocolVersions, ...mcpProtocolVersions];
 
 function send(res: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}): void {
@@ -83,6 +85,15 @@ export function createMcpHttp(options: McpHttpOptions) {
   const verifier = new AccessTokenVerifier(settings, { ...(options.fetch ? { fetch: options.fetch } : {}), ...(options.now ? { now: options.now } : {}) });
   const confirmations = confirmationLedger();
   const metadata = resourceMetadata(settings);
+  const appClients = new Map<string, number>();
+  const now = () => options.now?.() ?? Date.now();
+  const declaredApps = (key: string) => { const until = appClients.get(key); if (until !== undefined && until <= now()) appClients.delete(key); return until !== undefined && until > now(); };
+  const rememberApps = (key: string, declared: boolean) => {
+    appClients.delete(key);
+    if (!declared) return;
+    if (appClients.size >= appsMemoryEntries) appClients.delete(appClients.keys().next().value!);
+    appClients.set(key, now() + appsMemoryMs);
+  };
   if (settings.audience === 'client-id') console.error(JSON.stringify({ level: 'warn', event: 'mcp.client_audience', message: 'UNFOLD_MCP_TOKEN_AUDIENCE=client-id: a token whose aud names a client id in UNFOLD_MCP_CLIENT_IDS is accepted instead of one for UNFOLD_MCP_RESOURCE, so a token that client got for another resource is accepted too' }));
 
   async function serveEndpoint(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -131,16 +142,19 @@ export function createMcpHttp(options: McpHttpOptions) {
     if (modern || declared !== undefined) {
       if (declared !== versionHeader) return rpcError(res, 400, id, -32020, `Header mismatch: MCP-Protocol-Version ${JSON.stringify(versionHeader ?? null)} does not match _meta ${JSON.stringify(declared ?? null)}.`);
       if (header(req, 'mcp-method') !== method) return rpcError(res, 400, id, -32020, 'Header mismatch: Mcp-Method is missing or does not match the method.');
-      if (method === 'tools/call') {
+      if (method === 'tools/call' || method === 'resources/read') {
         const name = header(req, 'mcp-name');
-        if (name === undefined || decodeHeader(name) !== params?.name) return rpcError(res, 400, id, -32020, 'Header mismatch: Mcp-Name is missing or does not match the tool name.');
+        const named = method === 'tools/call' ? params?.name : params?.uri;
+        if (name === undefined || decodeHeader(name) !== named) return rpcError(res, 400, id, -32020, `Header mismatch: Mcp-Name is missing or does not match the ${method === 'tools/call' ? 'tool name' : 'resource URI'}.`);
       }
     }
     const delegated = options.delegate(user, delegationMs, { source: 'request', userId: user.id, accessToken: authorization[1], subject: token.subject, expiresAt: token.expiresAt });
+    const appsKey = JSON.stringify([user.id, token.client ?? '', header(req, 'user-agent') ?? '']);
     let answer: any;
     try {
-      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations });
+      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations, ...(!modern && declaredApps(appsKey) ? { mcpApps: true } : {}) });
       answer = await server.handle(message);
+      if (!modern && method === 'initialize' && answer?.result) rememberApps(appsKey, server.declaredMcpApps());
     } finally { delegated.revoke(); }
     console.log(JSON.stringify({ level: 'info', event: 'mcp.request', actor: user.id, method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), protocol: modern ? 'stateless' : 'legacy', ...(token.audience === 'client' ? { audience: 'client' } : {}) }));
     const code = answer?.error?.code;

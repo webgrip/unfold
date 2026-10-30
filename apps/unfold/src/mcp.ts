@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { strictBase64url } from './mcp-auth.ts';
+import { mcpAppResources, mcpAppToolMeta, mcpAppsExtension, readMcpAppResource, supportsMcpApps } from './mcp-apps.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -29,9 +30,10 @@ export function confirmationLedger(): Confirmations { return { key: randomBytes(
  * What `unfold-mcp` needs to read one Unfold: its base URL and, outside the demo, an editor credential (`vle_…`).
  * `apiUrl` is where the API is called when it differs from the URL links point at, `principal` is who a
  * confirmation is bound to, and `role` is that person's Unfold role when the caller already knows it; without it the
- * action tools read it from Unfold.
+ * action tools read it from Unfold. `mcpApps` says that a 2025 client declared MCP Apps in an `initialize` this server
+ * instance did not see, as stateless HTTP remembers it between requests.
  */
-export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations };
+export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations; mcpApps?: boolean };
 
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null; waitingGroup(item: unknown): 'review' | 'needs' | 'proposed' };
@@ -656,7 +658,7 @@ export function createMcpServer(options: McpOptions) {
       initializedClient = clientName(params?.clientInfo);
       const asked = params?.protocolVersion;
       const protocolVersion = (mcpProtocolVersions as readonly string[]).includes(asked) ? asked : mcpProtocolVersions[0];
-      return result(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo, instructions });
+      return result(id, { protocolVersion, capabilities: supportsMcpApps(clientCapabilities) ? { tools: { listChanged: false }, resources: { listChanged: false }, extensions: { [mcpAppsExtension]: {} } } : { tools: { listChanged: false } }, serverInfo, instructions });
     }
     const meta = params && typeof params === 'object' && params._meta && typeof params._meta === 'object' && !Array.isArray(params._meta) ? params._meta as Json : undefined;
     const declared = meta?.[versionKey];
@@ -671,15 +673,26 @@ export function createMcpServer(options: McpOptions) {
 
   function dispatch(id: unknown, method: string, params: Json | undefined, call: Call): Json | Promise<Json> {
     const complete = (value: Json) => result(id, call.modern ? { ...value, resultType: 'complete', _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } } : value);
+    const apps = supportsMcpApps(call.capabilities) || (!call.modern && options.mcpApps === true);
+    const cacheable = call.modern ? { ttlMs: 3_600_000, cacheScope: 'public' } : {};
     switch (method) {
       case 'server/discover':
         if (!call.modern) return failure(id, -32601, `Method ${method} is not supported.`);
-        return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: { tools: {} }, instructions, ttlMs: 3_600_000, cacheScope: 'public' });
+        return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: apps ? { tools: {}, resources: {}, extensions: { [mcpAppsExtension]: {} } } : { tools: {} }, instructions, ttlMs: 3_600_000, cacheScope: 'public' });
       case 'ping':
         if (call.modern) return failure(id, -32601, 'Method ping is not part of protocol 2026-07-28.');
         return complete({});
-      case 'tools/list': return complete({ tools: tools.map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, annotations: tool.readOnly === false ? { title: tool.title, readOnlyHint: false, destructiveHint: tool.destructive === true, idempotentHint: false, openWorldHint: true } : { title: tool.title, readOnlyHint: true, idempotentHint: true, openWorldHint: false } })), ...(call.modern ? { ttlMs: 3_600_000, cacheScope: 'public' } : {}) });
+      case 'tools/list': return complete({ tools: tools.map(tool => { const ui = apps ? mcpAppToolMeta(tool.name) : undefined; return { name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, annotations: tool.readOnly === false ? { title: tool.title, readOnlyHint: false, destructiveHint: tool.destructive === true, idempotentHint: false, openWorldHint: true } : { title: tool.title, readOnlyHint: true, idempotentHint: true, openWorldHint: false }, ...(ui ? { _meta: ui } : {}) }; }), ...cacheable });
       case 'tools/call': return callTool(id, params, call, complete);
+      case 'resources/list':
+        if (!apps) return failure(id, -32601, `Method ${method} is not supported.`);
+        return complete({ resources: mcpAppResources(), ...cacheable });
+      case 'resources/read': {
+        if (!apps) return failure(id, -32601, `Method ${method} is not supported.`);
+        const contents = readMcpAppResource(params?.uri);
+        if (!contents) return failure(id, call.modern ? -32602 : -32002, 'Resource not found.', { uri: typeof params?.uri === 'string' ? params.uri.slice(0, 200) : null });
+        return complete({ contents, ...cacheable });
+      }
       default: return failure(id, -32601, `Method ${method} is not supported.`);
     }
   }
@@ -705,6 +718,8 @@ export function createMcpServer(options: McpOptions) {
     handle, tools: tools.map(tool => tool.name), connect(send: McpOutbound) { outbound = send; },
     /** Whether a tool asks the person to confirm through elicitation before it changes anything, so its first call only plans. */
     confirmsFirst(name: string): boolean { return tools.find(tool => tool.name === name)?.confirms === true; },
+    /** Whether the client's `initialize` declared MCP Apps; false before any `initialize`. */
+    declaredMcpApps(): boolean { return supportsMcpApps(clientCapabilities); },
   };
 }
 

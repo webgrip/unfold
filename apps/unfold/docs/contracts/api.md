@@ -364,10 +364,39 @@ The message is served by MCP revision, per request:
 
 | Revision | How a request is recognised | Rules |
 | --- | --- | --- |
-| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call`, `Mcp-Name` (plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`. Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list` and `server/discover` carry `ttlMs` and `cacheScope: "public"` |
-| 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`. Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
+| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call` and `resources/read`, `Mcp-Name` (the tool name or the resource URI, plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`, and `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps). Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list`, `server/discover` and the resource methods carry `ttlMs` and `cacheScope: "public"` |
+| 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`, and `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps). Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
 
 A tool that asks the person to confirm returns, to a 2026-07-28 client that declares form elicitation, `{resultType: "input_required", inputRequests: {confirm_action | confirm_spend: {method: "elicitation/create", params: {mode: "form", message, requestedSchema}}}, requestState}`. The client retries `tools/call` with `inputResponses` and the same `requestState`. The state is HMAC-sealed with a key of this process and binds the person, the tool and its arguments, the hash of the message and a 10-minute expiry; it acts at most once. A retry without a well-formed answer under the requested key is asked again; `cancel` returns a result that links to the Unfold page. A 2025 client over HTTP cannot be asked and is refused with that link.
+
+### MCP Apps
+
+`unfold-mcp` implements the [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) extension (stable 2026-01-26), over HTTP and over stdio alike. A client supports it when its capabilities hold `extensions["io.modelcontextprotocol/ui"].mimeTypes` with `text/html;profile=mcp-app`. A 2026-07-28 client declares this per request in `_meta["io.modelcontextprotocol/clientCapabilities"]`. A 2025 client declares it in `initialize`.
+
+Over HTTP every request is stateless. The endpoint therefore remembers, for 24 hours, that a 2025 client declared the extension in `initialize`. It keys that memory by the account, the token's client and the `User-Agent`, holds at most 10,000 entries per process, and forgets an entry when the same client initializes without the extension. A restart or another replica forgets it too, and that client then gets the plain answers.
+
+For a client that declares the extension:
+
+| Method | Answer |
+| --- | --- |
+| `initialize`, `server/discover` | `capabilities` also hold `resources` and `extensions: {"io.modelcontextprotocol/ui": {}}` |
+| `tools/list` | `unfold_get_work` carries `_meta: {ui: {resourceUri: "ui://unfold/work-item", visibility: ["model", "app"]}, "ui/resourceUri": "ui://unfold/work-item"}`, and `unfold_now` the same with `ui://unfold/now`. No other tool carries `_meta` |
+| `resources/list` | The two resources, each with `mimeType: "text/html;profile=mcp-app"` and `_meta.ui: {csp: {}, prefersBorder: false}` |
+| `resources/read` with `{uri}` | `contents: [{uri, mimeType, text, _meta}]`. `text` is one HTML5 document with every script and style inline. Its own `Content-Security-Policy` meta element sets `default-src 'none'` and `connect-src 'none'`, and allows inline script and style only. An unknown URI answers `-32602` over 2026-07-28 and `-32002` over 2025 |
+
+Tool results are the same for every client. The view renders the `structuredContent` the host passes it in `ui/notifications/tool-result`.
+
+The view calls tools through the host's `tools/call` bridge, with only `name` and `arguments`:
+
+- **Ask.** `unfold_ask` answers from the record first. When a model is needed, the person picks "Ask a model" and the view calls again with `use_model: true`.
+- **Answer.** `unfold_answer_question` is offered when the Work Item waits on a question.
+- **Note.** `unfold_add_note` is offered while the Work Item is queued or running.
+- **Approve.** `unfold_approve_work` is offered for a proposal.
+- **Refresh and open.** Refreshing, and opening a Work Item from the Now list, call `unfold_get_work`.
+
+Each action tool asks for the person's confirmation exactly as it does for a call the model makes. The host's MCP client answers that confirmation. The view never sends `inputResponses` or `requestState`. When an `input_required` result is handed back to the view, the view shows "not confirmed". Links open through `ui/open-link`, and only for `http:` and `https:` URLs.
+
+A client that does not declare the extension gets the same answers as before MCP Apps support: no `resources` capability, no `_meta` on any tool, and `-32601` for `resources/list` and `resources/read`.
 
 ## Agent host
 
