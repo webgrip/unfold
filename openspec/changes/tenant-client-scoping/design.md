@@ -81,11 +81,12 @@ so a token without membership groups reaches nothing while the flag is on.
 - D7's default owner makes an unknown target visible to the `default`
   Tenant's members. On an install that uses only named Tenants, nobody holds
   `default`, so nobody sees it.
-- Runs, audit events and unsettled accounts whose Work Item Unfold has not
-  read cost one Ploeg read each while the flag is on.
+- Runs, audit events, unsettled accounts and attribution sides whose Work
+  Item Unfold has not read cost one Ploeg read each while the flag is on.
 - The Insights figures from delivery facts (economics, the Delivery ledger
-  and its CSV) keep only reached Work Items, read from each fact's target.
-- Ploeg's per-Team summary counts and spend, Run Cards, crack attributions,
-  connections, and the folders the agent host offers over its own protocol
-  are still filtered by Team or not at all.
+  and its CSV) and Run Cards keep only reached Work Items, read from each
+  fact's or card's target.
+- Ploeg's per-Team summary counts and spend, connections, and the folders the
+  agent host offers over its own protocol are still filtered by Team or not
+  at all.
   `GET /api/agent-host` lists only reached repositories.

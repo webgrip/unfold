@@ -5,11 +5,13 @@ import { randomBytes } from 'node:crypto';
 import { Auth } from '../src/auth.ts';
 import type { FactsPullRequest, FactsRun, WorkItemFacts } from '../src/cards/facts.ts';
 import { minimumMergedSample } from '../src/delivery-economics.ts';
+import type { CardService } from '../src/cards/service.ts';
+import { PloegClient, PloegError, type RunCard, type PloegCrack, type PloegCrackCandidates } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import type { Membership } from '../src/tenancy.ts';
 import { tenancySettings } from '../src/tenant-scope.ts';
 import type { AppConfig, Repository } from '../src/types.ts';
-import { application, request } from './api-support.ts';
+import { application, configuration, request } from './api-support.ts';
 import { testTimeout } from './timeframes.ts';
 
 const owners = {
@@ -22,6 +24,7 @@ type Key = keyof typeof owners;
 const keys = Object.keys(owners) as Key[];
 const workItemOf: Record<Key, string> = { a: '101', b: '102', x: '105', y: '106' };
 const costOf: Record<Key, number> = { a: 1, b: 2, x: 4, y: 8 };
+const ownerOf: Record<string, Key> = { 101: 'a', 113: 'a', 102: 'b', 105: 'x', 112: 'x', 106: 'y' };
 
 const people: Record<string, Membership[]> = {
   alice: [{ kind: 'tenant', tenant: 'tenant-a', role: 'developer' }],
@@ -65,9 +68,9 @@ async function ploegUpstream(t: TestContext, perOwner: Partial<Record<Key, numbe
   const now = Date.now();
   const all = keys.flatMap(key => facts(key, now, perOwner[key] ?? 1));
   const details = structuredClone(ploegDemo.details);
-  for (const key of keys) {
+  for (const [id, key] of Object.entries(ownerOf)) {
     const [owner, repo] = owners[key].path;
-    details[workItemOf[key]]!.item.target = { forge: 'forgejo', owner, repo, baseBranch: 'main' };
+    details[id]!.item.target = { forge: 'forgejo', owner, repo, baseBranch: 'main' };
   }
   const events = keys.map((key, index) => ({ id: String(2000 + index), at: iso(now - 60_000), actor: 'ploegd', action: 'run.finished', workItemId: workItemOf[key], team: 'delivery', detail: {}, workItemTitle: `Work of ${key}` }));
   const accounts = keys.map((key, index) => ({ runId: String(3000 + index), workItemId: workItemOf[key], team: 'delivery', accountState: 'blocked', heldUsd: costOf[key], since: iso(now - 60_000) }));
@@ -184,4 +187,74 @@ test('with tenancy.enforce off, the delivery figures are byte-identical to a con
   assert(expected.some(line => line.startsWith('csv 200') && keys.every(key => line.includes(`\r\n${workItemOf[key]},`))), 'with the flag off, every Work Item reads as today');
   assert.deepEqual(await answers(true, { enforce: false }), expected);
   assert.deepEqual(await answers(true), expected);
+});
+
+const targetOf = (id: string) => { const [owner, repo] = owners[ownerOf[id]!].path; return { forge: 'forgejo', owner, repo }; };
+const crackItem = (id: string) => ({ workItemId: id, title: `Work ${id}`, externalRef: `VIK-${id}` });
+const bugs: Record<string, string[]> = { 101: ['113', '102'], 105: ['112', '106'] };
+
+function cardService(): CardService {
+  const template = ploegDemo.cards['101']!;
+  const card = (id: string): RunCard => ({ ...structuredClone(template), workItemId: id, title: `Work ${id}`, team: 'delivery', target: targetOf(id), roster: [{ name: 'pat', roles: ['builder'] }], steward: null, demo: false });
+  const cards = keys.map(key => card(workItemOf[key]));
+  const crack = (bug: string, other: string, index: number): PloegCrack => ({ ...structuredClone(ploegDemo.cracks[0]!), id: String(8000 + index), team: 'delivery', bug: crackItem(bug), card: crackItem(other) });
+  const candidates = (bug: string): PloegCrackCandidates => {
+    const base = structuredClone(Object.values(ploegDemo.crackCandidates)[0]!);
+    return { ...base, bug: crackItem(bug), candidates: bugs[bug]!.map(other => ({ ...structuredClone(base.candidates[0]!), card: crackItem(other) })) };
+  };
+  return {
+    available: async () => true,
+    card: async (id: string) => { const found = cards.find(entry => entry.workItemId === id); if (!found) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found.'); return found; },
+    memberCards: async () => ({ cards, scanned: cards.length, truncated: false }),
+    teamCards: async () => ({ cards, scanned: cards.length, truncated: false }),
+    crackViews: async (id: string) => (bugs[id] ?? []).map((other, index) => crack(id, other, index)),
+    crackCandidates: async (id: string) => candidates(id),
+  } as unknown as CardService;
+}
+
+function client(ploeg: { url: string; tokenEnv: string }, withOwners: boolean, tenancy?: unknown) {
+  const config = configuration('/unused', 'live');
+  configure(config, ploeg, withOwners, tenancy);
+  const result = new PloegClient(config);
+  result.useCards(cardService());
+  return result;
+}
+
+const member = (id: string) => ({ id, name: id, role: 'admin' as const, memberships: people[id] ?? [] });
+
+async function cardsOf(ploeg: PloegClient, who: string) {
+  const user = member(who);
+  const one = async (id: string) => ploeg.card(user, id).then(view => view.card.workItemId, (error: { status?: number; code?: string }) => `${error.status} ${error.code}`);
+  const attributions = async (bug: string) => ploeg.cracks(user, bug).then(view => view.cracks.map(entry => entry.card.workItemId), (error: { status?: number }) => `${error.status}`);
+  const candidates = async (bug: string) => ploeg.crackCandidates(user, bug).then(view => view.crackCandidates.candidates.map(entry => entry.card.workItemId), (error: { status?: number }) => `${error.status}`);
+  return {
+    cards: Object.fromEntries(await Promise.all(keys.map(async key => [key, await one(workItemOf[key])]))),
+    member: (await ploeg.memberCards(user, ['pat'])).cards.map(card => card.workItemId),
+    team: (await ploeg.teamCards(user, 'delivery', undefined)).cards.map(card => card.workItemId),
+    cracks: { 101: await attributions('101'), 105: await attributions('105') },
+    candidates: { 101: await candidates('101'), 105: await candidates('105') },
+  };
+}
+
+test('Run Cards and crack attributions keep a Tenant and a Client to their own Work Items, and a hidden card answers like an unknown one', { timeout: testTimeout(30_000) }, async t => {
+  const upstream = await ploegUpstream(t);
+  const ploeg = client(upstream, true, { enforce: true });
+  const hidden = '404 ploeg_not_found';
+  assert.deepEqual(await cardsOf(ploeg, 'alice'), { cards: { a: '101', b: hidden, x: hidden, y: hidden }, member: ['101'], team: ['101'], cracks: { 101: ['113'], 105: '404' }, candidates: { 101: ['113'], 105: '404' } });
+  assert.deepEqual(await cardsOf(ploeg, 'bob'), { cards: { a: hidden, b: '102', x: hidden, y: hidden }, member: ['102'], team: ['102'], cracks: { 101: '404', 105: '404' }, candidates: { 101: '404', 105: '404' } });
+  assert.deepEqual(await cardsOf(ploeg, 'xena'), { cards: { a: hidden, b: hidden, x: '105', y: hidden }, member: ['105'], team: ['105'], cracks: { 101: '404', 105: ['112'] }, candidates: { 101: '404', 105: ['112'] } });
+  assert.deepEqual(await cardsOf(ploeg, 'yuri'), { cards: { a: hidden, b: hidden, x: hidden, y: '106' }, member: ['106'], team: ['106'], cracks: { 101: '404', 105: '404' }, candidates: { 101: '404', 105: '404' } });
+  const wide = await cardsOf(ploeg, 'dana');
+  assert.deepEqual([wide.member, wide.cracks[105], wide.candidates[105]], [['105', '106'], ['112', '106'], ['112', '106']], 'a Tenant membership reaches every Client');
+  const unknown = await ploeg.card(member('alice'), '999').then(() => 'read', (error: { status?: number; code?: string }) => `${error.status} ${error.code}`);
+  assert.equal(unknown, '404 ploeg_not_found', 'an unknown card answers the same 404');
+});
+
+test('with tenancy.enforce off, Run Cards and crack attributions are unchanged', { timeout: testTimeout(30_000) }, async t => {
+  const upstream = await ploegUpstream(t);
+  const expected = await cardsOf(client(upstream, false), 'xena');
+  assert.deepEqual(expected.member, keys.map(key => workItemOf[key]), 'with the flag off, every card reads as today');
+  assert.deepEqual(expected.cracks, { 101: ['113', '102'], 105: ['112', '106'] });
+  assert.deepEqual(JSON.stringify(await cardsOf(client(upstream, true, { enforce: false }), 'xena')), JSON.stringify(expected));
+  assert.deepEqual(JSON.stringify(await cardsOf(client(upstream, true), 'xena')), JSON.stringify(expected));
 });
