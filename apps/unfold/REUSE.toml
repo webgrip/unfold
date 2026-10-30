@@ -26,3 +26,9 @@ path = "test/fixtures/agent-host-protocol/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Microsoft Corporation"
 SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "test/fixtures/ocsf/**"
+precedence = "override"
+SPDX-FileCopyrightText = "OCSF a Series of LF Projects, LLC"
+SPDX-License-Identifier = "Apache-2.0"
