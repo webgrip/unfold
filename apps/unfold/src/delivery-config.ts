@@ -2,38 +2,39 @@ import { isAbsolute, resolve } from 'node:path';
 import { isIP } from 'node:net';
 import { createHash } from 'node:crypto';
 import type { AppConfig } from './types.ts';
+import { deliveryPublishers, findDeliveryPublisher, type PublisherConfig } from './delivery-publishers/index.ts';
 
 export type DeliveryCheck = { id: string; argv: string[]; stdout: string; exitCode: number };
 export type DeliveryPolicy = { repositoryId: string; approvedBaseSha: string; approvedBaseBundle: string; image: string; directory: string; files: Record<string, string>; protectedPaths: string[]; checks: DeliveryCheck[]; timeoutMs: number };
-export type ForgejoPublisherConfig = { kind: 'forgejo'; apiUrl: string; tokenEnv: string; username?: string };
 export type VerifierResources = { requests: { cpu: string; memory: string }; limits: { cpu: string; memory: string } };
 export type KubernetesVerifierConfig = { kind: 'kubernetes'; namespace: string; runtimeClassName: string; image: string; resources: VerifierResources; timeoutSeconds: number; networkProbe?: { host: string; port: number }; nodeSelector?: Record<string, string>; affinity?: Record<string, unknown>; tolerations?: Record<string, unknown>[]; imagePullSecrets?: string[] };
 export type VerifierConfig = { kind: 'docker' } | KubernetesVerifierConfig;
-export type DeliveryConfig = { verifierTokenEnv: string; socketPath?: string; policies: DeliveryPolicy[]; publisher?: ForgejoPublisherConfig; verifier?: VerifierConfig };
+export type DeliveryConfig = { verifierTokenEnv: string; socketPath?: string; policies: DeliveryPolicy[]; publisher?: PublisherConfig; verifier?: VerifierConfig };
 export const defaultVerifierResources: VerifierResources = { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: '1', memory: '512Mi' } };
 export const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 export const policyDigest = (policy: DeliveryPolicy): string => digest(JSON.stringify({ version: 1, repositoryId: policy.repositoryId, approvedBaseSha: policy.approvedBaseSha, image: policy.image, files: Object.fromEntries(Object.entries(policy.files).sort(([a], [b]) => a.localeCompare(b))), protectedPaths: [...policy.protectedPaths].sort(), checks: policy.checks, timeoutMs: policy.timeoutMs }));
 const object = (value: any): boolean => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 export const deliveryPath = (value: string): boolean => typeof value === 'string' && value.length > 0 && value.length < 1024 && !isAbsolute(value) && !/[\\\x00-\x1f\x7f]/.test(value) && value.split('/').every(part => part && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
 const invalid = (): never => { throw new Error('delivery requires a scoped verifier credential and pinned, nonempty verification policies.'); };
-const invalidPublisher = (): never => { throw new Error('delivery.publisher requires kind forgejo, an https apiUrl without credentials, a tokenEnv no agent workspace, Ploeg consumer or verifier shares, an optional Forgejo username, and https delivery repositories.'); };
+const invalidPublisher = (): never => { throw new Error(`delivery.publisher requires a kind of ${deliveryPublishers().map(adapter => adapter.kind).join(', ')}, an https apiUrl of that forge without credentials, a tokenEnv no agent workspace, Ploeg consumer or verifier shares, an optional forge username, and https delivery repositories.`); };
 const invalidVerifier = (): never => { throw new Error('delivery.verifier requires kind docker, or kind kubernetes with a namespace, a runtimeClassName, a digest-pinned helper image, digest-pinned policy images, bounded resources, a timeoutSeconds that outlasts every check by 30 seconds and an IP networkProbe.'); };
 const pinnedImage = (value: unknown): boolean => typeof value === 'string' && /^[a-zA-Z0-9._:/-]+@sha256:[a-f0-9]{64}$/.test(value);
 const dnsLabel = (value: unknown): boolean => typeof value === 'string' && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 const quantity = (value: unknown): boolean => typeof value === 'string' && /^[0-9]+(\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$/.test(value);
 const environmentName = (value: unknown): boolean => typeof value === 'string' && /^[A-Z][A-Z0-9_]{2,100}$/.test(value);
 
-function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string, policies: DeliveryPolicy[]): ForgejoPublisherConfig | undefined {
+function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string, policies: DeliveryPolicy[]): PublisherConfig | undefined {
   if (raw === undefined) return undefined;
-  if (!object(raw) || Object.keys(raw).some(key => !['kind', 'apiUrl', 'tokenEnv', 'username'].includes(key)) || raw.kind !== 'forgejo' || (raw.username !== undefined && (typeof raw.username !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(raw.username))) || !environmentName(raw.tokenEnv) || raw.tokenEnv === verifierTokenEnv || raw.tokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.tokenEnv) || typeof raw.apiUrl !== 'string') invalidPublisher();
+  if (!object(raw) || Object.keys(raw).some(key => !['kind', 'apiUrl', 'tokenEnv', 'username'].includes(key)) || typeof raw.kind !== 'string' || !findDeliveryPublisher(raw.kind) || (raw.username !== undefined && (typeof raw.username !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(raw.username))) || !environmentName(raw.tokenEnv) || raw.tokenEnv === verifierTokenEnv || raw.tokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.tokenEnv) || typeof raw.apiUrl !== 'string') invalidPublisher();
   let api: URL;
   try { api = new URL(raw.apiUrl); } catch { return invalidPublisher(); }
-  if (api.protocol !== 'https:' || api.username || api.password || api.search || api.hash) invalidPublisher();
+  const forge = findDeliveryPublisher(raw.kind)!;
+  if (api.protocol !== 'https:' || api.username || api.password || api.search || api.hash || !forge.acceptsApiUrl(api)) invalidPublisher();
   for (const policy of policies) {
     const repository = config.repositories.find(repo => repo.id === policy.repositoryId);
-    if (!repository || !/^https:\/\/[^/@\s]+\/[^/\s]+\/[^/\s]+$/.test(repository.url)) invalidPublisher();
+    if (!repository || !forge.acceptsRepository(repository.url)) invalidPublisher();
   }
-  return { kind: 'forgejo', apiUrl: api.toString().replace(/\/+$/, ''), tokenEnv: raw.tokenEnv, username: raw.username ?? 'unfold-publisher' };
+  return { kind: forge.kind, apiUrl: api.toString().replace(/\/+$/, ''), tokenEnv: raw.tokenEnv, username: raw.username ?? 'unfold-publisher' };
 }
 
 function validateVerifier(raw: any, policies: DeliveryPolicy[]): VerifierConfig | undefined {

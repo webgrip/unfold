@@ -1,6 +1,6 @@
 import type { AppConfig, User } from '../types.ts';
 import { PloegClient, PloegError, type PloegTeam } from '../ploeg.ts';
-import { handoffUnsupported, type TaskSourceConfig } from '../tasks.ts';
+import { assignmentEvent, assignmentEvents, handoffUnsupported, type TaskSourceConfig } from '../tasks.ts';
 import { routedTeams, type Routing } from '../task-handoff.ts';
 
 type Json = Record<string, any>;
@@ -13,7 +13,6 @@ export const isAutomationsChannel = (uri: string) => uri === automationsChannel 
 export const autonomousAutomationsMeta = 'vscode.autonomousAutomations';
 /** The event-trigger type of a tracker route: Ploeg queues a Work Item when a team's tracker user is assigned to a task on the board. */
 export const trackerAssignmentTrigger = 'unfold.tracker-assignment';
-const assignmentEvent = 'task.assignee.created';
 const metaKey = 'dev.webgrip.unfold';
 
 /** Why the host refuses `automation/createRequested`, `runAutomation` and every other change from a client. */
@@ -30,9 +29,9 @@ export type AutomationHost = {
 type Routes = { entries: Json[]; reason?: string };
 type Known = { fingerprint: string; createdAt: string; modifiedAt: string };
 
-/** A board whose tracker-driven work Ploeg runs: a Vikunja source handed to Ploeg, whose assignment webhook queues Work Items. */
+/** A board whose tracker-driven work Ploeg runs: a source handed to Ploeg whose tracker's assignment webhook queues Work Items. */
 export function routedSources(config: AppConfig): TaskSourceConfig[] {
-  return (config.taskSources ?? []).filter(source => source.provider === 'vikunja' && source.executionOwner === 'ploeg');
+  return (config.taskSources ?? []).filter(source => Boolean(assignmentEvent(source)) && source.executionOwner === 'ploeg');
 }
 
 /**
@@ -138,7 +137,7 @@ export class TrackerAutomations {
       message: { text: `Tasks on ${source.name} assigned to ${assignee} become Work Items for Ploeg team ${team.id}. Ploeg authorizes, budgets and runs each one, and nothing here starts work. ${handoff ? `Hand a task over from Unfold's Tasks page, or assign it to ${assignee} in the tracker.` : `Assign a task to ${assignee} in the tracker.`}`, origin: { kind: 'automation' } },
       session: { provider: 'unfold', ...(folder ? { workingDirectories: [folder] } : {}) },
       enabled: team.paused !== true,
-      triggers: [{ id: 'tracker-assignment', kind: 'event', type: trackerAssignmentTrigger, title: 'Tracker assignment', description: 'Ploeg queues a Work Item when its tracker user is assigned to a task on this board.', events: [{ id: assignmentEvent, title: `Assigned to ${assignee}` }], config: { source: source.id, team: team.id, assignee } }],
+      triggers: [{ id: 'tracker-assignment', kind: 'event', type: trackerAssignmentTrigger, title: 'Tracker assignment', description: 'Ploeg queues a Work Item when its tracker user is assigned to a task on this board.', events: [{ id: assignmentEvent(source)!, title: `Assigned to ${assignee}` }], config: { source: source.id, team: team.id, assignee } }],
       _meta: { [metaKey]: { kind: 'trackerRoute', source: source.id, team: team.id, assignee, pinned, handoff } },
     };
     const fingerprint = JSON.stringify(definition);
@@ -150,6 +149,6 @@ export class TrackerAutomations {
   }
 
   private triggerDefinition(): Json {
-    return { type: trackerAssignmentTrigger, title: 'Tracker assignment', description: 'Ploeg queues a Work Item when a team\'s tracker user is assigned to a task on a board it runs. Unfold lists these routes; it does not create them.', events: [{ id: assignmentEvent, title: 'Task assigned to the team\'s tracker user' }] };
+    return { type: trackerAssignmentTrigger, title: 'Tracker assignment', description: 'Ploeg queues a Work Item when a team\'s tracker user is assigned to a task on a board it runs. Unfold lists these routes; it does not create them.', events: assignmentEvents().map(id => ({ id, title: 'Task assigned to the team\'s tracker user' })) };
   }
 }

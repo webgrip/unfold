@@ -1,12 +1,12 @@
 import { htmlToMarkdown, looksLikeHtml } from './markdown.ts';
+import { sendsHtml } from './task-providers/index.ts';
 
-const htmlProviders = new Set(['vikunja']);
 const memoLimit = 256;
 const memo = new Map<string, string>();
 
-/** Returns tracker text for display with the browser's `markdown()` renderer: HTML from a provider known to send it (Vikunja) is converted to the `unfold` Markdown subset, anything else is returned unchanged. */
+/** Returns tracker text for display with the browser's `markdown()` renderer: HTML from a provider whose adapter says it sends HTML is converted to the `unfold` Markdown subset, anything else is returned unchanged. */
 export function descriptionMarkdown(provider: string, description: string, base?: string): string {
-  if (!htmlProviders.has(provider) || !looksLikeHtml(description)) return description;
+  if (!sendsHtml(provider) || !looksLikeHtml(description)) return description;
   const key = `${base ?? ''}\u0000${description}`;
   const cached = memo.get(key);
   if (cached !== undefined) return cached;

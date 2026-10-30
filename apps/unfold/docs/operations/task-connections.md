@@ -2,7 +2,22 @@
 
 Unfold reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status. [Handing a Vikunja task to Ploeg](#hand-a-task-to-ploeg) is a separate, explicit action that does assign it and leaves a comment.
 
-An administrator registers each source in the server configuration. The application supplies five task adapters. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration. Adding another system requires a server adapter that implements the same list/get normalization contract.
+An administrator registers each source in the server configuration. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration.
+
+## Task providers are adapters
+
+Each task system is an adapter in `src/task-providers/`, one file per provider, registered by name in `src/task-providers/index.ts`. The adapter browses, reads and normalizes tasks for import, and declares what else its tracker can do. Code outside the adapters asks for a capability and never names a provider ([system ADR-0050](../../../../docs/adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md), rule 1); a test fails when it does. A source whose `provider` no adapter registered is refused at start-up with `Unsupported task source provider`.
+
+| Provider | Hand to Ploeg | Report a problem | Descriptions | Reference | Personal link |
+| --- | --- | --- | --- | --- | --- |
+| `forgejo` | no | issues | Markdown | none | none |
+| `github` | no | no | Markdown | none | none |
+| `gitlab` | no | no | Markdown | none | `gitlab` |
+| `vikunja` | yes, and Ploeg's assignment routes | tasks | HTML, shown as Markdown | `VIK-<id>` | none |
+| `clickup` | yes | no | Markdown | none | `clickup` |
+| `demo` | no (demo mode only) | no | Markdown | none | none |
+
+The hand-off and reporting messages list the adapters that declare the capability, so a new adapter appears in them without another change. Personal account links are a registry of their own in `src/link-providers/`. Adding a tracker is a new adapter file and one line in the index.
 
 ## Task source and code host are separate choices
 
@@ -185,11 +200,11 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 ## Hand a task to Ploeg
 
-Ploeg takes Vikunja and ClickUp work when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+Ploeg takes work from the trackers whose adapter declares hand-off, Vikunja and ClickUp, when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
 
 A connection can hand off when all of these hold:
 
-* it is a Vikunja or ClickUp source with a `tokenEnv`;
+* its adapter declares hand-off (Vikunja or ClickUp) and it has a `tokenEnv`;
 * its `executionOwner` is `"ploeg"`. A `ploeg.target` is not needed for hand-off; it is only for [importing the existing Ploeg work item](#import-the-existing-ploeg-work-item);
 * the server has a live `ploeg` operator connection, not the demo;
 * Ploeg reports tracker assignees for its teams. Ploeg's teams config `teams.<team>.assignees` and `PLOEG_TEAM_MAP` set them.
@@ -209,7 +224,7 @@ The status beside the task shows which team holds it, Ploeg's Work Items for it 
 
 ## File Report a problem into a tracker
 
-Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report as a Forgejo issue or a Vikunja task, with the screenshot, `console.json` and `requests.json` attached. It uses one of the task sources above:
+Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report into any registered tracker whose adapter declares issue filing: a Forgejo issue or a Vikunja task today, with the screenshot, `console.json` and `requests.json` attached. The adapter decides the body format (Markdown on Forgejo, HTML on Vikunja), how files attach, and what Unfold reads back when it follows the report. It uses one of the task sources above:
 
 ```json
 "reports": { "source": "forgejo-unfold", "project": "webgrip/unfold" }
@@ -221,7 +236,7 @@ Or give reports a connection of their own, which is not a task source and never 
 "reports": { "provider": "forgejo", "baseUrl": "https://forgejo.example/api/v1", "project": "webgrip/unfold", "tokenEnv": "UNFOLD_REPORTS_FORGEJO_TOKEN" }
 ```
 
-* `source` names a Forgejo or Vikunja task source with a token. Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.
+* `source` names a task source with a token whose adapter files issues (Forgejo or Vikunja). Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.
 * `project` is optional: `owner/repository` on Forgejo, or a numeric project ID on Vikunja, when reports belong somewhere other than the source's work.
 * If the variable `tokenEnv` names is not set, Unfold starts anyway, logs `reports.token_missing` and keeps reports without filing them.
 * The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), or create tasks and attachments in the project on Vikunja.
@@ -255,4 +270,4 @@ The tests exercise provider contracts with local HTTP fixtures. They do not demo
 
 The connection-management proposal includes an administrator wizard, provider authorization where applicable, scope discovery, credential rotation and explicit source-to-repository mappings. The health view is the Connections page above. The broader unattended delivery proposal includes authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
 
-The [ticket integration design](../design/ticket-integration.md) and [system design](../PRODUCT-DESIGN.md) describe that larger system. The five implemented read adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.
+The [ticket integration design](../design/ticket-integration.md) and [system design](../PRODUCT-DESIGN.md) describe that larger system. The registered adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.

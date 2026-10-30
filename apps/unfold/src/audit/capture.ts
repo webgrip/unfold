@@ -1,6 +1,7 @@
 import { describeAction, isAction, recordedInputs, type ActionTarget } from '../action-records.ts';
 import type { User } from '../types.ts';
 import type { AuditFact, AuditOutcome, AuditPerson } from './ocsf.ts';
+import { isLinkProvider, linkProviderLabel } from '../links.ts';
 
 /** What the request tap knows about one finished request, with the lookups a rule may need. */
 export type TapRequest = {
@@ -87,10 +88,10 @@ export function capture(request: TapRequest): Captured | undefined {
   if (method === 'POST' && path === '/api/agent-host/tokens') return { actor: user, fact: { kind: 'credential', credential: 'agents_window', action: 'issue', user: person(user), name: text(request.inputs().label, 80) ?? 'agent host', outcome: done, ...(reason(status) ? { reason: reason(status) } : {}) } };
   const agentToken = /^\/api\/agent-host\/tokens\/([0-9a-f]{64})$/.exec(path);
   if (method === 'DELETE' && agentToken) return { actor: user, fact: { kind: 'credential', credential: 'agents_window', action: 'revoke', user: person(user), uid: agentToken[1], outcome: done, ...(reason(status) ? { reason: reason(status) } : {}) } };
-  const link = /^\/api\/links\/(gitlab|clickup)$/.exec(path);
-  if (link && (method === 'PUT' || method === 'DELETE')) {
+  const link = /^\/api\/links\/([a-z][a-z0-9-]{0,63})$/.exec(path);
+  if (link && isLinkProvider(link[1]) && (method === 'PUT' || method === 'DELETE')) {
     const failed = reason(status);
-    return { actor: user, fact: { kind: 'credential', credential: 'linked_account', action: method === 'DELETE' ? 'revoke' : 'issue', user: person(user), name: link[1] === 'gitlab' ? 'GitLab' : 'ClickUp', outcome: failed ? 'failure' : 'success', ...(failed ? { reason: failed } : {}) } };
+    return { actor: user, fact: { kind: 'credential', credential: 'linked_account', action: method === 'DELETE' ? 'revoke' : 'issue', user: person(user), name: linkProviderLabel(link[1]), outcome: failed ? 'failure' : 'success', ...(failed ? { reason: failed } : {}) } };
   }
   const flag = /^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/(override|rollout)$/.exec(path);
   if (method === 'PUT' && flag) {

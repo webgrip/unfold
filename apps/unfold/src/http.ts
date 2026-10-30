@@ -5,7 +5,7 @@ import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
-import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
+import { getTask, listTasks, presentTask, publicTaskSource, sourceLinkProvider, TaskError, trackerName, withLinkedToken } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
@@ -13,7 +13,7 @@ import type { AgentHost } from './ahp/host.ts';
 import { parseEditorWindow } from './ahp/editor-window.ts';
 import { agentHostTokenId, type AgentsWindowTarget, repositoryFolderPaths, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import { agentHostAuthority, agentsWindowSessionLinks } from '../public/core/agents-window.js';
-import type { Links } from './links.ts';
+import { isLinkProvider, type Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
@@ -450,9 +450,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
-      const linkCallback = path.match(/^\/api\/links\/(gitlab|clickup)\/callback$/);
-      if (method === 'GET' && linkCallback && links) {
-        const provider = linkCallback[1] as 'gitlab' | 'clickup';
+      const linkCallback = path.match(/^\/api\/links\/([a-z][a-z0-9-]{0,63})\/callback$/);
+      if (method === 'GET' && linkCallback && isLinkProvider(linkCallback[1]) && links) {
+        const provider = linkCallback[1];
         const denied = url.searchParams.get('error');
         let location = `/?linked=${provider}`;
         if (denied) location = `/?link_error=${encodeURIComponent(denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied')}`;
@@ -621,7 +621,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
           reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
           repositories: tenants.repositories(user).map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
-          taskSources: tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
+          taskSources: tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: sourceLinkProvider(source) ?? null })),
           teams: config.teams, crews: config.teams, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
@@ -685,9 +685,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         if (method === 'GET' && path === '/api/models') return json(res, 200, { models: await engine.describeModels() });
         if (method === 'GET' && path === '/api/links') return json(res, 200, { links: links ? links.describeAll(user.id) : [] });
-        const linkRoute = path.match(/^\/api\/links\/(gitlab|clickup)$/);
-        if (linkRoute && links) {
-          const provider = linkRoute[1] as 'gitlab' | 'clickup';
+        const linkRoute = path.match(/^\/api\/links\/([a-z][a-z0-9-]{0,63})$/);
+        if (linkRoute && isLinkProvider(linkRoute[1]) && links) {
+          const provider = linkRoute[1];
           if (method === 'POST') {
             const browser = auth.beginBrowserFlow(req);
             const url = links.begin(provider, user.id, browser.binding);
@@ -698,13 +698,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'DELETE') { await links.revoke(provider, user.id); return json(res, 200, { ok: true }); }
         }
         const withUserToken = async (source: NonNullable<AppConfig['taskSources']>[number]) => {
-          if (source.token) return source;
-          if (source.provider !== 'gitlab' && source.provider !== 'clickup') return source;
-          const linked = links ? await links.token(user.id, source.provider) : undefined;
-          if (!linked) fault(409, 'source_unlinked', `Link ${source.provider === 'gitlab' ? 'GitLab' : 'ClickUp'} under Linked accounts to use this connection.`);
-          return { ...source, token: linked!.token, ...(source.provider === 'gitlab' && linked!.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) };
+          const provider = sourceLinkProvider(source);
+          if (!provider) return source;
+          const linked = links ? await links.token(user.id, provider) : undefined;
+          if (!linked) fault(409, 'source_unlinked', `Link ${trackerName(source)} under Linked accounts to use this connection.`);
+          return withLinkedToken(source, linked!);
         };
-        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize(tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null }))));
+        if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize(tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: sourceLinkProvider(source) ?? null }))));
         const handoffRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks\/([a-zA-Z0-9_-]+)\/(ploeg|handoff)$/);
         if (handoffRoute) {
           const source = tenants.source(user, handoffRoute[1]);
