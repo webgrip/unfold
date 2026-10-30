@@ -36,7 +36,7 @@ Trusted: the installer's configuration file and environment, the Kubernetes API,
 - Demo mode (`npm run demo`) doing demo things. A demo flaw that also exists in live mode is in scope.
 - That an `admin` can change configuration, flags and accounts, or that an `operator` can start, steer and spend on sessions within their budget. Doing either as a lower role, or on another person's object, is in scope.
 - Prompt injection that only changes what an agent writes in its own pull request for a person to review.
-- Vulnerabilities inside dependencies. Unfold has one runtime dependency, `ws`.
+- Vulnerabilities inside dependencies. Unfold's runtime dependencies are `ws` and `hyparquet-writer` (with its reader `hyparquet`). A bug in how Unfold feeds them input is in scope.
 
 ## How to exercise it
 

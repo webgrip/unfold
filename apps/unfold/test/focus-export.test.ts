@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
+import { parquetMetadata, parquetReadObjects } from 'hyparquet';
 import type { FactsPullRequest, FactsRun, WorkItemFacts } from '../src/cards/facts.ts';
-import { focusCsv, focusDecimal, focusExport, focusExportColumns, focusExportQuery, focusFile, focusJsonl, focusTime, FocusQueryError, type FocusExportQuery } from '../src/focus-export.ts';
+import { focusColumnTypes, focusCsv, focusDecimal, focusExport, focusExportColumns, focusExportQuery, focusFile, focusJsonl, focusParquet, focusParquetScale, focusTime, FocusQueryError, type FocusExportQuery, type FocusRow } from '../src/focus-export.ts';
 import { hashPassword } from '../src/auth.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import type { Ownership } from '../src/tenancy.ts';
@@ -128,6 +129,61 @@ function parseJsonl(text: string): { columns: string[]; rows: Record<string, Cel
   return { columns, rows: parsed };
 }
 
+type ParquetColumn = { name: string; type?: string; logical?: string; scale?: number; precision?: number; utc?: boolean };
+
+const parquetCell = (value: unknown): Cell => {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return focusTime(value.getTime());
+  if (value instanceof Uint8Array) {
+    let unscaled = 0n;
+    for (const byte of value) unscaled = unscaled * 256n + BigInt(byte);
+    if (value.length && value[0]! & 0x80) unscaled -= 1n << BigInt(value.length * 8);
+    const digits = (unscaled < 0n ? -unscaled : unscaled).toString().padStart(focusParquetScale + 1, '0');
+    const text = `${digits.slice(0, -focusParquetScale)}.${digits.slice(-focusParquetScale)}`.replace(/\.?0+$/, '');
+    return unscaled < 0n ? `-${text}` : text;
+  }
+  assert.equal(typeof value, 'string', `a Parquet cell is a decimal, a timestamp, text or null, not ${typeof value}`);
+  return value as string;
+};
+
+/**
+ * Reads a Parquet export back with hyparquet into the CSV's shape: text cells or null, a decimal as its exact digits (read
+ * from the unscaled bytes, because hyparquet would turn it into a float) and a timestamp as FOCUS Date/Time text.
+ */
+async function parseParquet(bytes: Uint8Array): Promise<{ columns: string[]; rows: Record<string, Cell>[]; schema: ParquetColumn[]; keyValues: Record<string, string | undefined> }> {
+  const file = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  assert.equal(new TextDecoder().decode(bytes.subarray(0, 4)), 'PAR1', 'a Parquet file starts with its magic');
+  const metadata = parquetMetadata(file);
+  const unscaled = structuredClone(metadata);
+  for (const element of unscaled.schema) if (element.converted_type === 'DECIMAL') { delete element.converted_type; delete element.logical_type; }
+  const objects = await parquetReadObjects({ file, metadata: unscaled });
+  const schema = metadata.schema.slice(1).map(element => ({
+    name: element.name, type: element.type, logical: element.logical_type?.type, scale: element.scale, precision: element.precision,
+    utc: element.logical_type?.type === 'TIMESTAMP' ? element.logical_type.isAdjustedToUTC : undefined,
+  }));
+  const columns = schema.map(column => column.name);
+  return { columns, schema, keyValues: Object.fromEntries((metadata.key_value_metadata ?? []).map(entry => [entry.key, entry.value])), rows: objects.map(object => Object.fromEntries(columns.map(name => [name, parquetCell(object[name])]))) };
+}
+
+const unguarded = (rows: Record<string, Cell>[]) => rows.map(row => Object.fromEntries(Object.entries(row).map(([name, value]) => [name, value !== null && /^'[=+\-@\t\r]/.test(value) ? value.slice(1) : value])));
+
+/** Writes the rows as Parquet, reads the file back, and requires the CSV's columns and cells, the FOCUS types and the column rules. */
+async function assertParquetMatchesCsv(rows: FocusRow[]) {
+  const parquet = await parseParquet(focusParquet(rows));
+  const csv = parseCsv(focusCsv(rows));
+  assert.deepEqual(parquet.columns, csv.columns, 'the Parquet file has the CSV columns in the same order');
+  assert.deepEqual(parquet.rows, unguarded(csv.rows), 'every Parquet cell equals its CSV cell, without the CSV formula guard');
+  assert.equal(parquet.keyValues.FocusVersion, '1.4');
+  for (const column of parquet.schema) {
+    const type = focusColumnTypes[column.name as keyof typeof focusColumnTypes];
+    if (type === 'Decimal') assert.deepEqual([column.type, column.logical, column.scale, column.precision], ['FIXED_LEN_BYTE_ARRAY', 'DECIMAL', 10, 38], column.name);
+    else if (type === 'Date/Time') assert.deepEqual([column.type, column.logical, column.utc], ['INT64', 'TIMESTAMP', true], column.name);
+    else assert.deepEqual([column.type, column.logical], ['BYTE_ARRAY', 'STRING'], column.name);
+  }
+  assertValid(parquet.columns, parquet.rows);
+  return parquet;
+}
+
 const iso = (ms: number) => new Date(ms).toISOString();
 const oct = (date: number, hour = 12) => Date.UTC(2026, 9, date, hour);
 const now = oct(30);
@@ -186,13 +242,14 @@ test('the query picks a UTC period and refuses what it cannot export, and never 
   refused({ from: '2026-10-01' });
   refused({ from: '2026-10-02', to: '2026-10-01' });
   refused({ from: '2025-01-01', to: '2026-02-01' });
-  refused({ format: 'parquet' });
+  refused({ format: 'xlsx' });
+  assert.equal(focusExportQuery(new URLSearchParams({ format: 'parquet' })).format, 'parquet');
   refused({ tenant: 'Not A Slug' });
   refused({ provider: '' });
   refused({ window: '7d' });
 });
 
-test('each settled Run is one FOCUS row on the day it finished, owned by its Client, and the file passes the FOCUS 1.4 column rules', () => {
+test('each settled Run is one FOCUS row on the day it finished, owned by its Client, and the file passes the FOCUS 1.4 column rules', async () => {
   const { rows, counts } = focusExport(world(), october(), { owner, now });
   assert.deepEqual(rows.map(row => [row.ResourceId, row.ChargePeriodStart, row.SubAccountId, row.SubAccountType, (row.BilledCost as { decimal: string }).decimal]), [
     ['unfold:run:410', '2026-10-05T00:00:00Z', 'x', 'Client', '1.25'],
@@ -218,9 +275,11 @@ test('each settled Run is one FOCUS row on the day it finished, owned by its Cli
   assert.deepEqual(jsonl.columns, [...focusExportColumns]);
   assertValid(jsonl.columns, jsonl.rows);
   assert.equal(JSON.parse(focusJsonl(rows).split('\n')[0]!).BilledCost, 1.25, 'JSONL carries decimals as numbers');
+  const parquet = await assertParquetMatchesCsv(rows);
+  assert.equal(parquet.rows[3]!.BilledCost, '0.000000123', 'a tiny cost keeps its exact digits in Parquet');
 });
 
-test('a Work Item row adds its Runs of one day, and Tenant and Client filters keep only their rows', () => {
+test('a Work Item row adds its Runs of one day, and Tenant and Client filters keep only their rows', async () => {
   const { rows } = focusExport(world(), october({ granularity: 'work-item' }), { owner, now });
   assert.deepEqual(rows.map(row => [row.ResourceId, row.ResourceType, row.ChargePeriodStart, (row.BilledCost as { decimal: string }).decimal, (row.x_UnfoldRunCount as { decimal: string }).decimal, row.x_UnfoldRunId]), [
     ['unfold:work-item:41', 'Work Item', '2026-10-05T00:00:00Z', '1.75', '2', null],
@@ -233,6 +292,7 @@ test('a Work Item row adds its Runs of one day, and Tenant and Client filters ke
   assert.match(csv, /,"'=HYPERLINK\(""x""\), then more",/, 'a formula-like title starts with an apostrophe in CSV');
   assert.match(focusJsonl(rows), /"ResourceName":"=HYPERLINK\(\\"x\\"\), then more"/, 'JSONL keeps text unchanged');
   assertValid(...Object.values(parseCsv(csv)) as [string[], Record<string, Cell>[]]);
+  assert.equal((await assertParquetMatchesCsv(rows)).rows[0]!.ResourceName, '=HYPERLINK("x"), then more', 'Parquet keeps text unchanged');
   const only = (extra: Record<string, string>) => focusExport(world(), october(extra), { owner, now }).rows.map(row => row.ResourceId);
   assert.deepEqual(only({ client: 'y' }), ['unfold:run:420']);
   assert.deepEqual(only({ tenant: 'other' }), []);
@@ -240,7 +300,7 @@ test('a Work Item row adds its Runs of one day, and Tenant and Client filters ke
   assert.deepEqual(september.map(row => [row.ResourceId, row.SubAccountId, row.SubAccountType, row.BillingPeriodStart, row.BillingPeriodEnd]), [['unfold:run:430', 'agency', 'Tenant', '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z']], 'a repository without a Client bills to its Tenant');
 });
 
-test('unsettled spend is never billed: left out by default, or 0 with its observed amount and status in x_ columns', () => {
+test('unsettled spend is never billed: left out by default, or 0 with its observed amount and status in x_ columns', async () => {
   const included = focusExport(world(), october({ unsettled: 'include' }), { owner, now }).rows;
   const open = included.find(row => row.x_UnfoldRunId === '421')!;
   assert.deepEqual([open.ChargePeriodStart, open.BilledCost, open.EffectiveCost, open.ListCost, open.ContractedCost, open.PricingCurrencyEffectiveCost, open.ChargeClass, open.x_UnfoldSpendStatus, open.x_UnfoldObservedCost, open.x_UnfoldInputTokens], ['2026-10-29T00:00:00Z', { decimal: '0' }, { decimal: '0' }, { decimal: '0' }, { decimal: '0' }, { decimal: '0' }, null, 'Unsettled', { decimal: '0.4' }, { decimal: '50' }]);
@@ -251,9 +311,10 @@ test('unsettled spend is never billed: left out by default, or 0 with its observ
   assert.deepEqual([held.rows[0]!.x_UnfoldSpendStatus, held.rows[0]!.BilledCost, held.rows[0]!.x_UnfoldObservedCost], ['Unsettled', { decimal: '0' }, { decimal: '1.25' }], 'a finished Run that still holds budget is not settled');
   const parsed = parseCsv(focusCsv(included));
   assertValid(parsed.columns, parsed.rows);
+  await assertParquetMatchesCsv(included);
 });
 
-test('euros use only the rate the request gave, stated per row, with the US$ amount as the pricing currency', () => {
+test('euros use only the rate the request gave, stated per row, with the US$ amount as the pricing currency', async () => {
   const { rows } = focusExport(world(), october({ currency: 'EUR', usdToEur: '0.9', provider: 'Anthropic' }), { owner, now });
   const first = rows[0]!;
   assert.deepEqual([first.BillingCurrency, first.BilledCost, first.EffectiveCost, first.PricingCurrency, first.PricingCurrencyEffectiveCost, first.x_UnfoldExchangeRate], ['EUR', { decimal: '1.125' }, { decimal: '1.125' }, 'USD', { decimal: '1.25' }, { decimal: '0.9' }]);
@@ -261,6 +322,23 @@ test('euros use only the rate the request gave, stated per row, with the US$ amo
   assert.equal(focusExport(world(), october(), { owner, now }).rows[0]!.x_UnfoldExchangeRate, null);
   const parsed = parseJsonl(focusJsonl(rows));
   assertValid(parsed.columns, parsed.rows);
+  await assertParquetMatchesCsv(rows);
+});
+
+test('the Parquet column types are the FOCUS 1.4 data types, and a decimal keeps all its digits', async () => {
+  for (const column of focusExportColumns) {
+    const spec = focusSpec[column];
+    if (spec) assert.equal(focusColumnTypes[column], spec[2], column);
+    else assert.match(column, /^x_/);
+  }
+  assert.deepEqual(focusExportColumns.filter(column => column.startsWith('x_') && focusColumnTypes[column] === 'Decimal'), ['x_UnfoldObservedCost', 'x_UnfoldExchangeRate', 'x_UnfoldRunCount', 'x_UnfoldInputTokens', 'x_UnfoldOutputTokens', 'x_UnfoldCacheReadInputTokens', 'x_UnfoldCacheCreationInputTokens']);
+  const [row] = focusExport(world(), october(), { owner, now }).rows;
+  const extreme = { ...row!, BilledCost: { decimal: '-1234567890123456789.0123456789' }, x_UnfoldInputTokens: { decimal: '9007199254740993' } };
+  const { rows } = await parseParquet(focusParquet([extreme]));
+  assert.deepEqual([rows[0]!.BilledCost, rows[0]!.x_UnfoldInputTokens], ['-1234567890123456789.0123456789', '9007199254740993'], 'beyond what a float holds');
+  assert.throws(() => focusParquet([{ ...row!, BilledCost: { decimal: '0.00000000001' } }]), /Not a FOCUS decimal/);
+  const empty = await parseParquet(focusParquet([]));
+  assert.deepEqual([empty.columns, empty.rows], [[...focusExportColumns], []], 'an export with no rows is still a file with every column');
 });
 
 test('the validator catches what FOCUS forbids, so a passing file means something', () => {
@@ -314,6 +392,13 @@ test('GET /api/ploeg/cost-export downloads FOCUS rows for operators and administ
   const jsonl = await request(live.url, `/api/ploeg/cost-export?from=${day}&to=${next}&format=jsonl`, session);
   assert.match(jsonl.response.headers.get('content-type') ?? '', /^application\/x-ndjson/);
   assertValid(...Object.values(parseJsonl(jsonl.text)) as [string[], Record<string, Cell>[]]);
+  const parquet = await fetch(`${live.url}/api/ploeg/cost-export?from=${day}&to=${next}&format=parquet`, { headers: { cookie: session.cookie!, 'x-unfold-request': '1' } });
+  assert.equal(parquet.status, 200);
+  assert.equal(parquet.headers.get('content-type'), 'application/vnd.apache.parquet');
+  assert.equal(parquet.headers.get('content-disposition'), `attachment; filename="unfold-focus-cost-${day}-to-${next}.parquet"`);
+  assert.equal(parquet.headers.get('x-unfold-focus-version'), '1.4');
+  const fromParquet = await parseParquet(new Uint8Array(await parquet.arrayBuffer()));
+  assert.deepEqual(fromParquet.rows, parsed.rows, 'the Parquet download holds the CSV download\'s rows');
   const refused = await request(live.url, '/api/ploeg/cost-export?currency=EUR', session);
   assert.deepEqual([refused.status, refused.body.error.code], [400, 'cost_export_filter']);
   assert.equal((await request(live.url, '/api/ploeg/cost-export')).status, 401, 'a signed-out caller reads nothing');
@@ -330,10 +415,15 @@ test('GET /api/ploeg/cost-export downloads FOCUS rows for operators and administ
   assert.deepEqual([empty.status, empty.text, empty.response.headers.get('x-unfold-demo')], [200, '', 'true'], 'the demo invents no model call or spend');
   assert.match(empty.response.headers.get('content-disposition') ?? '', /unfold-focus-cost-demo-2026-10-01-to-2026-11-01\.jsonl/);
   assert.equal((await request(demo.url, '/api/ploeg/cost-export')).text, `${focusExportColumns.join(',')}\r\n`);
+  const demoParquet = await fetch(`${demo.url}/api/ploeg/cost-export?month=2026-10&format=parquet`);
+  assert.deepEqual([demoParquet.status, demoParquet.headers.get('x-unfold-demo')], [200, 'true']);
+  assert.deepEqual((await parseParquet(new Uint8Array(await demoParquet.arrayBuffer()))).rows, [], 'the demo Parquet file has no rows');
 });
 
 test('the file names its period, and an export with no rows is a header only', () => {
   const query: FocusExportQuery = october();
   assert.equal(focusFile({ rows: [], counts: { settledRuns: 0, unsettledRuns: 0, unreportedRuns: 0, unownedWorkItems: 0, truncated: true } }, query).headers['X-Unfold-Truncated'], 'true');
   assert.equal(focusFile(null, query).filename, 'unfold-focus-cost-demo-2026-10-01-to-2026-11-01.csv');
+  const parquet = focusFile(null, october({ format: 'parquet' }));
+  assert.deepEqual([parquet.filename, parquet.contentType, parquet.body instanceof Uint8Array], ['unfold-focus-cost-demo-2026-10-01-to-2026-11-01.parquet', 'application/vnd.apache.parquet', true]);
 });

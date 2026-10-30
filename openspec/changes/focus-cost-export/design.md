@@ -32,10 +32,11 @@ tag v1.4 (commit f1eeb30, 2026-06-05) of `FinOps-Open-Cost-and-Usage-Spec/FOCUS_
 - **Euros only at a given rate.** `currency=EUR` needs `usdToEur`. The US$
   amount stays in PricingCurrencyEffectiveCost, the rate in
   `x_UnfoldExchangeRate`.
-- **CSV and JSON Lines, no Parquet.** Unfold's only runtime dependency is
-  `ws`. The one small pure JavaScript writer, `hyparquet-writer` 0.18.0 (MIT),
-  is pre-1.0, pulls in `hyparquet`, and released a day before this change.
-  DuckDB converts the CSV in one statement.
+- **CSV, JSON Lines and Parquet.** Parquet was left out at first, to keep `ws`
+  the only runtime dependency. The owner decided on 2026-10-30 to offer it now:
+  `format=parquet` writes the CSV's columns through `hyparquet-writer` 0.17.0
+  (MIT), with decimals as DECIMAL(38,10) and date-times as UTC timestamps
+  (Unfold ADR 0060).
 - **The validator is encoded from the specification.** The FinOps Foundation's
   `focus-validator` is a Python tool and the requirements model is about 2 MB
   of rule graphs; the test copies the 65-column table and the rules this export

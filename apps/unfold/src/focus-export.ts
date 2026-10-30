@@ -1,3 +1,4 @@
+import { parquetWriteBuffer, type ColumnSource, type SchemaElement } from 'hyparquet-writer';
 import type { FactsRun, WorkItemFacts } from './cards/facts.ts';
 import { readWindowFacts, runSpend, type FactsReach, type FactsSource } from './delivery-economics.ts';
 import type { Ownership } from './tenancy.ts';
@@ -27,7 +28,14 @@ export const focusCustomColumns = [
 export const focusExportColumns = [...focusColumns, ...focusCustomColumns] as const;
 /** One column's name. */
 export type FocusColumn = (typeof focusExportColumns)[number];
-/** A decimal kept as its exact text, so CSV and JSONL write the same digits and never scientific notation. */
+/** The FOCUS data type of each column: what a CSV cell holds as text and what a Parquet column stores natively. */
+export const focusColumnTypes: Record<FocusColumn, 'String' | 'Decimal' | 'Date/Time' | 'JSON'> = Object.fromEntries(focusExportColumns.map(column => [column,
+  column === 'Tags' ? 'JSON'
+    : /^(?:BillingPeriod|ChargePeriod)(?:Start|End)$/.test(column) ? 'Date/Time'
+      : /(?:Cost|Quantity|ExchangeRate|RunCount|Tokens)$/.test(column) ? 'Decimal'
+        : 'String',
+])) as Record<FocusColumn, 'String' | 'Decimal' | 'Date/Time' | 'JSON'>;
+/** A decimal kept as its exact text, so CSV, JSONL and Parquet write the same digits and never scientific notation. */
 export type FocusDecimal = { decimal: string };
 /** One FOCUS row: a string, a decimal, or null for every column. */
 export type FocusRow = Record<FocusColumn, string | FocusDecimal | null>;
@@ -36,7 +44,7 @@ export type FocusRow = Record<FocusColumn, string | FocusDecimal | null>;
 export type FocusCurrency = { code: 'USD' } | { code: 'EUR'; perUsd: number };
 /** What one export covers and how it writes it. `from` is inclusive and `to` exclusive, both UTC midnights. */
 export type FocusExportQuery = {
-  from: number; to: number; format: 'csv' | 'jsonl'; granularity: 'run' | 'work-item'; unsettled: 'exclude' | 'include';
+  from: number; to: number; format: 'csv' | 'jsonl' | 'parquet'; granularity: 'run' | 'work-item'; unsettled: 'exclude' | 'include';
   currency: FocusCurrency; tenant?: string; client?: string; provider: string;
 };
 /** What the export left out of its rows, and whether a page bound cut the facts. */
@@ -69,7 +77,7 @@ export class FocusQueryError extends Error {}
 
 /**
  * Reads an export's query. `month=YYYY-MM`, or `from=YYYY-MM-DD` (inclusive) with `to=YYYY-MM-DD` (exclusive), picks the
- * UTC period, the current month when neither is given, at most `focusMaxDays` long. `format` is `csv` or `jsonl`,
+ * UTC period, the current month when neither is given, at most `focusMaxDays` long. `format` is `csv`, `jsonl` or `parquet`,
  * `granularity` `run` or `work-item`, `unsettled` `exclude` or `include`. `currency=EUR` needs `usdToEur`, the euros one
  * US$ buys, which Unfold never looks up itself. `tenant` and `client` narrow the rows; `provider` names the model provider
  * when the requester knows it.
@@ -97,7 +105,7 @@ export function focusExportQuery(params: URLSearchParams, now = Date.now()): Foc
     if (!(options as readonly string[]).includes(value)) throw new FocusQueryError(`${name} must be ${options.join(' or ')}.`);
     return value as T;
   };
-  const format = pick('format', ['csv', 'jsonl'] as const);
+  const format = pick('format', ['csv', 'jsonl', 'parquet'] as const);
   const granularity = pick('granularity', ['run', 'work-item'] as const);
   const unsettled = pick('unsettled', ['exclude', 'include'] as const);
   const code = pick('currency', ['USD', 'EUR'] as const);
@@ -235,21 +243,67 @@ export function focusJsonl(rows: readonly FocusRow[]): string {
   return rows.map(row => `{${focusExportColumns.map(column => { const value = row[column]; return `${JSON.stringify(column)}:${value === null ? 'null' : typeof value === 'string' ? JSON.stringify(value) : value.decimal}`; }).join(',')}}\n`).join('');
 }
 
+/** The scale of a Parquet decimal column: `focusDecimal` writes at most ten decimal places. */
+export const focusParquetScale = 10;
+/** The precision of a Parquet decimal column, the most a 16-byte decimal holds. */
+export const focusParquetPrecision = 38;
+
+const parquetElement = (name: FocusColumn): SchemaElement => {
+  const type = focusColumnTypes[name];
+  if (type === 'Decimal') return { name, repetition_type: 'OPTIONAL', type: 'FIXED_LEN_BYTE_ARRAY', type_length: 16, converted_type: 'DECIMAL', scale: focusParquetScale, precision: focusParquetPrecision, logical_type: { type: 'DECIMAL', scale: focusParquetScale, precision: focusParquetPrecision } };
+  if (type === 'Date/Time') return { name, repetition_type: 'OPTIONAL', type: 'INT64', converted_type: 'TIMESTAMP_MILLIS', logical_type: { type: 'TIMESTAMP', isAdjustedToUTC: true, unit: 'MILLIS' } };
+  return { name, repetition_type: 'OPTIONAL', type: 'BYTE_ARRAY', converted_type: 'UTF8', logical_type: { type: 'STRING' } };
+};
+
+const unscaled = (value: FocusDecimal): bigint => {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.decimal);
+  if (!match || (match[3]?.length ?? 0) > focusParquetScale) throw new Error(`Not a FOCUS decimal: ${value.decimal}`);
+  const digits = BigInt(`${match[2]}${(match[3] ?? '').padEnd(focusParquetScale, '0')}`);
+  return match[1] ? -digits : digits;
+};
+
+const parquetValue = (column: FocusColumn, value: string | FocusDecimal | null): string | bigint | Date | null => {
+  if (value === null) return null;
+  const type = focusColumnTypes[column];
+  if (type === 'Decimal') { if (typeof value === 'string') throw new Error(`${column} holds text, not a decimal`); return unscaled(value); }
+  if (typeof value !== 'string') throw new Error(`${column} holds a decimal, not text`);
+  if (type === 'Date/Time') { const ms = Date.parse(value); if (!Number.isFinite(ms)) throw new Error(`${column} is not a date: ${value}`); return new Date(ms); }
+  return value;
+};
+
+/**
+ * The rows as an Apache Parquet file with the CSV's columns in the same order, every column optional. A Decimal column is
+ * DECIMAL(38,10), so it keeps the exact digits; a Date/Time column is a UTC TIMESTAMP in milliseconds; `Tags` and every
+ * String column are UTF-8 text, `Tags` holding its JSON object as in CSV. Text is written unchanged, without the CSV's
+ * formula guard. Pages are Snappy-compressed.
+ */
+export function focusParquet(rows: readonly FocusRow[]): Uint8Array {
+  const schema: SchemaElement[] = [{ name: 'root', num_children: focusExportColumns.length }, ...focusExportColumns.map(parquetElement)];
+  const columnData: ColumnSource[] = focusExportColumns.map(name => ({ name, data: rows.map(row => parquetValue(name, row[name])) }));
+  return new Uint8Array(parquetWriteBuffer({ columnData, schema, createdBy: 'Unfold FOCUS export', kvMetadata: [{ key: 'FocusVersion', value: focusVersion }] }));
+}
+
+const fileKinds = {
+  csv: { write: focusCsv, contentType: 'text/csv; charset=utf-8', extension: 'csv' },
+  jsonl: { write: focusJsonl, contentType: 'application/x-ndjson; charset=utf-8', extension: 'jsonl' },
+  parquet: { write: focusParquet, contentType: 'application/vnd.apache.parquet', extension: 'parquet' },
+} as const;
+
 /** The file one export answers: its body, media type, download name and the headers that say what it left out. */
-export type FocusFile = { body: string; contentType: string; filename: string; headers: Record<string, string> };
+export type FocusFile = { body: string | Uint8Array; contentType: string; filename: string; headers: Record<string, string> };
 
 /** The file for an export, or for the demo, which exports no row and says so in `X-Unfold-Demo`. */
 export function focusFile(result: FocusExport | null, query: FocusExportQuery): FocusFile {
   const period = `${focusTime(query.from).slice(0, 10)}-to-${focusTime(query.to).slice(0, 10)}`;
-  const csv = query.format === 'csv';
-  const body = csv ? focusCsv(result?.rows ?? []) : focusJsonl(result?.rows ?? []);
+  const kind = fileKinds[query.format];
+  const body = kind.write(result?.rows ?? []);
   const headers: Record<string, string> = { 'X-Unfold-Focus-Version': focusVersion };
   if (!result) headers['X-Unfold-Demo'] = 'true';
   else Object.assign(headers, {
     'X-Unfold-Truncated': String(result.counts.truncated), 'X-Unfold-Unsettled-Runs': String(result.counts.unsettledRuns),
     'X-Unfold-Unreported-Runs': String(result.counts.unreportedRuns), 'X-Unfold-Unowned-Work-Items': String(result.counts.unownedWorkItems),
   });
-  return { body, contentType: csv ? 'text/csv; charset=utf-8' : 'application/x-ndjson; charset=utf-8', filename: `unfold-focus-cost-${result ? '' : 'demo-'}${period}.${csv ? 'csv' : 'jsonl'}`, headers };
+  return { body, contentType: kind.contentType, filename: `unfold-focus-cost-${result ? '' : 'demo-'}${period}.${kind.extension}`, headers };
 }
 
 /** Reads the facts of every Work Item with activity since the period started within `teams` that `reaches` accepts, and exports them. */

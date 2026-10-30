@@ -70,3 +70,4 @@ Re-evaluate when Node ships a WebSocket server, when `ws` stops being maintained
 
 * Ticket: VIK-1723.
 * Amends [ADR 0002](0002-native-node-and-single-writer-storage.md) (the production dependency set is `ws` only) and [ADR 0012](0012-agent-host-protocol-host.md) (the WebSocket server is `ws`, not dependency-free).
+* 2026-10-30: amended by [ADR 0060](0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md), which adds `hyparquet-writer` as a second runtime dependency under the same policy.

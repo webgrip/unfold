@@ -23,10 +23,10 @@ Every Mandatory Cost and Usage column SHALL be present, every value SHALL have
 the column's type and nullability, and every custom column SHALL start with
 `x_`.
 
-#### Scenario: CSV and JSON Lines
+#### Scenario: CSV, JSON Lines and Parquet
 
-- **WHEN** a month is exported as CSV and as JSON Lines
-- **THEN** both pass the encoded FOCUS 1.4 checks
+- **WHEN** a month is exported as CSV, as JSON Lines and as Parquet
+- **THEN** each passes the encoded FOCUS 1.4 checks, and the Parquet file holds the CSV's cells
 
 ### Requirement: Unsettled spend is never billed
 

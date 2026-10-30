@@ -24,7 +24,7 @@ Open `http://127.0.0.1:4080`. The explicit demo flag creates the demo operator w
 UNFOLD_DATA_DIR=.unfold/demo-walkthrough npm run demo
 ```
 
-Starting this path requires `npm ci --omit=dev` once, for the server's one runtime dependency, `ws`; `mise run setup` from the Unfold root already does it. Running the development type checker separately requires `npm ci`.
+Starting this path requires `npm ci --omit=dev` once, for the server's runtime dependencies, `ws` and `hyparquet-writer`; `mise run setup` from the Unfold root already does it. Running the development type checker separately requires `npm ci`.
 
 ## Walkthrough
 

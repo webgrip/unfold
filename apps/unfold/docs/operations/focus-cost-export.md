@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator, integrator]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation on branch feat/focus-cost-export: src/focus-export.ts, the /api/ploeg/cost-export route in src/http.ts and the Insights button in public/ploeg-activity.js. test/focus-export.test.ts checks every exported file against the FOCUS 1.4 Cost and Usage column table and rules, read on 2026-10-30 from tag v1.4 (commit f1eeb30, 2026-06-05) of github.com/FinOps-Open-Cost-and-Usage-Spec/FOCUS_Spec and from focus.finops.org/docs/specification/v1-4/. Not loaded into a FinOps tool, and not run through the FinOps Foundation's focus-validator."
+verified_by: "Written with the implementation on branch feat/focus-cost-export, Parquet added on feat/focus-parquet-export: src/focus-export.ts, the /api/ploeg/cost-export route in src/http.ts and the Insights button in public/ploeg-activity.js. test/focus-export.test.ts checks every exported file against the FOCUS 1.4 Cost and Usage column table and rules, read on 2026-10-30 from tag v1.4 (commit f1eeb30, 2026-06-05) of github.com/FinOps-Open-Cost-and-Usage-Spec/FOCUS_Spec and from focus.finops.org/docs/specification/v1-4/. The Parquet tests read every written file back with hyparquet and compare it with the CSV; a written file was also read with pyarrow and DuckDB by hand on 2026-10-30. Not loaded into a FinOps tool, and not run through the FinOps Foundation's focus-validator."
 ---
 
 # Export AI cost per Client (FinOps FOCUS)
@@ -18,7 +18,7 @@ Operators and administrators. A viewer gets 403. The rows cover only the Teams y
 
 ## Download it from Insights
 
-Open **Insights**. The **Deliveries** section has **Download FOCUS cost** next to **Download CSV**. It downloads this calendar month's settled cost per Run, in US$, as CSV. For another period, Client or currency, use the API.
+Open **Insights**. The **Deliveries** section has **Download FOCUS cost** next to **Download CSV**. It downloads this calendar month's settled cost per Run, in US$, as CSV. For another period, Client, currency or format, use the API.
 
 ## Fetch it from the API
 
@@ -36,7 +36,7 @@ curl -H "Cookie: …" "https://unfold.example/api/ploeg/cost-export?month=2026-1
 | `currency` | `USD` or `EUR` | `USD` |
 | `usdToEur` | The euros one US dollar buys, such as `0.9210`. Required with `currency=EUR` | None |
 | `provider` | The model provider, such as `Anthropic`, when you know all usage went there | `unknown` |
-| `format` | `csv` or `jsonl` | `csv` |
+| `format` | `csv`, `jsonl` or `parquet` | `csv` |
 
 A wrong value answers 400 `cost_export_filter` with the reason. The [API contract](../contracts/api.md) and [OpenAPI document](../contracts/openapi.yaml) describe the route.
 
@@ -99,13 +99,18 @@ Money on Insights is shown in nl-NL format with two decimals. The file keeps ful
 
 - **CSV** (RFC 4180, UTF-8, CRLF): a header row of FOCUS column ids. A null is an empty cell. A text that starts with `=`, `+`, `-` or `@` gets a leading apostrophe, so a spreadsheet does not run a Work Item title as a formula.
 - **JSON Lines**: one object per row with every column, `null` for null, decimals as JSON numbers and text unchanged.
-- **Parquet** is not offered. The only small pure JavaScript Parquet writer, `hyparquet-writer` (MIT), is a pre-1.0 package with releases days apart that brings a second dependency, and Unfold keeps its runtime dependencies to `ws`. To get Parquet, convert the CSV, for example with DuckDB: `COPY (SELECT * FROM read_csv('acme-2026-10.csv')) TO 'acme-2026-10.parquet'`.
+- **Parquet** (`application/vnd.apache.parquet`, Snappy-compressed): the CSV's columns in the same order, each one nullable, with typed values. A FOCUS Decimal column is `DECIMAL(38,10)`, so it keeps every digit the CSV has; a Date/Time column is a UTC timestamp in milliseconds; every other column is UTF-8 text, written unchanged without the CSV's apostrophe. `Tags` is text holding its JSON object, as in CSV. The file's metadata says `FocusVersion: 1.4`. An export with no rows is still a file with every column. Unfold writes it with `hyparquet-writer` ([ADR 0060](../adrs/0060-the-focus-cost-export-writes-parquet-through-hyparquet-writer.md)).
+
+```sh
+curl -H "Cookie: …" "https://unfold.example/api/ploeg/cost-export?month=2026-10&format=parquet" -o unfold-2026-10.parquet
+duckdb -c "SELECT SubAccountId, sum(BilledCost) FROM 'unfold-2026-10.parquet' GROUP BY 1"
+```
 
 FOCUS asks a data generator to state its delivery mechanism. Unfold's is **Overwrite**: each export is a complete snapshot of its period and replaces an earlier export of the same period. Export a closed month again after its last Runs settled to get every settled Run.
 
 ## What is not verified
 
-- No FinOps tool has loaded the file yet. The test checks the FOCUS 1.4 Cost and Usage column table (presence, nulls, types) and the rules this export can break, citing the specification's sections; it is not the FinOps Foundation's own `focus-validator`.
+- No FinOps tool has loaded the file yet. pyarrow and DuckDB read a Parquet file with the types above. The test checks the FOCUS 1.4 Cost and Usage column table (presence, nulls, types) and the rules this export can break, citing the specification's sections; it is not the FinOps Foundation's own `focus-validator`.
 - `unknown` as a provider name is a placeholder, which the FOCUS null-handling rules discourage. Pass `provider` when you know it.
 - The settled cost is what the model gateway recorded with its price table. Whether it equals the provider's invoice is not checked.
 - `BillingAccountId` is the Tenant id, which is unique within one Unfold installation, not across installations.
