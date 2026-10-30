@@ -27,6 +27,7 @@ import { hstsSettings } from './security-headers.ts';
 import { billingSettings } from './billing-export.ts';
 import { billingExporters } from './billing-exporters.ts';
 import { identitySettings } from './identity/settings.ts';
+import { assertConfigFile } from './config-schema.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -401,6 +402,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const mode = argv.includes('--demo') ? 'demo' : process.env.UNFOLD_MODE || raw.mode || 'live';
   if (!['live', 'demo'].includes(mode)) throw new Error('mode must be live or demo');
   if (mode === 'demo') refuseDemoCredentials(raw);
+  if (configFile) assertConfigFile(raw, configFile);
   const dataDir = resolve(process.env.UNFOLD_DATA_DIR || raw.dataDir || '.unfold');
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   chmodSync(dataDir, 0o700);

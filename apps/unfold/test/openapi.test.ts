@@ -4,9 +4,11 @@ import test from 'node:test';
 import { Validator } from '@seriousme/openapi-schema-validator';
 import { parse } from 'yaml';
 import { delegatedRoutes } from '../src/auth.ts';
+import { isSignIn, personLimits } from '../src/rate-limits.ts';
 import { openApiDocument } from '../src/http.ts';
 import { defaultRateLimits, rateLimitSettings } from '../src/rate-limits.ts';
 import { application, createSession, request } from './api-support.ts';
+import { exampleProblems, responseProblems } from './openapi-responses.ts';
 import { testTimeout } from './timeframes.ts';
 
 type Operation = { operationId?: string; tags?: string[]; security?: Record<string, string[]>[]; parameters?: Parameter[]; responses?: Record<string, unknown>; 'x-unfold-role'?: string; 'x-unfold-requires'?: string[]; 'x-internal'?: boolean };
@@ -191,6 +193,24 @@ test('the OpenAPI description is a valid OpenAPI 3.1 document whose references r
   assert.deepEqual(unresolved, []);
 });
 
+test('every operation the rate limiter counts lists 429, and no other does apart from the live-update stream cap', () => {
+  const connectionCapped = new Set(['GET /api/sessions/{sessionId}/events']);
+  const problems: string[] = [];
+  for (const { path, method, operation } of operations()) {
+    if (path.startsWith('/api/relay/')) continue;
+    const verb = method.toUpperCase();
+    const limited = samples(path).some(sample => personLimits(verb, sample).length > 0 || isSignIn(verb, sample) || sample.startsWith('/api/notifications/channels/'));
+    if (connectionCapped.has(`${verb} ${path}`)) continue;
+    if (limited !== Boolean(operation.responses?.['429'])) problems.push(`${verb} ${path}: ${limited ? 'is rate-limited but does not list 429' : 'lists 429 but no rate limit counts it'}`);
+  }
+  assert.deepEqual(problems, []);
+});
+
+test('every example in the OpenAPI description matches its schema', () => {
+  assert.deepEqual(exampleProblems(), []);
+  assert(text.includes('      examples:\n'), 'the shared schemas carry examples');
+});
+
 test('every route http.ts serves under /api/ is in the OpenAPI description, and every path in it is served', () => {
   const routes = codeRoutes();
   const patterns = Object.keys(spec.paths).map(path => ({ path, pattern: specPattern(path) }));
@@ -231,7 +251,7 @@ test('each operation names its role, its credentials and the mutation header the
   assert.deepEqual(problems, []);
 });
 
-test('the server answers exactly the methods the OpenAPI description declares, and asks for the mutation header where it says so', { timeout: testTimeout(120_000) }, async t => {
+test('the server answers exactly the methods the OpenAPI description declares, documents every answer it gives them, and asks for the mutation header where it says so', { timeout: testTimeout(120_000) }, async t => {
   process.env.UNFOLD_PROBE_SLACK_TOKEN = 'xoxb-probe';
   process.env.UNFOLD_PROBE_SLACK_SECRET = 'probe-signing-secret';
   const server = await application('demo', config => {
@@ -259,7 +279,9 @@ test('the server answers exactly the methods the OpenAPI description declares, a
       if (response.headers.get('content-type')?.startsWith('text/event-stream')) { controller.abort(); return { status: response.status, routed: true }; }
       const answer = await response.text();
       let error: { code?: string; message?: string } = {};
-      try { error = JSON.parse(answer).error ?? {}; } catch { error = {}; }
+      let parsed: unknown = answer;
+      try { parsed = JSON.parse(answer); error = (parsed as { error?: typeof error }).error ?? {}; } catch { error = {}; }
+      if (declared) undocumented.push(...responseProblems(method, path, response.status, response.headers.get('content-type'), parsed).map(problem => `${problem} (probe ${path}${header ? '' : ' without X-Unfold-Request'})`));
       return { status: response.status, code: error.code, routed: response.status !== 405 && !(response.status === 404 && unrouted.has(error.message ?? '')) };
     } catch (failure) {
       if (controller.signal.aborted) return { status: 0, routed: true };
@@ -267,6 +289,7 @@ test('the server answers exactly the methods the OpenAPI description declares, a
     } finally { clearTimeout(timer); }
   }
   const mismatches: string[] = [];
+  const undocumented: string[] = [];
   let probed = 0;
   for (const [path, item] of Object.entries(spec.paths)) {
     const declaredMethods = methods.filter(method => item[method]);
@@ -289,6 +312,7 @@ test('the server answers exactly the methods the OpenAPI description declares, a
   }
   assert(probed > 500, `probed only ${probed} method and path pairs`);
   assert.deepEqual(mismatches, []);
+  assert.deepEqual(undocumented, [], 'answers whose status or body the OpenAPI description does not document');
 });
 
 test('GET /api/openapi.yaml serves the description without a sign-in', async t => {

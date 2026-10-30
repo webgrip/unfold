@@ -39,7 +39,7 @@ test('repositories and task sources take an optional tenant and client, and leav
 
 test('a tenant or client that is not an id stops startup', async t => {
   for (const owner of [{ tenant: 'Agency' }, { client: '' }, { tenant: 'a/b' }, { client: 7 }]) {
-    await assert.rejects(load(t, { repositories: [{ ...repository('orders', 'https://forge.example/team/orders.git'), ...owner }] }), /repositories\[0\] \(orders\) (tenant|client) must be lower-case/);
+    await assert.rejects(load(t, { repositories: [{ ...repository('orders', 'https://forge.example/team/orders.git'), ...owner }] }), /\/repositories\/0\/(tenant|client): must/);
   }
   assert.throws(() => validateTaskSources([source('board', 'orders', { tenant: 'UPPER' })], [repository('orders', 'https://forge.example/team/orders.git')], 'live'), /taskSources\[0\] \(board\) tenant must be lower-case/);
 });

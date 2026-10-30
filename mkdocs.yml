@@ -39,6 +39,7 @@ nav:
           - Overview: ploeg/index.md
           - Runbooks: ploeg/how-to/index.md
       - Operate Unfold: unfold/index.md
+      - Configuration reference: unfold/operations/configuration.md
       - Feature flags: unfold/operations/feature-flags.md
       - Outbound webhooks: unfold/operations/outbound-events.md
       - "Leaving Unfold: export a Tenant": unfold/operations/leaving-unfold.md
