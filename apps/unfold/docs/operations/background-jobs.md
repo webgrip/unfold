@@ -57,5 +57,6 @@ The route is read-only. To send dead work again, use the feature's own action: *
 ## What is not in the queue
 
 * **Pollers** that read a durable cursor, such as following Ploeg's events, the Client Sign-off changes, the Acceptance and billing syncs, card sweeps and insight upkeep, stay timers. They hold no work of their own: a missed tick reads the same cursor next time.
+* **MCP event deliveries** to MCP clients share the webhook delivery log but keep their own loop, every 5 seconds.
 * **Request intake** replay protection remembers each inbound delivery id; it is incoming, not background work.
 * **Tenant exports** build a bundle on the data volume for a person waiting to download it, and a restart deletes those bundles ([Leaving Unfold](leaving-unfold.md)).
