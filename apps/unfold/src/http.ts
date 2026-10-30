@@ -55,6 +55,7 @@ import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
 import { taskKeyRing } from './mcp-tasks.ts';
+import { McpEvents } from './mcp-events.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
@@ -324,8 +325,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   notifications.start();
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
-  const outbound = new OutboundEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo' });
+  const mcpPerson = (id: string) => { const record = store.getUser(id); return record && lifecycle.admit({ id }) ? signedInUser(record) : undefined; };
+  const mcpEvents = new McpEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: user => flags.getBooleanValue('mcp.events', false, flagContext(user)), allowsTeam: (user, team) => ploeg.allows(user, team), findUser: mcpPerson, baseUrl: config.baseUrl });
+  const outbound = new OutboundEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo', sink: (event, source, facts, at) => mcpEvents.sink(event, source, facts, at) });
   outbound.start();
+  mcpEvents.start();
   const tenantExports = new TenantExports({
     config, store, application: { name: 'unfold', version: applicationVersion },
     secrets: [...secrets, ...(config.repositories ?? []).flatMap(entry => entry.access?.password ? [entry.access.password] : [])],
@@ -377,7 +381,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
     settings: config.mcp,
     subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
-    findUser: id => { const record = store.getUser(id); return record && lifecycle.admit({ id }) ? signedInUser(record) : undefined; },
+    findUser: mcpPerson,
     entitle: claims => entitledRole(config.auth.oidc!, claims),
     memberships: claims => membershipsFromGroups(claims[config.auth.oidc!.groupsClaim]),
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
@@ -391,6 +395,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       keys: () => taskKeyRing(store, Date.now()),
       tenantOf: (user, id) => { const source = tenants.source(user, id); return source ? ownership(source).tenant : undefined; },
     },
+    events: { enabled: user => flags.getBooleanValue('mcp.events', false, flagContext(user)), handler: user => mcpEvents.handler(user) },
   }) : undefined;
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);
@@ -1265,5 +1270,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   server.headersTimeout = 10000;
   server.on('close', () => notifications.stop());
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); billing.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); mcpEvents.stop(); billing.stop(); }, reports };
 }

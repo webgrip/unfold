@@ -20,7 +20,12 @@ export type SubscriptionSecrets = { current: string; previous?: string; previous
 /** A Client Sign-off state change the triggers recorded, waiting to become an event. */
 export type SignOffChange = { seq: number; signOffId: string; state: string; at: string };
 
+/** Who made a subscription: an administrator in Settings, or an MCP client through `events/subscribe`. */
+export type SubscriptionKind = 'webhook' | 'mcp';
+
 const secretId = (id: string) => `outbound-secret:${id}`;
+const mcpOnly = 'id IN (SELECT id FROM mcp_event_subscriptions)';
+const adminOnly = `NOT ${mcpOnly}`;
 
 function subscriptionFrom(row: Record<string, unknown>): Subscription {
   return {
@@ -42,6 +47,9 @@ function deliveryFrom(row: Record<string, unknown>): Delivery {
 /**
  * The outbound event tables in Unfold's store: subscriptions, the events and their deliveries (the outbox), source
  * cursors, and the Client Sign-off changes that triggers on `client_sign_offs` record in the Sign-off's own transaction.
+ * A subscription an MCP client made through `events/subscribe` is a subscription row with its MCP key, lifetime and
+ * delivery status in `mcp_event_subscriptions`, and `mcp_event_verifications` remembers which callback URLs a person
+ * proved; `src/mcp-events.ts` owns both.
  */
 export class OutboundStore {
   readonly store: Store;
@@ -57,6 +65,9 @@ export class OutboundStore {
       CREATE INDEX IF NOT EXISTS outbound_deliveries_subscription ON outbound_deliveries(subscription_id, id);
       CREATE TABLE IF NOT EXISTS outbound_cursors (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS outbound_sign_off_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, sign_off_id TEXT NOT NULL, state TEXT NOT NULL, at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mcp_event_subscriptions (id TEXT PRIMARY KEY REFERENCES outbound_subscriptions(id) ON DELETE CASCADE, principal TEXT NOT NULL, name TEXT NOT NULL, arguments TEXT NOT NULL, scope TEXT NOT NULL, expires_at TEXT, verified_at TEXT NOT NULL, last_delivery_at TEXT, last_error TEXT, failed_since TEXT);
+      CREATE INDEX IF NOT EXISTS mcp_event_subscriptions_principal ON mcp_event_subscriptions(principal);
+      CREATE TABLE IF NOT EXISTS mcp_event_verifications (principal TEXT NOT NULL, url TEXT NOT NULL, verified_until TEXT NOT NULL, PRIMARY KEY (principal, url));
       CREATE TRIGGER IF NOT EXISTS outbound_sign_off_recorded AFTER INSERT ON client_sign_offs BEGIN
         INSERT INTO outbound_sign_off_changes(sign_off_id, state, at) VALUES (NEW.id, NEW.state, NEW.recorded_at);
       END;
@@ -66,45 +77,48 @@ export class OutboundStore {
     `);
   }
 
-  /** Every subscription, oldest first. */
+  /** Every administrator's subscription, oldest first; an MCP client's subscriptions are not among them. */
   subscriptions(): Subscription[] {
-    return (this.store.db.prepare('SELECT * FROM outbound_subscriptions ORDER BY created_at, id').all() as Record<string, unknown>[]).map(subscriptionFrom);
+    return (this.store.db.prepare(`SELECT * FROM outbound_subscriptions WHERE ${adminOnly} ORDER BY created_at, id`).all() as Record<string, unknown>[]).map(subscriptionFrom);
   }
-  /** One subscription, or `undefined`. */
-  subscription(id: string): Subscription | undefined {
-    const row = this.store.db.prepare('SELECT * FROM outbound_subscriptions WHERE id=?').get(id) as Record<string, unknown> | undefined;
+  /** One administrator's subscription, or `undefined`; with `mcp`, one an MCP client made instead. */
+  subscription(id: string, kind: SubscriptionKind = 'webhook'): Subscription | undefined {
+    const row = this.store.db.prepare(`SELECT * FROM outbound_subscriptions WHERE id=? AND ${kind === 'mcp' ? mcpOnly : adminOnly}`).get(id) as Record<string, unknown> | undefined;
     return row ? subscriptionFrom(row) : undefined;
   }
-  /** Whether any active subscription exists, so sources that cost a Ploeg read can stay idle without one. */
+  /** Whether any active subscription, of an administrator or an MCP client, exists, so sources that cost a Ploeg read can stay idle without one. */
   hasActive(): boolean { return Boolean(this.store.db.prepare('SELECT 1 FROM outbound_subscriptions WHERE active=1 LIMIT 1').get()); }
 
   /** Stores a new subscription and its secret. */
-  createSubscription(input: Omit<Subscription, 'id' | 'active' | 'disabledReason' | 'updatedAt'>, secret: string): Subscription {
-    const id = `sub_${randomBytes(12).toString('hex')}`;
-    this.store.transaction(() => {
+  createSubscription(input: Omit<Subscription, 'id' | 'active' | 'disabledReason' | 'updatedAt'>, secret: string, id = `sub_${randomBytes(12).toString('hex')}`): Subscription {
+    const write = () => {
       this.store.db.prepare('INSERT INTO outbound_subscriptions(id,tenant,client,url,types,description,active,disabled_reason,created_at,created_by,updated_at) VALUES(?,?,?,?,?,?,1,NULL,?,?,?)')
         .run(id, input.tenant, input.client, input.url, JSON.stringify(input.types), input.description, input.createdAt, input.createdBy, input.createdAt);
       this.store.setSecret(secretId(id), { current: secret } satisfies SubscriptionSecrets);
-    });
+    };
+    if (this.store.db.isTransaction) write(); else this.store.transaction(write);
     return this.subscription(id)!;
   }
   /** Changes a subscription's URL, types, description or active state; turning it active clears its disabled reason. */
   updateSubscription(id: string, change: Partial<Pick<Subscription, 'url' | 'types' | 'description' | 'active' | 'disabledReason'>>, at: string): Subscription | undefined {
-    const now = this.subscription(id);
+    const kind: SubscriptionKind = this.subscription(id, 'mcp') ? 'mcp' : 'webhook';
+    const now = this.subscription(id, kind);
     if (!now) return undefined;
     const next = { ...now, ...change };
     if (change.active === true) next.disabledReason = null;
     this.store.db.prepare('UPDATE outbound_subscriptions SET url=?, types=?, description=?, active=?, disabled_reason=?, updated_at=? WHERE id=?')
       .run(next.url, JSON.stringify(next.types), next.description, next.active ? 1 : 0, next.disabledReason, at, id);
-    return this.subscription(id);
+    return this.subscription(id, kind);
   }
   /** Deletes a subscription, its deliveries and its secret. */
   deleteSubscription(id: string): boolean {
-    return this.store.transaction(() => {
+    const remove = () => {
       this.store.db.prepare('DELETE FROM outbound_deliveries WHERE subscription_id=?').run(id);
+      this.store.db.prepare('DELETE FROM mcp_event_subscriptions WHERE id=?').run(id);
       this.store.deleteSecret(secretId(id));
       return Number(this.store.db.prepare('DELETE FROM outbound_subscriptions WHERE id=?').run(id).changes) === 1;
-    });
+    };
+    return this.store.db.isTransaction ? remove() : this.store.transaction(remove);
   }
   /** The subscription's secrets. */
   secrets(id: string): SubscriptionSecrets | undefined { return this.store.getSecret<SubscriptionSecrets>(secretId(id)); }
@@ -151,10 +165,10 @@ export class OutboundStore {
     return Number(this.store.db.prepare("INSERT OR IGNORE INTO outbound_deliveries(subscription_id,event_id,event_type,status,attempts,next_attempt_at,created_at) VALUES(?,?,?,'pending',0,?,?)").run(subscriptionId, event.id, event.type, at, at).changes);
   }
 
-  /** Deliveries due at `now` to active subscriptions, oldest first, at most `limit`, with their event's stored body. */
-  due(now: string, limit: number): { delivery: Delivery; body: string }[] {
+  /** Deliveries due at `now` to active subscriptions of one kind, oldest first, at most `limit`, with their event's stored body. */
+  due(now: string, limit: number, kind: SubscriptionKind = 'webhook'): { delivery: Delivery; body: string }[] {
     const rows = this.store.db.prepare(`SELECT d.*, e.body AS body FROM outbound_deliveries d JOIN outbound_events e ON e.id=d.event_id JOIN outbound_subscriptions s ON s.id=d.subscription_id
-      WHERE d.status='pending' AND d.next_attempt_at <= ? AND s.active=1 ORDER BY d.next_attempt_at, d.id LIMIT ?`).all(now, limit) as Record<string, unknown>[];
+      WHERE d.status='pending' AND d.next_attempt_at <= ? AND s.active=1 AND ${(kind === 'mcp' ? mcpOnly : adminOnly).replaceAll('id IN', 's.id IN')} ORDER BY d.next_attempt_at, d.id LIMIT ?`).all(now, limit) as Record<string, unknown>[];
     return rows.map(row => ({ delivery: deliveryFrom(row), body: String(row.body) }));
   }
   /** Records one attempt's result. */

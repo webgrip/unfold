@@ -7,6 +7,7 @@ import { strictBase64url } from './mcp-auth.ts';
 import { appOnlyTool, cardRevision, cardRevisionDefinition, mcpAppResources, mcpAppToolMeta, mcpAppsExtension, readMcpAppResource, supportsMcpApps, withRevision } from './mcp-apps.ts';
 import { mcpTasksExtension, openTaskId, sealTaskId, supportsTasks, taskCacheMs, taskPollIntervalMs, type HandOffRef, type McpTasks } from './mcp-tasks.ts';
 import { handOffSpend, teamSpendCap } from './hand-off-spend.ts';
+import type { McpEventsHandler } from './mcp-events.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -34,9 +35,10 @@ export function confirmationLedger(): Confirmations { return { key: randomBytes(
  * confirmation is bound to, and `role` is that person's Unfold role when the caller already knows it; without it the
  * action tools read it from Unfold. `mcpApps` says that a 2025 client declared MCP Apps in an `initialize` this server
  * instance did not see, as stateless HTTP remembers it between requests. With `tasks`, a 2026-07-28 client that
- * declares the Tasks extension follows a confirmed `unfold_hand_off` as a task.
+ * declares the Tasks extension follows a confirmed `unfold_hand_off` as a task. `events` serves MCP Events to a
+ * 2026-07-28 client when the person may use them.
  */
-export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations; mcpApps?: boolean; tasks?: McpTasks };
+export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations; mcpApps?: boolean; tasks?: McpTasks; events?: McpEventsHandler };
 
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null; waitingGroup(item: unknown): 'review' | 'needs' | 'proposed' };
@@ -811,7 +813,7 @@ export function createMcpServer(options: McpOptions) {
         if (!call.modern) return failure(id, -32601, `Method ${method} is not supported.`);
         return (options.tasks ? options.tasks.enabled() : Promise.resolve(false)).then(followable => {
           const extensions = { ...(apps ? { [mcpAppsExtension]: {} } : {}), ...(followable ? { [mcpTasksExtension]: {} } : {}) };
-          return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: { tools: {}, ...(apps ? { resources: {} } : {}), ...(Object.keys(extensions).length ? { extensions } : {}) }, instructions, ttlMs: 3_600_000, cacheScope: options.tasks ? 'private' : 'public' });
+          return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: withEvents({ tools: {}, ...(apps ? { resources: {} } : {}), ...(Object.keys(extensions).length ? { extensions } : {}) }), instructions, ttlMs: 3_600_000, cacheScope: options.tasks || options.events ? 'private' : 'public' });
         });
       case 'tasks/get':
       case 'tasks/update':
@@ -831,8 +833,14 @@ export function createMcpServer(options: McpOptions) {
         if (!contents) return failure(id, call.modern ? -32602 : -32002, 'Resource not found.', { uri: typeof params?.uri === 'string' ? params.uri.slice(0, 200) : null });
         return complete({ contents, ...cacheable });
       }
-      default: return failure(id, -32601, `Method ${method} is not supported.`);
+      default:
+        if (call.modern && options.events && method.startsWith('events/')) return options.events.handle(method, params).then(answer => 'error' in answer ? failure(id, answer.error.code, answer.error.message, answer.error.data) : complete(answer.result));
+        return failure(id, -32601, `Method ${method} is not supported.`);
     }
+  }
+
+  function withEvents(capabilities: Json): Json {
+    return options.events ? { ...capabilities, ...options.events.capabilities, extensions: { ...capabilities.extensions, ...options.events.capabilities.extensions } } : capabilities;
   }
 
   async function callTool(id: unknown, params: Json | undefined, call: Call, complete: (value: Json) => Json): Promise<Json> {

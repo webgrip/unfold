@@ -365,7 +365,7 @@ The message is served by MCP revision, per request:
 
 | Revision | How a request is recognised | Rules |
 | --- | --- | --- |
-| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call` and `resources/read`, `Mcp-Name` (the tool name or the resource URI, plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`, `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps), and `tasks/get`, `tasks/update` and `tasks/cancel` while [MCP Tasks](#mcp-tasks) is on. Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list`, `server/discover` and the resource methods carry `ttlMs` and `cacheScope: "public"`, except `server/discover` over HTTP, which depends on the person's `mcp.tasks` flag and carries `cacheScope: "private"` |
+| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call` and `resources/read`, `Mcp-Name` (the tool name or the resource URI, plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`, `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps), and `tasks/get`, `tasks/update` and `tasks/cancel` while [MCP Tasks](#mcp-tasks) is on, and `events/list`, `events/subscribe` and `events/unsubscribe` for a person with [MCP Events](#mcp-events). An `events/*` request with an `Mcp-Name` header that differs from `params.name` answers 400 `-32020`. Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list`, `server/discover` and the resource methods carry `ttlMs` and `cacheScope: "public"`, except `server/discover` over HTTP, which depends on the person's `mcp.tasks` and `mcp.events` flags and carries `cacheScope: "private"` |
 | 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`, and `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps). Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
 
 A tool that asks the person to confirm returns, to a 2026-07-28 client that declares form elicitation, `{resultType: "input_required", inputRequests: {confirm_action | confirm_spend: {method: "elicitation/create", params: {mode: "form", message, requestedSchema}}}, requestState}`. The client retries `tools/call` with `inputResponses` and the same `requestState`. The state is HMAC-sealed with a key of this process and binds the person, the tool and its arguments, the hash of the message and a 10-minute expiry; it acts at most once. A retry without a well-formed answer under the requested key is asked again; `cancel` returns a result that links to the Unfold page. A 2025 client over HTTP cannot be asked and is refused with that link.
@@ -441,6 +441,46 @@ The card polls it through the host's `tools/call` bridge:
 Every poll goes through the host. The view's Content Security Policy keeps `connect-src 'none'`, and its `_meta.ui.csp` asks the host for no domain.
 
 A client that does not declare the extension gets the same answers as before MCP Apps support: no `resources` capability, no `_meta` on any tool, no `unfold_work_item_revision`, and `-32601` for `resources/list` and `resources/read`.
+
+### MCP Events
+
+`unfold-mcp` over HTTP implements the [MCP Events](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415) extension, pinned to SEP-3415 at commit [`b08e4f9d`](https://github.com/pja-ant/modelcontextprotocol/blob/b08e4f9dd684f39d846d94089487fbeb28e666f5/seps/0000-events-extension.md), in webhook mode as [ChatGPT ships it](https://developers.openai.com/plugins/build/mcp-events) (`src/mcp-events.ts`). It is served only to a 2026-07-28 request from a person whose `mcp.events` flag is on; anyone else gets no `events` capability and `-32601` for every `events/*` method, and so does stdio. Where ChatGPT and the SEP differ, Unfold does what ChatGPT does. How deliveries use the outbox is in [Outbound webhooks](../operations/outbound-events.md#mcp-events).
+
+| Method | Answer |
+| --- | --- |
+| `server/discover` | `capabilities` also hold `events: {}`, which ChatGPT reads, and `extensions: {"io.modelcontextprotocol/events": {}}`, which the SEP defines. The client need not declare the extension |
+| `events/list` | `events`: `work_item.needs_you`, `pull_request.ready` and `run.finished`, each `{name, description, delivery: ["webhook"], inputSchema, payloadSchema}`. Every `inputSchema` takes the optional strings `team`, `tenant` and `client` and nothing else. No `nextCursor` |
+| `events/subscribe` with `{name, arguments, delivery: {mode: "webhook", url, secret}, cursor?, ttlMs?}` | `{id, refreshBefore, cursor: null, truncated: false}`, and on a refresh also `deliveryStatus: {active, lastDeliveryAt, lastError, failedSince?}`. `id` is `sub_` and the first 24 hex characters of the SHA-256 of the canonical JSON of `[person, url, name, arguments]`, so the same call refreshes the same subscription |
+| `events/unsubscribe` with `{name, arguments, delivery: {url}}` | `{}`, also when the person holds no such subscription |
+
+`events/subscribe` checks, in order:
+
+- `name` names an event type: otherwise `-32023` with `data.kind: "event"`.
+- `arguments` hold only the known keys, with valid values: otherwise `-32602`.
+- `delivery.mode` is `webhook`: otherwise `-32026` with `data: {feature: "deliveryMode", value}`.
+- `delivery.secret` is `whsec_` and canonical base64 of 24 to 64 bytes: otherwise `-32602`.
+- `ttlMs` is absent (one day), `null` (no expiry) or a number of milliseconds, clamped to between one minute and 30 days: otherwise `-32602`.
+- The person reaches the Tenant (named, or their only one) and the Client, and reads the Team: otherwise `-32024`. While tenancy is not enforced, the Tenant is `default`.
+- `delivery.url` is `https`, has no credentials or fragment, and resolves only to public addresses or ones `outboundEvents.allowedPrivateTargets` names: otherwise `-32602`.
+- A new subscription is at most the person's 50th: otherwise `-32025` with `data: {limit: "subscriptions", max: 50}`.
+- A URL this person has not proved in the last 24 hours gets a verification POST: the body `{"type": "verification", "challenge"}`, headers `webhook-id: msg_verification_<hex>`, `webhook-timestamp`, `webhook-signature` signed with the new secret, and `X-MCP-Subscription-Id`. The endpoint must answer 2xx with a JSON body whose `challenge` matches, compared in constant time. Otherwise `-32015` `CallbackEndpointError` with `data.reason` one of `connection_refused`, `timeout`, `tls_error`, `http_4xx`, `http_5xx` and `challenge_failed`, never the endpoint's own words. At most ten challenges per minute go to one host (`-32025` with `data.limit: "verifications"`).
+
+A refresh with another secret signs with both secrets for ten minutes. A request `cursor` is ignored: no event type replays, so every `cursor` is `null`.
+
+Each delivery is a POST of one `EventOccurrence`, `{eventId, name, timestamp, data, cursor: null}`, as `application/json`, with `webhook-id` equal to `eventId`, `webhook-timestamp`, `webhook-signature` and `X-MCP-Subscription-Id`. `data` holds `workItemId`, `team`, `link` and a `reason` sentence Unfold writes, plus `state` for `work_item.needs_you`, `state` and `pullRequest: {url, number, repository} | null` for `pull_request.ready`, and `outcome`, `role`, `round`, `costUsd` and `shiftSpentUsd` (USD, rounded to cents, `null` when unknown) for `run.finished`. Tracker and agent text sits under `data.untrusted`: `title` and `ploegReason`.
+
+Where Unfold follows ChatGPT over the SEP at the pinned commit:
+
+| Point | SEP-3415 | Unfold |
+| --- | --- | --- |
+| Capability | `extensions["io.modelcontextprotocol/events"]` only | Both that and the top-level `events` ChatGPT reads |
+| `CallbackEndpointError` | `-32027` (provisional) | `-32015` |
+| `webhook-id` | Unique per message, never derived from `eventId` | Equal to `eventId`; each `eventId` is `evt_` and Unfold's own event id, header-safe |
+| Delivery modes | Poll, push or webhook per event type | Webhook only |
+| `gap` and `terminated` envelopes | Sent on a gap and when access is revoked | Never sent; a revoked subscription is deleted and the next refresh answers `-32024` |
+| Unsubscribing an unknown key | `-32023` | `{}` |
+| `Mcp-Name` on `events/*` | Required | Checked when present |
+| Suspension after repeated failures | Optional | Not done; deliveries are given up after five attempts |
 
 ## Agent host
 

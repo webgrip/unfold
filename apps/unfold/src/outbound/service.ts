@@ -30,10 +30,10 @@ const maxResponseBytes = 65_536;
 const cursorName = 'ploeg-events';
 const ledgerDays = 30;
 
-/** The wait before the next attempt after `attempts` failed ones, with jitter from `random`; `null` once the delivery is dead. */
-export function nextDelay(attempts: number, random: () => number = Math.random, retryAfterMs?: number): number | null {
-  if (attempts >= maxAttempts) return null;
-  const base = retrySchedule[attempts - 1];
+/** The wait before the next attempt after `attempts` failed ones on `schedule`, with jitter from `random`; `null` once the delivery is dead. */
+export function nextDelay(attempts: number, random: () => number = Math.random, retryAfterMs?: number, schedule: readonly number[] = retrySchedule): number | null {
+  if (attempts > schedule.length) return null;
+  const base = schedule[attempts - 1];
   const jittered = Math.round(base * (1 - jitter + 2 * jitter * random()));
   return Math.max(jittered, retryAfterMs ?? 0);
 }
@@ -54,8 +54,8 @@ export type OutboundPloeg = {
   factsPage(query: FactsQuery, fresh?: boolean): Promise<FactsPage>;
 };
 
-/** One attempt's answer from a receiver: its status code and `Retry-After` in milliseconds, or the error that stopped it. */
-export type SendResult = { status: number; retryAfterMs?: number } | { error: string };
+/** One attempt's answer from a receiver: its status code, `Retry-After` in milliseconds and the first 64 KiB of its body, or the error that stopped it. */
+export type SendResult = { status: number; retryAfterMs?: number; body?: string } | { error: string };
 /** Sends one signed POST; replaceable in tests. */
 export type Transport = (url: URL, headers: Record<string, string>, body: string, allow: TargetAllowlist) => Promise<SendResult>;
 
@@ -73,8 +73,9 @@ export const httpTransport: Transport = (url, headers, body, allow) => new Promi
   const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
   const request = send(url, { method: 'POST', headers: { ...headers, 'content-length': Buffer.byteLength(body) }, lookup: guardedLookup(allow) as never, timeout: deliveryTimeoutMs }, (response: IncomingMessage) => {
     let size = 0;
-    response.on('data', (chunk: Buffer) => { size += chunk.length; if (size > maxResponseBytes) response.destroy(); });
-    response.on('close', () => resolve({ status: response.statusCode ?? 0, retryAfterMs: retryAfter(response.headers['retry-after']) }));
+    const chunks: Buffer[] = [];
+    response.on('data', (chunk: Buffer) => { size += chunk.length; if (size > maxResponseBytes) response.destroy(); else chunks.push(chunk); });
+    response.on('close', () => resolve({ status: response.statusCode ?? 0, retryAfterMs: retryAfter(response.headers['retry-after']), body: Buffer.concat(chunks).toString('utf8') }));
   });
   request.on('timeout', () => request.destroy(Object.assign(new Error('timeout'), { code: 'timeout' })));
   request.on('error', (error: NodeJS.ErrnoException) => resolve({ error: String(error.code ?? 'request_failed').slice(0, 64) }));
@@ -98,6 +99,11 @@ export type OutboundOptions = {
   clock?: () => number;
   random?: () => number;
   resolver?: Parameters<typeof resolveTarget>[2];
+  /**
+   * Also queues a Ploeg event for subscribers other than administrators, such as MCP clients, inside the transaction that
+   * queues it for administrators and moves the cursor. Returns how many deliveries it queued.
+   */
+  sink?: (event: CloudEvent, source: PloegEvent, facts: WorkItemFacts | undefined, recorded: string) => number;
 };
 
 /**
@@ -210,18 +216,18 @@ export class OutboundEvents {
         const read = await ploeg.followEvents(cursor);
         const cache = new Map<string, WorkItemFacts | undefined>();
         const allowedTeams = this.options.ploegTeams;
-        const events: CloudEvent[] = [];
+        const events: { event: CloudEvent; source: PloegEvent }[] = [];
         for (const entry of read.events) {
           if (allowedTeams && !allowedTeams.includes(entry.team)) continue;
           const built = await this.fromPloeg(entry, cache);
-          if (built) events.push(built);
+          if (built) events.push({ event: built, source: entry });
         }
-        const enabled = await this.enabledTenants(events.map(entry => entry.tenant));
+        const enabled = await this.enabledTenants(events.map(entry => entry.event.tenant));
         const at = this.now();
         const next = read.lastCursor;
         queued += this.store.store.transaction(() => {
           let count = 0;
-          for (const entry of events) count += this.store.enqueue(entry, at, tenant => enabled.get(tenant) === true);
+          for (const { event, source } of events) count += this.store.enqueue(event, at, tenant => enabled.get(tenant) === true) + (this.options.sink?.(event, source, cache.get(source.workItemId), at) ?? 0);
           this.store.setCursor(cursorName, next, at);
           return count;
         });
