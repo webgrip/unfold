@@ -82,7 +82,7 @@ When you hand a task off from Claude Code (terminal sessions, version 2.1.304 or
 * Once a pull request waits for review, or the Work Item ends, Claude gets the result: the pull request, what was spent and the link. A withdrawn or stale Work Item is reported as a failure.
 * Stopping the task in `/tasks` only stops following it. The Work Item keeps running; stop it with `unfold_stop_work`.
 
-The VS Code extension, the desktop app, subagents and a one-shot `claude -p` get the hand-off's summary as before. How the server side works is in [Serve Unfold's MCP tools over HTTPS](serve-unfold-mcp-over-https.md#follow-a-hand-off-as-a-task). This has been run against a test client only, not Claude Code itself.
+The VS Code extension, the desktop app, subagents and a one-shot `claude -p` get the hand-off's summary as before. To set up the terminal side, including from VS Code's integrated terminal, see [Follow hand-offs as tasks in a terminal](follow-hand-offs-as-tasks-in-a-terminal.md). How the server side works is in [Serve Unfold's MCP tools over HTTPS](serve-unfold-mcp-over-https.md#follow-a-hand-off-as-a-task). This has been run against a test client only, not Claude Code itself.
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
 

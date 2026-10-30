@@ -348,6 +348,12 @@
         "command": "unfold.addPloegMcpServer",
         "title": "Add Ploeg MCP Server to VS Code",
         "category": "Unfold"
+      },
+      {
+        "command": "unfold.followHandOffsInTerminal",
+        "title": "Follow Hand-offs in a Claude Code Terminal",
+        "category": "Unfold",
+        "icon": "$(terminal)"
       }
     ],
     "icons": {

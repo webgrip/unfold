@@ -124,11 +124,12 @@ UNFOLD_MCP_RESOURCE=https://unfold.example.com/mcp \
   --out ../your-agent-plugins
 ```
 
-It writes three files:
+It writes five files:
 
 * `.claude-plugin/marketplace.json` with a `git-subdir` entry, which VS Code, Codex and Copilot CLI 1.0.102 or later accept, pinned by the full 40-character `sha`;
 * `unfold-mcp/plugin.json`;
-* `unfold-mcp/mcp.json`, one `streamable-http` server named `unfold` with your URL and no headers.
+* `unfold-mcp/mcp.json`, one `streamable-http` server named `unfold` with your URL and no headers;
+* `unfold-mcp/.claude-plugin/plugin.json` and `unfold-mcp/.mcp.json` for Claude Code, which reads neither of the two above: one `http` server named `unfold` with your URL and `oauth.clientId`. `--client-id` sets it, `unfold-mcp` by default. Claude Code then connects on protocol 2026-07-28, where `unfold_hand_off` can become an MCP task ([Follow hand-offs as tasks in a terminal](follow-hand-offs-as-tasks-in-a-terminal.md)).
 
 It refuses a URL that is not HTTPS (except `localhost`), or that carries user information, a query, a fragment or a placeholder, so no credential can end up in it. `--repository` points the pin at your own mirror. It must be an HTTPS URL ending in `.git`, which VS Code requires.
 

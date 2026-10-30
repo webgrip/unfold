@@ -43,6 +43,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
 | Follow, ask about and steer Work Items from PhpStorm, Air, Zed or Neovim | [Use Unfold from PhpStorm and other ACP editors](how-to/use-unfold-from-an-acp-editor.md) |
 | See your own Claude Code sessions on the Work Items they serve, with Agent Trace attribution and telemetry | [Link your Claude Code sessions](how-to/link-claude-code-sessions.md) |
+| Follow your hand-offs as MCP tasks in a terminal `claude`, including VS Code's integrated terminal | [Follow hand-offs as tasks in a terminal](how-to/follow-hand-offs-as-tasks-in-a-terminal.md) |
 | See your own OpenCode and Codex sessions on the Work Items they serve, with Agent Trace attribution | [Link your OpenCode and Codex sessions](how-to/link-opencode-and-codex-sessions.md) |
 | Give Codex, Copilot, VS Code, Cursor or Kiro Unfold's skills and MCP tools, or publish them for your installation | [Install the Unfold plugin in Codex, Cursor, Copilot and VS Code](how-to/install-the-unfold-plugin.md) |
 | Let people connect Claude Code, VS Code or Cursor to Unfold by URL, with a browser sign-in | [Serve Unfold's MCP tools over HTTPS](how-to/serve-unfold-mcp-over-https.md) |
