@@ -1,5 +1,6 @@
 import { deliveryFailure, deliveryGit, type DeliveryRemote } from './trusted-candidate.ts';
 import type { ForgejoPublisherConfig } from './delivery-config.ts';
+import { aiGeneratedLabel, aiMarkingBlock } from './ai-marking.ts';
 
 export type PublicationPhase = 'reserving' | 'authorized' | 'pushed' | 'proposed' | 'published' | 'unknown' | 'recovery_required' | 'refused';
 export type PullRequestEvidence = { number: number; url: string };
@@ -36,6 +37,8 @@ const singleLine = (value: string): string => value.replace(/[\x00-\x1f\x7f]+/g,
 export function pullRequestBody(operationId: string, facts: PublicationFacts): string {
   return [
     publicationMarker(operationId),
+    aiMarkingBlock({ subject: 'pull-request', review: { state: 'approved', by: [facts.approver] }, session: facts.sessionUrl }),
+    '',
     `Verified delivery candidate for Work Item ${facts.workItemId}, published by the Unfold control service.`,
     '',
     `- Session: ${facts.sessionUrl}`,
@@ -101,10 +104,27 @@ export class ForgejoPublisher {
   }
 
   async createPullRequest(repositoryUrl: string, input: { head: string; base: string; title: string; body: string }): Promise<ForgePullRequest | 'exists'> {
-    const response = await this.api(repositoryUrl, '/pulls', { method: 'POST', body: input });
+    const label = await this.aiLabel(repositoryUrl);
+    const response = await this.api(repositoryUrl, '/pulls', { method: 'POST', body: { ...input, ...(label === undefined ? {} : { labels: [label] }) } });
     if (response.status === 409) return 'exists';
     if (response.status !== 201) deliveryFailure('publication_proposal_rejected');
     return response.data as ForgePullRequest;
+  }
+
+  /** The id of the repository's `ai-generated` label, created when it is missing; undefined when the forge refuses either, so a pull request still opens without it. */
+  async aiLabel(repositoryUrl: string): Promise<number | undefined> {
+    try {
+      for (let page = 1; page <= 5; page++) {
+        const listed = await this.api(repositoryUrl, `/labels?limit=50&page=${page}`);
+        if (listed.status !== 200 || !Array.isArray(listed.data)) return undefined;
+        const found = (listed.data as { id?: unknown; name?: unknown }[]).find(entry => entry?.name === aiGeneratedLabel.name && Number.isSafeInteger(entry.id));
+        if (found) return found.id as number;
+        if (listed.data.length < 50) break;
+      }
+      const created = await this.api(repositoryUrl, '/labels', { method: 'POST', body: { ...aiGeneratedLabel } });
+      const id = (created.data as { id?: unknown } | null)?.id;
+      return created.status === 201 && Number.isSafeInteger(id) ? id as number : undefined;
+    } catch { return undefined; }
   }
 
   async findPullRequest(record: PublicationRecord): Promise<ForgePullRequest | undefined> {

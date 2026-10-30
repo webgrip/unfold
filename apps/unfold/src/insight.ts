@@ -195,8 +195,11 @@ function otlpValue(value: Scalar): Record<string, unknown> {
   return { stringValue: value };
 }
 
-/** Builds an OTLP/HTTP JSON logs payload: one log record per exported row, its event name in the body and in `event.name`. */
-export function otlpPayload(rows: ExportedRow[], version: string, environment: string): Record<string, unknown> {
+/** One log record of {@link otlpLogsPayload}: its time in milliseconds, severity, string body and scalar attributes. */
+export type OtlpLogRecord = { timeMs: number; severityNumber: number; severityText: string; body: string; attributes: Record<string, Scalar> };
+
+/** Builds an OTLP/HTTP JSON logs payload from service `unfold` with one scope: the records in the order given. */
+export function otlpLogsPayload(scope: string, version: string, environment: string, records: OtlpLogRecord[]): Record<string, unknown> {
   return {
     resourceLogs: [{
       resource: { attributes: [
@@ -205,17 +208,22 @@ export function otlpPayload(rows: ExportedRow[], version: string, environment: s
         { key: 'deployment.environment', value: { stringValue: environment } },
       ] },
       scopeLogs: [{
-        scope: { name: eventDomain, version },
-        logRecords: rows.map(row => ({
-          timeUnixNano: `${BigInt(Date.parse(rowTime(row))) * 1_000_000n}`,
-          severityNumber: 9,
-          severityText: 'INFO',
-          body: { stringValue: row.name },
-          attributes: Object.entries({ 'event.domain': rowDomain(row), ...attributes(row) }).map(([key, value]) => ({ key, value: otlpValue(value) })),
+        scope: { name: scope, version },
+        logRecords: records.map(record => ({
+          timeUnixNano: `${BigInt(record.timeMs) * 1_000_000n}`,
+          severityNumber: record.severityNumber,
+          severityText: record.severityText,
+          body: { stringValue: record.body },
+          attributes: Object.entries(record.attributes).map(([key, value]) => ({ key, value: otlpValue(value) })),
         })),
       }],
     }],
   };
+}
+
+/** Builds an OTLP/HTTP JSON logs payload: one log record per exported row, its event name in the body and in `event.name`. */
+export function otlpPayload(rows: ExportedRow[], version: string, environment: string): Record<string, unknown> {
+  return otlpLogsPayload(eventDomain, version, environment, rows.map(row => ({ timeMs: Date.parse(rowTime(row)), severityNumber: 9, severityText: 'INFO', body: row.name, attributes: { 'event.domain': rowDomain(row), ...attributes(row) } })));
 }
 
 /**

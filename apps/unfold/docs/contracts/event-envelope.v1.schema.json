@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:webgrip:ploeg-unfold:event-envelope:1",
-  "title": "Proposed Ploeg/Unfold durable event envelope v1",
-  "description": "Design contract. Per-aggregate ordered, at-least-once delivery; never an authorization bearer. Not a CloudEvents claim. Type-specific data schemas are a required implementation gate; this file validates the envelope only.",
+  "title": "Superseded: proposed Ploeg/Unfold durable event envelope v1",
+  "description": "Superseded for the events Unfold publishes by cloudevent.v1.schema.json (CloudEvents 1.0, delivered as Standard Webhooks; see docs/operations/outbound-events.md). Kept as the record of the earlier proposal; nothing produces or reads it. Design contract. Per-aggregate ordered, at-least-once delivery; never an authorization bearer. Not a CloudEvents claim. Type-specific data schemas are a required implementation gate; this file validates the envelope only.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile, rename, rm, open, realpath } from 
 import { join, dirname, resolve } from 'node:path';
 import { readCandidate, type CandidateManifest } from './candidates.ts';
 import { digest, deliveryPath, policyDigest, type DeliveryPolicy } from './delivery-config.ts';
+import { aiCommitTrailers, withTrailers, type AiCommitMarking } from './ai-marking.ts';
 
 export type CanonicalCandidate = { sessionId: string; repositoryId: string; baseSha: string; canonicalSha: string; treeSha: string; artifactSha: string; policySha: string; directory: string; gitDirectory: string; bundlePath: string };
 export const deliveryFailure = (code: string): never => { throw Object.assign(new Error(`Candidate delivery blocked: ${code.replaceAll('_', ' ')}.`), { status: 409, code }); };
@@ -42,7 +43,8 @@ async function tree(directory: string, revision: string): Promise<Map<string, { 
   return result;
 }
 
-export async function canonicalizeCandidate(dataDir: string, sessionId: string, policy: DeliveryPolicy): Promise<CanonicalCandidate> {
+/** Builds the canonical commit of a session's candidate; `marking` names the agent and model for the commit's AI trailers (see ai-marking.ts). */
+export async function canonicalizeCandidate(dataDir: string, sessionId: string, policy: DeliveryPolicy, marking: AiCommitMarking = { agent: 'unfold-agent' }): Promise<CanonicalCandidate> {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(sessionId)) deliveryFailure('invalid_session');
   const artifact = await readCandidate(dataDir, sessionId, 'manifest'); const manifest = JSON.parse(artifact.content.toString('utf8')) as CandidateManifest;
   if (manifest.version !== 1 || manifest.sessionId !== sessionId || manifest.repositoryId !== policy.repositoryId || manifest.baseSha !== policy.approvedBaseSha || manifest.history !== 'synthetic_snapshot_commits' || manifest.verification !== 'not_performed' || manifest.publication !== 'not_performed') deliveryFailure('unapproved_base_or_manifest');
@@ -69,7 +71,7 @@ export async function canonicalizeCandidate(dataDir: string, sessionId: string, 
     const expectedFiles = changed.map(path => { const before = base.get(path); const after = current.get(path); return { path, status: !before ? 'added' : !after ? 'deleted' : 'modified', ...(before ? { baseMode: before.mode, baseBlob: before.blob } : {}), ...(after ? { mode: after.mode, blob: after.blob } : {}), bytes: after?.bytes ?? 0 }; });
     if (!Array.isArray(manifest.files) || manifest.fileCount !== changed.length || JSON.stringify([...manifest.files].sort((a, b) => a.path.localeCompare(b.path))) !== JSON.stringify(expectedFiles.sort((a, b) => a.path.localeCompare(b.path)))) deliveryFailure('manifest_files_mismatch');
     if (changed.some(path => policy.protectedPaths.some(protectedPath => path === protectedPath || path.startsWith(protectedPath + '/')))) deliveryFailure('protected_input_changed');
-    const canonicalSha = sha((await deliveryGit(gitDirectory, ['commit-tree', manifest.treeSha, '-p', policy.approvedBaseSha, '-m', `Verified delivery candidate ${sessionId}\n\nArtifact: ${artifactSha}\nPolicy: ${policySha}`])).toString().trim());
+    const canonicalSha = sha((await deliveryGit(gitDirectory, ['commit-tree', manifest.treeSha, '-p', policy.approvedBaseSha, '-m', withTrailers(`Verified delivery candidate ${sessionId}\n\nArtifact: ${artifactSha}\nPolicy: ${policySha}`, aiCommitTrailers(marking))])).toString().trim());
     await deliveryGit(gitDirectory, ['update-ref', 'refs/heads/candidate', canonicalSha]);
     const bundlePath = join(temporary, 'canonical.bundle'); await deliveryGit(gitDirectory, ['bundle', 'create', bundlePath, 'refs/heads/candidate']);
     const directory = join(temporary, 'tree'); await mkdir(directory, { mode: 0o755 });

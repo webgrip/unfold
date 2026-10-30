@@ -37,6 +37,7 @@ These are where fixes landed after merge most often.
 | Demo and replay | Does the deterministic demo still say it is one, with no invented model calls or spend? Does the hosted replay still match the recording? |
 | Interface | Does an error say what went wrong in plain words? Is focus visible, contrast sufficient, and the page usable by keyboard? |
 | CI and release | Does a workflow change follow [`.forgejo/AGENTS.md`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/.forgejo/AGENTS.md)? Can it skip, cancel or release something unintended? |
+| Integrations and data | Does a new integration, export or Ploeg request pass the eight questions in [ADR-0050](../adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md#confirmation): a registered adapter, a standard on the wire, standard formats out, the customer's own model credential, every forge or labelled, in the Tenant export, nothing hosted-only, no consumer in Ploeg? |
 | Names | Does a rename leave the old name only where [ADR-0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) keeps it? Do new words match the [glossary](../reference/glossary.md)? |
 | Agent instructions | A change to `AGENTS.md`, `CLAUDE.md`, `.agents/`, `.claude/`, `.openhands/` or `knowledge/` changes how every agent works here. The owner reviews it, and it is never part of an unrelated change. |
 
