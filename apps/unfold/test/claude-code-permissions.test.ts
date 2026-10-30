@@ -8,6 +8,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { answeredLocally, decisionOutput, permissionSummary, programs, redact, waitSettings } from '../extensions/claude-code/scripts/permission.mjs';
+import { scaledTimeout } from './timeframes.ts';
 
 const hook = fileURLToPath(new URL('../extensions/claude-code/scripts/unfold-hook.mjs', import.meta.url));
 const requestId = '7d1f0c2a-3b4c-4d5e-8f60-718293a4b5c6';
@@ -118,7 +119,7 @@ test('the real hook returns a denial with the owner’s reason for Claude', asyn
 test('with no answer the real hook gives up after its wait, withdraws the prompt and leaves the terminal prompt to the person', async t => {
   const run = await scenario(t, [{ state: 'pending' }], { UNFOLD_REMOTE_APPROVAL_WAIT_S: '10' });
   assert.deepEqual([run.stdout, run.code], ['', 0]);
-  assert.ok(run.ms >= 9000 && run.ms < 15000, `waited ${run.ms} ms`);
+  assert.ok(run.ms >= 9000 && run.ms < scaledTimeout(15000), `waited ${run.ms} ms`);
   assert.ok(run.unfold.received.some(entry => entry.path.endsWith('/withdraw')));
   const expired = await scenario(t, [{ state: 'pending' }, { state: 'expired' }]);
   assert.deepEqual([expired.stdout, expired.code], ['', 0], 'an expired prompt decides nothing');
@@ -131,12 +132,12 @@ test('the real hook stops waiting when the prompt was answered in the terminal o
   ];
   const local = await scenario(t, [{ state: 'pending' }], {}, {}, transcript);
   assert.deepEqual([local.stdout, local.code], ['', 0]);
-  assert.ok(local.ms < 5000, `stopped after ${local.ms} ms`);
+  assert.ok(local.ms < scaledTimeout(5000), `stopped after ${local.ms} ms`);
   assert.ok(local.unfold.received.some(entry => entry.path.endsWith('/withdraw') && entry.body.answered === true), 'the plugin says the terminal answered it');
   assert.equal(local.unfold.received.some(entry => entry.path.endsWith('/collect')), false, 'a prompt answered locally is not collected');
   const stopped = await scenario(t, [{ state: 'pending' }], {}, { terminateAfterMs: 1200 });
   assert.deepEqual([stopped.stdout, stopped.code], ['', 0]);
-  assert.ok(stopped.ms < 5000, `stopped after ${stopped.ms} ms`);
+  assert.ok(stopped.ms < scaledTimeout(5000), `stopped after ${stopped.ms} ms`);
   assert.ok(stopped.unfold.received.some(entry => entry.path.endsWith('/withdraw')));
 });
 

@@ -128,7 +128,7 @@ test('every job that reads Ploeg\'s contract unpacks the pinned bundle first, an
 
 test('every pull request checks the Ploeg-derived pages and the links into Ploeg on their own, and a weekly run checks the Ploeg to come', () => {
   const pr = workflows['on_pull_request.yml'].jobs['ploeg-docs'];
-  assert.deepEqual(pr.steps.slice(-2).map(step => step.run), ['mise exec -- uv run --frozen python scripts/docs.py --domain-check', 'mise exec -- uv run --frozen python scripts/docs.py --stage-only']);
+  assert.deepEqual(pr.steps.slice(-2).map(step => step.run), ['mise exec uv -- uv run --frozen python scripts/docs.py --domain-check', 'mise exec uv -- uv run --frozen python scripts/docs.py --stage-only']);
   assert.equal(pr.needs, undefined);
   assert.doesNotMatch(JSON.stringify(pr), /secrets\.|permissions/);
   const ahead = workflows['on_schedule.yml'].jobs['ploeg-ahead'];
@@ -153,7 +153,7 @@ test('Ploeg\'s release opens the Ploeg pull request, and a nightly run fails whe
 test('a pull request and a release need the pinned Ploeg to be a published release', () => {
   for (const workflow of [workflows['on_pull_request.yml'], source, train]) {
     const steps = workflow.jobs['ploeg-pin'].steps;
-    assert.equal(steps.at(-1).run, 'mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published');
+    assert.equal(steps.at(-1).run, 'mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published');
     assert.doesNotMatch(JSON.stringify(workflow.jobs['ploeg-pin']), /secrets\.|permissions/);
   }
   assert.ok(train.jobs.release.needs.includes('ploeg-pin'));

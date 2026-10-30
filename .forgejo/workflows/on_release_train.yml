@@ -76,9 +76,9 @@ jobs:
           cache: false
           github_token: ''
       - name: Unpack the pinned Ploeg contract bundle, verifying its digest
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
       - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
-        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
 
   release:
     if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
