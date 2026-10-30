@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { AppConfig, User } from './types.ts';
 import { foreignTool, parseAgentTrace, traceLines, traceLinesByAgent, type AgentTraceRecord } from './agent-trace.ts';
 import { readSessionTelemetry, type SessionTelemetry } from './linked-telemetry.ts';
+import { aiCommitTrailers, aiMarkingBlock } from './ai-marking.ts';
 
 /** The harnesses whose sessions a person can link. */
 export const linkedHarnesses = ['claude-code', 'opencode', 'codex', 'acp'] as const;
@@ -386,7 +387,8 @@ export class LinkedSessions {
     const linked = items.length ? `It is linked to ${items.join(', ')}.` : 'It is not linked to a Work Item yet.';
     return [
       `Unfold records this ${harnessLabels[session.harness] ?? 'agent'} session as ${session.link} (session id ${session.id}). ${linked}`,
-      `When you commit, end the message with the trailer line "Unfold-Session: ${session.link}".`,
+      `When you commit, end the message with the trailer lines ${aiCommitTrailers({ agent: session.harness, ...(session.model ? { model: session.model } : {}), session: session.link }).map(line => `"${line}"`).join(' and ')}.`,
+      `When you open a pull request, start its description with these two lines: ${aiMarkingBlock({ subject: 'pull-request', review: { state: 'pending' }, session: session.link }).split('\n').map(line => `"${line}"`).join(' and ')}.`,
       `To link this session to a Work Item, call the unfold_link_session tool with session_id ${session.id} and the Work Item id.`,
       ...(credential?.expiresSoon ? [`The Unfold credential this session reports with expires ${credential.expiresAt.slice(0, 10)}. Tell the person once, early, to sign in again and replace UNFOLD_TOKEN, or their sessions stop reporting to Unfold.`] : []),
     ].join(' ');

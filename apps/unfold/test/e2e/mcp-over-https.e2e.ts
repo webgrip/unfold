@@ -81,6 +81,7 @@ async function startUnfold(): Promise<Unfold> {
     UNFOLD_MCP_RESOURCE: `${url}/mcp`,
     UNFOLD_MCP_ISSUER: realm.mcp.issuer,
     UNFOLD_MCP_CLIENT_IDS: realm.mcp.clientId,
+    UNFOLD_MCP_TOKEN_AUDIENCE: 'client-id',
     UNFOLD_MCP_REQUEST_SCOPES: 'openid unfold:mcp offline_access',
     LITELLM_BASE_URL: ploeg.gatewayUrl,
     LITELLM_MASTER_KEY: `sk-master-${randomBytes(12).toString('hex')}`,
@@ -228,7 +229,7 @@ test('the official MCP client signs in through Authentik with PKCE and works as 
   assert.equal(token.iss, realm.mcp.issuer);
   assert.equal(token.sub, realm.people.alice.uid, 'the MCP provider gives the same subject as the browser provider');
   assert.equal(token.azp, realm.mcp.clientId);
-  assert.ok([token.aud].flat().includes(realm.mcp.clientId));
+  assert.ok([token.aud].flat().includes(realm.mcp.clientId), 'Authentik puts the client id in aud, which needs UNFOLD_MCP_TOKEN_AUDIENCE=client-id');
   assert.ok(String(token.scope).split(' ').includes('unfold:mcp'), `scope: ${token.scope}`);
   assert.deepEqual(token.groups, [realm.groups.operators.name], 'the unfold:mcp mapping puts the groups in the access token');
   assert.equal(token.exp - token.iat, 600);

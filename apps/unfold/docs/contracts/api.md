@@ -2,6 +2,8 @@
 
 This guide describes routes implemented by [HTTP handlers](../../src/http.ts) and lifecycle rules in [the session engine](../../src/engine.ts). Executable tests and source resolve implementation drift. Routes return JSON objects or arrays directly. Errors have the form `{"error":{"code":"...","message":"..."}}`.
 
+[openapi.yaml](openapi.yaml) describes the same routes in OpenAPI 3.1 for client generators and agents: methods, parameters, bodies, responses, credentials and the lowest role each operation admits (`x-unfold-role`). Every workbench serves it read-only at `GET /api/openapi.yaml` without a sign-in, because it describes the API and holds no workbench data. [`test/openapi.test.ts`](../../test/openapi.test.ts) validates it as OpenAPI 3.1 and fails when a route exists in `src/http.ts` and not in the document, when a path or method in the document is not served, or when its mutation header and delegated-credential claims differ from the code. This page stays the source for behaviour; the document carries the shape.
+
 ## Identity and mutation requests
 
 Live API access requires a login cookie, or an editor credential as a bearer token (see [Single sign-on](#single-sign-on)). Every `POST`, `PUT`, `PATCH` or `DELETE`, including login, requires `X-Unfold-Request: 1` and passes same-origin checks: a present `Origin` must match the configured base URL, and `Sec-Fetch-Site: cross-site` is refused with 403 `csrf` or `origin`. The one exception is the editor sign-in under `/api/auth/editor`, which an editor extension calls without a browser; it is exempt from the header and origin checks and is protected by its one-time code and secret instead (see [Single sign-on](#single-sign-on)). JSON request bodies require `Content-Type: application/json`, so an action that takes no input still sends `{}`. Cross-origin access is not enabled. Login cookies are HttpOnly and SameSite Strict; an HTTPS base URL enables secure cookies. Configure the public base URL accurately behind a reverse proxy.
@@ -23,6 +25,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | `POST /api/reports/{id}/replies` | `{text}` (at most 4000 characters) on the person's own filed report → posted on the issue as a comment under their name → `201 {report}`. 404 for someone else's or an unknown report, 409 before it is filed, 20 replies an hour per person, then 429 |
 | `POST /api/reports` | `multipart/form-data`: `kind` (`broken`, the default, `confusing` or `idea`), `impact` (`blocks`, `slows` or `minor`, only for `broken`), `happened` (required), `expected` (kept only for `broken`), `title`, `context` (JSON: route, screen, Work Item and Shift ids, browser, viewport, locale, the element the person pointed at and the last eight hash routes, without queries), `duplicateOf` (the id of a filed report this one repeats: it is added to that issue as a comment instead of a new issue), and at most the files `screenshot` (PNG, 6 MB), `console` and `requests` (JSON, 256 KB each, at most 50 entries each); 8 MB in all → `201 {id,status,url?,message,joined?,others?,acknowledgement?}` with `status` `filed`, `retrying`, `failed` or `kept`. The buffers are reduced on the server to their allowed fields, so no header, query string or body is kept. Any signed-in person may report; 10 reports an hour per person, then 429 |
 | `POST /api/insight/events` | `{events:[{name,at,screen,workItemId?,shiftId?,props?}]}` → `202 {accepted,dropped}`. At most 50 events and 32 KB per call; an unknown event name is dropped and counted in `dropped`, and any property its RFC-0001 catalogue entry does not list is removed. An `at` outside the hour before arrival is clamped into it, and a Work Item or Shift id may be an integer or a digit string. Administrators and operators may post; viewers get 403, and one person posting more than 600 events a minute gets 429. With `UNFOLD_INSIGHT_EVENTS=off` it stores nothing and answers `204` |
+| `GET /api/openapi.yaml` | This API's [OpenAPI 3.1 description](openapi.yaml) as `application/yaml`; needs no sign-in |
 | `GET /api/health` | Authenticated configuration/readiness summary; does not prove upstream provider reachability |
 | `GET /healthz`, `GET /readyz` | `{status, version}` for probes. `/healthz` answers from the process without touching storage; `/readyz` runs one trivial database query and reads no session; neither depends on Ploeg. With a Ploeg connected, `/healthz` also carries `ploegContract`: `{state: "unchecked"}`, `{state: "compatible", ploeg, checkedAt}` or `{state: "incompatible", unfold, ploeg, missing, served, checkedAt, message}`, where `message` names what this Unfold requires and what the Ploeg serves ([system ADR-0044](../../../../docs/adr/adr-0044-unfold-refuses-a-ploeg-that-does-not-serve-the-contract-majors-it-requires.md)). No provider credentials or endpoints returned |
 
@@ -331,6 +334,27 @@ Delivery applies only to a shared Ploeg execution on a repository with a configu
 | `GET /api/mcp-servers` | `{servers}`: the remote MCP servers people may add to their own editor, as `{id, label, type: "http", url, oauth: {clientId}}`. Today at most one, `id` `ploeg`, from `UNFOLD_PLOEG_MCP_URL` and `UNFOLD_PLOEG_MCP_CLIENT_ID`; with neither set, `servers` is empty. It needs a signed-in identity like every other route, and any role may read it. An entry never carries headers, a token or a secret: `url` is the server's exact resource URL and `clientId` is the public OAuth client its sign-in uses |
 
 The VS Code extension provides this server to VS Code's chat by URL ([extension README](../../extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)). `unfold-mcp` is not listed: it runs over stdio with the person's `UNFOLD_TOKEN`, and an editor that receives it from an extension writes that token to disk in plain text ([ADR-0011, 2026-10-16](../../../../docs/adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md#more-information)).
+
+## unfold-mcp over HTTP
+
+With `UNFOLD_MCP_RESOURCE` set, the server also answers these routes outside `/api/` ([Serve Unfold's MCP tools over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md)). The endpoint path is the resource URL's path, such as `/mcp`.
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /.well-known/oauth-protected-resource` and `GET /.well-known/oauth-protected-resource<endpoint>` | The RFC 9728 protected resource metadata, public, with `Access-Control-Allow-Origin: *`: `{resource, authorization_servers: [issuer], scopes_supported, bearer_methods_supported: ["header"], resource_name: "Unfold"}`. `resource` is the exact `UNFOLD_MCP_RESOURCE` and `authorization_servers` the exact `UNFOLD_MCP_ISSUER` |
+| `POST <endpoint>` | One JSON-RPC message as `application/json`, at most 1 MiB, with `Authorization: Bearer <access token>`. No token, or a refused one, answers 401 with `WWW-Authenticate: Bearer` naming `scope` and `resource_metadata`; a token without the required scope answers 403 `insufficient_scope`; another `Origin` answers 403. A notification answers 202. Answers are JSON, never SSE, and never carry `Mcp-Session-Id` |
+| `GET` or `DELETE <endpoint>` | 405: there is no server-to-client stream and no session |
+
+An access token is accepted when it is a JWT signed with an asymmetric key from the issuer's key set; its `iss` equals `UNFOLD_MCP_ISSUER` as an exact string; its `aud` names the resource (RFC 8707), compared after URL parsing, so only the case of the scheme and host may differ, or, under `UNFOLD_MCP_TOKEN_AUDIENCE=client-id`, one of `UNFOLD_MCP_CLIENT_IDS`; it names its client in `client_id` or `azp`, which must be in `UNFOLD_MCP_CLIENT_IDS` when that list is set (an entry may be a Client ID Metadata Document URL); it carries `scope` with the required scope, `sub`, `iat` and `exp`; and it lives at most `UNFOLD_MCP_MAX_TOKEN_LIFETIME`.
+
+The message is served by MCP revision, per request:
+
+| Revision | How a request is recognised | Rules |
+| --- | --- | --- |
+| 2026-07-28 | `MCP-Protocol-Version: 2026-07-28` or `_meta["io.modelcontextprotocol/protocolVersion"]` | The header, `Mcp-Method` and, for `tools/call`, `Mcp-Name` (plain or `=?base64?…?=`) must match the body, or 400 `-32020`. `_meta["io.modelcontextprotocol/clientCapabilities"]` is required (`-32602`). An unsupported revision answers 400 `-32022` with `{supported, requested}`, and an unknown method, including `ping`, 404 `-32601`. Methods: `server/discover`, `tools/list`, `tools/call`. Results carry `resultType` and `_meta["io.modelcontextprotocol/serverInfo"]`; `tools/list` and `server/discover` carry `ttlMs` and `cacheScope: "public"` |
+| 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`. Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
+
+A tool that asks the person to confirm returns, to a 2026-07-28 client that declares form elicitation, `{resultType: "input_required", inputRequests: {confirm_action | confirm_spend: {method: "elicitation/create", params: {mode: "form", message, requestedSchema}}}, requestState}`. The client retries `tools/call` with `inputResponses` and the same `requestState`. The state is HMAC-sealed with a key of this process and binds the person, the tool and its arguments, the hash of the message and a 10-minute expiry; it acts at most once. A retry without a well-formed answer under the requested key is asked again; `cancel` returns a result that links to the Unfold page. A 2025 client over HTTP cannot be asked and is refused with that link.
 
 ## Agent host
 
@@ -650,6 +674,15 @@ Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](.
 | `GET /api/admin/flags/export` | Administrators only: `{flags}`, the flagd rules the authored rollouts compile to, with segments inlined |
 | `POST /api/ofrep/v1/evaluate/flags` | OFREP 0.4.0 bulk evaluation for the signed-in person or editor: `{context}` → `{flags: [{key, value, reason, variant, metadata}]}` with an `ETag`; `If-None-Match` with that ETag answers 304. Only browser-visible flags are listed. The context's identity attributes (`targetingKey`, `userId`, `role`, `teams`, `tenantId`, `mode`, `labs`, `labsOff`, `flagVariants`) come from the session, and a client may add up to 32 scalar attributes of its own. Needs no `X-Unfold-Request` header |
 | `POST /api/ofrep/v1/evaluate/flags/:key` | OFREP single evaluation: 200 `{key, value, reason, variant, metadata}`, 404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed |
+
+## Security audit
+
+Unfold records security-relevant events as OCSF 1.9.0 in one hash chain per Tenant ([Send Unfold's audit to your SIEM](../operations/audit-siem.md)). Both routes need the Admin account role and an Admin membership of the Tenant asked for; `tenant` may be left out by someone who administers exactly one Tenant (400 `audit_tenant` otherwise, 403 `audit_tenant_forbidden` for a Tenant the caller does not administer).
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/admin/audit?tenant=&since=&cursor=&limit=` | `application/x-ndjson`: one OCSF event per line, oldest first, after sequence `cursor` (default 0) and from ISO time `since`, at most `limit` (1 to 1000, default 500). Headers: `X-Unfold-Audit-Tenant`, `X-Unfold-Audit-Head` (`<sequence>:<sha256>`), and when more follow `X-Unfold-Audit-Next-Cursor` and `Link: <…>; rel="next"`. 404 `audit_export_off` while the Tenant's `audit.export` flag is off; 400 `audit_since`, `audit_cursor` or `audit_limit` for a malformed value. Each read is itself recorded |
+| `GET /api/admin/audit/verify?tenant=` | `{tenant, ok, checked, anchor, head, break}`: the chain checked from its newest retention anchor; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`. Answers whatever the flag says |
 
 ## Static files
 

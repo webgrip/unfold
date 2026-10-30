@@ -5,6 +5,7 @@ import { CardStore, type CardImportRecord } from './card-store.ts';
 import { CrackWorkflow, crackView, type CrackActor, type CrackView } from './cracks.ts';
 import { cardActivity, cardListLogins, namesAny, orderCards } from './list.ts';
 import { resolveCardRules, type CardRuleSettings, type ResolvedCardRules } from './settings.ts';
+import { markAiMarkdown, pullRequestReview, type AiReview } from '../ai-marking.ts';
 import { cardCommentMarkdown, cardImageAlt, momentHeadline, momentOf } from './cardimage.ts';
 import { renderCardImage } from './cardimage-svg.ts';
 import type { CardImageCard } from './cardimage-view.ts';
@@ -36,6 +37,7 @@ const memberPages = 6;
 const backfillPages = 400;
 const sweepBatch = 25;
 const commentKey = 'run-card';
+const reviewOf = (pullRequest: Parameters<typeof pullRequestReview>[0] | undefined): AiReview => (pullRequest ? pullRequestReview(pullRequest) : { state: 'pending' });
 const commentRecheckMicros = 3_600_000_000;
 const commentRecentMicros = 7 * 86_400_000_000;
 
@@ -316,7 +318,7 @@ export class CardService {
     if (!moment.key || moment.key === previous?.moment) { this.store.markCommentChecked(id, now); return null; }
     const headline = momentHeadline(moment, previous?.moment ?? '');
     const adopt = previous && previous.origin === 'ploeg' && !previous.adopted && previous.commentId !== null && previous.pullRequest?.number === moment.play ? previous.commentId : undefined;
-    const result = await this.source.putPullRequestComment(id, commentKey, { markdown: cardCommentMarkdown(card, now, headline), image: { svg: renderCardImage(card, { now }), alt: cardImageAlt(card, now) }, number: moment.play, ...(adopt ? { adoptCommentId: adopt } : {}) });
+    const result = await this.source.putPullRequestComment(id, commentKey, { markdown: markAiMarkdown(cardCommentMarkdown(card, now, headline), { subject: 'pull-request', review: reviewOf(facts.pullRequests.find(entry => entry.number === moment.play)) }), image: { svg: renderCardImage(card, { now }), alt: cardImageAlt(card, now) }, number: moment.play, ...(adopt ? { adoptCommentId: adopt } : {}) });
     this.store.saveComment({ workItemId: id, pullRequest: result.pullRequest, moment: moment.key, commentId: result.commentId, image: result.imageUrl !== null, publishedAt: now, checkedAt: now, origin: 'unfold', adopted: Boolean(adopt) || previous?.adopted === true });
     this.log('info', 'cards.comment_published', { workItem: id, moment: moment.key, pullRequest: result.pullRequest.number, comment: result.commentId, image: result.imageUrl !== null, adopted: Boolean(adopt) });
     return moment.key;
