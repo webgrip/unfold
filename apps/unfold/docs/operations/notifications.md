@@ -30,6 +30,7 @@ A notice carries a fixed headline, the Work Item's number and its title with sec
 
 * Every notice is written to an outbox in Unfold's store first, so a restart loses nothing. One trigger occurrence becomes at most one notice per person, channel and target, even when Unfold reads the same Ploeg event twice.
 * Unfold starts at Ploeg's newest event, so turning the flag on sends no history.
+* Notifications name Ploeg's events with the same types as [outbound webhooks](outbound-events.md) (`work_item.needs_you`, `work_item.ready_for_review`, `run.finished`), but read them with their own cursor. The webhook outbox is written only while an administrator has an active subscription, and is pruned once delivered, so it cannot carry notices for people when no webhook is set up.
 * A send that fails with a network error, 408, 429 or 5xx is retried after 30 seconds, 2 minutes, 10 minutes, 30 minutes, 2 hours and 6 hours, or later when the receiver sends `Retry-After`. Any other 4xx is final. A notice older than 24 hours is given up.
 * When a push service answers 404 or 410, the subscription has expired: Unfold deletes it and drops its waiting notices.
 * Quiet hours hold a notice until they end, in the person's time zone. The test notice ignores them.

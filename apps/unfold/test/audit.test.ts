@@ -269,3 +269,40 @@ test('the request tap classifies each security-relevant route and leaves the res
   const budget = tap('POST', '/api/sessions/session-0123456789abc/budget?x=1', 200, { inputs: () => ({ amountUsd: 5, token: 'secret' }) });
   assert.deepEqual([(budget?.fact as any).operation, (budget?.fact as any).inputs, budget?.target], ['POST /api/sessions/:id/budget', { amountUsd: 5, token: '[redacted]', query: { x: '1' } }, { kind: 'session', id: 'session-0123456789abc' }]);
 });
+
+test('webhook, intake source, billing and Tenant export administration are Entity Management or Export records in the Tenant they name', () => {
+  const signedIn = { id: 'u-ada', name: 'ada', role: 'admin' as const, memberships: [{ kind: 'tenant' as const, tenant: 'acme', role: 'admin' as const }] };
+  const tap = (method: string, url: string, status: number, inputs: Record<string, unknown> = {}) => {
+    const parsed = new URL(url, 'http://localhost');
+    return capture({ method, path: parsed.pathname, query: parsed.searchParams, status, user: () => signedIn, inputs: () => inputs, userByName: () => undefined, signedInByResponse: () => undefined, editorLabel: () => undefined });
+  };
+  const entity = (captured: ReturnType<typeof capture>) => captured?.fact.kind === 'entity' ? [captured.fact.action, captured.fact.entity.type, captured.fact.entity.uid ?? null, captured.fact.entity.data?.change ?? null, captured.fact.outcome, captured.tenants ?? null] : captured?.fact.kind;
+  assert.deepEqual(entity(tap('POST', '/api/admin/webhooks', 201, { tenant: 'acme', url: 'https://hooks.example.test/x', types: ['dev.unfold.*'] })), ['create', 'Webhook subscription', null, null, 'success', ['acme']]);
+  assert.deepEqual(entity(tap('POST', '/api/admin/webhooks', 201, { url: 'https://hooks.example.test/x' })), ['create', 'Webhook subscription', null, null, 'success', ['default']]);
+  assert.deepEqual(entity(tap('PATCH', '/api/admin/webhooks/sub-1', 200)), ['update', 'Webhook subscription', 'sub-1', null, 'success', null]);
+  assert.deepEqual(entity(tap('DELETE', '/api/admin/webhooks/sub-1', 404)), ['delete', 'Webhook subscription', 'sub-1', null, 'failure', null]);
+  assert.deepEqual(entity(tap('POST', '/api/admin/webhooks/sub-1/rotate-secret', 200)), ['update', 'Webhook subscription', 'sub-1', 'secret_rotated', 'success', null]);
+  assert.equal(tap('POST', '/api/admin/webhooks/sub-1/test', 202)?.fact.kind, 'api', 'a test delivery changes no subscription');
+  assert.deepEqual(entity(tap('POST', '/api/intake/sources', 201, { id: 'shop-form', tenant: 'acme', secret: 'whsec_x' })), ['create', 'Intake source', null, null, 'success', ['acme']]);
+  assert.deepEqual(entity(tap('POST', '/api/intake/sources', 403, { id: 'shop-form', tenant: 'other' })), ['create', 'Intake source', null, null, 'failure', null], 'a refused request never writes into the Tenant it named');
+  assert.deepEqual(entity(tap('DELETE', '/api/intake/sources/shop-form', 200)), ['delete', 'Intake source', 'shop-form', null, 'success', null]);
+  assert.deepEqual(entity(tap('POST', '/api/intake/sources/shop-form/secret', 200)), ['update', 'Intake source', 'shop-form', 'secret_replaced', 'success', null]);
+  assert.deepEqual(entity(tap('PUT', '/api/billing/mappings', 200, { tenant: 'acme', client: 'shop', target: {}, price: { perTicket: '450.00' } })), ['update', 'Billing mapping', 'acme/shop', null, 'success', ['acme']]);
+  assert.deepEqual(entity(tap('DELETE', '/api/billing/mappings?tenant=acme', 200)), ['delete', 'Billing mapping', 'acme', null, 'success', ['acme']]);
+  assert.deepEqual(entity(tap('POST', '/api/billing/lines/line-7/send', 202)), ['update', 'Billing line', 'line-7', 'sent_again', 'success', null]);
+  assert.deepEqual(entity(tap('POST', '/api/billing/lines/line-7/found', 200)), ['update', 'Billing line', 'line-7', 'marked_found', 'success', null]);
+  assert.deepEqual(entity(tap('POST', '/api/billing/lines/line-7/price', 200)), ['update', 'Billing line', 'line-7', 'priced', 'success', null]);
+  assert.deepEqual(entity(tap('POST', '/api/billing/lines/line-7/reverse', 409)), ['deactivate', 'Billing line', 'line-7', 'reversed', 'failure', null]);
+  assert.equal(tap('POST', '/api/billing/sync', 202)?.fact.kind, 'api');
+  const started = tap('POST', '/api/admin/tenant-exports', 202, { tenant: 'acme', confirm: 'acme' });
+  assert.deepEqual([started?.fact.kind, (started?.fact as any).activity, (started?.fact as any).resource, started?.tenants], ['download', 'export', { type: 'Tenant export', name: 'Tenant export of Tenant acme' }, ['acme']]);
+  assert.deepEqual(entity(tap('DELETE', '/api/admin/tenant-exports/exp-1', 200)), ['delete', 'Tenant export', 'exp-1', null, 'success', null]);
+  for (const [url, type] of [['/api/admin/tenant-exports/exp-1/download', 'Tenant export'], ['/api/billing/lines?format=ubl', 'Billing lines'], ['/api/ploeg/cost-export?format=jsonl', 'FOCUS cost export']]) {
+    const read = tap('GET', url, 200);
+    assert.deepEqual([read?.fact.kind, (read?.fact as any).resource.type], ['download', type], url);
+  }
+  for (const [name, captured] of [['webhook', tap('POST', '/api/admin/webhooks/sub-1/rotate-secret', 200)], ['export', started]] as const) {
+    const event = ocsfEvent({ fact: captured!.fact, actor: { user: ada }, at });
+    assert.deepEqual(ocsfErrors({ ...event, metadata: { ...event.metadata, uid: 'x', tenant_uid: 'acme', sequence: 1 } }), [], name);
+  }
+});

@@ -27,7 +27,12 @@ Every record has `class_uid`, `activity_id`, `type_uid`, `time` (milliseconds), 
 | Tenant or Client membership added, removed or given another role | Group Management (3006) | Add User (3), Remove User (4), Assign Roles (12) | `group.type` is `Tenant` or `Client` |
 | Feature flag override, rollout or segment changed | Entity Management (3004) | Update (3) or Delete (4) | `entity.data` holds the change, the variant and the reason |
 | Client Sign-off recorded or withdrawn, exclusions set | Entity Management (3004) | Create (1), Deactivate (11), Update (3) | |
-| Candidate, delivery bundle, delivery ledger, flag rules, Agent Trace or audit download | Web Resources Activity (6001) | Export (7) | Declares the `host` profile, which gives this class its `actor` |
+| Candidate, delivery bundle, delivery ledger, flag rules, Agent Trace, audit, billing lines, FOCUS cost export or Tenant export download | Web Resources Activity (6001) | Export (7) | Declares the `host` profile, which gives this class its `actor` |
+| Tenant export started | Web Resources Activity (6001) | Export (7) | Recorded in the chain of the Tenant it exports |
+| Webhook subscription created, changed, deleted or its secret rotated | Entity Management (3004) | Create (1), Update (3), Delete (4) | `entity.type` `Webhook subscription`; a rotation has `entity.data.change` `secret_rotated`. A test delivery or a resend is API Activity |
+| Intake source added, removed or its secret replaced | Entity Management (3004) | Create (1), Delete (4), Update (3) | `entity.type` `Intake source`; a new secret has `entity.data.change` `secret_replaced` |
+| Billing mapping set or removed; billing line sent again, marked found, priced or reversed | Entity Management (3004) | Update (3), Delete (4), Deactivate (11) for a reversal | `entity.uid` is the Owner (`tenant` or `tenant/client`) or the line id; `entity.data.change` names the line change |
+| Tenant export deleted | Entity Management (3004) | Delete (4) | |
 | Request to `unfold-mcp` over HTTP, and each call it delegates | API Activity (6003) | Create (1) | `ai_agent` is the MCP client, `delegation.uid` a hash of the short-lived credential, so a tool call and the API calls it made correlate. Declares the `ai_operation` profile. Refused tokens and accounts are recorded too |
 | Every other Action (a state-changing API call) | API Activity (6003) | Create, Update or Delete by method | `api.operation` is the route with ids as `:id`; `api.request.data` holds the inputs with secrets removed, as Action Records keep them |
 
@@ -39,11 +44,10 @@ Not recorded yet:
 
 * The GitLab and ClickUp OAuth callback. It arrives as a cross-site navigation without the session cookie, so the tap cannot tell who it was; the request that started it is recorded as API Activity.
 * The editor's own collection of an approved credential. The approval in the browser is the recorded decision.
-* Tenant export, webhooks, intake sources and billing lines do not exist yet. When they land they call `AuditTrail.record` (`src/audit/service.ts`); the proposed mapping is Web Resources Activity Export for a Tenant export, and Entity Management Create, Update or Delete for a webhook, an intake source or a billing line.
 
 ## Which Tenant sees a record
 
-Each Tenant has its own chain. A record about a person (sign-in, sign-out, credentials, account, role) goes to every Tenant that person belongs to. A membership record goes to that membership's Tenant only. Any other record goes to the Tenant of what it targets when Unfold can tell (a task connection, a session's repository), else to the actor's only Tenant, else to the install's `default` Tenant.
+Each Tenant has its own chain. A record about a person (sign-in, sign-out, credentials, account, role) goes to every Tenant that person belongs to. A membership record goes to that membership's Tenant only. A record of a webhook subscription or intake source being created, a billing mapping being set or removed, or a Tenant export being started goes to the Tenant the request named, once the request succeeded. Any other record goes to the Tenant of what it targets when Unfold can tell (a task connection, a session's repository), else to the actor's only Tenant, else to the install's `default` Tenant.
 
 ## How the audit is kept, and what that guarantees
 

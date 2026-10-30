@@ -3,6 +3,7 @@ import type { User } from '../types.ts';
 import type { PloegEvent } from '../ploeg.ts';
 import type { WorkItemFacts } from '../cards/facts.ts';
 import type { TaskTarget } from '../tasks.ts';
+import { ploegEventType } from '../outbound/catalogue.ts';
 import { ChannelRegistry, NtfyChannel, WebPushChannel, type NotificationChannel, type SendOutcome, type Transport } from './channels.ts';
 import { NotifyError, parsePreferences, quietUntil, refuse, type Preferences } from './preferences.ts';
 import { defaultBudgetThresholds, type NotificationSettings } from './settings.ts';
@@ -154,9 +155,10 @@ export class Notifications {
 
   private async fromPloeg(event: PloegEvent, cache: Map<string, WorkItemFacts | undefined>): Promise<number> {
     const wanted = new Set(this.store.subscribers().flatMap(entry => entry.preferences.triggers));
-    const outcome = /^outcome\.[a-z_]{1,64}$/.test(event.action);
-    const parked = event.action === 'work_item.needs_human' || event.action === 'work_item.stale';
-    const review = event.action === 'work_item.awaiting_review';
+    const type = ploegEventType(event);
+    const outcome = type === 'run.finished';
+    const parked = type === 'work_item.needs_you';
+    const review = type === 'work_item.ready_for_review';
     if (!(outcome && wanted.has('budget')) && !(parked && (wanted.has('needs_you') || wanted.has('question'))) && !(review && wanted.has('review'))) return 0;
     const facts = await this.factsFor(event.workItemId, cache);
     const item = { id: event.workItemId, title: facts?.workItem.title ?? '' };
@@ -172,8 +174,9 @@ export class Notifications {
   }
 
   /**
-   * Follows Ploeg's audit events from the stored cursor. The first read starts at Ploeg's newest event, so no history
-   * is sent; a failed read moves nothing, and a replayed event queues nothing new because each notice is keyed by it.
+   * Follows Ploeg's audit events from its own stored cursor and classifies them with the outbound event catalogue's
+   * {@link ploegEventType}. The first read starts at Ploeg's newest event, so no history is sent; a failed read moves
+   * nothing, and a replayed event queues nothing new because each notice is keyed by it.
    */
   async followPloeg(): Promise<number> {
     const ploeg = this.options.ploeg;

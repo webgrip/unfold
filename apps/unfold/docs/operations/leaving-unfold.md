@@ -94,14 +94,14 @@ Fields are the stored columns in camelCase. A column that holds JSON is parsed i
 | `billing-mappings`, `billing-lines` | The price and billing tool target per Client, and one billing line per accepted Work Item and per reversal. |
 | `account-states`, `scim-users`, `scim-groups`, `scim-group-members` | Disabled accounts, and the people and groups the identity provider provisioned through SCIM. |
 | `intake-sources`, `intake-requests`, `intake-messages` | Request intake sources without their signing secrets, the Requests received, and which mail message belongs to which Request. |
-| `notify-preferences` | The channels and triggers each person chose to be notified on. |
-| `outbound-subscriptions` | Outbound webhook subscriptions without their signing secrets. |
+| `notify-preferences`, `notify-targets` | The channels and triggers each person chose to be notified on, and which ntfy topics and Web Push subscriptions they have, without the topic, the push endpoint or its keys. |
+| `outbound-subscriptions`, `outbound-events`, `outbound-deliveries` | Outbound webhook subscriptions without their signing secrets, the events still in the outbox, and the delivery log of each subscription. Events are signed when sent, so the outbox holds no secret. |
 
 The signing secrets of outbound webhook subscriptions and intake sources are not exported; issue new ones at the destination. The manifest says so under `notExported`.
 
 ### What is never exported
 
-No secret is exported: password hashes, sign-in and editor token hashes, the OIDC access and refresh tokens Unfold keeps to prove a person to Ploeg, the store encryption key, the product event actor key, task source tokens, repository passwords, model gateway keys, webhook and intake signing secrets, and Web Push subscription keys and ntfy topics. Every configured secret value is also replaced by `[redacted]` wherever it appears inside a record. These tables are left out entirely:
+No secret is exported: password hashes, sign-in and editor token hashes, the OIDC access and refresh tokens Unfold keeps to prove a person to Ploeg, the store encryption key, the product event actor key, task source tokens, repository passwords, model gateway keys, webhook and intake signing secrets, and Web Push subscription endpoints and keys and ntfy topics. Every configured secret value is also replaced by `[redacted]` wherever it appears inside a record. These tables are left out entirely:
 
 | Table | Why |
 | --- | --- |
@@ -111,10 +111,9 @@ No secret is exported: password hashes, sign-in and editor token hashes, the OID
 | `linked_session_notice_snapshots` | A cache, rebuilt on the next check. |
 | `card_import` | Progress of the one-time card import from Ploeg. |
 | `sqlite_sequence` | SQLite's own counter table. |
-| `notify_targets` | Web Push subscription endpoints and keys, and ntfy topics. People subscribe again at the destination. |
 | `audit_exports` | How far each Tenant's audit trail was sent to its log collector. |
 | `ssf_seen`, `intake_deliveries` | Deduplication of Shared Signals events and intake deliveries, forgotten after a while. |
-| `notify_outbox`, `outbound_events`, `outbound_deliveries` | Delivery queues for notifications and webhooks. The records they describe are exported themselves. |
+| `notify_outbox` | The queue of notices to send over ntfy and Web Push. What they report is exported itself. |
 | `notify_cursors`, `outbound_cursors`, `outbound_sign_off_changes` | How far notifications and webhooks have read their sources. |
 
 `test/tenant-export.test.ts` fails when a table is added anywhere in `src/` without being exported or listed here with a reason.
@@ -123,10 +122,10 @@ No secret is exported: password hashes, sign-in and editor token hashes, the OID
 
 While Tenant checks are enforced, each entity's manifest entry names its rule:
 
-* People with a Tenant or Client membership of the Tenant, and the rows those people own (chats, asks, reports, Action Records, Linked Sessions, card collections, snoozes, Labs choices, notification preferences, account states, SCIM records).
+* People with a Tenant or Client membership of the Tenant, and the rows those people own (chats, asks, reports, Action Records, Linked Sessions, card collections, snoozes, Labs choices, notification preferences and subscriptions, account states, SCIM records).
 * Repositories and task sources the Tenant owns, workbench sessions on those repositories, and their events and permissions.
 * Rows about a Work Item (Client Sign-offs, judgements, tripwire hits, card records, the delivery ledger), when Ploeg says the Work Item's target is a repository of the Tenant. Without a connected Ploeg, no Work Item rows are exported for an enforced Tenant.
-* Rows that store their Tenant: product events, the audit trail, billing mappings and lines, intake sources and Requests, and webhook subscriptions.
+* Rows that store their Tenant: product events, the audit trail, billing mappings and lines, intake sources and Requests, webhook subscriptions and their outbox events, with each subscription's deliveries.
 * Installation-wide rows (flag overrides, rollouts, segments and their audit, card themes and assets, Status page notes, SCIM groups) go with the `default` Tenant only.
 
 ### Why JSON Lines and not Parquet

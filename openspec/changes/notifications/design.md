@@ -7,12 +7,14 @@
   that notifier; the shell cache and the triage view stay open.
 - System ADR-0050 (PR #697) rule 1: channels are a registry. Slack and Teams
   arrive as adapters.
-- PR #701 (outbound webhooks) follows Ploeg's audit events from a cursor and
-  has a catalogue (`work_item.needs_you`, `work_item.ready_for_review`,
-  `client_sign_off.recorded`). It is not merged, so this change follows the
-  same events itself. Once both are merged, the notifier should read the
-  catalogue's events instead of its own cursor; the trigger ids map one to one
-  except `question` and `budget`, which the catalogue lacks.
+- Outbound webhooks follow Ploeg's audit events from a cursor and have a
+  catalogue (`work_item.needs_you`, `work_item.ready_for_review`,
+  `run.finished`, `client_sign_off.recorded`). The notifier classifies Ploeg's
+  events with that catalogue's `ploegEventType`, so both name an event the
+  same way, but it keeps its own cursor. The webhook outbox is written only
+  while an active subscription exists and is pruned once delivered, so
+  notifications for people cannot depend on it. `question` and `budget` have
+  no catalogue type and are derived from the Work Item's facts.
 
 ## Decisions
 
@@ -40,6 +42,6 @@
 
 - Should a person also be told about Work Items of Teams they read but did
   not start? Today every reader is a recipient, as ADR-0026 says.
-- Tenant export: there is none yet. Preferences, the ntfy topic and Web Push
-  subscriptions are personal data to export; VAPID keys and the ntfy token
-  never are.
+- Tenant export exports preferences and each person's subscriptions by
+  channel and date. The ntfy topic, the push endpoint and its keys work as
+  credentials, so they are left out, as are VAPID keys and the ntfy token.

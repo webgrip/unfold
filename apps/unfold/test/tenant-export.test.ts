@@ -13,6 +13,8 @@ import { ChatStore } from '../src/chat/store.ts';
 import { LinkedSessionStore } from '../src/linked-sessions.ts';
 import { LinkedInboxStore } from '../src/linked-inbox.ts';
 import { LinkedPermissionStore } from '../src/linked-permissions.ts';
+import { NotifyStore } from '../src/notify/store.ts';
+import { OutboundStore } from '../src/outbound/store.ts';
 import { buildTenantExport, curatedSources, databaseTables, excludedTables, tableEntities, type ExportSources, type TenantExportManifest } from '../src/tenant-export.ts';
 import { ustarHeader } from '../src/tar-writer.ts';
 import type { AppConfig, Session } from '../src/types.ts';
@@ -119,7 +121,7 @@ test('the bundle carries no secret: no password hash, token, key, credential or 
   assert.equal(rows(bundle, 'task-sources')[0].project, 'acme/repo');
   assert.match(rows(bundle, 'session-events')[0].data.text, /\[redacted\]/);
   assert.equal(bundle.manifest.secrets.exported, false);
-  assert.deepEqual(bundle.manifest.excluded.map(entry => entry.table).sort(), ['audit_exports', 'card_import', 'editor_credentials', 'intake_deliveries', 'internal_state', 'linked_session_notice_snapshots', 'logins', 'notify_cursors', 'notify_outbox', 'notify_targets', 'outbound_cursors', 'outbound_deliveries', 'outbound_events', 'outbound_sign_off_changes', 'sqlite_sequence', 'ssf_seen']);
+  assert.deepEqual(bundle.manifest.excluded.map(entry => entry.table).sort(), ['audit_exports', 'card_import', 'editor_credentials', 'intake_deliveries', 'internal_state', 'linked_session_notice_snapshots', 'logins', 'notify_cursors', 'notify_outbox', 'outbound_cursors', 'outbound_sign_off_changes', 'sqlite_sequence', 'ssf_seen']);
 });
 
 test('with Tenant checks enforced, the bundle holds only what the Tenant owns', async t => {
@@ -179,6 +181,30 @@ test('with Tenant checks enforced, the bundle holds only what the Tenant owns', 
   assert.equal(rows(open, 'sessions').length, 2);
   assert.equal(rows(open, 'flag-overrides').length, 1);
   assert.deepEqual(rows(open, 'product-events').map(row => row.actor), [], 'product events keep their stored Tenant id');
+});
+
+test('notification subscriptions leave without their topic, endpoint or keys, and the webhook outbox goes with its Tenant', async t => {
+  const { dir, store } = await workspace(t);
+  new NotifyStore(store); new OutboundStore(store);
+  store.addUser({ id: 'alice', name: 'alice@acme.test', role: 'admin', passwordHash: 'x', memberships: [{ kind: 'tenant', tenant: 'acme', role: 'admin' }] });
+  store.addUser({ id: 'bob', name: 'bob@globex.test', role: 'admin', passwordHash: 'x', memberships: [{ kind: 'tenant', tenant: 'globex', role: 'admin' }] });
+  const at = '2026-10-30T00:00:00.000Z';
+  const insertTarget = store.db.prepare('INSERT INTO notify_targets(id,user_id,channel,address_key,address,created_at) VALUES(?,?,?,?,?,?)');
+  insertTarget.run('t-topic', 'alice', 'ntfy', 'topic', JSON.stringify({ topic: 'unfold-secret-topic-do-not-export' }), at);
+  insertTarget.run('t-push', 'alice', 'web-push', 'https://push.example.test/endpoint-do-not-export', JSON.stringify({ endpoint: 'https://push.example.test/endpoint-do-not-export', keys: { p256dh: 'p256dh-do-not-export', auth: 'auth-do-not-export' } }), at);
+  insertTarget.run('t-bob', 'bob', 'ntfy', 'topic', JSON.stringify({ topic: 'bob-topic' }), at);
+  for (const tenant of ['acme', 'globex']) {
+    store.db.prepare('INSERT INTO outbound_subscriptions(id,tenant,client,url,types,description,active,created_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').run(`sub-${tenant}`, tenant, null, `https://hooks.${tenant}.test/in`, JSON.stringify(['dev.unfold.*']), '', 1, at, 'admin', at);
+    store.db.prepare('INSERT INTO outbound_events(id,type,tenant,client,time,recorded_at,body) VALUES(?,?,?,?,?,?,?)').run(`ev-${tenant}`, 'dev.unfold.work_item.done', tenant, null, at, at, JSON.stringify({ id: `ev-${tenant}`, tenant, data: { workItem: { id: '1' } } }));
+    store.db.prepare("INSERT INTO outbound_deliveries(subscription_id,event_id,event_type,status,attempts,created_at) VALUES(?,?,?,'delivered',1,?)").run(`sub-${tenant}`, `ev-${tenant}`, 'dev.unfold.work_item.done', at);
+  }
+  const acme = await exported(dir, base(store, { tenancy: { enforce: true } }), 'acme', 'acme');
+  const everything = [...acme.members.values()].map(buffer => buffer.toString('utf8')).join('\n');
+  assert.ok(!/do-not-export|globex|bob/.test(everything), 'no topic, endpoint, key or other Tenant is in the bundle');
+  assert.deepEqual(rows(acme, 'notify-targets').map(row => [row.id, row.channel, Object.keys(row).sort()]), [['t-topic', 'ntfy', ['channel', 'createdAt', 'id', 'userId']], ['t-push', 'web-push', ['channel', 'createdAt', 'id', 'userId']]]);
+  assert.deepEqual(rows(acme, 'outbound-subscriptions').map(row => row.id), ['sub-acme']);
+  assert.deepEqual(rows(acme, 'outbound-events').map(row => [row.id, row.body.data.workItem.id]), [['ev-acme', '1']]);
+  assert.deepEqual(rows(acme, 'outbound-deliveries').map(row => [row.subscriptionId, row.eventId, row.status]), [['sub-acme', 'ev-acme', 'delivered']]);
 });
 
 function validates(schema: any, value: any, path: string): void {
