@@ -59,15 +59,24 @@ export type Core = {
   changedFiles(session: unknown): { file: string; added: number; removed: number; before?: string; after?: string; artifactId: string }[];
   agentHostAuthority(address: string): string;
   agentsWindowSessionLink(options: { protocol?: string; session: string; address: string }): string;
+  waitingQuestions(detail: unknown): WaitingQuestionShape[];
+  waitingQuestion(detail: unknown, reason: unknown): WaitingQuestionShape | null;
+  answerNote(question: { text: string; role?: string; round?: number | null }, answer: string): string;
+  writeError(value: unknown, limit: number, empty: string): string;
+  answerLimit: number;
+  resumeOffer(detail: unknown): { shiftId: string; askedRound: number; fromRound: number; roundCapUsd: number; poolUsd: number; ready: boolean; waitingQuestionIds: string[]; readyAfter(answered: string[]): boolean } | null;
 };
+
+/** A question a stopped Work Item waits on a person for, as `public/core/blackboard.js` reads it. */
+export type WaitingQuestionShape = { id: string; text: string; typed: boolean; runId: string; role: string; round: number | null; at: string | null };
 
 /** The branch a Work Item's change is on and the repository it belongs to, as `public/core/checkout.js` reads them. */
 export type CheckoutTarget = { branch: string; owner: string; repo: string; baseBranch: string };
 
-/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js`, `reasons.js`, `checkout.js`, `progress.js` and `agents-window.js`. */
+/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js`, `reasons.js`, `blackboard.js`, `checkout.js`, `progress.js` and `agents-window.js`. */
 export async function loadCore(base: string | URL): Promise<Core> {
   const directory = String(base).endsWith('/') ? String(base) : `${base}/`;
-  const [states, format, reasons, checkout, progress, agentsWindow] = await Promise.all(['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js', 'agents-window.js'].map(name => import(new URL(name, directory).href)));
+  const [states, format, reasons, checkout, progress, agentsWindow, blackboard] = await Promise.all(['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js', 'agents-window.js', 'blackboard.js'].map(name => import(new URL(name, directory).href)));
   return {
     workItemState: states.workItemState, displayState: states.displayState, runOutcome: states.runOutcome, verdict: states.verdict, failureReason: states.failureReason,
     playState: states.playState, ciState: states.ciState, humanReview: states.humanReview, sessionStatus: states.sessionStatus,
@@ -76,5 +85,6 @@ export async function loadCore(base: string | URL): Promise<Core> {
     checkoutTarget: checkout.checkoutTarget, checkoutCommand: checkout.checkoutCommand, worktreeFolder: checkout.worktreeFolder, checkoutableBranch: checkout.checkoutableBranch,
     sessionProgress: progress.sessionProgress, progressGroup: progress.progressGroup, sessionForWorkItem: progress.sessionForWorkItem, elapsedClock: progress.elapsedClock, changedFiles: progress.changedFiles,
     agentHostAuthority: agentsWindow.agentHostAuthority, agentsWindowSessionLink: agentsWindow.agentsWindowSessionLink,
+    waitingQuestions: blackboard.waitingQuestions, waitingQuestion: blackboard.waitingQuestion, answerNote: blackboard.answerNote, writeError: blackboard.writeError, answerLimit: blackboard.answerLimit, resumeOffer: blackboard.resumeOffer,
   };
 }

@@ -3,6 +3,7 @@ import type { Core, StateMeta } from './core.js';
 import type { PloegNow, PloegNowItem, PloegRunRow } from './ploeg-types.js';
 import { codicon, toneColors } from './tones.js';
 import { describeItem, describeRun, describeSession, groupTruncated, linkedWorkItems, nowGroup, pullRequestNumber, type SessionRow } from './now.js';
+import { describeHandOff, inFlight, type HandOff, type HandOffList } from './handoffs.js';
 
 export { nowGroup, waitingCount } from './now.js';
 
@@ -13,6 +14,8 @@ export type NowEntry =
   | { kind: 'item'; item: PloegNowItem; demo: boolean }
   | { kind: 'run'; run: PloegRunRow; demo: boolean }
   | { kind: 'session'; row: SessionRow }
+  | { kind: 'handoffs'; inFlight: number; total: number }
+  | { kind: 'handoff'; handoff: HandOff; demo: boolean }
   | { kind: 'message'; label: string; icon: string; command?: string };
 
 /** What a Now row opens: the Work Item, and its tracker task when the row names one. */
@@ -32,6 +35,7 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
   private disconnected = false;
   private ploegMessage?: string;
   private shown = '';
+  private handOffList?: HandOffList;
 
   constructor(core: Core) { this.core = core; }
 
@@ -42,13 +46,16 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
   }
 
   /** Empties the view, so its welcome content offers to connect; the view message says why. */
-  offline() { this.now = undefined; this.sessions = []; this.linked = new Set(); this.ploegMessage = undefined; this.message = undefined; this.disconnected = true; this.fire(); }
+  offline() { this.handOffList = undefined; this.now = undefined; this.sessions = []; this.linked = new Set(); this.ploegMessage = undefined; this.message = undefined; this.disconnected = true; this.fire(); }
 
   current(): PloegNow | undefined { return this.now; }
 
+  /** Shows the person's own hand-offs under Handed off by you; undefined hides the section, as for a workbench without the read. */
+  handOffs(list: HandOffList | undefined) { this.handOffList = list; this.fire(); }
+
   private fire() {
     const minute = Math.floor(Date.now() / 60_000);
-    const key = JSON.stringify([this.now?.waiting, this.now?.running, this.now?.errors, this.now?.truncatedStates, this.sessions.map(row => [row.session.id, row.session.updatedAt, row.group, row.progress.headline, row.group === 'running' ? minute : 0]), this.message, this.ploegMessage, this.disconnected]);
+    const key = JSON.stringify([this.now?.waiting, this.now?.running, this.now?.errors, this.now?.truncatedStates, this.sessions.map(row => [row.session.id, row.session.updatedAt, row.group, row.progress.headline, row.group === 'running' ? minute : 0]), this.message, this.ploegMessage, this.disconnected, this.handOffList?.handoffs.map(entry => [entry.id, entry.workItem?.state, entry.workItem?.updatedAt, entry.workItem?.pullRequestUrl, entry.workItem?.spentUsd, entry.note, minute])]);
     if (key === this.shown) return;
     this.shown = key;
     this.changed.fire(undefined);
@@ -70,8 +77,11 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
       for (const group of groups) if (group.count) entries.push({ kind: 'group', id: group.id, label: groupLabels[group.id], count: group.count });
       if (!entries.some(item => item.kind === 'group') && !this.ploegMessage && !this.now?.errors.waiting) entries.push({ kind: 'message', label: 'Nothing waits on you', icon: 'pass' });
       if (running) entries.push({ kind: 'group', id: 'running', label: groupLabels.running, count: running });
+      const handed = this.handOffList?.handoffs ?? [];
+      if (handed.length) entries.push({ kind: 'handoffs', inFlight: handed.filter(inFlight).length, total: handed.length });
       return entries;
     }
+    if (entry.kind === 'handoffs') { const demo = Boolean(this.handOffList?.demo); return (this.handOffList?.handoffs ?? []).map(handoff => ({ kind: 'handoff' as const, handoff, demo })); }
     if (entry.kind !== 'group') return [];
     const demo = Boolean(this.now?.demo);
     if (entry.id === 'running') return [...this.rows('running').map(row => ({ kind: 'session' as const, row })), ...this.runs().map(run => ({ kind: 'run' as const, run, demo }))];
@@ -100,6 +110,15 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
       case 'item': return this.itemRow(entry.item, entry.demo);
       case 'run': return this.runRow(entry.run, entry.demo);
       case 'session': return this.sessionRow(entry.row);
+      case 'handoffs': {
+        const item = new vscode.TreeItem('Handed off by you', entry.inFlight ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed);
+        item.id = 'now:handoffs';
+        item.description = entry.inFlight ? `${entry.inFlight} in flight` : `${entry.total} recent`;
+        item.tooltip = 'Work you handed off from any client: this VS Code, the browser, or an AI client such as Claude Code, Copilot, ChatGPT or claude.ai through unfold-mcp.';
+        item.contextValue = 'now:handoffs';
+        return item;
+      }
+      case 'handoff': return this.handOffRow(entry.handoff, entry.demo);
     }
   }
 
@@ -137,6 +156,25 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
     row.contextValue = `now:item:${item.state}${pullRequestNumber(item.pullRequestUrl) ? ':pr' : ''}`;
     row.command = { command: 'unfold.openWorkItem', title: 'Open Work Item', arguments: [{ id: item.id, title: item.title, provider: item.provider, externalId: item.externalId } satisfies WorkItemRef] };
     row.accessibilityInformation = { label: text.accessible };
+    return row;
+  }
+
+  private handOffRow(handoff: HandOff, demo: boolean): vscode.TreeItem {
+    const text = describeHandOff(this.core, handoff, demo);
+    const item = handoff.workItem;
+    const row = new vscode.TreeItem(text.label);
+    row.id = `now:handoff:${handoff.id}`;
+    row.description = text.description;
+    const meta: StateMeta = item ? this.core.workItemState(item.state) : { key: 'pending', label: text.heading, tone: 'neutral', glyph: 'clock' };
+    const tooltip = new vscode.MarkdownString(undefined, true);
+    tooltip.appendMarkdown(`$(${codicon(meta.glyph, false)}) **`).appendText(text.heading).appendMarkdown('**');
+    for (const line of text.lines) tooltip.appendMarkdown('\n\n').appendText(line);
+    row.tooltip = tooltip;
+    row.iconPath = item?.state === 'leased' ? new vscode.ThemeIcon(codicon('activity', true), new vscode.ThemeColor(toneColors.live!)) : icon(meta);
+    row.contextValue = `now:handoff:${item?.state ?? 'pending'}${pullRequestNumber(item?.pullRequestUrl) ? ':pr' : ''}`;
+    row.accessibilityInformation = { label: text.accessible };
+    if (item) row.command = { command: 'unfold.openWorkItem', title: 'Open Work Item', arguments: [{ id: item.id, title: item.title } satisfies WorkItemRef] };
+    else if (handoff.origin.kind === 'task') row.command = { command: 'unfold.openTask', title: 'Open task', arguments: [{ sourceId: handoff.origin.sourceId, taskId: handoff.origin.taskId, title: text.label }] };
     return row;
   }
 

@@ -498,7 +498,8 @@ function demoReviewPlay(row: PloegNowItem): { url: string; ci: PloegNowCI | null
   const state = play?.state === 'open' || play?.state === 'merged' || play?.state === 'closed' ? play.state : null;
   return { url: play?.url ?? '', state, ci: play?.ci ? { state: play.ci.state, checks: play.ci.checks.map(check => ({ ...check })) } : null };
 }
-function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
+/** A Work Item as a Now row: its latest Shift's close reason and spend, with no pull request link, CI or question read yet. */
+export function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
   const shift = entry.latestShift;
   const provenance = { ...(entry.sourceWorkItemId ? { sourceWorkItemId: entry.sourceWorkItemId } : {}), ...(entry.sourceTitle ? { sourceTitle: entry.sourceTitle } : {}), ...(entry.createdKind ? { createdKind: entry.createdKind } : {}), ...(entry.ready !== undefined ? { ready: entry.ready } : {}) };
   return { id: entry.id, team: entry.team, state: entry.state, title: entry.title, url: entry.url, createdAt: entry.createdAt, updatedAt: entry.updatedAt, provider: entry.provider, externalId: entry.externalId, priority: entry.priority, attempts: entry.attempts, infraFailures: entry.infraFailures, target: entry.target ? { ...entry.target } : null, closeReason: shift?.closeReason || null, latestShift: shift ? { round: shift.round, branch: shift.branch, closeReason: shift.closeReason, budgetUsd: shift.budgetUsd, spentUsd: shift.spentUsd, reservedUsd: shift.reservedUsd, closedAt: shift.closedAt } : null, spentUsd: shift?.spentUsd ?? null, pullRequestUrl: '', ...(entry.pullRequest === undefined ? {} : { pullRequest: entry.pullRequest ? { ...entry.pullRequest } : null }), ...provenance };

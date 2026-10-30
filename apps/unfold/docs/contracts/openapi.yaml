@@ -2021,6 +2021,40 @@ paths:
                 properties:
                   people: { type: array, items: { type: object } }
                   channels: { type: array, items: { type: object } }
+  /api/handoffs:
+    get:
+      tags: [Workbench]
+      operationId: listHandOffs
+      summary: 'The caller''s own hand-offs from any channel, with the Work Item each became'
+      description: 'Read from the caller''s own Action Records, newest first, one entry per task or Work Item, left out once taken back. A task whose source the caller no longer reaches, and a Work Item outside their Teams or Tenant, is left out. `workItem` is null with a `note` until Ploeg lists one.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - { name: refresh, in: query, required: false, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: '`{handoffs, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [handoffs, demo, fetchedAt]
+                properties:
+                  handoffs:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, at, channel, team, origin, workItem, note]
+                      properties:
+                        id: { type: integer }
+                        at: { type: string, format: date-time }
+                        channel: { type: string }
+                        team: { type: [string, 'null'] }
+                        origin: { type: object, required: [kind], properties: { kind: { type: string, enum: [task, session] }, sourceId: { type: string }, sourceName: { type: string }, taskId: { type: string } } }
+                        workItem: { type: [object, 'null'] }
+                        note: { type: string }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string, format: date-time }
 
   /api/linked-sessions:
     get:
