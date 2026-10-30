@@ -3,7 +3,7 @@
 ## 1. Plan
 
 - [ ] 1.1 File the ticket on the Unfold board and add its `VIK-<id>` to the proposal
-- [x] 1.2 Write application ADR 0058 (proposed) with its README row and regenerate the decision register
+- [x] 1.2 Write application ADR 0059 (proposed) with its README row and regenerate the decision register
 
 ## 2. Build
 

@@ -38,4 +38,4 @@ Application: `apps/unfold`. No ticket is filed yet; task 1.1 files one.
 `src/identity/` (new), `src/auth.ts`, `src/ahp/host.ts`, `src/store.ts`,
 `src/http.ts` (one mount, the sign-in check and sign-out), `src/config.ts`,
 `src/flag-registry.json`, the operations page and the HTTP contract.
-Application ADR 0058 (proposed).
+Application ADR 0059 (proposed).
