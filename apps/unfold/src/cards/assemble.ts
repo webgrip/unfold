@@ -1,4 +1,5 @@
 import { micros, rfc3339Micros } from './go.ts';
+import { ploegTrackerReference } from '../task-providers/index.ts';
 import type { FactsPullRequest, FactsRun, WorkItemFacts } from './facts.ts';
 import { walk, bounceCounts, type GateMap, type Journey, type Transition, type Reason } from './gate.ts';
 import { computeFlow, type Calendar, type Flow, type FlowFacts, type KindMap } from './flow.ts';
@@ -128,10 +129,11 @@ type Run = FactsRun & { started: number; finished: number | null; cost: number |
 type Play_ = CardPlay & { id: string; forge: string; repo: string; openedAt: number; mergedAtUs: number | null; fullShape: Shape | null; facts: FactsPullRequest };
 type Crack_ = { crack: CardCrack; bugCreated: number; primaries: number; mendBy: string };
 
-/** The tracker reference of a Work Item, as Ploeg's `work.Reference`: `VIK-<id>` for Vikunja, `<provider>-<id>` otherwise, empty for manual work. */
+/** The tracker reference of a Work Item, as Ploeg's `work.Reference`: the tracker adapter's reference format when it has one, `<provider>-<id>` otherwise, empty for manual work. */
 export function itemRef(provider: string, externalId: string): string {
   if (provider === 'manual' || externalId === '') return '';
-  if (provider === '' || provider === 'vikunja') return `VIK-${externalId}`;
+  const reference = ploegTrackerReference(provider, externalId);
+  if (reference) return reference;
   const safe = (s: string) => s.replace(/[^a-zA-Z0-9_-]/gu, '-');
   return `${safe(provider)}-${safe(externalId)}`;
 }

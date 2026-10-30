@@ -1,6 +1,6 @@
 import type { AppConfig, User } from './types.ts';
 import { PloegError, type PloegClient, type PloegItem, type PloegTeam } from './ploeg.ts';
-import { commentOnTask, findTrackerUser, getHandoffTask, handoffUnsupported, setTrackerAssignee, taskProject, TaskError, trackerName, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
+import { assigneeHandles, commentOnTask, findTrackerUser, getHandoffTask, handoffNoteFormat, handoffUnsupported, isFixtureSource, lookupProvider, setTrackerAssignee, taskProject, TaskError, trackerName, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 
 export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] };
 export type TaskPloegWorkItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
@@ -12,10 +12,9 @@ export type Routing = { teams: PloegTeam[]; all: PloegTeam[]; reported: boolean 
 const olderTeams = 'This Ploeg version does not report which tracker users route work to its teams. Update Ploeg to hand tasks off from here.';
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 const pinnedTo = (routing: Routing, source: TaskSourceConfig) => routing.all.find(team => team.pinnedScopes.includes(source.project));
-const handles = (task: TaskSnapshot, person: NonNullable<TaskSnapshot['assignees']>[number]) => (task.provider === 'clickup' && person.name ? [person.username, person.name] : [person.username]).map(name => name.toLowerCase());
-const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => handles(task, person).includes(name.toLowerCase())));
+const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => assigneeHandles(task, person).includes(name.toLowerCase())));
 const noteActions = { handed: 'Handed to Ploeg team', taken: 'Taken back from Ploeg team' };
-const note = (source: TaskSourceConfig, kind: keyof typeof noteActions, team: string, person: string) => source.provider === 'clickup' ? `${noteActions[kind]} ${team} by ${person} from Unfold.` : `<p>${noteActions[kind]} <code>${escapeHtml(team)}</code> by ${escapeHtml(person)} from Unfold.</p>`;
+const note = (source: TaskSourceConfig, kind: keyof typeof noteActions, team: string, person: string) => handoffNoteFormat(source) === 'text' ? `${noteActions[kind]} ${team} by ${person} from Unfold.` : `<p>${noteActions[kind]} <code>${escapeHtml(team)}</code> by ${escapeHtml(person)} from Unfold.</p>`;
 
 /** The Ploeg teams a person may route a board's tasks to: the team the board is pinned to, or else every team of theirs with a tracker user to assign. */
 export function routedTeams(routing: Routing, source: TaskSourceConfig, allows: (team: string) => boolean): { teams: PloegTeam[]; pinned?: string; reason?: string } {
@@ -26,7 +25,7 @@ export function routedTeams(routing: Routing, source: TaskSourceConfig, allows: 
   return { teams: [pinned], pinned: pinned.id };
 }
 
-/** Hands Vikunja and ClickUp tasks to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
+/** Hands tasks of trackers whose adapter supports hand-off to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
 export class TaskHandoff {
   private readonly config: AppConfig;
   private readonly ploeg: PloegClient;
@@ -35,7 +34,7 @@ export class TaskHandoff {
   private get demo(): boolean { return this.config.mode === 'demo' && (!this.config.ploeg || this.config.ploeg.demo === true); }
 
   private idle(source: TaskSourceConfig, message: string): TaskPloegStatus {
-    return { available: false, message, demo: this.demo || source.provider === 'demo', handoff: { allowed: false, reason: message }, teams: [], assignedTeams: [], workItems: [], fetchedAt: new Date().toISOString() };
+    return { available: false, message, demo: this.demo || isFixtureSource(source), handoff: { allowed: false, reason: message }, teams: [], assignedTeams: [], workItems: [], fetchedAt: new Date().toISOString() };
   }
 
   private async team(user: User, source: TaskSourceConfig, id: string): Promise<{ team: PloegTeam; routing: Routing }> {
@@ -141,10 +140,9 @@ export class TaskHandoff {
     return { ...await this.report(user, source, (await getHandoffTask(source, task.id)).task, true), ...(warnings.length ? { warnings } : {}) };
   }
 
-  /** Finds the configured Vikunja or ClickUp source, among `reached` (every source unless given), whose project or home List holds a tracker task. */
+  /** Finds the configured source of a provider that hands off to Ploeg, among `reached` (every source unless given), whose project or home List holds a tracker task. */
   async lookup(provider: string | null, id: string | null, reached: readonly TaskSourceConfig[] = this.config.taskSources ?? []): Promise<{ sourceId: string }> {
-    if (provider !== 'vikunja' && provider !== 'clickup') throw new TaskError(400, 'lookup_unsupported', 'Only Vikunja and ClickUp tasks can be looked up.');
-    if (!id || !(provider === 'clickup' ? /^[a-zA-Z0-9_-]{1,128}$/ : /^[1-9][0-9]{0,19}$/).test(id)) throw new TaskError(400, 'task_id_invalid', 'Use the native task ID.');
+    lookupProvider(provider, id);
     const sources = reached.filter(source => source.provider === provider).sort((a, b) => Number(b.executionOwner === 'ploeg') - Number(a.executionOwner === 'ploeg'));
     for (const baseUrl of [...new Set(sources.map(source => source.baseUrl))]) {
       const project = await taskProject(sources.find(source => source.baseUrl === baseUrl)!, id);

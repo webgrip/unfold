@@ -3,6 +3,7 @@ import type { AppConfig, User } from './types.ts';
 import { foreignTool, parseAgentTrace, traceLines, traceLinesByAgent, type AgentTraceRecord } from './agent-trace.ts';
 import { readSessionTelemetry, type SessionTelemetry } from './linked-telemetry.ts';
 import { aiCommitTrailers, aiMarkingBlock } from './ai-marking.ts';
+import { referencePrefixes, trackerReference } from './task-providers/index.ts';
 
 /** The harnesses whose sessions a person can link. */
 export const linkedHarnesses = ['claude-code', 'opencode', 'codex', 'acp'] as const;
@@ -14,8 +15,8 @@ export const linkedStaleMs = 30 * 60_000;
 export const linkedLimits = { workItems: 20, commits: 200, pullRequests: 20, traces: 500, listed: 50 } as const;
 /** How many sessions' telemetry one Work Item read asks the stores for at once. */
 export const linkedTelemetryConcurrency = 4;
-/** Tracker reference prefixes in branch names, such as `feat/vik-2051-login`, and the tracker each names. */
-export const trackerPrefixes: Readonly<Record<string, string>> = { vik: 'vikunja' };
+/** Tracker reference prefixes in branch names, lowercase, and the tracker each names; every task provider adapter with a reference format supplies one. */
+export const trackerPrefixes = (): Readonly<Record<string, string>> => referencePrefixes();
 
 export type LinkedHarness = typeof linkedHarnesses[number];
 const harnessLabels: Record<LinkedHarness, string> = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex', acp: 'ACP agent' };
@@ -106,7 +107,7 @@ export function repositoryAddress(value: unknown): string {
 export function branchReferences(branch: string): { provider: string; externalId: string; ref: string }[] {
   const found = new Map<string, { provider: string; externalId: string; ref: string }>();
   for (const match of branch.toLowerCase().matchAll(/(?:^|[^a-z0-9])([a-z]{2,10})-([1-9][0-9]{0,18})(?=$|[^0-9])/g)) {
-    const provider = trackerPrefixes[match[1]];
+    const provider = trackerPrefixes()[match[1]];
     if (provider && found.size < 5) found.set(`${provider}:${match[2]}`, { provider, externalId: match[2], ref: `${match[1].toUpperCase()}-${match[2]}` });
   }
   return [...found.values()];
@@ -117,7 +118,7 @@ export function trackerReferences(values: unknown): LinkedMentions['refs'] {
   const found = new Map<string, LinkedMentions['refs'][number]>();
   for (const value of Array.isArray(values) ? values.slice(0, 20) : []) {
     const match = typeof value === 'string' ? /^([A-Za-z]{2,10})-([1-9][0-9]{0,18})$/.exec(value.trim()) : null;
-    const provider = match ? trackerPrefixes[match[1].toLowerCase()] : undefined;
+    const provider = match ? trackerPrefixes()[match[1].toLowerCase()] : undefined;
     if (match && provider && found.size < 10) found.set(`${provider}:${match[2]}`, { provider, externalId: match[2], ref: `${match[1].toUpperCase()}-${match[2]}` });
   }
   return [...found.values()];
@@ -156,7 +157,7 @@ export function displayTitle(session: Pick<LinkedSession, 'title' | 'branch' | '
   const own = session.commits.find(entry => entry.trailer && entry.subject && !/^Merge /.test(entry.subject));
   if (own) return own.subject.slice(0, 120);
   if (session.branch && !plainBranches.has(session.branch.toLowerCase())) {
-    const words = session.branch.replace(branchKinds, '').split('/').at(-1)!.replace(/[-_]+/g, ' ').replace(/\b([a-z]{2,10}) ([1-9][0-9]{0,18})\b/gi, (whole, prefix: string, id: string) => trackerPrefixes[prefix.toLowerCase()] ? `${prefix.toUpperCase()}-${id}` : whole).trim();
+    const words = session.branch.replace(branchKinds, '').split('/').at(-1)!.replace(/[-_]+/g, ' ').replace(/\b([a-z]{2,10}) ([1-9][0-9]{0,18})\b/gi, (whole, prefix: string, id: string) => trackerPrefixes()[prefix.toLowerCase()] ? `${prefix.toUpperCase()}-${id}` : whole).trim();
     if (words) return `${words[0].toUpperCase()}${words.slice(1)}`.slice(0, 120);
   }
   const repo = repositoryPath(session.repository).split('/')[1];
@@ -326,7 +327,7 @@ export class LinkedSessions {
     const credential = expiresAt ? { expiresAt, expiresSoon: Date.parse(expiresAt) - this.clock().getTime() <= credentialWarningMs } : null;
     return {
       session: presented, context: await this.context(user, presented, credential), suggestedTitle: !session.title && session.workItems.length ? await this.suggestTitle(user, session) : '',
-      trackerPrefixes: Object.keys(trackerPrefixes).map(prefix => prefix.toUpperCase()), credential,
+      trackerPrefixes: Object.keys(trackerPrefixes()).map(prefix => prefix.toUpperCase()), credential,
     };
   }
 
@@ -374,7 +375,7 @@ export class LinkedSessions {
   private async suggestTitle(user: User, session: LinkedSession): Promise<string> {
     try {
       const { item } = await this.ploeg.detail(user, session.workItems[0].id);
-      const ref = item.provider === 'vikunja' && /^\d+$/.test(item.externalId) ? `VIK-${item.externalId}` : `#${item.id}`;
+      const ref = (/^\d+$/.test(item.externalId) ? trackerReference(item.provider, item.externalId) : undefined) ?? `#${item.id}`;
       return `${ref} ${item.title}`.replace(/[\0-\x1f]/g, ' ').slice(0, 80).trim();
     } catch { return ''; }
   }

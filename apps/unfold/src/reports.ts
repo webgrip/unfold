@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, ReportTarget, User } from './types.ts';
 import type { TaskSourceConfig } from './tasks.ts';
 import type { Store, StoredReport, StoredReportFile, StoredReportIssue } from './store.ts';
-import { apiRoot, attachToIssue, commentOnIssue, createIssue, readIssueState, reportTargetProject, TaskError, updateIssueBody, type IssueFile, type IssueState } from './tasks.ts';
+import { apiRoot, attachToIssue, canUpdateIssueBody, commentOnIssue, createIssue, describeIssueTarget, filesIssues, issueBodyFormat, issueProviderLabels, issueProviderNames, readIssueState, reportTargetProject, TaskError, updateIssueBody, type IssueFile, type IssueState } from './tasks.ts';
 
 export const maxReportBytes = 8 * 1024 * 1024;
 export const maxReportFiles = 5;
@@ -66,16 +66,16 @@ const impactWords: Record<ReportImpact, string> = { blocks: 'Blocks me', slows: 
 export type ReportOutcome = { id: string; status: StoredReport['status']; url?: string; message: string; joined?: boolean; others?: number; acknowledgement?: string };
 
 /**
- * Resolves `reports` from the configuration file. `false` turns filing off. `{ source, project? }` names a Forgejo or
- * Vikunja task source and optionally another repository or project. `{ provider, baseUrl, project, tokenEnv }` is a
+ * Resolves `reports` from the configuration file. `false` turns filing off. `{ source, project? }` names a task source
+ * whose provider files issues and optionally another repository or project. `{ provider, baseUrl, project, tokenEnv }` is a
  * connection of its own, which never appears among the task sources or on the Tasks page. Leaving `reports` out picks
- * the first Forgejo or Vikunja source with a token that Unfold owns. A source Ploeg dispatches from is never a default,
+ * the first source with a token, whose provider files issues, that Unfold owns. A source Ploeg dispatches from is never a default,
  * and naming one needs another project, so a report never becomes agent work. A missing token turns filing off with a
  * warning instead of stopping Unfold. Returns null when nothing can file reports.
  */
 export function reportSettings(raw: unknown, sources: TaskSourceConfig[] | undefined, mode: AppConfig['mode']): ReportTarget | null {
   if (raw === false || mode === 'demo') return null;
-  const fileable = (sources ?? []).filter(source => (source.provider === 'forgejo' || source.provider === 'vikunja') && source.token);
+  const fileable = (sources ?? []).filter(source => filesIssues(source.provider) && source.token);
   if (raw === undefined) {
     const own = fileable.find(source => source.executionOwner === 'interactive');
     return own ? { source: own, project: own.project } : null;
@@ -86,9 +86,9 @@ export function reportSettings(raw: unknown, sources: TaskSourceConfig[] | undef
   if (Object.keys(value).some(key => !['source', 'project', 'acknowledgement'].includes(key))) throw new Error('reports must be false, { source, project?, acknowledgement? } or { provider, baseUrl, project, tokenEnv, acknowledgement? }');
   const acknowledgement = acknowledgementSetting(value.acknowledgement);
   const source = fileable.find(entry => entry.id === value.source);
-  if (!source) throw new Error('reports.source must name a Forgejo or Vikunja task source with a token');
+  if (!source) throw new Error(`reports.source must name a ${issueProviderLabels()} task source with a token`);
   const project = value.project === undefined ? source.project : value.project;
-  if (typeof project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
+  if (typeof project !== 'string') throw new Error('reports.project must name the repository or project on the report tracker');
   const target = reportTargetProject(source, project);
   if (source.executionOwner === 'ploeg' && target === source.project) throw new Error(`reports.project must differ from ${source.id}'s project: Ploeg dispatches the tasks there, so a report would become agent work`);
   return { source, project: target, ...(acknowledgement ? { acknowledgement } : {}) };
@@ -103,10 +103,10 @@ function acknowledgementSetting(value: unknown): string | undefined {
 function ownConnection(value: Record<string, unknown>): ReportTarget | null {
   if (Object.keys(value).some(key => !['provider', 'baseUrl', 'project', 'tokenEnv', 'acknowledgement'].includes(key))) throw new Error('reports with its own connection takes provider, baseUrl, project, tokenEnv and acknowledgement only');
   const acknowledgement = acknowledgementSetting(value.acknowledgement);
-  if (value.provider !== 'forgejo' && value.provider !== 'vikunja') throw new Error('reports.provider must be forgejo or vikunja');
+  if (typeof value.provider !== 'string' || !filesIssues(value.provider)) throw new Error(`reports.provider must be ${issueProviderNames()}`);
   if (typeof value.tokenEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(value.tokenEnv)) throw new Error('reports.tokenEnv must name an environment variable');
-  if (typeof value.project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
-  const provider = value.provider as 'forgejo' | 'vikunja';
+  if (typeof value.project !== 'string') throw new Error('reports.project must name the repository or project on the report tracker');
+  const provider = value.provider;
   const base: TaskSourceConfig = { id: 'reports', name: 'Report a problem', provider, baseUrl: apiRoot(value.baseUrl, provider), project: '', repositoryId: '', executionOwner: 'interactive' };
   const project = reportTargetProject(base, value.project);
   const token = process.env[value.tokenEnv];
@@ -263,7 +263,7 @@ function heading(report: StoredReport): string {
   return kindHeadings[report.body.kind as ReportKind] ?? kindHeadings.broken;
 }
 
-/** The Markdown body of a Forgejo issue: what happened, what was expected, the page facts and, once uploaded, the screenshot. */
+/** The Markdown body of a filed issue: what happened, what was expected, the page facts and, once uploaded, the screenshot. */
 export function markdownBody(report: StoredReport, version: string, baseUrl?: string, screenshotUrl?: string, attachments: string[] = []): string {
   const happened = String(report.body.happened ?? '');
   const expected = String(report.body.expected ?? '');
@@ -278,7 +278,7 @@ export function markdownBody(report: StoredReport, version: string, baseUrl?: st
   ].join('\n');
 }
 
-/** The HTML description of a Vikunja task with the same sections; the screenshot travels as an attachment. */
+/** The HTML description of a filed task with the same sections, for trackers that render HTML; the screenshot travels as an attachment. */
 export function htmlBody(report: StoredReport, version: string, baseUrl?: string, attachments: string[] = []): string {
   const paragraphs = (value: string) => value.split(/\n{2,}/).map(part => `<p>${htmlText(part).replace(/\n/g, '<br>')}</p>`).join('');
   const expected = String(report.body.expected ?? '');
@@ -386,7 +386,7 @@ export class ReportService {
   publicTarget(): string | null {
     const source = this.source();
     if (!source || !this.config.reports) return null;
-    return `${source.provider === 'forgejo' ? 'Forgejo' : 'Vikunja'} · ${source.provider === 'vikunja' ? `project ${this.config.reports.project}` : this.config.reports.project}`;
+    return describeIssueTarget(source, this.config.reports.project);
   }
 
   /** The person's own latest reports, newest first: where each went, where it stands and whether the team did something they have not seen. */
@@ -460,7 +460,7 @@ export class ReportService {
     const recent = (this.replies.get(user.id) ?? []).filter(time => at - time < 3_600_000);
     if (recent.length >= maxRepliesPerHour) throw new ReportError(429, 'rate_limited', `You added ${maxRepliesPerHour} replies in the last hour. Try again later.`);
     this.replies.set(user.id, [...recent, at]);
-    const body = source.provider === 'forgejo'
+    const body = issueBodyFormat(source) === 'markdown'
       ? `**${markdownText(user.name)}** adds, from Unfold:\n\n${markdownText(value)}\n`
       : `<p><strong>${htmlText(user.name)}</strong> adds, from Unfold:</p>${value.split(/\n{2,}/).map(part => `<p>${htmlText(part).replace(/\n/g, '<br>')}</p>`).join('')}`;
     await commentOnIssue(source, this.config.reports!.project, report.issue, body);
@@ -548,7 +548,7 @@ export class ReportService {
       this.store.updateReport(report.id, { status: 'retrying', issue, url: issue.url, nextAttemptAt: report.nextAttemptAt ?? null });
     }
     if (!issue) {
-      const created = await createIssue(source, project, report.title, source.provider === 'forgejo' ? markdownBody(report, this.version, baseUrl, undefined, names) : htmlBody(report, this.version, baseUrl, names));
+      const created = await createIssue(source, project, report.title, issueBodyFormat(source) === 'markdown' ? markdownBody(report, this.version, baseUrl, undefined, names) : htmlBody(report, this.version, baseUrl, names));
       issue = { ...created, attached: [] };
       this.store.updateReport(report.id, { status: 'retrying', issue, url: issue.url, nextAttemptAt: report.nextAttemptAt ?? null });
     }
@@ -560,12 +560,12 @@ export class ReportService {
     }
     if (issue.joined) {
       if (!issue.commented) {
-        await commentOnIssue(source, project, issue, source.provider === 'forgejo' ? joinedMarkdown(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png' || !issue!.screenshotUrl)) : `<p><strong>Someone else hit this too.</strong></p>${htmlBody(report, this.version, baseUrl, names)}`);
+        await commentOnIssue(source, project, issue, issueBodyFormat(source) === 'markdown' ? joinedMarkdown(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png' || !issue!.screenshotUrl)) : `<p><strong>Someone else hit this too.</strong></p>${htmlBody(report, this.version, baseUrl, names)}`);
         issue = { ...issue, commented: true };
       }
       return issue;
     }
-    if (source.provider === 'forgejo' && issue.screenshotUrl) await updateIssueBody(source, project, issue, markdownBody(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png')));
+    if (canUpdateIssueBody(source) && issue.screenshotUrl) await updateIssueBody(source, project, issue, markdownBody(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png')));
     return issue;
   }
 

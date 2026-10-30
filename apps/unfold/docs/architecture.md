@@ -51,7 +51,8 @@ Every module in `src/`:
 | [`src/static.ts`](../src/static.ts) | Serves the public directory with a content ETag, 304 revalidation and cached gzip for text types |
 | [`src/auth.ts`](../src/auth.ts) | Local password login, cookie sign-ins and the editor device-code sign-in |
 | [`src/oidc.ts`](../src/oidc.ts) | OpenID Connect sign-in with PKCE; maps groups or a claim to a role |
-| [`src/links.ts`](../src/links.ts) | Per-person linked GitLab and ClickUp accounts, stored encrypted, used for tracker reads and clone access |
+| [`src/links.ts`](../src/links.ts) | Per-person linked accounts, stored encrypted, used for tracker reads and clone access; delegates to the link provider registry |
+| [`src/link-providers/`](../src/link-providers/registry.ts) | The link provider registry and one adapter per provider (GitLab, ClickUp): OAuth, pasted tokens, revocation and clone credentials |
 | [`src/store.ts`](../src/store.ts) | SQLite store for sessions, events, permissions, users, sign-ins, encrypted internal state and the card collection (logins, binder marks, opened packs and pulls, inner world decorations) |
 | [`src/engine.ts`](../src/engine.ts) | Session lifecycle: create, start, pause, resume, cancel, retry, review, messages, permissions and budget; runs a Team's Roles in sequence, captures the candidate and recovers after a restart |
 | [`src/failures.ts`](../src/failures.ts) | Fixed catalogue of safe failure categories and stages, and classification of runtime errors into it |
@@ -62,15 +63,17 @@ Every module in `src/`:
 | [`src/collection.ts`](../src/collection.ts) | The person's card collection ([ADR 0029](adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md)): card logins, the binder, packs and their stored pulls, seen markers, inner world decorations ([ADR 0033](adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md), checked by [`src/card-worlds.ts`](../src/card-worlds.ts)) and the Team season page, always keyed by the signed-in person |
 | [`src/packs.ts`](../src/packs.ts) | Card moments from facts, ISO-week and sprint periods, pack composition, copy roles, the published odds and the HMAC-SHA256 pull |
 | [`src/season.ts`](../src/season.ts) | Calendar quarters and a Team's season totals, never per person |
-| [`src/tasks.ts`](../src/tasks.ts) | Tracker connectors for Forgejo, GitHub, GitLab, ClickUp, Vikunja and a demo source; reads everywhere, and Vikunja assignee and comment writes for hand-off |
-| [`src/task-handoff.ts`](../src/task-handoff.ts) | Hands a Vikunja task to a Ploeg team by assigning its tracker user, takes it back, and reports the Ploeg work for a task |
-| [`src/rich-text.ts`](../src/rich-text.ts) | Adds `descriptionMarkdown` for display: Vikunja HTML becomes Markdown the browser and the editor's task view render; other text passes through |
+| [`src/tasks.ts`](../src/tasks.ts) | Task source validation, snapshots and the capability calls (hand-off, Report a problem filing, linked tokens); delegates every provider-specific step to the task provider registry |
+| [`src/task-providers/`](../src/task-providers/registry.ts) | The task provider registry and one adapter per provider (Forgejo, GitHub, GitLab, Vikunja, ClickUp, demo): browse, read, assignees, comments, issue filing, description format and reference format |
+| [`src/task-handoff.ts`](../src/task-handoff.ts) | Hands a task to a Ploeg team by assigning its tracker user, on trackers whose adapter supports hand-off, takes it back, and reports the Ploeg work for a task |
+| [`src/rich-text.ts`](../src/rich-text.ts) | Adds `descriptionMarkdown` for display: HTML from a tracker whose adapter sends HTML becomes Markdown the browser and the editor's task view render; other text passes through |
 | [`src/markdown.ts`](../src/markdown.ts) | Dependency-free, size-capped HTML-to-Markdown converter, in CommonMark or the subset the browser's renderer reads |
 | [`src/task-binding.ts`](../src/task-binding.ts) | Looks up and compares the Ploeg Work Item bound to an imported Vikunja or ClickUp task |
 | [`src/candidates.ts`](../src/candidates.ts) | Captures a workspace change as a Git bundle, binary patch and manifest |
 | [`src/attestations.ts`](../src/attestations.ts) | Signs candidate provenance and Agent Trace records as Ed25519 DSSE envelopes |
 | [`src/delivery.ts`](../src/delivery.ts) | Shared-mode candidate delivery: canonicalize, verify, record the receipt and approval in Ploeg |
 | [`src/delivery-config.ts`](../src/delivery-config.ts) | Validates delivery policies and computes the policy hash |
+| [`src/delivery-publisher.ts`](../src/delivery-publisher.ts) and [`src/delivery-publishers/`](../src/delivery-publishers/registry.ts) | The `DeliveryPublisher` interface, the forge publisher registry and its Forgejo, GitHub and GitLab adapters: lease-guarded push and one labelled pull or merge request |
 | [`src/delivery-verifier.ts`](../src/delivery-verifier.ts) | Runs a policy's pinned checks in throwaway Docker containers |
 | [`src/trusted-candidate.ts`](../src/trusted-candidate.ts) | Rebuilds a captured candidate as one canonical commit on the approved base, with hardened Git |
 | [`src/ahp/host.ts`](../src/ahp/host.ts) | Agent Host Protocol server: connection tokens, JSON-RPC methods and session events projected as turns |

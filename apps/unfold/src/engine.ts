@@ -7,7 +7,7 @@ import type { PersonProof } from './person-proof.ts';
 import { unprovenSessionBlocker, type PloegAttribution } from './ploeg-attribution.ts';
 import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, leftWorkingForRestart, workbenchRestart, type FailureCategory, type FailureStage } from './failures.ts';
-import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
+import { getTask, sourceLinkProvider, taskBindingConfiguration, withLinkedToken, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 import { lookupTaskBinding, sameTaskBinding } from './task-binding.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { investigate, type Investigation, type PloegRevision } from './investigation.ts';
@@ -190,10 +190,11 @@ export class Engine {
   }
 
   async taskSource(source: TaskSourceConfig, user: User): Promise<TaskSourceConfig> {
-    if (source.token || !['clickup', 'gitlab'].includes(source.provider)) return source;
-    const linked = await this.links?.token(user.id, source.provider as 'gitlab' | 'clickup');
+    const provider = sourceLinkProvider(source);
+    if (!provider) return source;
+    const linked = await this.links?.token(user.id, provider);
     if (!linked) throw new EngineError(409, 'source_unlinked', 'Link your tracker account under Linked accounts to use this connection.');
-    return { ...source, token: linked.token, ...(source.provider === 'gitlab' && linked.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) };
+    return withLinkedToken(source, linked);
   }
 
   async previewTask(snapshot: TaskSnapshot, user: User): Promise<TaskSnapshot> {

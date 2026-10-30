@@ -2,7 +2,7 @@ import type { AppConfig } from './types.ts';
 import { createHash } from 'node:crypto';
 import { PloegError, contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
-import { taskBindingConfiguration, type PloegTaskSource, type TaskSnapshot, type TaskTarget } from './tasks.ts';
+import { canHandOff, taskBindingConfiguration, type PloegTaskSource, type TaskSnapshot, type TaskTarget } from './tasks.ts';
 
 const unavailable = () => new PloegError(503, 'task_binding_unavailable', 'Ploeg could not confirm the existing work item. Refresh before importing or starting work.');
 const mismatch = () => new PloegError(409, 'task_binding_changed', 'The tracker source, Ploeg work item or registered target changed. Refresh the task and review its current binding.');
@@ -17,7 +17,7 @@ export async function lookupTaskBinding(config: AppConfig, task: TaskSnapshot, c
   if (refusal) throw refusal;
   const source = config.taskSources?.find(source => source.id === task.sourceId);
   const repository = config.repositories.find(repository => repository.id === task.repositoryId);
-  if (!config.execution || !source?.ploeg || source.executionOwner !== 'ploeg' || !['vikunja', 'clickup'].includes(source.provider) || !repository || source.repositoryId !== repository.id) throw new PloegError(409, 'task_binding_unconfigured', 'This task connection needs a registered Ploeg tracker target before it can be imported into shared execution.');
+  if (!config.execution || !source?.ploeg || source.executionOwner !== 'ploeg' || !canHandOff(source.provider) || !repository || source.repositoryId !== repository.id) throw new PloegError(409, 'task_binding_unconfigured', 'This task connection needs a registered Ploeg tracker target before it can be imported into shared execution.');
   if (task.provider !== source.provider || task.status !== 'open' || !task.nativeRevision || task.scope !== source.project) throw mismatch();
   const token = config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined;
   if (!config.ploeg?.url || config.ploeg.demo || !token || /[^\x21-\x7e]/.test(token)) throw unavailable();

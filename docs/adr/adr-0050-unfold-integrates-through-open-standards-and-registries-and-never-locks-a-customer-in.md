@@ -64,10 +64,6 @@ Chosen option: "**Open standards on the wire, registries in the code, everything
 **Known violations to fix.** These exist on `development` today:
 
 * The LiteLLM admin API is hardwired: `LiteLLMBroker` in `apps/unfold/src/broker.ts` calls LiteLLM's admin routes directly. It moves behind the generic gateway contract.
-* `ForgejoPublisher` in `apps/unfold/src/delivery-publisher.ts` has no interface. Pull request publishing becomes a registered forge adapter.
-* Report a problem files only into Forgejo or Vikunja (`apps/unfold/src/reports.ts`). Filing goes through the tracker registry ([ADR-0024](adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md), [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md)).
-* `TaskProvider` and `LinkProvider` are closed unions in `apps/unfold/src/tasks.ts`, `apps/unfold/src/links.ts` and `apps/unfold/extensions/vscode/src/types.ts`.
-* `VIK-` references are built outside an adapter, in `apps/unfold/src/cards/assemble.ts` and `apps/unfold/src/linked-sessions.ts`.
 * Sign-in assumes Authentik (the default display name and claims in `apps/unfold/src/config.ts`), and there is no SCIM provisioning.
 * Unfold's own API has no OpenAPI description.
 * There is no Tenant export.
@@ -88,7 +84,7 @@ A reviewer checks a pull request that adds or changes an integration, an export 
 7. Is any of it hosted-only?
 8. Does a Ploeg change name Unfold, or is it a generic contract?
 
-A "no" to 1, 3, 4, 6 or 8, or a "yes" to 7, is a blocking finding. Proposed checks, none of which exist yet: a test that fails on a string-literal union of provider names outside an adapter, a scan for `VIK-` outside the Vikunja adapter, and an export test that round-trips a Tenant.
+A "no" to 1, 3, 4, 6 or 8, or a "yes" to 7, is a blocking finding. `apps/unfold/test/integration-registries.test.ts` fails on a union of provider names, a comparison with a provider name or a built `VIK-` reference outside an adapter. Proposed, not built: an export test that round-trips a Tenant.
 
 ## Pros and Cons of the Options
 
@@ -113,3 +109,4 @@ A "no" to 1, 3, 4, 6 or 8, or a "yes" to 7, is a blocking finding. Proposed chec
 * Touches [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md) (the billing line per accepted ticket goes to the agency's own tool), [ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md) (the preview step runs in the agency's own pipeline on every supported forge, and deploys to the agency's own infrastructure unless it chooses Unfold's hosting; rule 4 is about model credentials, not that hosting), [ADR-0009](adr-0009-one-tenant-per-agency.md) and [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) (the Tenant is the unit of export), and [ADR-0026](adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) (notifications use Web Push, a standard).
 * Unfold application ADRs it builds on: [0003](../../apps/unfold/docs/adrs/0003-runtime-workspace-and-credential-seams.md) (distinct seams), [0004](../../apps/unfold/docs/adrs/0004-portable-procedures-and-explicit-contracts.md) (explicit contracts), [0042](../../apps/unfold/docs/adrs/0042-unfold-reports-errors-and-failed-asks-to-any-error-tracker.md) (any error tracker) and [0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) (flags behind OpenFeature).
 * 2026-10-30 — Accepted by the owner, with the gateway, tracker order, editor and billing decisions above.
+* 2026-10-30 — The task and link provider registries, the `DeliveryPublisher` interface with Forgejo, GitHub and GitLab adapters, Report a problem through the tracker registry and adapter-supplied reference formats replaced four of the known violations (OpenSpec change `integration-registries`).

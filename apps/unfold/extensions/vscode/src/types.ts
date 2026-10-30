@@ -64,7 +64,8 @@ export type PublicationBinding = { candidateId: string; receiptId: string; polic
 /** What a panel shows for a gated session: whether it offers Accept and open pull request, the identities it sends, and the pull request stage. */
 export type PublicationOffer = { offered: boolean; binding?: PublicationBinding; state: 'ready' | 'publishing' | 'published' | 'recovery' | 'refused'; title: string; detail: string; pullRequest?: { number: number; url: string } };
 
-export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
+/** The name of a task provider the server registered, such as `vikunja`; the server's task provider registry is the list. */
+export type TaskProvider = string;
 export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; handoff?: boolean; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
@@ -78,5 +79,6 @@ export type TaskPage = { tasks: TaskSnapshot[]; nextPage?: number };
 export type TaskImportInput = { sourceId: string; taskId: string; revision: string; bindingRevision?: string; teamId: string; runtime: string; placement?: string; budgetUsd: number };
 export type Candidate = { status: 'ready' | 'unavailable'; reason?: string; message?: string; createdAt?: string; baseSha?: string; snapshotBaseSha?: string; headSha?: string; treeSha?: string; fileCount?: number; bytes?: number; sha256?: { bundle: string; patch: string }; formats?: CandidateFormat[] };
 export type CandidateFormat = 'bundle' | 'patch' | 'manifest' | 'attestation' | 'trace';
-export type LinkProvider = 'gitlab';
-export type AccountLink = { provider: LinkProvider | string; host: string; configured: boolean; oauth?: boolean; method?: 'oauth' | 'token'; linked: boolean; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };
+/** The name of a link provider the server registered, such as `gitlab`. */
+export type LinkProvider = string;
+export type AccountLink = { provider: LinkProvider; host: string; configured: boolean; oauth?: boolean; method?: 'oauth' | 'token'; linked: boolean; login?: string; webUrl?: string; scopes?: string[]; linkedAt?: string; expiresAt?: string };

@@ -12,7 +12,7 @@ import { contractRefusal } from './ploeg.ts';
 import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PersonProof } from './person-proof.ts';
 import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, type PloegAttribution } from './ploeg-attribution.ts';
-import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
+import { createDeliveryPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence, type DeliveryPublisher } from './delivery-publisher.ts';
 import type { AiCommitMarking } from './ai-marking.ts';
 
 type LocalDelivery = { candidate: CanonicalCandidate; generation: number; phase: 'captured' | 'verifying' | 'verified' | 'recorded'; result?: VerificationResult };
@@ -41,15 +41,15 @@ export function validatedDelivery(value: any, session: Session): Pick<DeliveryVi
 export class DeliveryService {
   private config: AppConfig;
   private store: Store;
-  private publisher?: ForgejoPublisher;
+  private publisher?: DeliveryPublisher;
   private kubernetes: KubernetesClient;
   private queues = new Map<string, Promise<unknown>>();
   private contract: PloegContractGate | undefined;
   private proof: PersonProof | undefined;
   private attribution: PloegAttribution | undefined;
-  constructor(config: AppConfig, store: Store, publisher?: ForgejoPublisher, kubernetes: KubernetesClient = new KubernetesClient({})) {
+  constructor(config: AppConfig, store: Store, publisher?: DeliveryPublisher, kubernetes: KubernetesClient = new KubernetesClient({})) {
     this.config = config; this.store = store; this.kubernetes = kubernetes;
-    this.publisher = publisher ?? (config.delivery?.publisher ? new ForgejoPublisher(config.delivery.publisher) : undefined);
+    this.publisher = publisher ?? (config.delivery?.publisher ? createDeliveryPublisher(config.delivery.publisher) : undefined);
   }
 
   /** Refuses every delivery call to a Ploeg that does not serve what this Unfold requires (system ADR-0044). */

@@ -6,7 +6,7 @@ Everything an AI agent writes that Unfold puts on a forge carries two markings. 
 
 | Write path | Code | Human-visible | Machine-readable |
 | --- | --- | --- | --- |
-| Pull request the trusted publisher opens (Accept) | [`delivery-publisher.ts`](../../src/delivery-publisher.ts) | The sentence, naming the person who approved the candidate | Marker with `session=`; `ai-generated` label |
+| Pull request the trusted publisher opens (Accept), on every registered forge | [`delivery-publishers/shared.ts`](../../src/delivery-publishers/shared.ts) and each forge adapter beside it | The sentence, naming the person who approved the candidate | Marker with `session=`; `ai-generated` label |
 | Canonical commit of a delivered candidate | [`trusted-candidate.ts`](../../src/trusted-candidate.ts) | The `Assisted-by` trailer | `Assisted-by` and `Unfold-Session` trailers |
 | Run card comment on a Work Item's pull request | [`cards/service.ts`](../../src/cards/service.ts) | The sentence, from the pull request's reviews | Marker |
 | Agent Trace comment on a Work Item's pull request | [`agent-trace-comments.ts`](../../src/agent-trace-comments.ts) | The sentence, from the pull request's reviews | Marker with `agent-trace=` record ids |
@@ -50,7 +50,7 @@ The delivery pull request also keeps its older `<!-- unfold-publication: pub-<ca
 
 ## The label
 
-Unfold puts the label `ai-generated` (colour `#7c3aed`, description "Written by an AI agent. A person reviews it before merge.") on each pull request it opens. It uses the repository's label of that name, and creates it when it is missing. Forgejo's labels API needs the `read:issue` scope to find a label and `write:issue` to create one. The publisher's documented scope is `write:repository` only, so either create the label once by hand and add `read:issue`, or grant `write:issue`. When the forge refuses, the pull request still opens, without the label. Ploeg's keyed comment cannot set labels, so the label is on delivery pull requests only.
+Unfold puts the label `ai-generated` (colour `#7c3aed`, description "Written by an AI agent. A person reviews it before merge.") on each pull request it opens. It uses the repository's label of that name, and creates it when it is missing. Forgejo's labels API needs the `read:issue` scope to find a label and `write:issue` to create one. The publisher's documented scope is `write:repository` only, so either create the label once by hand and add `read:issue`, or grant `write:issue`. GitHub adds the label after the pull request opens, through the issue labels API; GitLab names it on the new merge request. When the forge refuses, the pull request still opens, without the label. Ploeg's keyed comment cannot set labels, so the label is on delivery pull requests only.
 
 ## Commit trailers
 
