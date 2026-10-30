@@ -235,12 +235,13 @@ test('the release train merges the newest green Ploeg pin first, so its checks a
     REPOSITORY: '${{ github.repository }}',
     PIN_BASE: 'development',
     PIN_AUTHOR: 'ploeg-release',
-    WEBGRIP_CI_TOKEN: '${{ secrets.WEBGRIP_CI_TOKEN }}',
+    PIN_MERGE_TOKEN: '${{ secrets.PLOEG_RELEASE_TOKEN }}',
   });
   assert.equal(step['continue-on-error'], undefined, 'a broken pin merge shows red instead of passing quietly');
   for (const [file, workflow] of Object.entries(workflows)) {
     for (const [name, job] of Object.entries(workflow.jobs)) {
       if (file !== 'on_release_train.yml' || name !== 'merge-pin') assert.doesNotMatch(JSON.stringify(job), /release_train_pin\.py/, `${file} ${name} must not merge Ploeg pins`);
+      if (file !== 'on_release_train.yml' || name !== 'merge-pin') assert.doesNotMatch(JSON.stringify(job), /PLOEG_RELEASE_TOKEN/, `${file} ${name} must not hold the pin merger's token`);
     }
   }
 });
