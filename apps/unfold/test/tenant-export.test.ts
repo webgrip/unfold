@@ -207,6 +207,35 @@ test('notification subscriptions leave without their topic, endpoint or keys, an
   assert.deepEqual(rows(acme, 'outbound-deliveries').map(row => [row.subscriptionId, row.eventId, row.status]), [['sub-acme', 'ev-acme', 'delivered']]);
 });
 
+test('webhook receiver URLs leave as their origin with a fingerprint, never with the path or query a receiver checks', async t => {
+  const { dir, store } = await workspace(t);
+  new OutboundStore(store);
+  const at = '2026-10-30T00:00:00.000Z';
+  const fake = (label: string) => `${label}${'x'.repeat(8)}not-a-real-secret`;
+  const slackToken = fake('slackpath');
+  const automateSig = fake('automatesig');
+  const customToken = fake('customtoken');
+  const slack = ['https://hooks.slack.com/services', 'TEAMFIXTURE', 'HOOKFIXTURE', slackToken].join('/');
+  const automate = `https://prod-42.westeurope.logic.azure.com:443/workflows/flowfixture/triggers/manual/paths/invoke?api-version=2016-06-01&sv=1.0&sig=${automateSig}`;
+  const custom = `http://receiver.example.test:8443/in?token=${customToken}`;
+  const insert = store.db.prepare('INSERT INTO outbound_subscriptions(id,tenant,client,url,types,description,active,created_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)');
+  for (const [id, url] of [['sub-slack', slack], ['sub-automate', automate], ['sub-custom', custom]]) insert.run(id, 'default', null, url, JSON.stringify(['dev.unfold.*']), '', 1, at, 'admin', at);
+  const bundle = await exported(dir, base(store));
+  const everything = [...bundle.members.values()].map(buffer => buffer.toString('utf8')).join('\n');
+  for (const secret of [slackToken, 'TEAMFIXTURE', automateSig, 'sig=', '/workflows/', customToken]) assert.ok(!everything.includes(secret), `${secret} is not in the bundle`);
+  const sha = (url: string) => createHash('sha256').update(url).digest('hex');
+  assert.deepEqual(rows(bundle, 'outbound-subscriptions').map(row => [row.id, row.url, row.urlRedacted, row.urlFingerprint]), [
+    ['sub-slack', 'https://hooks.slack.com', true, sha(slack)],
+    ['sub-automate', 'https://prod-42.westeurope.logic.azure.com', true, sha(automate)],
+    ['sub-custom', 'http://receiver.example.test:8443', true, sha(custom)],
+  ]);
+  const entity = bundle.manifest.entities.find(entry => entry.name === 'outbound-subscriptions')!;
+  const schema = JSON.parse(bundle.members.get(entity.schema)!.toString('utf8'));
+  for (const [index, row] of rows(bundle, 'outbound-subscriptions').entries()) validates(schema, row, `outbound-subscriptions[${index}]`);
+  assert.ok(schema.required.includes('urlRedacted') && schema.required.includes('urlFingerprint'));
+  assert.ok(bundle.manifest.secrets.omitted.includes('the path and query of webhook receiver URLs'));
+});
+
 function validates(schema: any, value: any, path: string): void {
   const types = schema.type === undefined ? null : [schema.type].flat();
   if (types) {

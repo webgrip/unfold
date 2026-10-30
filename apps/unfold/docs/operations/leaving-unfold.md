@@ -95,13 +95,15 @@ Fields are the stored columns in camelCase. A column that holds JSON is parsed i
 | `account-states`, `scim-users`, `scim-groups`, `scim-group-members` | Disabled accounts, and the people and groups the identity provider provisioned through SCIM. |
 | `intake-sources`, `intake-requests`, `intake-messages` | Request intake sources without their signing secrets, the Requests received, and which mail message belongs to which Request. |
 | `notify-preferences`, `notify-targets` | The channels and triggers each person chose to be notified on, and which ntfy topics and Web Push subscriptions they have, without the topic, the push endpoint or its keys. |
-| `outbound-subscriptions`, `outbound-events`, `outbound-deliveries` | Outbound webhook subscriptions without their signing secrets, the events still in the outbox, and the delivery log of each subscription. Events are signed when sent, so the outbox holds no secret. |
+| `outbound-subscriptions`, `outbound-events`, `outbound-deliveries` | Outbound webhook subscriptions without their signing secrets and with only the origin of the receiver URL, the events still in the outbox, and the delivery log of each subscription. Events are signed when sent, so the outbox holds no secret. |
 
 The signing secrets of outbound webhook subscriptions and intake sources are not exported; issue new ones at the destination. The manifest says so under `notExported`.
 
+Many webhook receivers treat their URL as the credential: a Slack incoming webhook carries its token in the path, and a Teams or Power Automate workflow URL carries a signature (`sig`) in the query. A subscription's `url` is therefore exported as its origin only (scheme, host and port, such as `https://hooks.slack.com`), with `urlRedacted: true` and `urlFingerprint`, the SHA-256 in hex of the full URL as Unfold stored it. To match a subscription at the destination, hash the URL you configure there, for example with `printf %s "$URL" | sha256sum`, and compare.
+
 ### What is never exported
 
-No secret is exported: password hashes, sign-in and editor token hashes, the OIDC access and refresh tokens Unfold keeps to prove a person to Ploeg, the store encryption key, the product event actor key, task source tokens, repository passwords, model gateway keys, webhook and intake signing secrets, and Web Push subscription endpoints and keys and ntfy topics. Every configured secret value is also replaced by `[redacted]` wherever it appears inside a record. These tables are left out entirely:
+No secret is exported: password hashes, sign-in and editor token hashes, the OIDC access and refresh tokens Unfold keeps to prove a person to Ploeg, the store encryption key, the product event actor key, task source tokens, repository passwords, model gateway keys, webhook and intake signing secrets, and Web Push subscription endpoints and keys and ntfy topics, and the path and query of webhook receiver URLs. Every configured secret value is also replaced by `[redacted]` wherever it appears inside a record. These tables are left out entirely:
 
 | Table | Why |
 | --- | --- |
