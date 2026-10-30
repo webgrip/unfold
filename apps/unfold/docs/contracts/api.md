@@ -260,7 +260,7 @@ Connections are administrator-registered `taskSources`. Forgejo, GitHub, GitLab,
 | `GET /api/task-sources/:sourceId/tasks?page=1` | `{tasks,nextPage?}` with bounded pagination |
 | `GET /api/task-sources/:sourceId/tasks/:taskId` | Current task snapshot for explicit preview, plus `descriptionMarkdown` for display (see below) |
 | `POST /api/task-imports` | `{sourceId,taskId,revision,teamId,runtime,placement?,budgetUsd}` → queued session (the deprecated `crewId` is still accepted in place of `teamId`), 201 new or 200 existing |
-| `GET /api/task-sources/:sourceId/tasks/:taskId/ploeg` | `TaskPloegStatus`: Ploeg's teams, the task's hand-off and its Work Items; `refresh=1` bypasses the short cache |
+| `GET /api/task-sources/:sourceId/tasks/:taskId/ploeg` | `TaskPloegStatus`: Ploeg's teams, the task's hand-off and its Work Items; `refresh=1` bypasses the short cache. Each offered team carries `spendCap` `{usd, period, periodEnd, remainingUsd}` from Ploeg's Teams read ([Ploeg ADR-0162](../../../ploeg/docs/adrs/0162-a-team-spends-at-most-its-cap-per-period-and-a-claim-over-it-starts-nothing.md)), `null` when Ploeg reports no cap, and no `spendCap` when this Ploeg does not report one |
 | `POST /api/task-sources/:sourceId/tasks/:taskId/handoff` | `{team,revision}` → `TaskPloegStatus` with optional `warnings` |
 | `DELETE /api/task-sources/:sourceId/tasks/:taskId/handoff?team=` | Takes the task back from that team → `TaskPloegStatus` with optional `warnings` |
 | `GET /api/tasks/lookup?provider=vikunja\|clickup&id=` | `{sourceId}` of the configured source whose Vikunja project or ClickUp home List holds the task, or 404 `task_source_unknown` |
@@ -369,6 +369,19 @@ The message is served by MCP revision, per request:
 | 2025-11-25, 2025-06-18, 2025-03-26 | Anything else; no `MCP-Protocol-Version` header means 2025-03-26 | `initialize` answers the client's revision when listed, otherwise 2025-11-25. Methods: `initialize`, `ping`, `tools/list`, `tools/call`, and `resources/list` and `resources/read` for a client that declares [MCP Apps](#mcp-apps). Errors answer 200, except an unknown `MCP-Protocol-Version`, which answers 400 `-32022` |
 
 A tool that asks the person to confirm returns, to a 2026-07-28 client that declares form elicitation, `{resultType: "input_required", inputRequests: {confirm_action | confirm_spend: {method: "elicitation/create", params: {mode: "form", message, requestedSchema}}}, requestState}`. The client retries `tools/call` with `inputResponses` and the same `requestState`. The state is HMAC-sealed with a key of this process and binds the person, the tool and its arguments, the hash of the message and a 10-minute expiry; it acts at most once. A retry without a well-formed answer under the requested key is asked again; `cancel` returns a result that links to the Unfold page. A 2025 client over HTTP cannot be asked and is refused with that link.
+
+### What a hand-off confirmation says it spends
+
+`unfold_hand_off`'s confirmation states the spend limit from figures Ploeg reported and nothing else (`src/hand-off-spend.ts`). All amounts are US dollars to two decimals, as Ploeg reports them.
+
+| What Ploeg reports for the Team | The confirmation says |
+| --- | --- |
+| `spendCap` | Ploeg starts no Run for the Team that would take its spend this `period` (UTC) over `usd`, and how much of that is left until `periodEnd`, rounded down to the cent. What the task alone may spend is set by the Team's plan and is not known until Ploeg picks it up |
+| `spendCap: null` | Ploeg reports no spend cap for the Team, and what the task may spend is not known until Ploeg picks it up |
+| No `spendCap` | The spend limit for the Team is not known until Ploeg picks this up |
+| The demo | It is the illustrative demo, no Run starts and no money is spent |
+
+The pool of one Work Item (Ploeg's `poolUsd`) comes from the Team's plan, which Ploeg's operator API reports only for a Work Item that exists, so a hand-off cannot show it. Over the 2026-07-28 revision, the confirmation is planned again when the person answers: if what is left of the cap changed in between, the call refuses with "changed since you confirmed" and nothing is handed off.
 
 ### MCP Tasks
 

@@ -1,8 +1,9 @@
 import type { AppConfig, User } from './types.ts';
+import type { TeamSpendCap } from './hand-off-spend.ts';
 import { PloegError, type PloegClient, type PloegItem, type PloegTeam } from './ploeg.ts';
 import { assigneeHandles, commentOnTask, findTrackerUser, getHandoffTask, handoffNoteFormat, handoffUnsupported, isFixtureSource, lookupProvider, setTrackerAssignee, taskProject, TaskError, trackerName, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 
-export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[] };
+export type TaskPloegTeam = { id: string; assignee: string; queueDepth: number; paused: boolean | null; roles: string[]; spendCap?: TeamSpendCap | null };
 export type TaskPloegWorkItem = { id: string; team: string; state: string; attempts: number; updatedAt: string; prUrl?: string; branch?: string; spentUsd?: number; budgetUsd?: number };
 export type TaskPloegStatus = { available: boolean; message?: string; demo: boolean; handoff: { allowed: boolean; reason?: string }; teams: TaskPloegTeam[]; assignedTeams: string[]; workItems: TaskPloegWorkItem[]; fetchedAt: string; warnings?: string[] };
 
@@ -90,7 +91,7 @@ export class TaskHandoff {
     const reason = user.role === 'viewer' ? 'Viewers cannot hand tasks to Ploeg.' : task.status !== 'open' ? 'Only an open task can be handed to Ploeg.' : !routing.reported ? olderTeams : offer.reason ?? (!teams.length ? 'None of your Ploeg teams has a tracker user to assign.' : undefined);
     const active = found.items.find(entry => !['withdrawn', 'done', 'stale'].includes(entry.state));
     const message = found.message ?? (active ? `Ploeg team ${active.team} holds this task (${active.state.replace(/_/g, ' ')}).` : assignedTeams.length ? `Handed to Ploeg team ${assignedTeams.join(', ')}; Ploeg has not listed it yet.` : undefined);
-    return { available: true, ...(message ? { message } : {}), demo: false, handoff: reason ? { allowed: false, reason } : { allowed: true }, teams: teams.map(team => ({ id: team.id, assignee: team.assignees[0], queueDepth: team.queueDepth, paused: team.paused, roles: team.roles.map(role => role.id) })), assignedTeams, workItems: found.items, fetchedAt: new Date().toISOString() };
+    return { available: true, ...(message ? { message } : {}), demo: false, handoff: reason ? { allowed: false, reason } : { allowed: true }, teams: teams.map(team => ({ id: team.id, assignee: team.assignees[0], queueDepth: team.queueDepth, paused: team.paused, roles: team.roles.map(role => role.id), ...(team.spendCap === undefined ? {} : { spendCap: team.spendCap }) })), assignedTeams, workItems: found.items, fetchedAt: new Date().toISOString() };
   }
 
   /** Reports Ploeg's teams, the task's current hand-off and the Work Items Ploeg holds for it. */

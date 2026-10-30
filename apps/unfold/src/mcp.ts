@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 import { strictBase64url } from './mcp-auth.ts';
 import { mcpAppResources, mcpAppToolMeta, mcpAppsExtension, readMcpAppResource, supportsMcpApps } from './mcp-apps.ts';
 import { mcpTasksExtension, openTaskId, sealTaskId, supportsTasks, taskCacheMs, taskPollIntervalMs, type HandOffRef, type McpTasks } from './mcp-tasks.ts';
+import { handOffSpend, teamSpendCap } from './hand-off-spend.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Legacy protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -432,7 +433,7 @@ export function createMcpServer(options: McpOptions) {
             if ((status.assignedTeams ?? []).includes(team)) throw new Error(`Team ${team} already holds this task. Nothing was changed.`);
             const offered = (status.teams ?? []).find((entry: Json) => entry.id === team);
             if (!offered) throw new Error(`Team ${team} is not one you can hand this task to; choose one of ${(status.teams ?? []).map((entry: Json) => entry.id).join(', ') || 'none'}. Nothing was changed.`);
-            const message = `${demoSays(demo)}Hand task ${source}/${task} "${clip(found.title, 120)}" to Team ${team}? Unfold assigns the Team's tracker user ${clip(offered.assignee, 80)} to the task and comments that you handed it over. Ploeg then picks it up, and its Runs spend from Team ${team}'s budget.`;
+            const message = `${demoSays(demo)}Hand task ${source}/${task} "${clip(found.title, 120)}" to Team ${team}? Unfold assigns the Team's tracker user ${clip(offered.assignee, 80)} to the task and comments that you handed it over. Ploeg then picks it up. ${handOffSpend(team, teamSpendCap(offered.spendCap), demo)}`;
             return { message, async perform(confirmation) {
               const result = await get(`${path}/handoff`, { team, revision: found.revision }, confirmation);
               const warnings = (result.warnings ?? []).map((entry: unknown) => clip(entry, 300));

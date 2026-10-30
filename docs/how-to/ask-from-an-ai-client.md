@@ -61,7 +61,7 @@ How your client asks depends on the MCP revision it speaks; `unfold-mcp` serves 
 
 | Tool | Does | Unfold route |
 | --- | --- | --- |
-| `unfold_hand_off` | Hands an open tracker task to a Team: assigns the Team's tracker user and comments on the task. Takes `source`, `task` and `team` as the Tasks page names them | `POST /api/task-sources/:source/tasks/:id/handoff` |
+| `unfold_hand_off` | Hands an open tracker task to a Team: assigns the Team's tracker user and comments on the task. Takes `source`, `task` and `team` as the Tasks page names them. The confirmation names the Team's spend cap and what is left of it when Ploeg reports one, and otherwise says the limit is not known until Ploeg picks the task up ([what it says](../../apps/unfold/docs/contracts/api.md#what-a-hand-off-confirmation-says-it-spends)) | `POST /api/task-sources/:source/tasks/:id/handoff` |
 | `unfold_approve_work` | Approves a proposed Work Item, so Ploeg queues it | `POST /api/ploeg/work-items/:id/approve` |
 | `unfold_reject_work` | Rejects a proposed Work Item with your `reason` | `POST /api/ploeg/work-items/:id/reject` |
 | `unfold_stop_work` | Stops a Work Item: Ploeg withdraws it, stops its Runs and blocks their keys | `POST /api/ploeg/work-items/:id/cancel` |
