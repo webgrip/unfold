@@ -2,6 +2,7 @@ import { hostname } from 'node:os';
 import type { RunCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
 import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, Recovery, RecoveryAction, DeliveryView, PublicationBinding } from './types.js';
 import type { BrowserLoginStart } from './browser-login.js';
+import type { HandOffList } from './handoffs.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -43,6 +44,11 @@ function workItemId(value: string): string {
 
 function identifier(value: string): string {
   if (!/^[a-zA-Z0-9_-]+$/.test(value)) throw new Error('Invalid remote session or request identifier.');
+  return value;
+}
+
+function questionText(value: string): string {
+  if (!/^[A-Za-z0-9_:-]{1,128}$/.test(value)) throw new Error('Invalid question identifier.');
   return value;
 }
 
@@ -126,6 +132,12 @@ export class UnfoldClient {
   ploeg(team?: string, fresh = false): Promise<PloegOverview> { const query = new URLSearchParams(); if (team) query.set('team', team); if (fresh) query.set('refresh', '1'); return this.request(`/api/ploeg?${query}`); }
   ploegNow(fresh = false): Promise<PloegNow> { return this.request(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`); }
   workItem(id: string, fresh = false): Promise<PloegDetail> { return this.request(`/api/ploeg/work-items/${workItemId(id)}${fresh ? '?refresh=1' : ''}`); }
+  /** The signed-in person's own hand-offs from any client, newest first, each with the Work Item it became. */
+  handOffs(fresh = false): Promise<HandOffList> { return this.request(`/api/handoffs${fresh ? '?refresh=1' : ''}`); }
+  /** Stores a person's answer to one question a Work Item waits on, as the browser's Answer does. */
+  answerQuestion(id: string, questionId: string, body: { commandId: string; answer: string }): Promise<unknown> { return this.request(`/api/ploeg/work-items/${workItemId(id)}/questions/${encodeURIComponent(questionText(questionId))}/answer`, 'POST', body); }
+  /** Restarts or resumes a Work Item that waits on a person, with an optional note for its next Run. */
+  requeue(id: string, body: { commandId: string; expectedState: 'needs_human'; note?: string; resume?: true }): Promise<{ demo?: boolean; resumed?: boolean; fromRound?: number }> { return this.request(`/api/ploeg/work-items/${workItemId(id)}/requeue`, 'POST', body); }
   async workItemCard(id: string): Promise<RunCard | undefined> {
     try { return (await this.request<{ card?: RunCard }>(`/api/ploeg/work-items/${workItemId(id)}/card`)).card; }
     catch (error) { if (error instanceof ApiError && error.status === 404) return undefined; throw error; }

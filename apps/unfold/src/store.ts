@@ -276,11 +276,16 @@ export class Store {
       .run(record.at, record.userId, record.userName, record.role, record.channel, record.action, record.method, record.target?.kind ?? null, record.target?.id ?? null, JSON.stringify(record.inputs), record.confirmation, record.status, record.outcome);
   }
 
-  /** Action records newest first, optionally of one person, about one target, with one outcome or through one channel, older than `before` (an id), at most `limit`. */
-  actionRecords(filter: { userId?: string; target?: ActionTarget; outcome?: ActionRecord['outcome']; channel?: string; before?: number; limit: number }): ActionRecord[] {
+  /**
+   * Action records newest first, optionally of one person, about one target, with one outcome or through one channel,
+   * older than `before` (an id), at most `limit`. `handOffs` keeps only POSTs and DELETEs on a route ending in
+   * `/handoff` about a task or a Work Item: hand-offs and take-backs.
+   */
+  actionRecords(filter: { userId?: string; target?: ActionTarget; outcome?: ActionRecord['outcome']; channel?: string; before?: number; handOffs?: boolean; limit: number }): ActionRecord[] {
     const where: string[] = [];
     const values: (string | number)[] = [];
     if (filter.userId) { where.push('user_id=?'); values.push(filter.userId); }
+    if (filter.handOffs) where.push("method IN ('POST','DELETE') AND target_kind IN ('task','work-item') AND action LIKE '%/handoff'");
     if (filter.target) { where.push('target_kind=? AND target_id=?'); values.push(filter.target.kind, filter.target.id); }
     if (filter.outcome) { where.push('outcome=?'); values.push(filter.outcome); }
     if (filter.channel) { where.push('channel=?'); values.push(filter.channel); }

@@ -76,6 +76,7 @@ import { Notifications } from './notify/service.ts';
 import { IdentityLifecycle } from './identity/lifecycle.ts';
 import { clientAddress } from './client-address.ts';
 import { securityHeaders } from './security-headers.ts';
+import { listHandOffs } from './handoffs.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -805,6 +806,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (error instanceof CollectionError || error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
             throw error;
           }
+        }
+        if (path === '/api/handoffs') {
+          if (method !== 'GET') fault(405, 'method', 'List your hand-offs with GET.');
+          const limit = Number(url.searchParams.get('limit') ?? '') || 20;
+          const sources = { records: (userId: string, count: number) => store.actionRecords({ userId, outcome: 'done', handOffs: true, limit: count }), ploeg, tenants, demo: config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true) };
+          return json(res, 200, sanitize(await listHandOffs(sources, user, limit, url.searchParams.get('refresh') === '1')));
         }
         if (path === '/api/actions/filters') {
           if (method !== 'GET') fault(405, 'method', 'Read the action filters with GET.');

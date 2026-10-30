@@ -132,6 +132,12 @@
         "icon": "$(git-pull-request)"
       },
       {
+        "command": "unfold.answerHandOff",
+        "title": "Answer",
+        "category": "Unfold",
+        "icon": "$(reply)"
+      },
+      {
         "command": "unfold.checkoutBranch",
         "title": "Check Out Branch",
         "category": "Unfold",
@@ -398,6 +404,12 @@
           "scope": "application",
           "description": "Which Ploeg Work Items on Now raise a notification. A Work Item that one of your sessions drives notifies once, as that session."
         },
+        "unfold.notifications.handOffs": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Notify when work you handed off, from any client, starts waiting on you (**Answer**) or its pull request is ready (**Review**, **Open pull request**). Each change notifies once across every VS Code window and after a reload, and a Work Item announced here is not announced again by `unfold.notifications.workItems`. The demo raises none."
+        },
         "unfold.remoteHostAliases": {
           "type": "object",
           "additionalProperties": {
@@ -587,6 +599,10 @@
         },
         {
           "command": "unfold.openPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "unfold.answerHandOff",
           "when": "false"
         },
         {
@@ -819,6 +835,16 @@
           "command": "unfold.openPullRequest",
           "when": "view == unfold.now && viewItem =~ /^now:item:.*:pr$/",
           "group": "inline@1"
+        },
+        {
+          "command": "unfold.answerHandOff",
+          "when": "view == unfold.now && viewItem =~ /^now:handoff:needs_human/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.openPullRequest",
+          "when": "view == unfold.now && viewItem =~ /^now:handoff:.*:pr$/",
+          "group": "inline@2"
         },
         {
           "command": "unfold.openPloeg",

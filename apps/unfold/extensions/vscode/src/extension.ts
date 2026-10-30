@@ -5,7 +5,8 @@ import { loadCore, type Core } from './core.js';
 import { NowTree, waitingCount, nowGroup, type NowEntry, type WorkItemRef } from './now-tree.js';
 import { linkedWorkItems, pullRequestNumber, sessionRows, statusSummary, type SessionRow } from './now.js';
 import type { PloegNow, PloegNowItem } from './ploeg-types.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { HandOffNotifier, answerWorkItem, handOffStatus, type HandOffAlert, type HandOffList } from './handoffs.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
@@ -56,6 +57,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private readonly taskView: vscode.TreeView<TaskEntry>;
   private readonly status = vscode.window.createStatusBarItem('unfold.status', vscode.StatusBarAlignment.Left, 10);
   private readonly agentsWindowItem = vscode.window.createStatusBarItem('unfold.agentsWindow', vscode.StatusBarAlignment.Left, 9);
+  private readonly handOffItem = vscode.window.createStatusBarItem('unfold.handOffs', vscode.StatusBarAlignment.Left, 9.5);
+  private readonly handOffNotifier: HandOffNotifier;
+  private lastHandOffs?: HandOffList;
+  private handOffsReadAt = 0;
   private agentsWindow: AgentsWindowState = { status: 'unknown' };
   private agentsWindowTimer?: ReturnType<typeof setInterval>;
   private agentsWindowCheck?: ReturnType<typeof setTimeout>;
@@ -101,6 +106,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.agentsWindowItem.name = 'Unfold Agents Window';
     this.agentsWindowItem.command = 'unfold.agentsWindowStatus';
     context.subscriptions.push(this.agentsWindowItem);
+    this.handOffNotifier = new HandOffNotifier(context.globalState);
+    this.handOffItem.name = 'Unfold Hand-offs';
+    this.handOffItem.command = 'unfold.now.focus';
+    context.subscriptions.push(this.handOffItem);
     context.subscriptions.push(this.now, this.nowView, this.tree, this.view, this.tasks, this.taskView, this.ploeg, this.ploegView, this.status, this.documents, this.panels, this.taskPanels, vscode.workspace.registerTextDocumentContentProvider('unfold-evidence', this.documents));
     context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('unfold.session', { deserializeWebviewPanel: async (panel, state: { sessionId?: string } | undefined) => { const id = typeof state?.sessionId === 'string' && /^[a-zA-Z0-9_-]+$/.test(state.sessionId) ? state.sessionId : undefined; if (!id) { panel.dispose(); return; } this.panels.adopt(id, panel); } }));
     context.subscriptions.push(this.view.onDidChangeVisibility(event => { if (event.visible) void this.refresh(); }));
@@ -130,6 +139,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('refresh', () => { this.nowReadAt = 0; return this.refresh(true, true); });
     register('openWorkItem', (value?: WorkItemRef) => this.openWorkItem(value));
     register('openPullRequest', (value?: NowEntry) => this.openPullRequest(value));
+    register('answerHandOff', (value?: string | NowEntry) => this.answerHandOff(value));
     register('openNow', async () => { if (this.configurationError) throw this.configurationError; await vscode.env.openExternal(vscode.Uri.parse(`${this.current.origin}/#now`)); });
     register('create', () => this.create());
     register('openPloeg', async (value?: string | PloegEntry | NowEntry) => { if (this.configurationError) throw this.configurationError; const id = typeof value === 'string' ? value : value?.kind === 'item' ? value.item.id : value?.kind === 'run' ? value.run.workItemId : undefined; await vscode.env.openExternal(vscode.Uri.parse(this.current.ploegDashboard(id))); });
@@ -195,6 +205,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.seenWaiting = undefined;
     this.nowReadAt = 0;
     this.lastNow = undefined;
+    this.forgetHandOffs();
     this.drafts.clear();
     this.panels.closeAll();
     this.taskPanels.closeAll();
@@ -307,6 +318,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.tree.update([], needsLogin ? 'Sign in to your workbench' : 'Workbench unavailable — reconnect', 'unfold.connect');
     this.now.offline();
     this.lastNow = undefined;
+    this.forgetHandOffs();
     this.nowView.badge = undefined;
     this.nowView.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to see it.';
     this.seenWaiting = undefined;
@@ -347,6 +359,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       const bootstrap = await client.bootstrap();
       const sessions = await client.sessions();
       const now = await this.readNow(client, freshNow);
+      const handOffs = await this.readHandOffs(client, freshNow);
       if (client !== this.current || generation !== this.generation || this.disposed) return;
       this.failures = 0;
       this.lastSuccess = new Date();
@@ -358,6 +371,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (now.value) this.tasks.ploegItems([...now.value.waiting, ...(now.value.active ?? [])]);
       const rows = sessionRows(this.core, sessions);
       this.now.update(now.value, rows, now.message);
+      this.now.handOffs(handOffs);
+      this.paintHandOffs(handOffs);
       const demo = bootstrap.mode === 'demo';
       this.taskView.message = demo ? 'Demo fixture · No tracker account required' : undefined;
       this.view.message = demo ? 'Demo · no AI calls' : undefined;
@@ -370,7 +385,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       await vscode.commands.executeCommand('setContext', 'unfold.connected', true);
       if (!this.inAgentsWindow) {
         await this.announceNeedsYou(client, bootstrap, rows);
-        if (now.value) this.announceWaiting(now.value, rows);
+        const announced = await this.announceHandOffs(client, handOffs);
+        if (now.value) this.announceWaiting(now.value, rows, announced);
       }
       await this.panels.refreshVisible();
     } catch (error) {
@@ -396,6 +412,83 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     }
     this.nowReadAt = Date.now();
     return this.lastNow;
+  }
+
+  private async readHandOffs(client: UnfoldClient, fresh: boolean): Promise<HandOffList | undefined> {
+    if (!fresh && this.handOffsReadAt && Date.now() - this.handOffsReadAt < 15_000) return this.lastHandOffs;
+    try { this.lastHandOffs = await client.handOffs(fresh); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 401) throw error;
+      if (error instanceof ApiError && error.status === 404) this.lastHandOffs = undefined;
+    }
+    this.handOffsReadAt = Date.now();
+    return this.lastHandOffs;
+  }
+
+  private forgetHandOffs() {
+    this.lastHandOffs = undefined;
+    this.handOffsReadAt = 0;
+    this.handOffItem.hide();
+  }
+
+  private paintHandOffs(list: HandOffList | undefined) {
+    const status = handOffStatus(this.core, list);
+    if (!status) { this.handOffItem.hide(); return; }
+    this.handOffItem.text = status.text;
+    this.handOffItem.tooltip = status.tooltip;
+    this.handOffItem.show();
+  }
+
+  private async announceHandOffs(client: UnfoldClient, list: HandOffList | undefined): Promise<Set<string>> {
+    if (!list) return new Set();
+    const enabled = settings().get<boolean>('notifications.handOffs', true);
+    const alerts = await this.handOffNotifier.observe(this.core, client.origin, list, !enabled);
+    if (client !== this.current) return new Set();
+    for (const alert of alerts.slice(0, 3)) void this.showHandOffAlert(alert);
+    return enabled ? new Set(list.handoffs.map(entry => entry.workItem?.id).filter((id): id is string => Boolean(id))) : new Set();
+  }
+
+  private async showHandOffAlert(alert: HandOffAlert) {
+    const url = safeHttpsUrl(alert.pullRequestUrl);
+    const open = { label: alert.kind === 'ready' ? 'Review' : 'Open Work Item', run: () => this.openWorkItem({ id: alert.workItemId, title: alert.title }) };
+    const actions = alert.kind === 'waiting'
+      ? [{ label: 'Answer', run: () => this.answerHandOff(alert.workItemId) }, open]
+      : [open, ...(url ? [{ label: 'Open pull request', run: async () => { await vscode.env.openExternal(vscode.Uri.parse(url)); } }] : [])];
+    const labels = actions.map(action => action.label);
+    const chosen = alert.kind === 'waiting' ? await vscode.window.showWarningMessage(alert.message, ...labels) : await vscode.window.showInformationMessage(alert.message, ...labels);
+    const action = actions.find(entry => entry.label === chosen);
+    if (action) await this.perform(action.run);
+  }
+
+  async answerHandOff(value?: string | NowEntry): Promise<void> {
+    const id = typeof value === 'string' ? value : value?.kind === 'handoff' ? value.handoff.workItem?.id : value?.kind === 'item' ? value.item.id : undefined;
+    if (!id || !/^[1-9][0-9]{0,19}$/.test(id)) throw new Error('Choose a hand-off that waits on you.');
+    if (this.configurationError) throw this.configurationError;
+    const target = this.current;
+    const generation = this.generation;
+    const detail = await target.workItem(id, true);
+    this.assertTarget(target, generation);
+    const title = detail.item.title || `Work Item ${id}`;
+    const outcome = await answerWorkItem(this.core, detail, {
+      ask: (question, index, total) => vscode.window.showInputBox({
+        title: total > 1 ? `Answer question ${index + 1} of ${total}: ${title}` : `Answer: ${title}`,
+        prompt: question.text.length > 600 ? `${question.text.slice(0, 599)}…` : question.text,
+        placeHolder: 'Say what the agent should do, as you would to a colleague.',
+        ignoreFocusOut: true,
+        validateInput: text => this.core.writeError(text, this.core.answerLimit, 'Type your answer.') || undefined,
+      }),
+      confirm: async choice => {
+        const picked = await vscode.window.showWarningMessage(choice.title, { modal: true, detail: choice.detail }, ...choice.actions.map(action => action.label));
+        return choice.actions.find(action => action.label === picked)?.value;
+      },
+      answer: async (workItem, questionId, body) => { this.assertTarget(target, generation); return target.answerQuestion(workItem, questionId, body); },
+      requeue: async (workItem, body) => { this.assertTarget(target, generation); return target.requeue(workItem, body); },
+      commandId: () => randomUUID(),
+    });
+    if (outcome.status === 'dismissed') return;
+    if (outcome.status === 'none') { void vscode.window.showInformationMessage(outcome.message); await this.openWorkItem({ id, title }); return; }
+    void vscode.window.showInformationMessage(outcome.message);
+    if (outcome.status === 'sent') { this.handOffsReadAt = 0; this.nowReadAt = 0; await this.refresh(false, true); }
   }
 
   private statusTicker?: ReturnType<typeof setInterval>;
@@ -440,10 +533,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     await this.perform(() => action.action === 'answer' ? this.reviewDecision(alert.sessionId, action.requestId) : this.sessionAction(alert.sessionId, action.action));
   }
 
-  private announceWaiting(now: PloegNow, rows: SessionRow[]) {
+  private announceWaiting(now: PloegNow, rows: SessionRow[], handedOff: ReadonlySet<string> = new Set()) {
     const keyOf = (item: PloegNowItem) => `${item.id}:${item.state}`;
     const linked = linkedWorkItems(rows);
-    const waiting = now.waiting.filter(item => !linked.has(item.id) && (nowGroup(item) === 'review' || nowGroup(item) === 'needs'));
+    const waiting = now.waiting.filter(item => !linked.has(item.id) && !handedOff.has(item.id) && (nowGroup(item) === 'review' || nowGroup(item) === 'needs'));
     const previous = this.seenWaiting;
     this.seenWaiting = new Set(waiting.map(keyOf));
     const policy = settings().get<WorkItemPolicy>('notifications.workItems', 'all');
@@ -471,7 +564,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async openPullRequest(value?: NowEntry): Promise<void> {
-    const url = value?.kind === 'item' ? safeHttpsUrl(value.item.pullRequestUrl) : undefined;
+    const url = value?.kind === 'item' ? safeHttpsUrl(value.item.pullRequestUrl) : value?.kind === 'handoff' ? safeHttpsUrl(value.handoff.workItem?.pullRequestUrl) : undefined;
     if (!url) throw new Error('This Work Item has no HTTPS pull request link yet.');
     await vscode.env.openExternal(vscode.Uri.parse(url));
   }
