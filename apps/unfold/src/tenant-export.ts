@@ -42,6 +42,7 @@ export const curatedSources: Readonly<Record<string, readonly string[]>> = {
 const person = (column: string): Scoping => ({ by: 'person', column });
 const workItem = (column: string): Scoping => ({ by: 'work-item', column });
 const installation: Scoping = { by: 'installation' };
+const byTenant = (column: string): Scoping => ({ by: 'tenant', column });
 
 /** Every table exported as it is stored, in the order the bundle writes them. A parent precedes its children. */
 export const tableEntities: readonly TableEntity[] = [
@@ -93,6 +94,19 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'tripwire-hits', table: 'tripwire_hits', scope: workItem('work_item_id'), description: 'Tool calls and messages the decider flagged, with the verdicts people gave.' },
   { entity: 'tripwire-runs', table: 'tripwire_runs', scope: workItem('work_item_id'), json: ['transcript', 'seen'], description: 'How far the decider read each Run.' },
   { entity: 'decider-kinds', table: 'decider_kinds', scope: workItem('work_item_id'), description: 'The Work Kind the decider guessed for a Run.' },
+  { entity: 'audit-records', table: 'audit_records', scope: byTenant('tenant_id'), json: ['event'], description: 'The security audit trail of the Tenant as OCSF events, each chained to the one before it by its SHA-256 hash.' },
+  { entity: 'audit-anchors', table: 'audit_anchors', scope: byTenant('tenant_id'), description: 'Retention anchors: the last hash of audit records removed by retention, from which the remaining chain still verifies.' },
+  { entity: 'billing-mappings', table: 'billing_mappings', scope: byTenant('tenant'), json: ['body'], description: 'The price and billing tool target each Client\'s accepted Work Items are billed at.' },
+  { entity: 'billing-lines', table: 'billing_lines', scope: byTenant('tenant'), json: ['body'], description: 'One billing line per accepted Work Item and per reversal, with its state and what the billing tool answered.' },
+  { entity: 'account-states', table: 'account_states', scope: person('user_id'), description: 'Accounts that were disabled, by whom and why.' },
+  { entity: 'scim-users', table: 'scim_users', scope: person('user_id'), json: ['emails'], collect: 'id', description: 'People the identity provider provisioned through SCIM, and the account each is linked to.' },
+  { entity: 'scim-groups', table: 'scim_groups', scope: installation, description: 'Groups the identity provider provisioned through SCIM.' },
+  { entity: 'scim-group-members', table: 'scim_group_members', scope: { by: 'parent', parent: 'scim-users', column: 'member_id' }, description: 'Which SCIM group each provisioned person is in.' },
+  { entity: 'intake-sources', table: 'intake_sources', scope: byTenant('tenant'), json: ['body'], description: 'Request intake sources: where Requests arrive and how they are mapped. No signing secret.' },
+  { entity: 'intake-requests', table: 'intake_requests', scope: byTenant('tenant'), json: ['body'], collect: 'id', description: 'Requests received through intake, with their state.' },
+  { entity: 'intake-messages', table: 'intake_messages', scope: { by: 'parent', parent: 'intake-requests', column: 'request_id' }, description: 'Which mail message belongs to which Request, so replies stay on their Request.' },
+  { entity: 'notify-preferences', table: 'notify_preferences', scope: person('user_id'), json: ['body'], description: 'The channels and triggers each person chose to be notified on.' },
+  { entity: 'outbound-subscriptions', table: 'outbound_subscriptions', scope: byTenant('tenant'), json: ['types'], description: 'Outbound webhook subscriptions: the URL, the event types and whether each is active. No signing secret.' },
 ];
 
 /** Every table Unfold keeps that the bundle leaves out. Secrets are never exported. */
@@ -103,13 +117,23 @@ export const excludedTables: readonly ExcludedTable[] = [
   { table: 'linked_session_notice_snapshots', reason: 'Cache: the last notice check of each Linked Session, rebuilt on the next check.' },
   { table: 'card_import', reason: 'Operational: progress of the one-time import of card records from Ploeg.' },
   { table: 'sqlite_sequence', reason: 'SQLite internal: the next AUTOINCREMENT value of each table.' },
+  { table: 'notify_targets', reason: 'Secret: Web Push subscription endpoints and authentication keys, and ntfy topics. People subscribe again at the destination.' },
+  { table: 'audit_exports', reason: 'Operational: how far the audit trail of each Tenant was sent to its log collector.' },
+  { table: 'ssf_seen', reason: 'Deduplication: the ids of Shared Signals events already handled, forgotten after a while.' },
+  { table: 'intake_deliveries', reason: 'Deduplication: the delivery ids each intake source already received and their outcome, kept for a few hours.' },
+  { table: 'notify_outbox', reason: 'Delivery queue: notices waiting to be sent, or already sent, over ntfy and Web Push.' },
+  { table: 'notify_cursors', reason: 'Operational: how far notifications have read each source.' },
+  { table: 'outbound_events', reason: 'Delivery queue: webhook events kept only until every subscription received them. The records they describe are exported themselves.' },
+  { table: 'outbound_deliveries', reason: 'Delivery queue: each webhook delivery to a subscription, its attempts and status.' },
+  { table: 'outbound_cursors', reason: 'Operational: how far outbound webhooks have read each source.' },
+  { table: 'outbound_sign_off_changes', reason: 'Operational: Client Sign-off changes waiting to become webhook events. The sign-offs are exported as client-sign-offs.' },
 ];
 
 /** What the bundle never contains, as the manifest states it. */
 export const secretsStatement = {
   exported: false,
-  statement: 'This bundle contains no secrets. Password hashes, sign-in and editor token hashes, access and refresh tokens, encryption keys, the product event actor key, task source and repository credentials, gateway keys and webhook secrets are left out, and every configured secret value is replaced by [redacted] wherever it appears in a record.',
-  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets'],
+  statement: 'This bundle contains no secrets. Password hashes, sign-in and editor token hashes, access and refresh tokens, encryption keys, the product event actor key, task source and repository credentials, gateway keys, webhook and intake signing secrets and push subscription keys are left out, and every configured secret value is replaced by [redacted] wherever it appears in a record.',
+  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets', 'intake source signing secrets', 'Web Push subscription keys and ntfy topics'],
 };
 
 /** A person as the bundle holds them: no password hash. */
@@ -165,6 +189,12 @@ function parsed(text: unknown): unknown {
 
 function columnsOf(db: DatabaseSync, table: string): Column[] {
   return db.prepare(`PRAGMA table_info(${JSON.stringify(table)})`).all() as unknown as Column[];
+}
+
+function rowOrder(db: DatabaseSync, table: string): string {
+  const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table) as { sql?: string } | undefined)?.sql ?? '';
+  if (!/WITHOUT\s+ROWID/i.test(sql)) return 'rowid';
+  return columnsOf(db, table).filter(column => column.pk > 0).sort((left, right) => left.pk - right.pk).map(column => JSON.stringify(column.name)).join(', ');
 }
 
 /** The names of every table in the database, excluding SQLite's own schema tables. */
@@ -402,7 +432,7 @@ export async function buildTenantExport(sources: ExportSources, tenant: string, 
     const file = open(entity.entity);
     const collected = entity.collect ? new Set<string>() : undefined;
     if (present.has(entity.table)) {
-      for (const row of db.prepare(`SELECT * FROM ${entity.table} ORDER BY rowid`).iterate() as Iterable<Row>) {
+      for (const row of db.prepare(`SELECT * FROM ${entity.table} ORDER BY ${rowOrder(db, entity.table)}`).iterate() as Iterable<Row>) {
         if (!inScope(scope, entity.scope, row)) continue;
         if (collected) collected.add(String(row[entity.collect!]));
         await file.write(tableRow(entity, row));
@@ -432,7 +462,7 @@ export async function buildTenantExport(sources: ExportSources, tenant: string, 
     tenant, tenancyEnforced: scope.enforced, createdAt: now.toISOString(),
     application: sources.application, requestedBy: sources.requestedBy,
     secrets: secretsStatement, entities, files, excluded: [...excludedTables],
-    notExported: [{ what: 'outbound webhook subscriptions', reason: 'Unfold has no outbound webhooks yet, so there is nothing to export.' }],
+    notExported: [{ what: 'signing secrets of outbound webhook subscriptions and intake sources', reason: 'They are secrets. Issue new ones at the destination and configure the senders and receivers with them again.' }],
     elsewhere: { holder: 'Ploeg', what: 'Work Items as Ploeg records them, Shifts, Runs, Run transcripts, checkpoints, spend and Ploeg\'s audit log', file: ploegPointerFile },
   };
 

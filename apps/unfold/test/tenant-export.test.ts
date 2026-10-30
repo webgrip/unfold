@@ -119,7 +119,7 @@ test('the bundle carries no secret: no password hash, token, key, credential or 
   assert.equal(rows(bundle, 'task-sources')[0].project, 'acme/repo');
   assert.match(rows(bundle, 'session-events')[0].data.text, /\[redacted\]/);
   assert.equal(bundle.manifest.secrets.exported, false);
-  assert.deepEqual(bundle.manifest.excluded.map(entry => entry.table).sort(), ['card_import', 'editor_credentials', 'internal_state', 'linked_session_notice_snapshots', 'logins', 'sqlite_sequence']);
+  assert.deepEqual(bundle.manifest.excluded.map(entry => entry.table).sort(), ['audit_exports', 'card_import', 'editor_credentials', 'intake_deliveries', 'internal_state', 'linked_session_notice_snapshots', 'logins', 'notify_cursors', 'notify_outbox', 'notify_targets', 'outbound_cursors', 'outbound_deliveries', 'outbound_events', 'outbound_sign_off_changes', 'sqlite_sequence', 'ssf_seen']);
 });
 
 test('with Tenant checks enforced, the bundle holds only what the Tenant owns', async t => {

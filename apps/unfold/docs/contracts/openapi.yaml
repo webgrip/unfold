@@ -5,8 +5,9 @@ info:
   summary: 'The HTTP API of the Unfold workbench, where people define, follow and review the work Ploeg runs.'
   description: |
     This document describes every route under `/api/` that [`src/http.ts`](../../src/http.ts) serves, and the
-    routes it hands to `linked-handoff.ts`, `take-over.ts`, `linked-permissions.ts`, `linked-conversation.ts` and
-    the workspace relay. The prose contract, [HTTP contract](api.md), carries the full behaviour of each route;
+    routes it hands to `linked-handoff.ts`, `take-over.ts`, `linked-permissions.ts`, `linked-conversation.ts`,
+    `intake/routes.ts`, `billing.ts`, `tenant-export-jobs.ts`, the notification, audit and outbound webhook
+    services and the workspace relay. The prose contract, [HTTP contract](api.md), carries the full behaviour of each route;
     this document carries its shape. `test/openapi.test.ts` fails when a route exists in one and not the other.
 
     Conventions:
@@ -55,6 +56,14 @@ tags:
     description: 'Run cards, the binder, packs, seasons and card themes.'
   - name: Linked accounts
     description: 'A person''s own GitLab and ClickUp links.'
+  - name: Notifications
+    description: 'A person''s own notifications over ntfy and Web Push.'
+  - name: Billing
+    description: 'One billing line per accepted Work Item, written into the Agency''s own billing tool.'
+  - name: Request intake
+    description: 'Signed Request deliveries from feedback tools, forms and email, and the sources they come from.'
+  - name: Administration
+    description: 'The security audit, outbound webhooks and Tenant exports.'
   - name: Workspace relay
     description: 'Sandbox worker routes, authenticated by workspace and pod tokens; not part of the operator contract.'
     x-internal: true
@@ -3954,6 +3963,926 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
+  /api/me/notifications:
+    get:
+      tags: [Notifications]
+      operationId: getNotifications
+      summary: 'The person''s notification choices, channels and recent notices'
+      description: 'While the `notifications.push` flag is off for the person it answers `{enabled: false, demo}`; otherwise the view.'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+    put:
+      tags: [Notifications]
+      operationId: setNotificationPreferences
+      summary: 'Replace the person''s channels, triggers and quiet hours'
+      description: '400 `notify_preferences`, `notify_channel`, `notify_trigger`, `notify_quiet_hours` or `notify_time_zone`; 404 `notifications_off` while the flag is off for the person. Turning ntfy on creates the person''s topic.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channels: { type: array, items: { type: string } }
+                triggers: { type: array, items: { type: string } }
+                quietHours:
+                  oneOf:
+                    - type: 'null'
+                    - type: object
+                      required: [start, end, timeZone]
+                      properties:
+                        start: { type: string, pattern: '^\d{2}:\d{2}$' }
+                        end: { type: string, pattern: '^\d{2}:\d{2}$' }
+                        timeZone: { type: string, examples: [Europe/Amsterdam] }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Notifications]
+      operationId: forgetNotifications
+      summary: 'Forget the person''s preferences, topic, subscriptions and notices'
+      description: '404 `notifications_off` while the flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/me/notifications/test:
+    post:
+      tags: [Notifications]
+      operationId: sendTestNotification
+      summary: 'Send the person one test notice per chosen channel and target'
+      description: 'Outside quiet hours. In the demo it answers 200 `{demo: true, queued: 0, message}` and sends nothing. 404 `notifications_off` while the flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: 'The demo: `{demo: true, queued: 0, message}`.'
+          content:
+            application/json:
+              schema: { type: object, properties: { demo: { type: boolean }, queued: { type: integer }, message: { type: string } } }
+        '202':
+          description: '`{demo: false, queued}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { demo: { type: boolean }, queued: { type: integer } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/me/notifications/channels/ntfy/topic:
+    post:
+      tags: [Notifications]
+      operationId: renewNtfyTopic
+      summary: 'Give the person a new ntfy topic'
+      description: 'The old topic gets nothing more. 409 `notify_unavailable` when ntfy is not configured; 404 `notifications_off` while the flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/me/notifications/channels/web-push/subscriptions:
+    post:
+      tags: [Notifications]
+      operationId: addWebPushSubscription
+      summary: 'Subscribe a browser to Web Push'
+      description: 'The endpoint must be HTTPS on a public host and the keys a P-256 point and a 16-byte secret (400 `notify_subscription`). The same endpoint replaces its keys; a person keeps at most 10, the oldest goes first. 409 `notify_unavailable` when Web Push is not configured; 404 `notifications_off` while the flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: 'A browser''s `PushSubscription.toJSON()`.'
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: { type: string, format: uri }
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/NotificationsView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/me/notifications/channels/web-push/subscriptions/{pushSubscriptionId}:
+    parameters:
+      - name: pushSubscriptionId
+        in: path
+        required: true
+        schema: { type: string }
+        example: 3f2b8c1e-6d4a-4f0b-9c2e-1a7d5e8f9b30
+    delete:
+      tags: [Notifications]
+      operationId: removeWebPushSubscription
+      summary: 'Remove one of the person''s Web Push subscriptions'
+      description: '404 `not_found` for a subscription that is not the person''s; 404 `notifications_off` while the flag is off for the person.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/NotificationsView' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/billing:
+    get:
+      tags: [Billing]
+      operationId: getBilling
+      summary: 'Billing per accepted Work Item: exporter, owners, mappings and the newest lines'
+      description: 'Administrators only; while `tenancy.enforce` is on, only the Tenants they reach. `owners` carries each Tenant''s `billing.export` flag value. The demo answers `{demo: true}`.'
+      x-unfold-role: admin
+      responses:
+        '200':
+          description: '`{demo, configured, exporter, currency, sizes, reversalDays, owners, lines, counts}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  configured: { type: boolean }
+                  exporter: { type: object, properties: { name: { type: string }, title: { type: string }, targetFields: { type: array, items: { type: object } } } }
+                  currency: { type: string }
+                  owners: { type: array, items: { type: object } }
+                  lines: { type: array, items: { $ref: '#/components/schemas/BillingLine' } }
+                  counts: { type: object }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/billing/mappings:
+    put:
+      tags: [Billing]
+      operationId: setBillingMapping
+      summary: 'Map a Tenant or Client to the billing tool and set its price'
+      description: 'Amounts are decimal text with a point, such as `450.00`, at most 1000000.00; at least one price is required. `target` holds exactly the exporter''s `targetFields`. `since` (`YYYY-MM-DD`, default today) is the first Acceptance date that is billed. 400 `billing_mapping` or `billing_owner`, 404 `billing_owner` outside the caller''s Tenants, 409 `billing_unconfigured` without a `billing` block, `billing_demo` in the demo.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant, target, price]
+              properties:
+                tenant: { type: string }
+                client: { type: [string, 'null'] }
+                target: { type: object, additionalProperties: { type: string } }
+                price:
+                  type: object
+                  properties:
+                    perTicket: { type: string, pattern: '^\d+(\.\d{1,2})?$' }
+                    perSize:
+                      type: object
+                      properties:
+                        S: { type: string }
+                        M: { type: string }
+                        L: { type: string }
+                since: { type: string, format: date }
+      responses:
+        '200':
+          description: 'The stored mapping `{tenant, client, target, price: {perTicketCents, perSizeCents}, since, updatedAt, updatedBy}`.'
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Billing]
+      operationId: deleteBillingMapping
+      summary: 'Remove a mapping'
+      description: 'Lines already saved stay; a pending line of that Owner fails until it is mapped again. 404 `billing_owner`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      parameters:
+        - { name: tenant, in: query, required: false, schema: { type: string, default: default } }
+        - { name: client, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/billing/sync:
+    post:
+      tags: [Billing]
+      operationId: syncBilling
+      summary: 'Add lines for newly accepted Work Items and send what is due'
+      description: 'Reads 30 days of delivery facts and adds one line per Work Item accepted (`merged`, `approved` or `silent`) on or after its mapping''s `since` while its Tenant''s `billing.export` flag is on. Unfold also runs it every `billing.syncMinutes`. 409 `billing_unconfigured` or `billing_demo`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{added, unmapped, sent, failed, waiting}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  added: { type: integer }
+                  unmapped: { type: integer }
+                  sent: { type: integer }
+                  failed: { type: integer }
+                  waiting: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/billing/lines:
+    get:
+      tags: [Billing]
+      operationId: downloadBillingLines
+      summary: 'Every line the caller may see except cancelled ones, as a file'
+      description: '`csv` is RFC 4180 CSV with columns `key` to `target_reference`; `ubl` is UBL 2.1 JSON invoice lines with no invoice header. 400 `billing_format`.'
+      x-unfold-role: admin
+      parameters:
+        - { name: format, in: query, required: false, schema: { type: string, enum: [csv, ubl], default: csv } }
+      responses:
+        '200':
+          description: 'The file, with `Content-Disposition: attachment`.'
+          content:
+            text/csv:
+              schema: { type: string }
+            application/json:
+              schema: { type: array, items: { type: object } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/billing/lines/{billingLineId}/send:
+    parameters:
+      - $ref: '#/components/parameters/BillingLineId'
+    post:
+      tags: [Billing]
+      operationId: sendBillingLineAgain
+      summary: 'Send a failed line again'
+      description: 'Only a `failed` line (409 `billing_not_failed`); one whose outcome is `uncertain` needs `checked: true`, the person''s word that the tool does not have it (409 `billing_check_first`).'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { checked: { type: boolean } } }
+      responses:
+        '200': { $ref: '#/components/responses/BillingLine' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/billing/lines/{billingLineId}/found:
+    parameters:
+      - $ref: '#/components/parameters/BillingLineId'
+    post:
+      tags: [Billing]
+      operationId: markBillingLineFound
+      summary: 'Mark an uncertain line as found in the tool'
+      description: 'The line becomes `sent` and is never sent again. 409 `billing_not_uncertain`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/BillingLine' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/billing/lines/{billingLineId}/price:
+    parameters:
+      - $ref: '#/components/parameters/BillingLineId'
+    post:
+      tags: [Billing]
+      operationId: priceBillingLine
+      summary: 'Price a line that waits for one, then send it'
+      description: 'Only a `needs_price` line (409 `billing_priced`); 400 `billing_price`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [price]
+              properties:
+                price: { type: string, pattern: '^\d+(\.\d{1,2})?$' }
+                size: { type: string, enum: [S, M, L] }
+      responses:
+        '200': { $ref: '#/components/responses/BillingLine' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/billing/lines/{billingLineId}/reverse:
+    parameters:
+      - $ref: '#/components/parameters/BillingLineId'
+    post:
+      tags: [Billing]
+      operationId: reverseBillingLine
+      summary: 'Credit a sent line, or cancel one never sent'
+      description: 'A sent line gets a credit line keyed `<key>:reversal` with quantity -1 at the same price; a line never sent becomes `cancelled`. Within 14 days of Acceptance (409 `billing_reversal_late`), once (409 `billing_reversed`); an uncertain or sending line answers 409 `billing_check_first`. `reason` says which defect inside the Acceptance Conditions the revert fixed (400 `billing_reason`).'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 500 }
+                revertUrl: { type: string, format: uri }
+      responses:
+        '200': { $ref: '#/components/responses/BillingLine' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/intake/{intakeSourceId}:
+    parameters:
+      - $ref: '#/components/parameters/IntakeSourceId'
+    post:
+      tags: [Request intake]
+      operationId: deliverIntakeRequest
+      summary: 'A sender delivers a Request'
+      description: |
+        Needs no sign-in, no `X-Unfold-Request` header and no same-origin check: the source's verifier proves the
+        delivery instead (`standard-webhooks`, `hub-signature-256`, `zendesk` or `token`). A webhook source takes
+        `application/json`, read through its template; an email source takes `message/rfc822` or an inbound-mail JSON
+        body. At most 5 MiB. Rate limited per sender address and per source before the signature is checked. The answer
+        never echoes the payload, and a delivery is not an Action Record. 404 for an unknown source, or while the
+        source's Tenant has the `intake.requests` flag off.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+          message/rfc822:
+            schema: { type: string }
+      responses:
+        '200':
+          description: '`{outcome: "threaded" | "duplicate", request}`, or `{replayed: true, outcome, request}` for a repeated `webhook-id`.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeDelivery' }
+        '201':
+          description: '`{outcome: "created", request}`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeDelivery' }
+        '202':
+          description: '`{outcome: "ignored", reason, request: null}`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakeDelivery' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: '`signature_missing`, `signature_invalid` or `timestamp_outside_window`.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422':
+          description: '`intake_no_title`: the payload gives the Request no title.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/intake/templates:
+    get:
+      tags: [Request intake]
+      operationId: listIntakeTemplates
+      summary: 'The intake templates and verifiers'
+      description: '404 `intake_off` while the `intake.requests` flag is off for the caller.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{templates, verifiers}`: each template `{id, name, verifier, check, docs, notes, mapping, senderBody}`, each verifier `{name, signed, generatesSecret}`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates: { type: array, items: { type: object } }
+                  verifiers: { type: array, items: { type: object } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/intake/sources:
+    get:
+      tags: [Request intake]
+      operationId: listIntakeSources
+      summary: 'The intake sources the caller administers'
+      description: 'Never a secret. Empty for anyone but an administrator; while `tenancy.enforce` is on, only the sources of Tenants the caller is an Admin of. 404 `intake_off` while the flag is off for the caller.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{sources}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { sources: { type: array, items: { $ref: '#/components/schemas/IntakeSource' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Request intake]
+      operationId: createIntakeSource
+      summary: 'Add an intake source'
+      description: 'Without `secret`, Unfold makes one and answers it this once; with one, `secret` is null. A webhook names a registered `template` or `custom` with a `mapping` (400 `intake_mapping`). 400 `intake_source` or `intake_secret`, 403 for a Tenant the caller is not an Admin of while tenancy is enforced, 409 `intake_source_exists`, 404 `intake_off` while the flag is off for the caller.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, tenant]
+              properties:
+                id: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+                name: { type: string }
+                kind: { type: string, enum: [webhook, email], default: webhook }
+                tenant: { type: string }
+                client: { type: [string, 'null'] }
+                template: { type: string }
+                mapping: { type: object }
+                verifier: { type: string }
+                secret: { type: string }
+                address: { type: string }
+                senders: { type: array, items: { type: string } }
+                rateLimit: { type: object }
+      responses:
+        '201': { $ref: '#/components/responses/IntakeSourceWithSecret' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/intake/sources/{intakeSourceId}:
+    parameters:
+      - $ref: '#/components/parameters/IntakeSourceId'
+    delete:
+      tags: [Request intake]
+      operationId: removeIntakeSource
+      summary: 'Remove an intake source'
+      description: 'Deliveries to it answer 404 from then on; its Requests stay. 404 `not_found` for a source the caller does not administer, `intake_off` while the flag is off for the caller.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{removed}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { removed: { type: string } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/intake/sources/{intakeSourceId}/secret:
+    parameters:
+      - $ref: '#/components/parameters/IntakeSourceId'
+    post:
+      tags: [Request intake]
+      operationId: replaceIntakeSourceSecret
+      summary: 'Replace a source''s secret'
+      description: 'Without `secret`, Unfold makes one and answers it this once. The old secret stops working at once. 400 `intake_secret`, 404 `not_found` or `intake_off`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { secret: { type: string } } }
+      responses:
+        '200': { $ref: '#/components/responses/IntakeSourceWithSecret' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/intake/requests:
+    get:
+      tags: [Request intake]
+      operationId: listIntakeRequests
+      summary: 'The Requests the caller reaches, newest change first'
+      description: 'While tenancy is enforced a person reaches the Requests of their Tenants, and a Client user those of their Client. 404 `intake_off` while the flag is off for the caller.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: source, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: before, in: query, required: false, description: 'The `updatedAt` of the last Request read.', schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: '`{requests}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { requests: { type: array, items: { $ref: '#/components/schemas/IntakeRequest' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/intake/requests/{intakeRequestId}:
+    parameters:
+      - name: intakeRequestId
+        in: path
+        required: true
+        schema: { type: string }
+        example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+    get:
+      tags: [Request intake]
+      operationId: getIntakeRequest
+      summary: 'One Request'
+      description: '404 `not_found` for a Request the caller does not reach, `intake_off` while the flag is off for the caller.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{request}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { request: { $ref: '#/components/schemas/IntakeRequest' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/audit:
+    get:
+      tags: [Administration]
+      operationId: readAuditRecords
+      summary: 'A Tenant''s OCSF security audit as NDJSON'
+      description: |
+        One OCSF 1.9.0 event per line, oldest first, after sequence `cursor` and from ISO time `since`. Needs an Admin
+        membership of the Tenant asked for; `tenant` may be left out by someone who administers exactly one Tenant
+        (400 `audit_tenant` otherwise, 403 `audit_tenant_forbidden`). 404 `audit_export_off` while the Tenant's
+        `audit.export` flag is off; 400 `audit_since`, `audit_cursor` or `audit_limit`. Each read is itself recorded.
+      x-unfold-role: admin
+      parameters:
+        - { name: tenant, in: query, required: false, schema: { type: string } }
+        - { name: since, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: cursor, in: query, required: false, description: 'The sequence number of the last record read.', schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 1000, default: 500 } }
+      responses:
+        '200':
+          description: 'The records. `X-Unfold-Audit-Next-Cursor` and `Link: <…>; rel="next"` follow when more records wait.'
+          headers:
+            X-Unfold-Audit-Tenant: { schema: { type: string } }
+            X-Unfold-Audit-Head: { description: '`<sequence>:<sha256>` of the chain''s newest record.', schema: { type: string } }
+            X-Unfold-Audit-Next-Cursor: { schema: { type: integer } }
+            Link: { schema: { type: string } }
+          content:
+            application/x-ndjson:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/audit/verify:
+    get:
+      tags: [Administration]
+      operationId: verifyAuditChain
+      summary: 'Check a Tenant''s audit hash chain'
+      description: 'Checked from the chain''s newest retention anchor, whatever the `audit.export` flag says. The Tenant rules of `GET /api/admin/audit` apply.'
+      x-unfold-role: admin
+      parameters:
+        - { name: tenant, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: '`{tenant, ok, checked, anchor, head, break}`; `break` is `{sequence, reason}` with reason `sequence_gap`, `previous_hash`, `hash` or `unreadable`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant: { type: string }
+                  ok: { type: boolean }
+                  checked: { type: integer }
+                  anchor: {}
+                  head: {}
+                  break: { oneOf: [{ type: 'null' }, { type: object, properties: { sequence: { type: integer }, reason: { type: string, enum: [sequence_gap, previous_hash, hash, unreadable] } } }] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/admin/webhooks:
+    get:
+      tags: [Administration]
+      operationId: listWebhooks
+      summary: 'The webhook subscriptions, the Tenants the caller administers and the published event types'
+      description: '`tenants` carries each Tenant''s `events.webhooks` flag value.'
+      x-unfold-role: admin
+      responses:
+        '200':
+          description: '`{demo, sources, tenants, eventTypes, allowedPrivateTargets, subscriptions}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  tenants: { type: array, items: { type: object, properties: { tenant: { type: string }, enabled: { type: boolean } } } }
+                  eventTypes: { type: array, items: { type: object, properties: { type: { type: string }, title: { type: string }, summary: { type: string } } } }
+                  allowedPrivateTargets: { type: array, items: { type: string } }
+                  subscriptions: { type: array, items: { $ref: '#/components/schemas/WebhookSubscription' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Administration]
+      operationId: createWebhook
+      summary: 'Subscribe a receiver to product events'
+      description: |
+        `secret` (`whsec_…`) is shown this once. `types` is 1 to 50 published types or prefixes ending in `.*` (400
+        `webhook_types`). `tenant` defaults to `default`; a `client` limits the subscription to that Client's events
+        (400 `webhook_scope`). `url` must be `https` and resolve only to public addresses unless
+        `outboundEvents.allowedPrivateTargets` names it: 400 `webhook_url`, `webhook_url_scheme`,
+        `webhook_target_private` or `webhook_target_unresolved`. 409 `webhooks_off` while the Tenant's flag is off,
+        409 `webhook_limit` beyond 100 subscriptions.
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, types]
+              properties:
+                url: { type: string, format: uri }
+                types: { type: array, minItems: 1, maxItems: 50, items: { type: string } }
+                tenant: { type: string, default: default }
+                client: { type: [string, 'null'] }
+                description: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: '`{subscription, secret}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { subscription: { $ref: '#/components/schemas/WebhookSubscription' }, secret: { type: string } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/webhooks/{subscriptionId}:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    get:
+      tags: [Administration]
+      operationId: getWebhook
+      summary: 'One subscription'
+      x-unfold-role: admin
+      responses:
+        '200': { $ref: '#/components/responses/WebhookSubscription' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Administration]
+      operationId: updateWebhook
+      summary: 'Change a subscription'
+      description: 'Checked as on creation. `active: true` clears a `disabledReason`, such as the one a 410 answer set. 400 `webhook_description` or `webhook_active`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri }
+                types: { type: array, minItems: 1, maxItems: 50, items: { type: string } }
+                description: { type: string, maxLength: 200 }
+                active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/WebhookSubscription' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Administration]
+      operationId: deleteWebhook
+      summary: 'Remove a subscription, its deliveries and its secret'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{deleted}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { deleted: { type: string } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/webhooks/{subscriptionId}/rotate-secret:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Administration]
+      operationId: rotateWebhookSecret
+      summary: 'Give a subscription a new secret'
+      description: 'The old secret keeps signing next to it for 24 hours.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{subscription, secret, previousSignsUntil}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription: { $ref: '#/components/schemas/WebhookSubscription' }
+                  secret: { type: string }
+                  previousSignsUntil: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/webhooks/{subscriptionId}/test:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Administration]
+      operationId: testWebhook
+      summary: 'Queue a test event to this subscription only'
+      description: 'The event is `dev.unfold.webhook.test` and reports nothing that happened.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '202':
+          description: '`{queued}`: the event id.'
+          content:
+            application/json:
+              schema: { type: object, properties: { queued: { type: string } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/webhooks/{subscriptionId}/deliveries:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+    get:
+      tags: [Administration]
+      operationId: listWebhookDeliveries
+      summary: 'The newest 100 deliveries of a subscription'
+      x-unfold-role: admin
+      responses:
+        '200':
+          description: '`{deliveries}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { deliveries: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/webhooks/{subscriptionId}/deliveries/{deliveryId}/resend:
+    parameters:
+      - $ref: '#/components/parameters/SubscriptionId'
+      - name: deliveryId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^\d{1,15}$' }
+        example: '1'
+    post:
+      tags: [Administration]
+      operationId: resendWebhookDelivery
+      summary: 'Put a dead delivery back in the queue'
+      description: 'With a fresh attempt count. 404 `webhook_delivery_not_found`, 409 `webhook_delivery_not_dead`: a pending delivery retries by itself.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '202':
+          description: '`{delivery}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { delivery: { $ref: '#/components/schemas/WebhookDelivery' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/admin/tenant-exports:
+    get:
+      tags: [Administration]
+      operationId: listTenantExports
+      summary: 'The exports the caller started, newest first'
+      description: 'A browser session only (403 `browser_only`); 403 `tenant_export_off` while the `tenant.export` flag is off.'
+      x-unfold-role: admin
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: '`{exports}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { exports: { type: array, items: { $ref: '#/components/schemas/TenantExport' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Administration]
+      operationId: startTenantExport
+      summary: 'Start exporting everything Unfold holds for a Tenant'
+      description: |
+        Answers at once with the running export. `tenant` defaults to `default`; `confirm` must repeat it (400
+        `tenant_export_confirm`). While `tenancy.enforce` is off only `default` exists, and while it is on the caller
+        needs an Admin membership of the Tenant (404 `tenant_not_found` otherwise). 409 `tenant_export_running` while
+        another export runs. A browser session only (403 `browser_only`); 403 `tenant_export_off` while the flag is off.
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                tenant: { type: string, default: default }
+                confirm: { type: string }
+      responses:
+        '202': { $ref: '#/components/responses/TenantExport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/tenant-exports/{tenantExportId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantExportId'
+    get:
+      tags: [Administration]
+      operationId: getTenantExport
+      summary: 'One export'
+      description: '404 `tenant_export_not_found` once it expired or was deleted, or when another person started it. A browser session only (403 `browser_only`).'
+      x-unfold-role: admin
+      security:
+        - sessionCookie: []
+      responses:
+        '200': { $ref: '#/components/responses/TenantExport' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Administration]
+      operationId: deleteTenantExport
+      summary: 'Delete an export and its bundle before it expires'
+      description: '409 `tenant_export_running` while it runs. A browser session only (403 `browser_only`).'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{deleted}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { deleted: { type: string } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/admin/tenant-exports/{tenantExportId}/download:
+    parameters:
+      - $ref: '#/components/parameters/TenantExportId'
+    get:
+      tags: [Administration]
+      operationId: downloadTenantExport
+      summary: 'The export bundle'
+      description: 'A gzip-compressed tar of JSON Lines, one file per entity, with a JSON Schema per entity and a manifest. 409 `tenant_export_not_ready` while running or after a failure. Recorded as an Action Record. A browser session only (403 `browser_only`).'
+      x-unfold-role: admin
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: 'The bundle, with `Content-Disposition`, `Content-Length` and `Repr-Digest: sha-256=:<base64>:`.'
+          headers:
+            Repr-Digest: { schema: { type: string } }
+          content:
+            application/gzip:
+              schema: { type: string, contentEncoding: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /api/relay/pool/claim:
     get:
       tags: [Workspace relay]
@@ -4167,6 +5096,30 @@ components:
       in: query
       required: false
       schema: { type: string }
+    BillingLineId:
+      name: billingLineId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[0-9a-f-]{36}$' }
+      example: 2f1c7e0a-8b3d-4c5e-9f6a-1b2c3d4e5f60
+    IntakeSourceId:
+      name: intakeSourceId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+      example: support-desk
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^sub_[a-f0-9]{24}$' }
+      example: sub_0123456789abcdef01234567
+    TenantExportId:
+      name: tenantExportId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[0-9a-f]{32}$' }
+      example: 0123456789abcdef0123456789abcdef
   requestBodies:
     Empty:
       description: 'An action without input sends `{}`.'
@@ -4311,6 +5264,112 @@ components:
         key: { type: string }
         errorCode: { type: string }
         errorDetails: { type: string }
+    BillingLine:
+      type: object
+      properties:
+        id: { type: string }
+        line: { type: object }
+        exporter: { type: string }
+        state: { type: string, enum: [pending, needs_price, sending, sent, failed, cancelled] }
+        attempts: { type: integer }
+        nextAttemptAt: { type: [string, 'null'] }
+        lastError: { type: [string, 'null'] }
+        uncertain: { type: boolean }
+        remoteId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        sentAt: { type: [string, 'null'] }
+        revertDetected: {}
+        reversedBy: { type: [string, 'null'] }
+        cancelReason: { type: [string, 'null'] }
+    IntakeSource:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [webhook, email] }
+        tenant: { type: string }
+        client: { type: [string, 'null'] }
+        template: { type: [string, 'null'] }
+        mapping: {}
+        verifier: { type: string }
+        address: { type: [string, 'null'] }
+        senders: { type: array, items: { type: string } }
+        rateLimit: { type: object }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        secretSetAt: { type: string, format: date-time }
+        url: { type: string }
+    IntakeRequest:
+      type: object
+      properties:
+        id: { type: string }
+        tenant: { type: string }
+        client: { type: [string, 'null'] }
+        sourceId: { type: string }
+        channel: { type: string, enum: [webhook, email] }
+        state: { type: string }
+        title: { type: string }
+        description: { type: string }
+        reporter: {}
+        links: { type: array, items: {} }
+        attachments: { type: array, items: { type: object } }
+        labels: { type: array, items: { type: string } }
+        externalId: { type: [string, 'null'] }
+        messages: { type: array, items: { type: object } }
+        receivedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    IntakeDelivery:
+      type: object
+      properties:
+        outcome: { type: string, enum: [created, threaded, duplicate, ignored] }
+        replayed: { type: boolean }
+        reason: { type: string }
+        request: {}
+    WebhookSubscription:
+      type: object
+      properties:
+        id: { type: string }
+        tenant: { type: string }
+        client: { type: [string, 'null'] }
+        url: { type: string }
+        types: { type: array, items: { type: string } }
+        description: { type: string }
+        active: { type: boolean }
+        disabledReason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        deliveries: { type: object, properties: { pending: { type: integer }, delivered: { type: integer }, dead: { type: integer } } }
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: integer }
+        subscriptionId: { type: string }
+        eventId: { type: string }
+        eventType: { type: string }
+        status: { type: string, enum: [pending, delivered, dead] }
+        attempts: { type: integer }
+        nextAttemptAt: { type: [string, 'null'] }
+        lastStatus: { type: [integer, 'null'] }
+        lastError: { type: [string, 'null'] }
+        deliveredAt: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    TenantExport:
+      type: object
+      properties:
+        id: { type: string }
+        tenant: { type: string }
+        state: { type: string, enum: [running, ready, failed] }
+        requestedBy: { type: object }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'] }
+        expiresAt: { type: [string, 'null'] }
+        bytes: { type: [integer, 'null'] }
+        sha256: { type: [string, 'null'] }
+        rows: { type: [integer, 'null'] }
+        error: { type: [string, 'null'] }
+        downloadUrl: { type: [string, 'null'] }
   responses:
     Ok:
       description: 'The JSON answer; [HTTP contract](api.md) lists its fields.'
@@ -4381,6 +5440,44 @@ components:
       content:
         application/json:
           schema: { type: object, properties: { crack: { type: object }, demo: { type: boolean }, message: { type: string } } }
+    NotificationsView:
+      description: '`{enabled, demo, triggers, preferences, channels, recent}`, plus `result` from a channel route.'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              enabled: { type: boolean }
+              demo: { type: boolean }
+              triggers: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string }, detectedFrom: { type: string } } } }
+              preferences: { type: object, properties: { channels: { type: array, items: { type: string } }, triggers: { type: array, items: { type: string } }, quietHours: {} } }
+              channels: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string }, available: { type: boolean } } } }
+              recent: { type: array, items: { type: object } }
+              result: {}
+    BillingLine:
+      description: 'The line after the action.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/BillingLine' }
+    IntakeSourceWithSecret:
+      description: '`{source, secret}`; `secret` is shown this once, or null when the caller sent one.'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              source: { $ref: '#/components/schemas/IntakeSource' }
+              secret: { type: [string, 'null'] }
+    WebhookSubscription:
+      description: '`{subscription}`'
+      content:
+        application/json:
+          schema: { type: object, properties: { subscription: { $ref: '#/components/schemas/WebhookSubscription' } } }
+    TenantExport:
+      description: '`{export}`'
+      content:
+        application/json:
+          schema: { type: object, properties: { export: { $ref: '#/components/schemas/TenantExport' } } }
     BadRequest:
       description: 'Invalid input; `code` names the field rule, such as `invalid_input` or `invalid_json`.'
       content:

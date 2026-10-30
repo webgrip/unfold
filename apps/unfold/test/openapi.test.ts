@@ -18,7 +18,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 const text = readFileSync(openApiDocument, 'utf8');
 const spec = parse(text) as { paths: Record<string, PathItem>; security: Record<string, string[]>[]; components: { parameters: Record<string, Parameter>; securitySchemes: Record<string, unknown> } };
 
-const routeModules = ['src/http.ts', 'src/take-over.ts', 'src/linked-handoff.ts', 'src/linked-permissions.ts', 'src/linked-conversation.ts'];
+const routeModules = ['src/http.ts', 'src/take-over.ts', 'src/linked-handoff.ts', 'src/linked-permissions.ts', 'src/linked-conversation.ts', 'src/intake/routes.ts', 'src/billing.ts', 'src/tenant-export-jobs.ts'];
 const param = '\u0000';
 const wildcard = '\u0001';
 
@@ -100,6 +100,25 @@ function codeRoutes(): CodeRoute[] {
   const [relayPattern] = regexLiterals(relay.slice(relay.indexOf('this.basePath.length).match(')), '/^');
   const relayCompiled = new RegExp(relayPattern);
   routes.push({ origin: `src/runtime/relay.ts /${relayPattern}/`, matches: path => path.startsWith('/api/relay/') && relayCompiled.test(path.slice('/api/relay/'.length)), templates: expand(relayPattern).map(path => `/api/relay/${path}`) });
+  const outbound = source('src/outbound/service.ts');
+  const [webhookPattern] = regexLiterals(outbound, '/^\\/api\\/admin\\/webhooks');
+  assert(webhookPattern && http.includes("path.startsWith('/api/admin/webhooks/')"), 'the webhook routes moved; update codeRoutes');
+  const webhookCompiled = new RegExp(webhookPattern);
+  routes.push({ origin: `src/outbound/service.ts /${webhookPattern}/`, matches: path => webhookCompiled.test(path), templates: expand(webhookPattern).filter(path => !path.endsWith('/resend') || path.includes('/deliveries/')) });
+  const byTemplate = (origin: string, templates: string[]) => {
+    for (const template of templates) {
+      const compiled = new RegExp(`^${template.replaceAll(param, '[^/]+')}$`);
+      routes.push({ origin: `${origin} ${template.replaceAll(param, '{…}')}`, matches: path => compiled.test(path), templates: [template] });
+    }
+  };
+  const notify = source('src/notify/service.ts');
+  const channels = source('src/notify/channels.ts');
+  assert(notify.includes("path.slice('/api/me/notifications'.length)") && notify.includes("rest[0] === 'test'") && notify.includes("rest[0] === 'channels'"), 'src/notify/service.ts no longer routes /api/me/notifications by the path parts this test knows; update codeRoutes');
+  assert(channels.includes("readonly id = 'ntfy'") && channels.includes("rest.join('/') !== 'topic'") && channels.includes("readonly id = 'web-push'") && channels.includes("rest[0] !== 'subscriptions' || rest.length > 2"), 'the notification channels changed their routes; update codeRoutes');
+  byTemplate('src/notify', ['/api/me/notifications/test', '/api/me/notifications/channels/ntfy/topic', '/api/me/notifications/channels/web-push/subscriptions', `/api/me/notifications/channels/web-push/subscriptions/${param}`]);
+  const intake = source('src/intake/routes.ts');
+  assert(http.includes("path.startsWith('/api/intake/') && await intakeRoute(") && intake.includes("['templates', 'sources', 'requests'].includes(parts[0]") && intake.includes("parts[2] === 'secret'"), 'src/intake/routes.ts no longer routes by the path parts this test knows; update codeRoutes');
+  byTemplate('src/intake/routes.ts', [`/api/intake/${param}`, '/api/intake/templates', '/api/intake/sources', `/api/intake/sources/${param}`, `/api/intake/sources/${param}/secret`, '/api/intake/requests', `/api/intake/requests/${param}`]);
   return routes;
 }
 
@@ -185,7 +204,7 @@ test('http.ts hands requests only to the route modules this test reads', () => {
 test('each operation names its role, its credentials and the mutation header the code requires', () => {
   const ids = new Set<string>();
   const problems: string[] = [];
-  const exempt = new Set(['/api/auth/editor', '/api/auth/editor/{code}', '/api/ofrep/v1/evaluate/flags', '/api/ofrep/v1/evaluate/flags/{ofrepKey}']);
+  const exempt = new Set(['/api/auth/editor', '/api/auth/editor/{code}', '/api/ofrep/v1/evaluate/flags', '/api/ofrep/v1/evaluate/flags/{ofrepKey}', '/api/intake/{intakeSourceId}']);
   for (const { path, method, operation } of operations()) {
     const name = `${method.toUpperCase()} ${path}`;
     if (!operation.operationId || ids.has(operation.operationId)) problems.push(`${name}: operationId missing or repeated`);
@@ -210,10 +229,17 @@ test('the server answers exactly the methods the OpenAPI description declares, a
   const server = await application('demo', config => {
     config.auth.oidc = { issuer: 'http://127.0.0.1:9/openapi-probe', clientId: 'unfold', scopes: ['openid'], displayName: 'Probe', roleClaim: 'role', groupsClaim: 'groups', roles: { admin: [], operator: [], viewer: [] } };
     config.taskSources = [{ id: 'probe-tasks', name: 'Probe tasks', provider: 'demo', baseUrl: 'https://demo.invalid', project: 'order-service', repositoryId: 'order-service', executionOwner: 'interactive' }];
+    config.flags = { document: { flags: { 'intake.requests': { defaultVariant: 'on' }, 'notifications.push': { defaultVariant: 'on' }, 'events.webhooks': { defaultVariant: 'on' } } }, unknown: [] };
+    config.outboundEvents = { allowedPrivateTargets: ['127.0.0.1'] };
   });
   t.after(() => server.close());
   const session = await createSession(server.url);
-  const unrouted = new Set(['API route not found.', 'Ploeg operator view not found.', 'Action not found.', 'Unknown OFREP path.', 'Relay route not found.']);
+  const subscribe = async () => {
+    const created = await request(server.url, '/api/admin/webhooks', { method: 'POST', body: { url: 'http://127.0.0.1:9/openapi-probe', types: ['dev.unfold.webhook.test'] } });
+    assert.equal(created.status, 201, created.text);
+    return String(created.body.subscription.id);
+  };
+  const unrouted = new Set(['API route not found.', 'Ploeg operator view not found.', 'Action not found.', 'Unknown OFREP path.', 'Relay route not found.', 'Unknown notifications route.']);
   async function probe(path: string, method: string, declared: boolean, header = true): Promise<{ status: number; code?: string; routed: boolean }> {
     const body = method === 'GET' ? undefined : declared ? 'probe' : '{}';
     const controller = new AbortController();
@@ -236,7 +262,8 @@ test('the server answers exactly the methods the OpenAPI description declares, a
     const declaredMethods = methods.filter(method => item[method]);
     const anyOperation = item[declaredMethods[0]]!;
     if (anyOperation['x-unfold-requires']?.includes('connected-ploeg') || path.startsWith('/api/relay/{')) continue;
-    for (const sample of samples(path, { sessionId: session.id, sourceId: 'probe-tasks' })) {
+    const subscription: Record<string, string> = path.includes('{subscriptionId}') ? { subscriptionId: await subscribe() } : {};
+    for (const sample of samples(path, { sessionId: session.id, sourceId: 'probe-tasks', ...subscription })) {
       for (const method of methods) {
         const declared = declaredMethods.includes(method);
         const answer = await probe(sample, method.toUpperCase(), declared);
