@@ -60,6 +60,7 @@ Demo mode signs every visitor in as `demo-operator`, an administrator, with no l
 | `ploeg.tokenEnv` or `ploeg.personTokens`, also with `ploeg.demo` | The demo Ploeg needs no credential | Remove them |
 | `execution` | It runs agent work under a real Ploeg | `mode: live` |
 | `delivery` | Its verifier and publisher hold forge credentials | `mode: live` |
+| `billing` | It writes lines into a real billing tool with its credential | `mode: live` |
 | `links` | A GitLab or ClickUp account one visitor links would act for every visitor | `mode: live` |
 | A task source's `tokenEnv`, or `reports.tokenEnv` | The tracker token would read and write for every visitor | Remove the token; a task source without one still reads public projects |
 | `apiKeyEnv` or `tokenEnv` on an OFREP provider under `flags.providers` | The flag service credential | Remove the credential |

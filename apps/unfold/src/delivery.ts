@@ -13,6 +13,7 @@ import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PersonProof } from './person-proof.ts';
 import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, type PloegAttribution } from './ploeg-attribution.ts';
 import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
+import type { AiCommitMarking } from './ai-marking.ts';
 
 type LocalDelivery = { candidate: CanonicalCandidate; generation: number; phase: 'captured' | 'verifying' | 'verified' | 'recorded'; result?: VerificationResult };
 /** A publication as every surface shows it: its phase, the operation and branch it reserved, and the verified pull request once there is one. */
@@ -130,12 +131,19 @@ export class DeliveryService {
     return this.serial(id, async () => { const session = this.session(id, user, true); await this.verifyLocked(session, user); return this.render(session); });
   }
 
+  private sessionUrl(session: Session): string { return `${this.config.baseUrl ?? `http://${this.config.host}:${this.config.port}`}/#session/${session.id}`; }
+
+  private commitMarking(session: Session): AiCommitMarking {
+    const model = session.model ? this.config.models?.find(item => item.id === session.model)?.modelId : undefined;
+    return { agent: session.runtime === 'opencode' ? 'opencode' : `unfold-${session.runtime}`, ...(model ? { model } : {}), session: this.sessionUrl(session) };
+  }
+
   private async verifyLocked(session: Session, user: User): Promise<void> {
     const id = session.id; const policy = this.policy(session);
     if (!policy || session.status !== 'completed' || session.candidate?.status !== 'ready' || session.execution?.state !== 'completed' || !session.execution.stopConfirmed) deliveryFailure('completed_candidate_required');
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId)!;
     let local = this.store.getSecret<LocalDelivery>(`delivery:${id}`);
-    if (!local) { local = { candidate: await canonicalizeCandidate(this.config.dataDir, id, policy!), generation: session.execution!.generation, phase: 'captured' }; this.store.setSecret(`delivery:${id}`, local); }
+    if (!local) { local = { candidate: await canonicalizeCandidate(this.config.dataDir, id, policy!, this.commitMarking(session)), generation: session.execution!.generation, phase: 'captured' }; this.store.setSecret(`delivery:${id}`, local); }
     if (local.candidate.policySha !== policyDigest(policy!) || local.generation !== session.execution!.generation) deliveryFailure('delivery_policy_changed');
     if (local.phase === 'verifying' && !local.result) deliveryFailure('verification_interrupted');
     const candidate = local.candidate;
@@ -205,7 +213,7 @@ export class DeliveryService {
     const operationId = publicationOperationId(candidate.id);
     return this.save(session, {
       operationId, branch: publicationBranch(session.execution?.workItemId, session.id, candidate.id), baseBranch: repository.baseBranch, repositoryUrl: repository.url, phase: 'reserving',
-      facts: { workItemId: session.execution!.workItemId, sessionId: session.id, sessionUrl: `${this.config.baseUrl ?? `http://${this.config.host}:${this.config.port}`}/#session/${session.id}`, ...(session.trackerUrl ?? repository.trackerUrl ? { trackerUrl: session.trackerUrl ?? repository.trackerUrl } : {}), title: session.title, candidateId: candidate.id, receiptId: receipt.id, approvalId: approval.id, canonicalSha: candidate.canonicalSha, baseSha: candidate.baseSha, treeSha: candidate.treeSha, policySha256, verifierId: local!.result?.verifierId ?? 'unfold-docker-v1', approver: approval.actor },
+      facts: { workItemId: session.execution!.workItemId, sessionId: session.id, sessionUrl: this.sessionUrl(session), ...(session.trackerUrl ?? repository.trackerUrl ? { trackerUrl: session.trackerUrl ?? repository.trackerUrl } : {}), title: session.title, candidateId: candidate.id, receiptId: receipt.id, approvalId: approval.id, canonicalSha: candidate.canonicalSha, baseSha: candidate.baseSha, treeSha: candidate.treeSha, policySha256, verifierId: local!.result?.verifierId ?? 'unfold-docker-v1', approver: approval.actor },
     }, 'delivery.publication_reserving');
   }
 

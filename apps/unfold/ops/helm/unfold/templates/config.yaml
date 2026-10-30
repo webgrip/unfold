@@ -5,7 +5,7 @@
 {{- $demoPloeg := default (dict) .Values.config.ploeg -}}
 {{- if and (hasKey .Values.config "ploeg") (ne (toString (get $demoPloeg "demo")) "true") -}}{{- fail "mode demo gives every visitor admin; it cannot use a real Ploeg. Set mode: live, or use config.ploeg.demo" -}}{{- end -}}
 {{- range $key := list "tokenEnv" "personTokens" -}}{{- if hasKey $demoPloeg $key -}}{{- fail (printf "mode demo gives every visitor admin; it cannot hold config.ploeg.%s. Remove it, or set mode: live" $key) -}}{{- end -}}{{- end -}}
-{{- range $key := list "execution" "links" "delivery" -}}{{- if hasKey $.Values.config $key -}}{{- fail (printf "mode demo gives every visitor admin; it cannot use config.%s, which reaches real systems with credentials. Set mode: live" $key) -}}{{- end -}}{{- end -}}
+{{- range $key := list "execution" "links" "delivery" "billing" -}}{{- if hasKey $.Values.config $key -}}{{- fail (printf "mode demo gives every visitor admin; it cannot use config.%s, which reaches real systems with credentials. Set mode: live" $key) -}}{{- end -}}{{- end -}}
 {{- range (default (list) .Values.config.taskSources) -}}{{- if hasKey . "tokenEnv" -}}{{- fail (printf "mode demo gives every visitor admin; it cannot hold the token of task source %v. Remove its tokenEnv, or set mode: live" (get . "id")) -}}{{- end -}}{{- end -}}
 {{- if hasKey (default (dict) .Values.config.reports) "tokenEnv" -}}{{- fail "mode demo gives every visitor admin; it cannot hold config.reports.tokenEnv. Remove it, or set mode: live" -}}{{- end -}}
 {{- end -}}

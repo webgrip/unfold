@@ -7,7 +7,9 @@ import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
+import type { IntakeConfig } from './intake/limiter.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
+import type { BillingSettings } from './billing-export.ts';
 import type { NotificationSettings } from './notify/settings.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
@@ -69,6 +71,8 @@ export type AppConfig = {
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
+  /** The security audit's retention and OTLP endpoint (`src/audit/settings.ts`). */
+  audit?: AuditConfig;
   errorReports?: ErrorReportConfig;
   mcpServers?: McpServersConfig;
   productEvents?: boolean;
@@ -81,6 +85,14 @@ export type AppConfig = {
   acceptanceCalendar?: AcceptanceCalendar;
   /** Whether Tenant and Client memberships limit what people reach (system ADR-0017). Absent means not enforced. */
   tenancy?: { enforce: boolean };
+  /** The non-public hosts, addresses and CIDR ranges outbound webhooks may still reach. Absent, only public targets. */
+  outboundEvents?: { allowedPrivateTargets: string[] };
+  /** The reverse proxies whose `X-Forwarded-For` names the client: IP addresses and CIDR ranges. Absent trusts none. */
+  trustedProxies?: string[];
+  /** The Request intake's rate limit. */
+  intake?: IntakeConfig;
+  /** Where accepted Work Items are written as billing lines: the exporter and its settings. Absent means billing is off. */
+  billing?: BillingSettings;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
@@ -89,6 +101,8 @@ export type ReportTarget = { source: TaskSourceConfig; project: string; acknowle
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 /** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
 export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
+/** How long the security audit keeps records, and where its OTLP logs go when export is on. */
+export type AuditConfig = { retentionDays: number; otlp?: { url: string; headers: Record<string, string> } };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

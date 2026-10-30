@@ -669,7 +669,21 @@ terms:
     not_to_be_confused_with:
       - term: Work Item
         note: The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.
-    see_also: [Client, Refinement, Quote, Client Portal]
+    see_also: [Client, Refinement, Quote, Client Portal, Intake Source]
+  - name: Intake Source
+    context: Offering
+    owner: unfold
+    definition: >
+      One configured way for Requests to reach a Tenant, and optionally one
+      Client in it, from a feedback tool, a form or a mailbox: a signed
+      delivery address with its own secret and a mapping template. What it
+      receives is stored as a Request for Refinement; it never becomes a Run,
+      and Unfold never answers the sender. Behind the intake.requests flag.
+    avoid: [inbox, integration]
+    not_to_be_confused_with:
+      - term: Integration Account
+        note: An account Unfold uses to read a tracker or forge; an Intake Source is posted to by the sender and holds no account.
+    see_also: [Request, Client, Integration Account]
   - name: Edition
     context: Offering
     definition: >

@@ -24,6 +24,7 @@ const refused: [string, Record<string, unknown>, RegExp][] = [
   ['person tokens', { ploeg: { url: realPloeg.url, demo: true, personTokens } }, /cannot use ploeg\.personTokens/],
   ['execution', { execution: { team: 'delivery' } }, /cannot use execution, which runs agent work under a real Ploeg/],
   ['delivery with its verifier and publisher', { delivery: { verifierTokenEnv: 'UNFOLD_VERIFIER_TOKEN', policies: [], publisher: { kind: 'forgejo', apiUrl: 'https://forge.example/api/v1', tokenEnv: 'UNFOLD_PUBLISHER_TOKEN' } } }, /cannot use delivery, whose verifier and publisher hold forge credentials/],
+  ['billing', { billing: { exporter: 'simplicate', simplicate: { domain: 'agency', tokenEnv: 'UNFOLD_BILLING_TOKEN' } } }, /cannot use billing, which writes lines into a real billing tool with its credential\. Remove billing, or set mode: live$/],
   ['links', { links: { gitlab: { baseUrl: 'https://gitlab.example', clientId: 'unfold-gitlab-app' } } }, /cannot use links: a GitLab or ClickUp account one visitor links would act for every visitor/],
   ['a task source token', { taskSources: [{ ...vikunja, tokenEnv: 'UNFOLD_TASK_VIKUNJA_TOKEN' }] }, /cannot use the token of task source board \(tokenEnv\)/],
   ['a reports connection', { reports: { provider: 'forgejo', baseUrl: 'https://forge.example', project: 'webgrip/unfold', tokenEnv: 'UNFOLD_REPORTS_TOKEN' } }, /cannot use reports\.tokenEnv/],
