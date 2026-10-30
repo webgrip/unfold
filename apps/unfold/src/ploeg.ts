@@ -1361,11 +1361,11 @@ export class PloegClient {
     if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
     if (this.demo) {
       const card = ploegDemo.cards[id];
-      if (!card || card.workItemId !== id || !this.allowed(user, card.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+      if (!card || card.workItemId !== id || !this.allowed(user, card.team) || !this.reachesCard(user, card)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
       return { card: (await this.withRarity(user, [structuredClone(card)]))[0], demo: true, fetchedAt: new Date().toISOString() };
     }
     const owned = parseCard(await (await this.cards(fresh)).card(id, fresh));
-    if (owned.workItemId !== id || !this.allowed(user, owned.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    if (owned.workItemId !== id || !this.allowed(user, owned.team) || !this.reachesCard(user, owned)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return { card: (await this.withRarity(user, [owned]))[0], demo: false, fetchedAt: new Date().toISOString() };
   }
   /** Lists the cards whose roster or steward names any of `logins`, newest activity first, across the caller's teams. The demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
@@ -1374,17 +1374,17 @@ export class PloegClient {
     const wanted = new Set(logins.map(login => login.toLowerCase()));
     const holds = (card: RunCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
     if (!wanted.size) return { cards: [], source: { kind: this.demo ? 'demo' : 'list', scanned: 0, truncated: false } };
-    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && this.reachesCard(user, card) && holds(card)).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).memberCards([...wanted], fresh);
-    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => this.allowed(user, card.team) && holds(card))), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
+    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => this.allowed(user, card.team) && this.reachesCard(user, card) && holds(card))), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
   }
   /** Lists one Team's cards for its team page; the demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
   async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<RunCardList> {
     this.authorize(user);
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => card.team === team && this.reachesCard(user, card)).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).teamCards(team, since, fresh);
-    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => card.team === team)), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
+    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => card.team === team && this.reachesCard(user, card))), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
   }
   /** Reads per-team counts and spend for a window, scoped to the caller's teams. */
   async summary(user: User, window: string, fresh = false): Promise<PloegSummary> {
@@ -1406,7 +1406,9 @@ export class PloegClient {
     if (this.demo) return { unsettled: unsettledTotals([]), unsettledError: null };
     try {
       const data = envelope(await this.request('unsettled-accounts', fresh, { added: true }));
-      const accounts = array(data.accounts, unsettledAccount, 200).filter(entry => this.allowed(user, entry.team));
+      const allowed = array(data.accounts, unsettledAccount, 200).filter(entry => this.allowed(user, entry.team));
+      const reached = await this.reachedIds(user, allowed.flatMap(entry => entry.workItemId ? [entry.workItemId] : []), fresh);
+      const accounts = allowed.filter(entry => entry.workItemId ? reached.has(entry.workItemId) : this.tenancy.reachesWorkItem(user, null));
       return { unsettled: unsettledTotals(accounts), unsettledError: null };
     } catch (error) {
       const older = error instanceof PloegError && error.code === 'ploeg_unsupported';
@@ -1451,7 +1453,9 @@ export class PloegClient {
       const page = await this.eventPage({ team: filter.team, before: filter.before, after: filter.after, limit: pageSize }, fresh);
       events = page.events; nextCursor = page.nextCursor;
     }
-    const visible = structuredClone(events.filter(entry => this.allowed(user, entry.team)));
+    const allowed = events.filter(entry => this.allowed(user, entry.team));
+    const reached = await this.reachedIds(user, allowed.map(entry => entry.workItemId), fresh);
+    const visible = structuredClone(allowed.filter(entry => reached.has(entry.workItemId)));
     const missing = [...new Set(visible.filter(entry => !entry.workItemTitle && !this.titles.has(entry.workItemId)).map(entry => entry.workItemId))].slice(0, 10);
     await Promise.all(missing.map(id => this.detail(user, id).catch(() => undefined)));
     for (const entry of visible) entry.workItemTitle ||= this.titles.get(entry.workItemId) ?? '';
@@ -1870,6 +1874,8 @@ export class PloegClient {
       ? structuredClone(ploegDemo.crackCandidates[id] ?? { bug: { workItemId: id, title: detail.item.title, externalRef: detail.item.externalId }, fixFiles: 0, fixFilesTruncated: false, since: detail.item.createdAt, until: detail.item.createdAt, candidates: [] })
       : parseCrackCandidates(await (await this.cards(fresh)).crackCandidates(id, fresh));
     if (crackCandidates.bug.workItemId !== id) throw invalid();
+    const reached = await this.reachedIds(user, crackCandidates.candidates.map(entry => entry.card.workItemId), fresh);
+    crackCandidates.candidates = crackCandidates.candidates.filter(entry => reached.has(entry.card.workItemId));
     return { workItemId: id, crackCandidates, demo: this.demo, fetchedAt: new Date().toISOString() };
   }
   /** Lists every attribution in which the Work Item is the bug or the card, within the caller's Teams, and who the caller is in that flow. */
@@ -1877,7 +1883,9 @@ export class PloegClient {
     await this.detail(user, id, fresh);
     const list = this.demo ? structuredClone(ploegDemo.cracks.filter(entry => entry.bug.workItemId === id || entry.card.workItemId === id)) : (await (await this.cards(fresh)).crackViews(id, fresh)).map(parseCrack);
     if (list.some(entry => entry.bug.workItemId !== id && entry.card.workItemId !== id)) throw invalid();
-    return { workItemId: id, cracks: list.filter(entry => this.allowed(user, entry.team)), viewer: this.attributionViewer(user), demo: this.demo, fetchedAt: new Date().toISOString() };
+    const allowed = list.filter(entry => this.allowed(user, entry.team));
+    const reached = await this.reachedIds(user, allowed.map(entry => entry.bug.workItemId === id ? entry.card.workItemId : entry.bug.workItemId), fresh);
+    return { workItemId: id, cracks: allowed.filter(entry => reached.has(entry.bug.workItemId === id ? entry.card.workItemId : entry.bug.workItemId)), viewer: this.attributionViewer(user), demo: this.demo, fetchedAt: new Date().toISOString() };
   }
   /** Lists the context files attached to Work Item `id` for a caller in its Team, in the order Ploeg added them. The demo stores none, so it lists none. */
   async listContext(user: User, id: string, fresh = false): Promise<PloegContextList> {
@@ -2083,6 +2091,7 @@ export class PloegClient {
     this.targets.set(item.id, item.target);
     return this.tenancy.reachesWorkItem(user, item.target);
   }
+  private reachesCard(user: User, card: Pick<RunCard, 'target'>): boolean { return this.tenancy.reachesWorkItem(user, card.target); }
   private async reachesId(user: User, id: string, fresh: boolean): Promise<boolean> {
     if (!this.tenancy.enforced) return true;
     if (this.targets.has(id)) return this.tenancy.reachesWorkItem(user, this.targets.get(id)!);
