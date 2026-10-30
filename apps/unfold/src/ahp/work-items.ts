@@ -2,10 +2,13 @@ import type { AppConfig, User } from '../types.ts';
 import { PloegClient, PloegError, type PloegDetail, type PloegItem, type PloegRun, type PloegShift, type PloegState } from '../ploeg.ts';
 import { listReason, sessionDriven, withdrawnReason } from '../../public/core/reasons.js';
 import { money } from '../../public/core/format.js';
+import { resumeOffer, waitingQuestions } from '../../public/core/blackboard.js';
+import { findTaskProvider, ploegTrackerReference } from '../task-providers/index.ts';
 import { customizationRefusal } from './customizations.ts';
 import { sessionChatCatalog } from './versions.ts';
 import { runChatChannel, runDescription, subagentContent, subagentMeta, verdictText, type Spelling } from './runs.ts';
 import { failureHeadline, failureMarkdown } from './tracebacks.ts';
+import type { WorkItemQuestions } from './work-item-commands.ts';
 
 type Json = Record<string, any>;
 type ViewFlags = { session: number; chat: number };
@@ -30,6 +33,15 @@ export const workItemRefusals = {
   readOnly: 'A Work Item is Ploeg\'s record and is read-only in the Agents window. Act on it from its Work Item page.',
 } as const;
 
+/** What a typed message on a Work Item that takes neither notes nor a restart is told, by where the Work Item stands. */
+export function workItemMessageRefusal(item: Pick<PloegItem, 'id' | 'state' | 'pullRequest'>): string {
+  const number = item.pullRequest?.number;
+  if (item.state === 'awaiting_review') return `Review ${number ? `pull request #${number}` : 'its pull request'} on the forge: merge it, or ask for changes there.`;
+  if (item.state === 'proposed') return `#${item.id} waits for approval. Answer the question above to approve or reject it.`;
+  if (item.state === 'done') return `#${item.id} is done, so nothing more runs. Hand off a new Work Item for further changes.`;
+  return workItemRefusals.message;
+}
+
 /** The refusal for an action dispatched on a Work Item session's session or chat channel. */
 export function workItemRefusal(actionType: unknown): string {
   switch (actionType) {
@@ -49,10 +61,28 @@ export const runNotFinished = (role: string, pending: boolean) => `${role} ${pen
 export const staleActivity = 'Ploeg is unreachable; last known state';
 
 const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24 } as const;
+/** The audit actions by which Ploeg records who admitted a manual-origin Work Item (Ploeg ADR-0102). */
+const admittedActions = new Set(['operator.work_item.admitted', 'work_item.admitted']);
 const openStates: PloegState[] = ['ingested', 'queued', 'leased', 'proposed', 'needs_human', 'awaiting_review', 'stale'];
 const finishedStates: PloegState[] = ['done', 'withdrawn'];
 const byId = (a: { id: string }, b: { id: string }) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0);
 const roleName = (role: string) => role ? `${role[0].toUpperCase()}${role.slice(1)}`.replace(/[_-]+/g, ' ') : 'Role';
+
+/** What its latest attempt spent, for the activity line of a Work Item that stopped or ended; empty while nothing was spent. */
+const spentSoFar = (item: PloegItem) => {
+  const spent = item.latestShift?.spentUsd;
+  return typeof spent === 'number' && spent > 0 ? ` · ${money(spent)} spent` : '';
+};
+
+/**
+ * The person an admission audit event names: Ploeg writes its actor as `operator:<consumer>:<person>` (Ploeg ADR-0102,
+ * ADR-0108). Undefined for any other actor, such as a tracker's webhook.
+ */
+export function admittedBy(event: { action: string; actor: string }): string | undefined {
+  if (!admittedActions.has(event.action)) return undefined;
+  const [kind, , ...person] = event.actor.split(':');
+  return kind === 'operator' && person.join(':') ? person.join(':') : undefined;
+}
 
 /** How a Work Item shows in the Agents window: the session status, the activity line under its title and, when it waits on a person or went stale, the reason. */
 export type WorkItemActivity = { status: keyof typeof statusBits; activity: string; reason?: { code: string; chip: string; sentence: string } };
@@ -74,11 +104,11 @@ export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = []
       return { status: 'inProgress', activity: line || 'Running' };
     }
     case 'proposed': return { status: 'inputNeeded', activity: 'Waiting for approval' };
-    case 'needs_human': { const reason = reasonOf(); return { status: 'inputNeeded', activity: reason?.chip ?? 'Needs you', ...(reason ? { reason } : {}) }; }
-    case 'awaiting_review': { const number = item.pullRequest?.number; return { status: 'inputNeeded', activity: number ? `Ready for review · PR #${number}` : 'Ready for review' }; }
-    case 'stale': { const reason = reasonOf(); return { status: 'error', activity: reason?.chip ?? 'Stale', ...(reason ? { reason } : {}) }; }
-    case 'done': return { status: 'idle', activity: item.pullRequest ? 'Merged' : 'Done' };
-    case 'withdrawn': return { status: 'idle', activity: withdrawnReason(item.latestShift?.closeReason)?.replace(/\.$/, '') ?? 'Withdrawn' };
+    case 'needs_human': { const reason = reasonOf(); return { status: 'inputNeeded', activity: `${reason?.chip ?? 'Needs you'}${spentSoFar(item)}`, ...(reason ? { reason } : {}) }; }
+    case 'awaiting_review': { const number = item.pullRequest?.number; return { status: 'inputNeeded', activity: `${number ? `Ready for review · PR #${number}` : 'Ready for review'}${spentSoFar(item)}` }; }
+    case 'stale': { const reason = reasonOf(); return { status: 'error', activity: `${reason?.chip ?? 'Stale'}${spentSoFar(item)}`, ...(reason ? { reason } : {}) }; }
+    case 'done': return { status: 'idle', activity: `${item.pullRequest ? 'Merged' : 'Done'}${spentSoFar(item)}` };
+    case 'withdrawn': return { status: 'idle', activity: `${withdrawnReason(item.latestShift?.closeReason)?.replace(/\.$/, '') ?? 'Withdrawn'}${spentSoFar(item)}` };
     default: return { status: 'idle', activity: String(item.state) };
   }
 }
@@ -92,7 +122,11 @@ function record(item: PloegItem, runs: readonly PloegRun[] = [], stale = false):
   return { workItemId: item.id, publicId: workItemSessionId(item.id), item, activity: workItemActivity(item, runs), stale };
 }
 const fingerprint = (entry: WorkItemRecord) => JSON.stringify([entry.item.state, entry.item.title, entry.item.updatedAt, entry.activity, entry.stale]);
-const activityText = (entry: WorkItemRecord) => entry.stale ? `${staleActivity}: ${entry.activity.activity}` : entry.activity.activity;
+const waiting = (entry: WorkItemRecord) => entry.item.state === 'queued' || entry.item.state === 'ingested';
+const activityText = (entry: WorkItemRecord, by?: string) => {
+  const activity = by && waiting(entry) ? `${entry.activity.activity} · handed off by ${by}` : entry.activity.activity;
+  return entry.stale ? `${staleActivity}: ${activity}` : activity;
+};
 
 /** The status bits of a Work Item session before the viewer's own read and archive flags. */
 export const workItemStatus = (entry: WorkItemRecord) => statusBits[entry.activity.status];
@@ -102,17 +136,20 @@ function meta(entry: WorkItemRecord): Json {
   return { [workItemMetaKey]: { id: item.id, team: item.team, state: item.state, url: item.url, provider: item.provider, externalId: item.externalId, pullRequest: item.pullRequest ? { url: item.pullRequest.url, number: item.pullRequest.number } : null, round: item.latestShift?.round ?? null, budgetUsd: item.latestShift?.budgetUsd ?? null, spentUsd: item.latestShift?.spentUsd ?? null, ...(entry.activity.reason ? { reason: entry.activity.reason } : {}), stale: entry.stale, readOnly: true } };
 }
 
-/** A Work Item session's default chat in the catalogue. Its input stays open so a message gets an answer that says why Ploeg cannot take it. */
-export function workItemChatSummary(entry: WorkItemRecord, spelling: Spelling, flags: ViewFlags): Json {
-  return { resource: spelling.chat, title: `#${entry.item.id} ${entry.item.title}`, status: workItemStatus(entry) | flags.chat, activity: activityText(entry), modifiedAt: entry.item.updatedAt, origin: { kind: 'user' }, interactivity: 'full' };
+/**
+ * A Work Item session's default chat in the catalogue. Its input stays open so a message gets an answer that says why Ploeg
+ * cannot take it. `by` names, for this viewer, the person who handed it off; a queued Work Item's activity says so.
+ */
+export function workItemChatSummary(entry: WorkItemRecord, spelling: Spelling, flags: ViewFlags, by?: string): Json {
+  return { resource: spelling.chat, title: `#${entry.item.id} ${entry.item.title}`, status: workItemStatus(entry) | flags.chat, activity: activityText(entry, by), modifiedAt: entry.item.updatedAt, origin: { kind: 'user' }, interactivity: 'full' };
 }
 
-/** A Work Item session in `listSessions` and the root channel: `#<id> <title>`, its state and the viewer's own flags. */
-export function workItemSummary(entry: WorkItemRecord, spelling: Spelling, flags: ViewFlags, protocolVersion: string): Json {
+/** A Work Item session in `listSessions` and the root channel: `#<id> <title>`, its state, the viewer's own flags and, while it is queued, who handed it off. */
+export function workItemSummary(entry: WorkItemRecord, spelling: Spelling, flags: ViewFlags, protocolVersion: string, by?: string): Json {
   return {
-    resource: spelling.session, provider: 'unfold', title: `#${entry.item.id} ${entry.item.title}`, status: workItemStatus(entry) | flags.session, activity: activityText(entry),
+    resource: spelling.session, provider: 'unfold', title: `#${entry.item.id} ${entry.item.title}`, status: workItemStatus(entry) | flags.session, activity: activityText(entry, by),
     createdAt: entry.item.createdAt, modifiedAt: entry.item.updatedAt,
-    ...sessionChatCatalog(protocolVersion, workItemChatSummary(entry, spelling, flags)),
+    ...sessionChatCatalog(protocolVersion, workItemChatSummary(entry, spelling, flags, by)),
     _meta: meta(entry),
   };
 }
@@ -186,11 +223,49 @@ function turnOf(round: Round, index: number, spelling: Spelling, item: PloegItem
   return round.open ? turn : { ...turn, duration: duration(round.startedAt, round.finishedAt), state: 'complete' };
 }
 
-/** A Work Item session's chat: one turn per Round in the order Ploeg ran them, each Run a `ploeg_run` subagent call, and nothing a Run did not report. */
-export function workItemChatState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags): Json {
+/**
+ * Where a Work Item came from, in one sentence for its brief: the person who handed it off (`by`, as this viewer reads
+ * them), the agent that proposed it, or the tracker task Ploeg ingested, and the Team that runs it.
+ */
+export function briefText(item: PloegItem, by?: string): string {
+  const team = ` Team ${item.team} runs it.`;
+  if (item.provider === 'manual') return `${by ? `Handed off by ${by}.` : 'Handed off to Ploeg.'}${team}`;
+  if (item.provider === 'ploeg') return `Proposed by an agent${item.sourceWorkItemId ? ` while it worked on #${item.sourceWorkItemId}` : ''}.${team}`;
+  const tracker = findTaskProvider(item.provider)?.label ?? 'tracker';
+  const reference = ploegTrackerReference(item.provider, item.externalId) ?? item.externalId;
+  const task = reference ? `${tracker} task ${reference}` : `${tracker} task`;
+  return `From ${item.url ? `[${task}](${item.url})` : task}${by ? `, handed off by ${by}` : ''}.${team}`;
+}
+
+/** The id of a Work Item chat's first turn, its brief. */
+export const briefTurnId = (workItemId: string) => `wi-${workItemId}-brief`;
+
+/** A Work Item chat's first turn: its title as the request, and where it came from. It exists from the moment the Work Item does, so a queued Work Item's chat is not empty. */
+function briefTurn(item: PloegItem, by?: string): Json {
+  const id = briefTurnId(item.id);
+  return { id, startedAt: item.createdAt, message: { text: item.title, origin: { kind: 'systemNotification' } }, responseParts: [{ kind: 'markdown', id: `${id}-origin`, content: briefText(item, by) }], duration: 0, state: 'complete' };
+}
+
+/**
+ * A Work Item session's chat: its brief, then one turn per Round in the order Ploeg ran them, each Run a `ploeg_run`
+ * subagent call, and nothing a Run did not report. `by` names, for this viewer, the person who handed it off.
+ */
+export function workItemChatState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, by?: string): Json {
   const turns = rounds(detail).map((round, index) => ({ round, turn: turnOf(round, index, spelling, detail.item) }));
   const active = turns.find(({ round }) => round.open);
-  return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}), changesets: [] };
+  return { ...workItemChatSummary(entry, spelling, flags, by), turns: [briefTurn(detail.item, by), ...turns.filter(({ round }) => !round.open).map(({ turn }) => turn)], ...(active ? { activeTurn: active.turn } : {}), changesets: [] };
+}
+
+/**
+ * The questions a stopped Work Item waits on a person for, with ids Ploeg can store answers under (Ploeg ADR-0121), and
+ * the resume Ploeg offers once they are all answered. Undefined when none waits.
+ */
+export function workItemQuestions(detail: PloegDetail): WorkItemQuestions | undefined {
+  const questions = (waitingQuestions(detail) as Array<{ id: string; text: string; role: string; round: number | null }>).filter(question => question.id);
+  if (!questions.length) return undefined;
+  const offer = resumeOffer(detail) as { fromRound: number; roundCapUsd: number; poolUsd: number; readyAfter(ids: string[]): boolean } | null;
+  const resume = offer?.readyAfter(questions.map(question => question.id)) ? { fromRound: offer.fromRound, roundCapUsd: offer.roundCapUsd, poolUsd: offer.poolUsd } : undefined;
+  return { questions: questions.map(({ id, text, role, round }) => ({ id, text, role, round })), ...(resume ? { resume } : {}) };
 }
 
 const runActivity = (run: PloegRun) => run.state === 'running' ? `${roleName(run.role)} is working` : run.state === 'pending' ? 'Waiting to start' : null;
@@ -227,10 +302,10 @@ export function workItemRunChatState(detail: PloegDetail, toolCallId: string, sp
  * A Work Item session as a client subscribes to it: read-only, without configuration or input requests of its own, and with an
  * empty changeset catalogue. Its change lives in its pull request, which Ploeg's detail names but does not list the files of.
  */
-export function workItemSessionState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, protocolVersion: string, activeClients: Json[]): Json {
+export function workItemSessionState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, protocolVersion: string, activeClients: Json[], by?: string): Json {
   return {
-    ...workItemSummary(entry, spelling, flags, protocolVersion), lifecycle: 'ready', activeClients,
-    chats: [workItemChatSummary(entry, spelling, flags), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling, detail.item.updatedAt))], defaultChat: spelling.chat,
+    ...workItemSummary(entry, spelling, flags, protocolVersion, by), lifecycle: 'ready', activeClients,
+    chats: [workItemChatSummary(entry, spelling, flags, by), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling, detail.item.updatedAt))], defaultChat: spelling.chat,
     config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [], changesets: [],
   };
 }
@@ -330,6 +405,7 @@ export class WorkItemSessions {
   private readonly details = new Map<string, PloegDetail>();
   private readonly finished = new Map<string, PloegItem>();
   private readonly recent = new Map<string, { team: string; at: string }>();
+  private readonly admitters = new Map<string, string>();
   private cursor: string | undefined;
   private seeding: Promise<void> | undefined;
   private timer?: ReturnType<typeof setInterval>;
@@ -382,6 +458,9 @@ export class WorkItemSessions {
 
   /** The Work Item session as the viewer last saw it, for their read and archive flags. */
   remembered(user: User, publicId: string): WorkItemRecord | undefined { return this.seen.get(user.id)?.get(publicId)?.entry; }
+
+  /** The id of the person who handed a Work Item off, as Ploeg's admission event names them, when the projection saw that event. */
+  admitter(workItemId: string): string | undefined { return this.admitters.get(workItemId) ?? this.details.get(workItemId)?.item.waitingForClient?.handedBy ?? undefined; }
 
   /** The detail of a Work Item as Ploeg last answered it to anyone, without asking Ploeg again. */
   kept(workItemId: string): PloegDetail | undefined { return this.details.get(workItemId); }
@@ -440,6 +519,7 @@ export class WorkItemSessions {
     for (let page = 0; page < 10; page++) {
       const read = await this.ploeg.followEvents(this.cursor!);
       for (const event of read.events) {
+        this.admitted(event);
         touched.delete(event.workItemId);
         touched.set(event.workItemId, event.team);
         this.recent.set(event.workItemId, { team: event.team, at: event.at });
@@ -457,7 +537,10 @@ export class WorkItemSessions {
     for (let page = 0; page < 10; page++) {
       const read = await this.ploeg.latestEvents(before);
       if (page === 0) this.cursor = read.lastCursor;
-      for (const event of read.events) if (!this.recent.has(event.workItemId) && Date.parse(event.at) >= cutoff) this.recent.set(event.workItemId, { team: event.team, at: event.at });
+      for (const event of read.events) {
+        this.admitted(event);
+        if (!this.recent.has(event.workItemId) && Date.parse(event.at) >= cutoff) this.recent.set(event.workItemId, { team: event.team, at: event.at });
+      }
       const oldest = read.events.at(-1);
       if (!read.nextCursor || !oldest || Date.parse(oldest.at) < cutoff) break;
       before = read.nextCursor;
@@ -475,6 +558,8 @@ export class WorkItemSessions {
     if (!detail) { for (const user of allowed) if (this.seen.get(user.id)?.has(publicId)) this.publishList(user, [], [], [publicId]); return; }
     const entry = record(detail.item, detail.runs);
     const listed = !sessionDriven(detail.item) && this.inWindow(detail.item);
+    const before = this.details.get(workItemId);
+    this.keep(workItemId, detail);
     for (const user of allowed) {
       if (!this.allows(user, detail.item.team)) { if (this.seen.get(user.id)?.has(publicId)) this.publishList(user, [], [], [publicId]); continue; }
       const prior = this.seen.get(user.id)?.get(publicId);
@@ -482,8 +567,6 @@ export class WorkItemSessions {
       if (!prior) this.publishList(user, [entry], [], []);
       else if (prior.fingerprint !== fingerprint(entry)) this.publishList(user, [], [entry], []);
     }
-    const before = this.details.get(workItemId);
-    this.keep(workItemId, detail);
     if (before && listed) this.host.transcript(entry, spelling => workItemTranscriptActions(before, detail!, spelling));
   }
 
@@ -528,7 +611,16 @@ export class WorkItemSessions {
     this.seen.set(user.id, new Map(entries.map(entry => [entry.publicId, { entry, fingerprint: fingerprint(entry) }])));
   }
 
+  private admitted(event: { action: string; actor: string; workItemId: string }): void {
+    const person = admittedBy(event);
+    if (!person) return;
+    this.admitters.delete(event.workItemId);
+    this.admitters.set(event.workItemId, person);
+    if (this.admitters.size > 5000) this.admitters.delete(this.admitters.keys().next().value!);
+  }
+
   private keep(workItemId: string, detail: PloegDetail): void {
+    for (const event of detail.events) this.admitted(event);
     this.details.delete(workItemId);
     this.details.set(workItemId, detail);
     if (this.details.size > 500) this.details.delete(this.details.keys().next().value!);

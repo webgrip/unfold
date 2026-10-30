@@ -30,11 +30,13 @@ export function editorLink(window: EditorWindow, target: EditorTarget, origin = 
 
 /**
  * The Markdown part that opens a session's subject outside the Agents window: in the person's VS Code editor window when
- * one is registered, and on the workbench page when the workbench knows its public address. Undefined when neither exists.
- * It ends with a blank line because VS Code renders consecutive Markdown parts as one document.
+ * one is registered, on the workbench page when the workbench knows its public address, and its pull request on the forge
+ * when it has one. Undefined when none exists. It ends with a blank line because VS Code renders consecutive Markdown
+ * parts as one document.
  */
-export function openElsewherePart(id: string, links: { editor?: string; page?: string }, noun: string): Record<string, unknown> | undefined {
-  const items = [links.editor ? `[Open the ${noun} in VS Code](${links.editor})` : '', links.page ? `[Open in the browser ↗](${links.page})` : ''].filter(Boolean);
+export function openElsewherePart(id: string, links: { editor?: string; page?: string; pullRequest?: { url: string; number: number | null } }, noun: string): Record<string, unknown> | undefined {
+  const pull = links.pullRequest && /^https?:\/\//.test(links.pullRequest.url) ? `[Pull request${links.pullRequest.number ? ` #${links.pullRequest.number}` : ''} ↗](${links.pullRequest.url})` : '';
+  const items = [links.editor ? `[Open the ${noun} in VS Code](${links.editor})` : '', links.page ? `[Open in the browser ↗](${links.page})` : '', pull].filter(Boolean);
   return items.length ? { kind: 'markdown', id, content: `${items.join(' · ')}\n\n` } : undefined;
 }
 
