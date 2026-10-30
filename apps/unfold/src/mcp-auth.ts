@@ -1,10 +1,24 @@
 import { createPublicKey, verify as verifySignature, constants, type KeyObject } from 'node:crypto';
 
-/** What `unfold-mcp` over HTTP accepts as an access token, and where its clients learn how to get one. */
-export type McpHttpSettings = { resource: string; issuer: string; jwksUrl?: string; clientIds: string[]; scope: string; requestScopes: string[]; maxLifetimeMs: number; subjectNamespace?: string };
+/**
+ * Which `aud` an access token must carry. `resource` accepts only a token issued for this server's resource URL
+ * (RFC 8707, RFC 9728). `client-id` is the transition setting for an identity provider that ignores the
+ * `resource` parameter and puts the client id in `aud`: it also accepts an `aud` naming one of `clientIds`.
+ */
+export type McpAudience = 'resource' | 'client-id';
 
-/** The verified facts of an access token that an MCP request carries, with its verified claims for entitlement. */
-export type AccessToken = { subject: string; client: string; scopes: string[]; expiresAt: number; email?: string; username?: string; claims: Record<string, unknown> };
+/**
+ * What `unfold-mcp` over HTTP accepts as an access token, and where its clients learn how to get one. An empty
+ * `clientIds` accepts every client the issuer gave a token for this resource, such as one that signs in with a
+ * Client ID Metadata Document URL.
+ */
+export type McpHttpSettings = { resource: string; issuer: string; jwksUrl?: string; clientIds: string[]; audience: McpAudience; scope: string; requestScopes: string[]; maxLifetimeMs: number; subjectNamespace?: string };
+
+/**
+ * The verified facts of an access token that an MCP request carries, with its verified claims for entitlement.
+ * `audience` says whether `aud` named the resource or, under `client-id`, only a client id.
+ */
+export type AccessToken = { subject: string; client: string; audience: 'resource' | 'client'; scopes: string[]; expiresAt: number; email?: string; username?: string; claims: Record<string, unknown> };
 
 /** Clock skew tolerated on `exp`, `nbf` and `iat`. */
 export const maxLeewayMs = 60_000;
@@ -38,8 +52,20 @@ function httpUrl(value: string, name: string, extra = ''): URL {
 }
 
 /**
+ * Whether a client id is a Client ID Metadata Document URL: https, with a path, and no credentials, query, fragment
+ * or dot segments, in canonical form.
+ */
+export function metadataDocumentClientId(value: string): boolean {
+  if (value.length > 512 || !value.startsWith('https://')) return false;
+  let url: URL;
+  try { url = new URL(value); } catch { return false; }
+  return url.href === value && !url.username && !url.password && !url.search && !url.hash && url.pathname.length > 1;
+}
+
+/**
  * Reads the `UNFOLD_MCP_*` variables. Without `UNFOLD_MCP_RESOURCE` the HTTP transport is off and this returns
- * undefined; with it, the issuer and at least one client id are required. There are no default domains.
+ * undefined; with it, the issuer is required, and `UNFOLD_MCP_TOKEN_AUDIENCE=client-id` also needs at least one
+ * client id. There are no default domains.
  */
 export function mcpHttpSettings(env: Record<string, string | undefined> = process.env): McpHttpSettings | undefined {
   const resourceValue = env.UNFOLD_MCP_RESOURCE?.trim();
@@ -55,8 +81,11 @@ export function mcpHttpSettings(env: Record<string, string | undefined> = proces
   httpUrl(issuer, 'UNFOLD_MCP_ISSUER');
   const jwksUrl = env.UNFOLD_MCP_JWKS_URL?.trim() || undefined;
   if (jwksUrl) httpUrl(jwksUrl, 'UNFOLD_MCP_JWKS_URL');
+  const audience = env.UNFOLD_MCP_TOKEN_AUDIENCE?.trim() || 'resource';
+  if (audience !== 'resource' && audience !== 'client-id') throw new Error('UNFOLD_MCP_TOKEN_AUDIENCE must be resource or client-id');
   const clientIds = [...new Set((env.UNFOLD_MCP_CLIENT_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean))];
-  if (!clientIds.length || clientIds.some(id => !/^[A-Za-z0-9_.:-]{1,200}$/.test(id))) throw new Error('UNFOLD_MCP_CLIENT_IDS must list the pre-registered client ids, separated by commas');
+  if (clientIds.some(id => !/^[A-Za-z0-9_.:-]{1,200}$/.test(id) && !metadataDocumentClientId(id))) throw new Error('UNFOLD_MCP_CLIENT_IDS must list client ids or Client ID Metadata Document URLs, separated by commas');
+  if (audience === 'client-id' && !clientIds.length) throw new Error('UNFOLD_MCP_TOKEN_AUDIENCE=client-id needs UNFOLD_MCP_CLIENT_IDS: the client ids a token\'s aud may name');
   const scope = env.UNFOLD_MCP_SCOPE?.trim() || 'unfold:mcp';
   if (!/^[!#-[\]-~]{1,64}$/.test(scope)) throw new Error('UNFOLD_MCP_SCOPE must be one scope');
   const requestScopes = (env.UNFOLD_MCP_REQUEST_SCOPES ?? '').split(/\s+/).filter(Boolean);
@@ -71,7 +100,7 @@ export function mcpHttpSettings(env: Record<string, string | undefined> = proces
   }
   const subjectNamespace = env.UNFOLD_MCP_SUBJECT_NAMESPACE?.trim() || undefined;
   if (subjectNamespace && subjectNamespace.length > 300) throw new Error('UNFOLD_MCP_SUBJECT_NAMESPACE must be at most 300 characters');
-  return { resource: resource.href, issuer, ...(jwksUrl ? { jwksUrl } : {}), clientIds, scope, requestScopes, maxLifetimeMs, ...(subjectNamespace ? { subjectNamespace: subjectNamespace.replace(/\/$/, '') } : {}) };
+  return { resource: resource.href, issuer, ...(jwksUrl ? { jwksUrl } : {}), clientIds, audience, scope, requestScopes, maxLifetimeMs, ...(subjectNamespace ? { subjectNamespace: subjectNamespace.replace(/\/$/, '') } : {}) };
 }
 
 /** The well-known path of a resource's protected resource metadata, with the resource's path inserted (RFC 9728 section 3.1). */
@@ -169,7 +198,10 @@ class KeySet {
   }
 }
 
-/** Checks JWT access tokens for one issuer: asymmetric signatures only, pinned issuer and clients, short lifetimes. */
+/**
+ * Checks JWT access tokens for one issuer: asymmetric signatures only, the issuer compared as an exact string, an
+ * audience naming the resource, the accepted clients and short lifetimes.
+ */
 export class AccessTokenVerifier {
   private readonly settings: McpHttpSettings;
   private readonly keys: KeySet;
@@ -207,20 +239,28 @@ export class AccessTokenVerifier {
   private check(claims: Record<string, unknown>): AccessToken {
     const now = this.now();
     if (claims.iss !== this.settings.issuer) throw new TokenRefused('the token was issued by another issuer');
-    const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-    if (!audience.some(entry => typeof entry === 'string' && this.settings.clientIds.includes(entry))) throw new TokenRefused('the token is meant for another audience');
+    const audiences = (Array.isArray(claims.aud) ? claims.aud : [claims.aud]).filter((entry): entry is string => typeof entry === 'string');
+    const forResource = audiences.some(entry => sameResource(entry, this.settings.resource));
+    const forClient = !forResource && this.settings.audience === 'client-id' && audiences.some(entry => this.settings.clientIds.includes(entry));
+    if (!forResource && !forClient) throw new TokenRefused(this.settings.audience === 'resource' ? `the token is meant for another audience; its aud must be ${this.settings.resource}` : 'the token is meant for another audience');
     if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp)) throw new TokenRefused('the token has no exp');
     if (typeof claims.iat !== 'number' || !Number.isFinite(claims.iat)) throw new TokenRefused('the token has no iat');
     if (claims.exp * 1000 <= now - maxLeewayMs) throw new TokenRefused('the token has expired');
     if (claims.iat * 1000 > now + maxLeewayMs || (typeof claims.nbf === 'number' && claims.nbf * 1000 > now + maxLeewayMs)) throw new TokenRefused('the token is not valid yet');
     if ((claims.exp - claims.iat) * 1000 > this.settings.maxLifetimeMs) throw new TokenRefused(`the token lives longer than ${Math.round(this.settings.maxLifetimeMs / 1000)}s`);
     if (typeof claims.sub !== 'string' || !claims.sub || claims.sub.length > 255) throw new TokenRefused('the token has no sub');
-    if (typeof claims.azp !== 'string' || !claims.azp || typeof claims.scope !== 'string' || !claims.scope.trim()) throw new TokenRefused('the token has no azp or scope; an ID token is not an access token');
-    if (!this.settings.clientIds.includes(claims.azp)) throw new TokenRefused('the token was issued to a client this server does not accept');
+    const client = typeof claims.client_id === 'string' && claims.client_id ? claims.client_id : claims.azp;
+    if (typeof client !== 'string' || !client || typeof claims.scope !== 'string' || !claims.scope.trim()) throw new TokenRefused('the token has no azp, client_id or scope; an ID token is not an access token');
+    if (this.settings.clientIds.length && !this.settings.clientIds.includes(client)) throw new TokenRefused('the token was issued to a client this server does not accept');
     const email = typeof claims.email === 'string' && /^[^\s@]{1,200}@[^\s@]{1,200}$/.test(claims.email) ? claims.email.toLowerCase() : undefined;
     const username = typeof claims.preferred_username === 'string' && claims.preferred_username.trim() ? claims.preferred_username.trim().slice(0, 100) : undefined;
-    return { subject: claims.sub, client: claims.azp, scopes: claims.scope.split(/\s+/).filter(Boolean), expiresAt: claims.exp * 1000, ...(email ? { email } : {}), ...(username ? { username } : {}), claims };
+    return { subject: claims.sub, client, audience: forResource ? 'resource' : 'client', scopes: claims.scope.split(/\s+/).filter(Boolean), expiresAt: claims.exp * 1000, ...(email ? { email } : {}), ...(username ? { username } : {}), claims };
   }
+}
+
+function sameResource(audience: string, resource: string): boolean {
+  if (!/^https?:\/\//i.test(audience) || audience.includes('#')) return false;
+  try { return new URL(audience).href === resource; } catch { return false; }
 }
 
 /** An RFC 6750 `WWW-Authenticate` challenge pointing at the resource metadata. */
