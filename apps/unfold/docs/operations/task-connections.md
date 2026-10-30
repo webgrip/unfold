@@ -1,6 +1,6 @@
 # Connect a task system
 
-Unfold reads tasks from **Vikunja, ClickUp, Forgejo, GitHub and GitLab** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status. [Handing a Vikunja task to Ploeg](#hand-a-task-to-ploeg) is a separate, explicit action that does assign it and leaves a comment.
+Unfold reads tasks from **Vikunja, ClickUp, Forgejo, GitHub, GitLab and Jira Cloud** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status. [Handing a Vikunja task to Ploeg](#hand-a-task-to-ploeg) is a separate, explicit action that does assign it and leaves a comment.
 
 An administrator registers each source in the server configuration. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration.
 
@@ -15,6 +15,7 @@ Each task system is an adapter in `src/task-providers/`, one file per provider, 
 | `gitlab` | no | no | Markdown | none | `gitlab` |
 | `vikunja` | yes, and Ploeg's assignment routes | tasks | HTML, shown as Markdown | `VIK-<id>` | none |
 | `clickup` | yes | no | Markdown | none | `clickup` |
+| `jira` | no | issues | Atlassian Document Format, shown as Markdown | the issue key, `<KEY>-<n>` | none |
 | `demo` | no (demo mode only) | no | Markdown | none | none |
 
 The hand-off and reporting messages list the adapters that declare the capability, so a new adapter appears in them without another change. Personal account links are a registry of their own in `src/link-providers/`. Adding a tracker is a new adapter file and one line in the index.
@@ -68,7 +69,7 @@ The following is one `taskSources` entry, placed inside the array in the full co
 | --- | --- |
 | `id` | Stable, unique lowercase connection slug. Keep it stable so retained task references continue identifying their source |
 | `name` | Human-facing connection label shown in both clients |
-| `provider` | `forgejo`, `github`, `gitlab`, `clickup` or `vikunja` |
+| `provider` | `forgejo`, `github`, `gitlab`, `clickup`, `vikunja` or `jira` |
 | `baseUrl` | The API root, including its API version path where applicable. It is not a browser issue URL |
 | `project` | The configured repository, home List or project identifier for that provider; use a string |
 | `repositoryId` | An existing entry in `repositories`. Operators cannot substitute another checkout during import |
@@ -110,8 +111,10 @@ These entries use the same registered `application` repository. Choose the rows 
 | GitLab | `https://gitlab.example/api/v4` | `webgrip/platform/application` or `"123"` | `UNFOLD_TASK_GITLAB_TOKEN` |
 | ClickUp | `https://api.clickup.com/api/v2` | `"901234567890"` | `UNFOLD_TASK_CLICKUP_TOKEN` |
 | Vikunja | `https://tasks.example/api/v1` | `"42"` | `UNFOLD_TASK_VIKUNJA_TOKEN` |
+| Jira Cloud, service account | `https://api.atlassian.com/ex/jira/CLOUD-ID/rest/api/3` | `APP` | `UNFOLD_TASK_JIRA_TOKEN` |
+| Jira Cloud, user API token | `https://SITE.atlassian.net/rest/api/3` | `APP` | `UNFOLD_TASK_JIRA_TOKEN` |
 
-For Forgejo and GitHub, use exactly `owner/repository` without `.git`, issue number or URL. GitLab accepts a numeric project ID or an unescaped namespace path, including subgroups; the adapter encodes it for the API. ClickUp uses the task's home List, not its Workspace, Space or Folder. Vikunja uses its numeric project ID. API reverse-proxy prefixes are supported when the required suffix remains present.
+For Forgejo and GitHub, use exactly `owner/repository` without `.git`, issue number or URL. GitLab accepts a numeric project ID or an unescaped namespace path, including subgroups; the adapter encodes it for the API. ClickUp uses the task's home List, not its Workspace, Space or Folder. Vikunja uses its numeric project ID. Jira uses the project key in capitals, such as `APP`. API reverse-proxy prefixes are supported when the required suffix remains present.
 
 ### Forgejo
 
@@ -146,6 +149,37 @@ Create an API token in **Settings → API Tokens** and grant the reads needed fo
 This adapter targets **Vikunja API v1**. It lists tasks through `/tasks` with the configured `project_id` and incomplete-state filter, fetches details through `/tasks/{id}`, and checks the returned project ID. It does not depend on a legacy `/projects/{id}/tasks` route. Check your instance's `/api/v1/docs` when qualifying it. Vikunja currently documents v1 as supported alongside v2, with deprecation planned for 3.0 and removal for 4.0; use a compatible instance until a v2 adapter is implemented. [Vikunja API version guidance](https://vikunja.io/docs/api-documentation/).
 
 Vikunja task links assume the frontend uses the API's origin and reverse-proxy prefix. A frontend hosted on a different origin needs a future explicit frontend-URL setting; API task reads can succeed while the generated browser link is unsuitable for that deployment.
+
+### Jira
+
+The adapter reads one Jira Cloud project through REST API v3. Jira Data Center has no v3 API and is not supported.
+
+**Use a service account.** In Atlassian Administration, under **Directory → Service accounts**, create an account for Unfold and give it a scoped API token ([Atlassian: manage API tokens for service accounts](https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/)). Choose the scopes when you create the token; they cannot be changed afterwards:
+
+| Unfold does | Scopes |
+| --- | --- |
+| Browse, preview and import | `read:jira-work` |
+| Report a problem into the project | `read:jira-work`, `write:jira-work` and `read:jira-user` (for `GET /myself`) |
+
+A scoped token works only through Atlassian's gateway, so `baseUrl` is `https://api.atlassian.com/ex/jira/CLOUD-ID/rest/api/3`. The site's cloud ID is the `cloudId` in `https://SITE.atlassian.net/_edge/tenant_info`. Put the token alone in the variable `tokenEnv` names; Unfold sends it as a Bearer token. Through the gateway, Unfold reads the site's address once from `GET /serverInfo` to build `https://SITE.atlassian.net/browse/APP-12` links, and accepts only an `atlassian.net` address there.
+
+A classic API token of an ordinary Atlassian account also works, against the site's own root `https://SITE.atlassian.net/rest/api/3`. Put `email:token` in the variable; Unfold sends it as Basic credentials. A classic token carries the account's whole access, so use a dedicated account.
+
+**Scope it per Client.** The service account sees what its Jira project roles let it see, and the token's scopes do not narrow that. Grant it **Browse projects** on exactly the projects Unfold may read, through each project's permission scheme, and register one task source per project. Give each source the `client` of the Client that owns the project ([who owns a source](#who-owns-a-source-and-a-repository)). Unfold lists a source's issues with this JQL, built from the configured key and never from task content:
+
+```text
+project = "APP" AND statusCategory != Done ORDER BY updated DESC, key DESC
+```
+
+Every issue it reads must belong to that project; one from another project answers `task_outside_source`.
+
+**What it reads.** Lists go through `GET /search/jql`, which replaced the removed `GET /search` ([Atlassian: run a JQL search with the REST API](https://confluence.atlassian.com/display/JIRAKB/Run+JQL+search+query+using+Jira+Cloud+REST+API)). That endpoint pages with a `nextPageToken`, not a page number, so Unfold remembers the token of each page it has read and reaches a later page by walking at most ten pages from the nearest one it knows. One issue is read with `GET /issue/{key}`. An issue is named by its key, such as `APP-12`, which is also its reference in Unfold. A moved or renamed issue answers `task_moved`; open it from the list again.
+
+Descriptions are Atlassian Document Format (ADF). Unfold renders them as HTML in which every text is escaped and only `http`, `https` and `mailto` links survive, and shows that HTML as Markdown like a Vikunja description. Mentions keep their display text, images and files show as `[attachment]`, and node types Unfold does not know keep their text. The status comes from Jira's status category: **Done** is closed, **To Do** and **In Progress** are open. Labels, the assignee, priority and due date show beside the task.
+
+**Report a problem** files a Bug in the project (else a Task, else the project's first standard type, from `GET /issue/createmeta/{key}/issuetypes`), with the body converted to ADF, and attaches the screenshot, `console.json` and `requests.json` with `POST /issue/{key}/attachments`. Replies and repeat reports are comments. Unfold follows the issue's status category, labels, assignee and latest ten comments. The service account needs **Create issues**, **Create attachments** and **Add comments** on the report project.
+
+**Not built.** Hand-off to Ploeg: Ploeg takes no Jira work (see [the hand-off matrix](#hand-a-task-to-ploeg)). Personal Atlassian account links through OAuth 2.0 (3LO). Transitions: Unfold never changes an issue's status. A panel inside Jira is a later, separate piece, built as an [Atlassian Forge](https://developer.atlassian.com/platform/forge/) app, because Atlassian ends support for Connect apps on 31 January 2027 ([Atlassian: Connect end of support extended to January 31, 2027](https://community.developer.atlassian.com/t/connect-end-of-support-extended-to-january-31-2027/102002)).
 
 ## Use the connection
 
@@ -200,7 +234,20 @@ The [binding contract](../contracts/ploeg-tracker-binding.md) separates preview 
 
 ## Hand a task to Ploeg
 
-Ploeg takes work from the trackers whose adapter declares hand-off, Vikunja and ClickUp, when a task is assigned to the tracker user that routes to one of its teams. The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
+Ploeg takes work from the trackers whose adapter declares hand-off, Vikunja and ClickUp, when a task is assigned to the tracker user that routes to one of its teams. What the pinned Ploeg release takes from each tracker decides which adapters declare hand-off:
+
+| Tracker | Ploeg takes its work | Unfold hands off | Why |
+| --- | --- | --- | --- |
+| Vikunja | by assignee, through the `task.assignee.created` webhook | yes | Ploeg reports each team's assignees and pinned projects |
+| ClickUp | by assignee, through the `taskAssigneeUpdated` webhook | yes | Ploeg reports each team's assignees and pinned Lists |
+| GitHub Issues | by a `ploeg:<team>` label, or by an assignee listed in `PLOEG_GITHUB_TEAM_MAP` | no | Ploeg's team read reports only the assignees of `teams.<team>.assignees` and `PLOEG_TEAM_MAP`, so Unfold cannot know which GitHub login routes to a team, nor the label prefix |
+| GitLab issues | no; Ploeg uses GitLab only as a forge | no | Ploeg has no GitLab tracker |
+| Forgejo issues | no | no | Ploeg has no Forgejo tracker |
+| Jira | no | no | Ploeg has no Jira tracker |
+
+GitHub hand-off needs one generic change in Ploeg first: its team read reports the routing assignees per tracker.
+
+The Tasks page and the editor's task view offer **Hand to Ploeg** with a team picker, and **Take back** while Ploeg has not started. The server does the assignment with the connection's token, so nobody needs to know which tracker user belongs to which team. The [API contract](../contracts/api.md#hand-a-task-to-ploeg) lists the routes and refusals, and [ADR 0025](../adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) records why.
 
 A connection can hand off when all of these hold:
 
@@ -224,7 +271,7 @@ The status beside the task shows which team holds it, Ploeg's Work Items for it 
 
 ## File Report a problem into a tracker
 
-Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report into any registered tracker whose adapter declares issue filing: a Forgejo issue or a Vikunja task today, with the screenshot, `console.json` and `requests.json` attached. The adapter decides the body format (Markdown on Forgejo, HTML on Vikunja), how files attach, and what Unfold reads back when it follows the report. It uses one of the task sources above:
+Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report into any registered tracker whose adapter declares issue filing: a Forgejo issue, a Vikunja task or a Jira issue today, with the screenshot, `console.json` and `requests.json` attached. The adapter decides the body format (Markdown on Forgejo, HTML on Vikunja, ADF converted from Markdown on Jira), how files attach, and what Unfold reads back when it follows the report. It uses one of the task sources above:
 
 ```json
 "reports": { "source": "forgejo-unfold", "project": "webgrip/unfold" }
@@ -236,10 +283,10 @@ Or give reports a connection of their own, which is not a task source and never 
 "reports": { "provider": "forgejo", "baseUrl": "https://forgejo.example/api/v1", "project": "webgrip/unfold", "tokenEnv": "UNFOLD_REPORTS_FORGEJO_TOKEN" }
 ```
 
-* `source` names a task source with a token whose adapter files issues (Forgejo or Vikunja). Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.
-* `project` is optional: `owner/repository` on Forgejo, or a numeric project ID on Vikunja, when reports belong somewhere other than the source's work.
+* `source` names a task source with a token whose adapter files issues (Forgejo, Vikunja or Jira). Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.
+* `project` is optional: `owner/repository` on Forgejo, a numeric project ID on Vikunja, or a project key on Jira, when reports belong somewhere other than the source's work.
 * If the variable `tokenEnv` names is not set, Unfold starts anyway, logs `reports.token_missing` and keeps reports without filing them.
-* The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), or create tasks and attachments in the project on Vikunja.
+* The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), create tasks and attachments in the project on Vikunja, or create issues and attachments and add comments in the project on Jira (see [Jira](#jira)).
 * Unfold keeps each report before it files it. If the tracker refuses or cannot be reached, the person sees "Saved. Unfold will file it when the tracker answers", and Unfold retries with growing gaps for 24 hours, continuing an issue it already created. The server log line `report.file_failed` gives the tracker's answer.
 * Files are deleted 90 days after a report is filed. The report row and its address stay.
 * Unfold follows each filed report on the tracker every ten minutes for 180 days (two weeks after it closes, longer while a merged fix waits for a release) and shows the reporter where it stands. On Forgejo the token also needs to read the repository's pull requests and releases (`read:repository`) for *Fixed in* a release. A failed read logs `report.follow_failed` and keeps the last answer.
@@ -261,6 +308,8 @@ Start at **Settings → Connections** (`#settings/connections`, also linked from
 | Shared import blocked | Check the explicit source target, singleton API root, configured execution team and current queued/pristine Ploeg item. Unsupported tracker providers remain inspection-only in shared mode |
 | Redirect or unexpected content rejected | Configure the final API root directly and inspect the reverse proxy; login HTML is not an API response |
 | Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. A list shows it truncated; preview and import refuse it rather than truncate it |
+| Jira answers `task_page_expired`, `task_page_missing` or `task_moved` | Jira pages by token, so a page far past the last one read is refused: start from the first page. A moved or renamed issue has a new key: open it from the list again |
+| Jira refuses the credentials | A scoped token needs the gateway root `api.atlassian.com/ex/jira/CLOUD-ID/rest/api/3`; a classic `email:token` needs the site root `SITE.atlassian.net/rest/api/3` |
 | Hand-off refused with `task_write_forbidden` | The tracker token can read but not change the task. Grant it task assignee and comment permissions in Vikunja, or task edit and comment access to the List in ClickUp |
 | No team to hand off to | Your account needs Ploeg team access in `ploeg.userTeams`, and the team needs a tracker user in Ploeg's configuration. An older Ploeg does not report tracker users at all |
 

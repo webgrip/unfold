@@ -69,3 +69,4 @@ Re-evaluate if Ploeg takes work from a tracker by something other than assignmen
 * 2026-09-30 — Proposed with the Unfold implementation and Ploeg's additive `assignees` and tracker-identity filter.
 * 2026-09-30 — Renumbered from 0024, which the redesign took. The browser's Tasks page gains the same status and hand-off, replacing the binding warning that every task on the Unfold board showed.
 * 2026-10-29 — Extended to ClickUp, which Ploeg takes by the same assignment ([PR #674](https://forgejo.webgrip.dev/webgrip/unfold/pulls/674)).
+* 2026-10-30 — Not extended to GitHub Issues, GitLab issues or Jira (OpenSpec change `jira-tracker`). Ploeg 0.2.0-rc.97 takes GitHub issues by an assignee in `PLOEG_GITHUB_TEAM_MAP`, but `GET /operator/teams` reports only the assignees of `teams.<team>.assignees` and `PLOEG_TEAM_MAP`, so Unfold cannot tell which GitHub login routes to a team. Ploeg has no GitLab or Jira tracker.

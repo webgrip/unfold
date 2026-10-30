@@ -100,7 +100,7 @@ The Ploeg patch was applied in a disposable checkout at its documented baseline;
 
 ## 0.2.0 task and candidate iteration
 
-The provider adapters use documented read APIs for Forgejo, GitHub, GitLab, ClickUp and Vikunja. Tests run actual HTTP fixtures with credential, pagination, revision, scope, malformed response and redirect checks. They do not qualify the user's provider accounts. The fixture source is labeled as demonstration data.
+The provider adapters use documented read APIs for Forgejo, GitHub, GitLab, ClickUp, Vikunja and Jira Cloud. Tests run actual HTTP fixtures with credential, pagination, revision, scope, malformed response and redirect checks. They do not qualify the user's provider accounts. The fixture source is labeled as demonstration data.
 
 The task API is exercised through live authenticated Unfold servers and actual SQLite persistence. It checks stale previews, closed tasks, configured execution authority at import/start/resume, concurrent and alias deduplication, cross-user privacy, unknown credential discovery, echoed-token redaction before persistence/prompting, and descriptions whose JSON encoding expands. The full demo imports a task, requires an explicit start, produces actual checks and exports a candidate that remains byte-identical after restart. No inference was submitted.
 

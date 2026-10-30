@@ -32,7 +32,7 @@ test('live mode with Ploeg execution starts, and demo mode never needs Ploeg', (
 
 test('the supplied live examples configure Ploeg execution', async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-live-example-'));
-  const settings: Record<string, string> = { UNFOLD_DATA_DIR: dataDir, ...Object.fromEntries(['FORGEJO', 'GITHUB', 'GITLAB', 'CLICKUP', 'VIKUNJA'].map(provider => [`UNFOLD_TASK_${provider}_TOKEN`, 'example-task-token'])) };
+  const settings: Record<string, string> = { UNFOLD_DATA_DIR: dataDir, ...Object.fromEntries(['FORGEJO', 'GITHUB', 'GITLAB', 'CLICKUP', 'VIKUNJA', 'JIRA'].map(provider => [`UNFOLD_TASK_${provider}_TOKEN`, 'example-task-token'])) };
   const previous = Object.fromEntries(Object.keys(settings).map(name => [name, process.env[name]]));
   Object.assign(process.env, settings);
   t.after(async () => {

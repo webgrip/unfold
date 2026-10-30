@@ -234,7 +234,7 @@ test('reports never default to, or land in, a project Ploeg dispatches work from
   assert.deepEqual(reportSettings({ source: 'ploeg-board', project: '30' }, [dispatch], 'live'), { source: dispatch, project: '30' }, 'the same tracker in another project is fine');
   assert.equal(reportSettings(false, [own], 'live'), null);
   assert.equal(reportSettings(undefined, [own], 'demo'), null, 'the demo never files');
-  assert.throws(() => reportSettings({ source: 'nope' }, [own], 'live'), /must name a Forgejo or Vikunja task source/);
+  assert.throws(() => reportSettings({ source: 'nope' }, [own], 'live'), /must name a Forgejo, Vikunja or Jira task source/);
 });
 
 test('reports can have a connection of their own, which is not a task source, and a missing token turns filing off instead of stopping Unfold', async t => {
@@ -257,7 +257,7 @@ test('reports can have a connection of their own, which is not a task source, an
   assert.equal(reportSettings(raw, sources, 'live'), null, 'Unfold starts and keeps reports');
   assert(errors.some(line => line.includes('reports.token_missing') && line.includes('UNFOLD_REPORTS_TEST_TOKEN')));
 
-  assert.throws(() => reportSettings({ ...raw, provider: 'github' }, sources, 'live'), /reports.provider must be forgejo or vikunja/);
+  assert.throws(() => reportSettings({ ...raw, provider: 'github' }, sources, 'live'), /reports.provider must be forgejo, vikunja or jira/);
   assert.throws(() => reportSettings({ ...raw, baseUrl: 'http://forgejo.test/api/v1' }, sources, 'live'), /HTTPS/);
   assert.throws(() => reportSettings({ ...raw, project: 'not a repo' }, sources, 'live'), /owner\/repository/);
   assert.throws(() => reportSettings({ ...raw, source: 'ploeg-board' }, sources, 'live'), /provider, baseUrl, project, tokenEnv and acknowledgement only/);
