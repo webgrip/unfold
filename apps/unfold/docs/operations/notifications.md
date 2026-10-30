@@ -57,13 +57,13 @@ Add a `notifications` block to the configuration file. Each value that is a secr
 | `ntfy.tokenEnv` | Optional. The variable holding an ntfy access token (`tk_…`) that may publish to the topics. While it is named but empty, ntfy is unavailable |
 | `ntfy.topicPrefix` | Optional, default `unfold-`. Unfold appends 128 random bits per person |
 | `webPush.subject` | Your contact for push services, `mailto:` or `https:` |
-| `webPush.publicKeyEnv`, `webPush.privateKeyEnv` | The variables holding the VAPID key pair, base64url: the 65-byte public point and the 32-byte private scalar. A pair whose halves do not match keeps Web Push off and logs `notify.vapid_invalid` |
+| `webPush.publicKeyEnv`, `webPush.privateKeyEnv` | The variables holding the VAPID key pair, base64url: the 65-byte public point and the 32-byte private scalar. A scalar written without its leading zero bytes, as `ECDH.getPrivateKey()` returns about one key in 256, is read as the same key. A pair whose halves do not match keeps Web Push off and logs `notify.vapid_invalid` |
 | `budgetThresholds` | Up to five shares above 0 and at most 1 |
 
 Generate a VAPID key pair once and keep it: a new pair invalidates every browser subscription.
 
 ```sh
-node -e "const e=require('node:crypto').createECDH('prime256v1');e.generateKeys();console.log('UNFOLD_VAPID_PUBLIC_KEY='+e.getPublicKey('base64url'));console.log('UNFOLD_VAPID_PRIVATE_KEY='+e.getPrivateKey('base64url'))"
+node -e "const e=require('node:crypto').createECDH('prime256v1');e.generateKeys();console.log('UNFOLD_VAPID_PUBLIC_KEY='+e.getPublicKey('base64url'));console.log('UNFOLD_VAPID_PRIVATE_KEY='+Buffer.from(e.getPrivateKey('hex').padStart(64,'0'),'hex').toString('base64url'))"
 ```
 
 In Kubernetes put both keys and the ntfy token in a Secret and pass them with the chart's `extraEnv`:

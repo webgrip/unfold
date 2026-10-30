@@ -10,7 +10,7 @@ export function fromBase64Url(value: string): Buffer { return Buffer.from(value.
 /** Encodes base64url without padding. */
 export function toBase64Url(value: Buffer | Uint8Array): string { return Buffer.from(value).toString('base64url'); }
 
-/** A VAPID key pair: the uncompressed P-256 public point (65 bytes) and the private scalar (32 bytes), both base64url. */
+/** A VAPID key pair: the uncompressed P-256 public point (65 bytes) and the private scalar (32 bytes, or fewer with its leading zero bytes left out), both base64url. */
 export type VapidKeys = { publicKey: string; privateKey: string };
 
 /** Whether `value` is an uncompressed P-256 public point in base64url. */
@@ -25,9 +25,12 @@ function jwk(publicKey: string, privateKey?: string): Record<string, string> {
   if (point.length !== 65 || point[0] !== 4) throw new Error('A VAPID public key is an uncompressed P-256 point of 65 bytes');
   const base = { kty: 'EC', crv: 'P-256', x: toBase64Url(point.subarray(1, 33)), y: toBase64Url(point.subarray(33)) };
   if (privateKey === undefined) return base;
-  if (fromBase64Url(privateKey).length !== 32) throw new Error('A VAPID private key is a P-256 scalar of 32 bytes');
-  return { ...base, d: privateKey };
+  const scalar = fromBase64Url(privateKey);
+  if (!scalar.length || scalar.length > 32) throw new Error('A VAPID private key is a P-256 scalar of at most 32 bytes');
+  return { ...base, d: toBase64Url(scalarBytes(scalar)) };
 }
+
+function scalarBytes(scalar: Buffer): Buffer { return Buffer.concat([Buffer.alloc(32 - scalar.length), scalar]); }
 
 /** The signing key of a VAPID key pair; throws when the halves do not belong together. */
 export function vapidSigningKey(keys: VapidKeys): KeyObject {
@@ -44,7 +47,7 @@ export function vapidSigningKey(keys: VapidKeys): KeyObject {
 export function generateVapidKeys(): VapidKeys {
   const ecdh = createECDH('prime256v1');
   ecdh.generateKeys();
-  return { publicKey: toBase64Url(ecdh.getPublicKey()), privateKey: toBase64Url(ecdh.getPrivateKey()) };
+  return { publicKey: toBase64Url(ecdh.getPublicKey()), privateKey: toBase64Url(scalarBytes(ecdh.getPrivateKey())) };
 }
 
 /**
