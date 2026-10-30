@@ -22,6 +22,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Task connections](operations/task-connections.md)
 - [Storage](operations/storage.md): SQLite durability, upkeep and the daily integrity check
 - [Send Unfold's audit to your SIEM (OCSF)](operations/audit-siem.md): what is recorded, the hash chain, retention, OTLP and NDJSON export
+- [Leaving Unfold: export a Tenant](operations/leaving-unfold.md): the export bundle, its formats and how to use it elsewhere
 - [Release procedure](operations/release.md)
 
 ## Integrate

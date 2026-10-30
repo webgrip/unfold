@@ -99,7 +99,7 @@ Bring one repository, a named reviewer and a few well-scoped tickets. Together, 
 
 **Does it replace ClickUp, Forgejo or GitLab?** No. The design connects execution to their existing work and review authority.
 
-**Can we leave?** The project is Apache-2.0. A complete portable evidence/export contract is part of the implementation plan; source availability alone does not complete that exit path.
+**Can we leave?** The project is Apache-2.0, and an administrator exports everything Unfold holds for a Tenant through the API as JSON Lines with a JSON Schema per entity and a checksummed manifest, with no secrets ([Leaving Unfold: export a Tenant](../operations/leaving-unfold.md)). The export is behind a flag that is off by default. What Ploeg holds (Runs, Shifts, transcripts, spend, its audit log) is not in it: Ploeg serves those as team-scoped reads and has no bulk export yet, so the exit path is complete for Unfold's records only.
 
 ## 5. Public claims and required proof
 

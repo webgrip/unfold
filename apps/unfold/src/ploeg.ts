@@ -2086,6 +2086,8 @@ export class PloegClient {
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg does not know this Team, or it is outside the Teams you may use.');
     return chatAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}&purpose=chat`)).allowance);
   }
+  /** The ids among `ids` whose Work Item `user` reaches under the Tenant checks; every id while the checks are off. */
+  async reachableWorkItems(user: User, ids: readonly string[]): Promise<Set<string>> { return this.reachedIds(user, [...ids], false); }
   private reaches(user: User, item: Pick<PloegItem, 'id' | 'target'>): boolean {
     if (this.targets.size >= 2000 && !this.targets.has(item.id)) this.targets.delete(this.targets.keys().next().value!);
     this.targets.set(item.id, item.target);

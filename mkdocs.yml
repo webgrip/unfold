@@ -38,6 +38,7 @@ nav:
       - Operate Unfold: unfold/index.md
       - Feature flags: unfold/operations/feature-flags.md
       - Outbound webhooks: unfold/operations/outbound-events.md
+      - "Leaving Unfold: export a Tenant": unfold/operations/leaving-unfold.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md
   - Reference:

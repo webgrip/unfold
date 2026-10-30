@@ -700,6 +700,18 @@ Administrators subscribe receivers to Unfold's product events ([Outbound webhook
 | `GET /api/admin/webhooks/:id/deliveries` | `{deliveries}`: the newest 100, each `{id, subscriptionId, eventId, eventType, status, attempts, nextAttemptAt, lastStatus, lastError, deliveredAt, createdAt}` with `status` `pending`, `delivered` or `dead` |
 | `POST /api/admin/webhooks/:id/deliveries/:delivery/resend` | 202 `{delivery}`: puts a dead delivery back in the queue with a fresh attempt count. 409 `webhook_delivery_not_dead` otherwise |
 
+## Tenant export
+
+One export bundles everything Unfold holds for a Tenant ([Leaving Unfold: export a Tenant](../operations/leaving-unfold.md), [`src/tenant-export-jobs.ts`](../../src/tenant-export-jobs.ts)). Every route needs an administrator signed in through the browser (403 `browser_only` for an editor or MCP credential, 403 `forbidden` for another role) and the `tenant.export` flag on (403 `tenant_export_off`). An export is `{id, tenant, state, requestedBy, createdAt, finishedAt, expiresAt, bytes, sha256, rows, error, downloadUrl}`, `state` one of `running`, `ready` or `failed`; a person sees only the exports they started.
+
+| Method and path | Response |
+| --- | --- |
+| `POST /api/admin/tenant-exports` | `{tenant?, confirm}` → 202 `{export}`, running. `tenant` defaults to `default`; `confirm` must repeat it (400 `tenant_export_confirm`). While `tenancy.enforce` is off only `default` exists, and while it is on the caller needs an Admin membership of the Tenant (404 `tenant_not_found` otherwise). 409 `tenant_export_running` while another export runs |
+| `GET /api/admin/tenant-exports` | `{exports}`, newest first |
+| `GET /api/admin/tenant-exports/:id` | `{export}`. 404 `tenant_export_not_found` once it expired or was deleted |
+| `GET /api/admin/tenant-exports/:id/download` | The bundle, `application/gzip`, with `Content-Disposition`, `Content-Length` and `Repr-Digest: sha-256=:<base64>:`. 409 `tenant_export_not_ready` while running or after a failure. Recorded as an Action Record |
+| `DELETE /api/admin/tenant-exports/:id` | `{deleted}`; removes the bundle before it expires. 409 while running |
+
 ## Static files
 
 The server answers `GET` for the browser workbench from its public directory ([`static.ts`](../../src/static.ts)): the page, the named top-level assets in `src/http.ts`, and any `/core/`, `/views/` or `/styles/` file whose name matches `[a-z0-9][a-z0-9-]*\.(js|css)`. Anything else is 404.
