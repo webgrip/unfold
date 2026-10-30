@@ -65,6 +65,8 @@ import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs,
 import { OutboundError, OutboundEvents } from './outbound/service.ts';
 import { IntakeService, IntakeStore } from './intake/service.ts';
 import { intakeRoute } from './intake/routes.ts';
+import { BillingError, BillingService, BillingStore, billingRoute } from './billing.ts';
+import { billingExporters } from './billing-exporters.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
 import { AuditTrail } from './audit/service.ts';
@@ -313,6 +315,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     } : {}),
   });
   const intake = new IntakeService(new IntakeStore(store), { enforced: tenants.enforced, rateLimit: config.intake?.rateLimit, enabled: tenant => flags.getBooleanValue('intake.requests', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }) });
+  const billingDefinition = config.billing ? billingExporters.get(config.billing.exporter) : undefined;
+  const billing = new BillingService(new BillingStore(store.db), {
+    ...(config.billing && billingDefinition ? { settings: config.billing, definition: billingDefinition, exporter: billingDefinition.create(config.billing.options, { fetch, env: process.env, dataDir: config.dataDir, timeoutMs: 20_000 }) } : {}),
+    ...(config.ploeg && !ploeg.isDemo ? { facts: ploeg } : {}),
+    tenants, calendar: config.acceptanceCalendar, demo: config.mode === 'demo',
+    enabled: tenant => flags.getBooleanValue('billing.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }),
+  });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -872,6 +881,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
           return json(res, 200, sanitize(await asks.mine(user)));
         }
+        if (path === '/api/billing' || path.startsWith('/api/billing/')) {
+          try {
+            const answer = await billingRoute(billing, user, method, path, url.searchParams, () => body(req));
+            if ('json' in answer) return json(res, answer.status, sanitize(answer.json));
+            res.writeHead(answer.status, { 'Content-Type': answer.file.contentType, 'Content-Disposition': `attachment; filename="${answer.file.filename}"`, 'Cache-Control': 'no-store' });
+            res.end(sanitize(answer.file.text)); return;
+          } catch (error) { if (error instanceof BillingError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
+        }
         const signOffRoute = /^\/api\/ploeg\/work-items\/([^/]+)\/client-sign-off(\/withdraw)?$/.exec(path);
         if (signOffRoute || path === '/api/client-sign-off/exclusions') {
           try {
@@ -1204,5 +1221,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); billing.stop(); }, reports };
 }

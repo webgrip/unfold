@@ -9,6 +9,7 @@ import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
 import type { IntakeConfig } from './intake/limiter.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
+import type { BillingSettings } from './billing-export.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -87,6 +88,8 @@ export type AppConfig = {
   trustedProxies?: string[];
   /** The Request intake's rate limit. */
   intake?: IntakeConfig;
+  /** Where accepted Work Items are written as billing lines: the exporter and its settings. Absent means billing is off. */
+  billing?: BillingSettings;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
