@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { Server } from 'node:http';
 import { deadlineAfter, scaledTimeout } from './timeframes.ts';
 import { createApplication } from '../src/main.ts';
+import { assertDocumentedResponse } from './openapi-responses.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
 import type { AgentRuntime, AppConfig, Event, RuntimeKind, Session } from '../src/types.ts';
 
@@ -83,6 +84,7 @@ export async function request(url: string, path: string, options: { method?: str
   const text = await response.text();
   let parsedBody: any;
   try { parsedBody = JSON.parse(text); } catch { parsedBody = text; }
+  assertDocumentedResponse(options.method ?? 'GET', path, response.status, response.headers.get('content-type'), parsedBody);
   return { response, status: response.status, body: parsedBody, text };
 }
 

@@ -8,7 +8,9 @@ info:
     routes it hands to `linked-handoff.ts`, `take-over.ts`, `linked-permissions.ts`, `linked-conversation.ts`,
     `intake/routes.ts`, `billing.ts`, `tenant-export-jobs.ts`, the notification, audit and outbound webhook
     services and the workspace relay. The prose contract, [HTTP contract](api.md), carries the full behaviour of each route;
-    this document carries its shape. `test/openapi.test.ts` fails when a route exists in one and not the other.
+    this document carries its shape. `test/openapi.test.ts` fails when a route exists in one and not the other, and
+    every answer a test reads through `test/api-support.ts` or the route probe must have a status this document lists
+    and a JSON body its schema accepts.
     SCIM 2.0 under `/scim/v2` and the Shared Signals receiver at `/ssf/events` sit outside `/api/` and are not
     described here: the identity provider calls them with their own bearer token or signed SET, SCIM describes
     itself through `/scim/v2/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas` (RFC 7644), and the
@@ -16,8 +18,11 @@ info:
 
     Conventions:
 
-    * Every error is `{"error":{"code":"...","message":"..."}}` (schema `Error`). A route lists the error codes it
-      answers with in its description.
+    * Every error is `{"error":{"code":"...","message":"..."}}` (schema `Error`), served as `application/json`.
+      This is Unfold's own shape, not RFC 9457 problem details: the browser, the editor extensions and unfold-mcp
+      read `error.code`. A route lists the error codes it answers with in its description.
+    * Every route that needs a sign-in lists 401 and 403, every route that takes a body lists 415, and every route
+      under `/api/ploeg/`, `/api/task-sources/` and `/api/task-imports` lists 502 and 503.
     * JSON request bodies need `Content-Type: application/json`; an action without input sends `{}`.
     * Every `POST`, `PUT`, `PATCH` and `DELETE` needs `X-Unfold-Request: 1` (security scheme `unfoldRequest`) and
       passes same-origin checks, except the editor sign-in under `/api/auth/editor`, OFREP evaluation and the
@@ -124,6 +129,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/logout:
     post:
@@ -137,8 +143,14 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{ok}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/auth/methods:
     get:
       tags: [Identity]
@@ -197,6 +209,7 @@ paths:
                   expiresIn: { type: integer, examples: [600] }
                   interval: { type: integer, examples: [2] }
                   url: { type: string, format: uri }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/auth/editor/{code}:
     parameters:
@@ -242,6 +255,7 @@ paths:
                   status: { const: pending }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/auth/oidc:
     get:
@@ -256,6 +270,7 @@ paths:
       responses:
         '303': { description: Redirect to the provider. }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
   /api/auth/oidc/callback:
     get:
       tags: [Identity]
@@ -288,6 +303,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EditorRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/editor-requests/{code}/{decision}:
@@ -312,9 +328,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EditorRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/editor-credentials:
     get:
       tags: [Identity]
@@ -326,6 +344,7 @@ paths:
         - sessionCookie: []
       responses:
         '200': { $ref: '#/components/responses/EditorCredentials' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/editor-credentials/{credentialId}:
     parameters:
@@ -344,6 +363,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/EditorCredentials' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -383,6 +403,8 @@ paths:
                   maxBudgetUsd: { type: number }
                   maxConcurrentSessions: { type: integer }
                   flags: { type: object, additionalProperties: true }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/status:
     get:
       tags: [Workbench]
@@ -407,6 +429,17 @@ paths:
                   ploegContract: { type: object }
                   personProof: { type: object }
                   residency: { type: object }
+              example:
+                generatedAt: '2026-10-30T09:00:00.000Z'
+                overall: degraded
+                checks:
+                  - { id: ploeg, title: Ploeg, checkedAt: '2026-10-30T09:00:00.000Z', state: ok, summary: 'Ploeg answered.' }
+                  - { id: gateway, title: 'Model gateway', checkedAt: '2026-10-30T09:00:00.000Z', state: down, summary: 'No model gateway is configured, so sessions cannot call a model.' }
+                waiting: []
+                failures: { since: '2026-10-29T09:00:00.000Z', total: 0, causes: [] }
+                notes: []
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/status/notes:
     post:
       tags: [Workbench]
@@ -433,7 +466,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StatusNote' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/status/notes/{noteId}/resolve:
     parameters:
       - name: noteId
@@ -456,8 +491,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StatusNote' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/health:
     get:
       tags: [Workbench]
@@ -481,6 +518,8 @@ paths:
                   gateway: { type: string }
                   workspaceBackend: { type: string }
                   workspaceBackends: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/mcp-servers:
     get:
       tags: [Workbench]
@@ -506,6 +545,8 @@ paths:
                         type: { const: http }
                         url: { type: string, format: uri }
                         oauth: { type: object, properties: { clientId: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/models:
     get:
       tags: [Workbench]
@@ -521,6 +562,8 @@ paths:
                 type: object
                 properties:
                   models: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/attestations/public-key:
     get:
       tags: [Sessions]
@@ -535,6 +578,8 @@ paths:
           content:
             application/x-pem-file:
               schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/reports:
     get:
       tags: [Workbench]
@@ -552,6 +597,8 @@ paths:
                 properties:
                   reports: { type: array, items: { type: object } }
                   updates: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Workbench]
       operationId: fileReport
@@ -592,6 +639,8 @@ paths:
                   url: { type: string }
                   message: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -611,6 +660,9 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { updates: { const: 0 } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/reports/similar:
     get:
       tags: [Workbench]
@@ -629,6 +681,8 @@ paths:
                 type: object
                 properties:
                   reports: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/reports/{reportId}/replies:
     parameters:
       - name: reportId
@@ -660,8 +714,11 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { report: { type: object } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/insight/events:
     post:
@@ -704,8 +761,10 @@ paths:
                   accepted: { type: integer }
                   dropped: { type: integer }
         '204': { description: Product events are off. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/flags:
@@ -716,6 +775,8 @@ paths:
       x-unfold-role: viewer
       responses:
         '200': { $ref: '#/components/responses/LabsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/flags/{flagKey}/choice:
     parameters:
       - $ref: '#/components/parameters/FlagKey'
@@ -740,7 +801,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/LabsView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/flags:
     get:
       tags: [Flags]
@@ -749,6 +813,7 @@ paths:
       x-unfold-role: admin
       responses:
         '200': { $ref: '#/components/responses/AdminFlags' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/admin/flags/export:
     get:
@@ -762,6 +827,7 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { flags: { type: object } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/admin/flags/{flagKey}/override:
     parameters:
@@ -788,8 +854,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/AdminFlags' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/flags/{flagKey}/rollout:
     parameters:
       - $ref: '#/components/parameters/FlagKey'
@@ -820,8 +888,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/AdminFlags' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/flag-segments/{segment}:
     parameters:
       - name: segment
@@ -850,7 +920,9 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/AdminFlags' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Flags]
       operationId: deleteFlagSegment
@@ -862,6 +934,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/AdminFlags' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -894,6 +967,9 @@ paths:
                 properties:
                   flags: { type: array, items: { $ref: '#/components/schemas/OfrepFlag' } }
         '304': { description: Unchanged since the `If-None-Match` tag. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/ofrep/v1/evaluate/flags/{ofrepKey}:
     parameters:
       - name: ofrepKey
@@ -926,11 +1002,14 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OfrepError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404':
           description: 'No client-visible flag has this key.'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OfrepError' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/now/snoozes:
     get:
       tags: [Flags]
@@ -939,6 +1018,8 @@ paths:
       x-unfold-role: viewer
       responses:
         '200': { $ref: '#/components/responses/Snoozes' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     put:
       tags: [Flags]
       operationId: setNowSnooze
@@ -963,6 +1044,9 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snoozes' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Flags]
       operationId: clearNowSnooze
@@ -977,6 +1061,8 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Snoozes' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/agent-host:
     get:
@@ -1001,6 +1087,8 @@ paths:
                   attached: { type: array, items: { type: object } }
                   folders: { type: array, items: { type: object } }
                   vscodeSetting: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/agent-host/tokens:
     post:
@@ -1032,7 +1120,9 @@ paths:
                   id: { type: string, pattern: '^[0-9a-f]{64}$' }
                   address: { type: string }
                   vscodeSetting: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/agent-host/tokens/{tokenId}:
     parameters:
       - name: tokenId
@@ -1056,6 +1146,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { revoked: { const: true } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/agent-host/editor-window:
     put:
@@ -1079,7 +1171,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/EditorWindow' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Agent host]
       operationId: forgetEditorWindow
@@ -1094,6 +1188,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { forgotten: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/agent-host/sessions/{sessionId}/link:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1105,6 +1201,7 @@ paths:
       x-unfold-role: operator
       responses:
         '200': { $ref: '#/components/responses/AgentsWindowLink' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/agent-host/work-items/{workItemId}/link:
@@ -1118,6 +1215,7 @@ paths:
       x-unfold-role: operator
       responses:
         '200': { $ref: '#/components/responses/AgentsWindowLink' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -1135,6 +1233,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { links: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/links/{provider}:
     parameters:
       - $ref: '#/components/parameters/LinkProvider'
@@ -1154,7 +1254,10 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { url: { type: string, format: uri } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     put:
       tags: [Linked accounts]
       operationId: pasteLinkToken
@@ -1179,6 +1282,9 @@ paths:
             application/json:
               schema: { type: object, properties: { link: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Linked accounts]
       operationId: unlink
@@ -1188,7 +1294,13 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{ok}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/links/{provider}/callback:
     parameters:
       - $ref: '#/components/parameters/LinkProvider'
@@ -1218,6 +1330,8 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/task-sources/{sourceId}/tasks:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -1240,8 +1354,12 @@ paths:
                   tasks: { type: array, items: { type: object } }
                   nextPage: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/task-sources/{sourceId}/tasks/{taskId}:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -1263,9 +1381,48 @@ paths:
           description: 'The task snapshot.'
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  key: { type: string }
+                  sourceId: { type: string }
+                  provider: { type: string }
+                  id: { type: string }
+                  revision: { type: string }
+                  title: { type: string }
+                  description: { type: string }
+                  url: { type: string }
+                  status: { type: string }
+                  updatedAt: { type: string }
+                  repositoryId: { type: string }
+                  identifier: { type: string }
+                  descriptionMarkdown: { type: string }
+                  labels: { type: array, items: { type: object } }
+                  priority: { type: integer }
+                  dueAt: { type: string }
+                  nativeRevision: { type: string }
+                  scope: { type: string }
+                  ploeg:
+                    type: object
+                    properties:
+                      workItemId: { type: string }
+                      provider: { type: string }
+                      externalId: { type: string }
+                      expectedBaseUrl: { type: string }
+                      expectedScope: { type: string }
+                      expectedRevision: { type: string }
+                      expectedUpdatedAt: { type: string }
+                      expectedTarget: { type: object }
+                  bindingRevision: { type: string }
+                  bindingConfig: { type: string }
+                  ploegUnavailable: { type: object, properties: { code: { type: string }, message: { type: string } } }
+                  assignees: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/task-sources/{sourceId}/tasks/{taskId}/ploeg:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -1283,7 +1440,10 @@ paths:
         - $ref: '#/components/parameters/Refresh'
       responses:
         '200': { $ref: '#/components/responses/TaskPloegStatus' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/task-sources/{sourceId}/tasks/{taskId}/handoff:
     parameters:
@@ -1312,9 +1472,13 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/TaskPloegStatus' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnprocessableContent' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       tags: [Tasks]
@@ -1329,8 +1493,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/TaskPloegStatus' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/tasks/lookup:
     get:
@@ -1349,7 +1516,11 @@ paths:
             application/json:
               schema: { type: object, properties: { sourceId: { type: string } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/task-imports:
     post:
       tags: [Tasks]
@@ -1381,9 +1552,13 @@ paths:
         '200': { $ref: '#/components/responses/Session' }
         '201': { $ref: '#/components/responses/Session' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /api/sessions:
     get:
@@ -1402,6 +1577,8 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Session' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Sessions]
       operationId: createSession
@@ -1433,8 +1610,10 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/Session' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/sessions/{sessionId}:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1450,6 +1629,8 @@ paths:
         - mcpDelegated: []
       responses:
         '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/history:
     parameters:
@@ -1467,6 +1648,8 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/SessionEvent' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/events:
     parameters:
@@ -1486,6 +1669,8 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/sessions/{sessionId}/permissions:
@@ -1502,6 +1687,8 @@ paths:
           content:
             application/json:
               schema: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/permissions/{requestId}:
     parameters:
@@ -1535,9 +1722,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/sessions/{sessionId}/investigation:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1558,9 +1747,11 @@ paths:
                   class: { type: string, enum: [unfold_stall, ploeg_unreachable, ploeg_refused, unfold_restart, operator_stop, guard, unclear] }
                   verdict: { type: string }
                   rule: { type: string }
-                  facts: { type: object }
+                  facts: { type: array, items: { type: object, required: [label, value], properties: { label: { type: string }, value: { type: string } } } }
                   timeline: { type: array, items: { type: object } }
                   next: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/recovery:
     parameters:
@@ -1597,6 +1788,7 @@ paths:
                         path: { type: string }
                         available: { type: boolean }
                         unavailableReason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/candidate:
@@ -1613,6 +1805,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { status: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/sessions/{sessionId}/candidate/download:
     parameters:
@@ -1634,6 +1828,8 @@ paths:
             application/json:
               schema: { type: object }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /api/sessions/{sessionId}/delivery:
@@ -1649,20 +1845,11 @@ paths:
           description: 'The delivery view.'
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  configured: { type: boolean }
-                  policySha256: { type: string }
-                  localPhase: { type: string }
-                  checks: { type: array, items: { type: object } }
-                  candidate: { type: [object, 'null'] }
-                  receipt: { type: [object, 'null'] }
-                  approval: { type: [object, 'null'] }
-                  operation: { type: [object, 'null'] }
-                  publication: { type: object }
-                  publicationEnabled: { type: boolean }
+              schema: { $ref: '#/components/schemas/DeliveryView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/delivery/download:
     parameters:
@@ -1679,6 +1866,8 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, contentEncoding: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /api/sessions/{sessionId}/delivery/verify:
@@ -1695,10 +1884,16 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: 'The delivery view after the local verification.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/delivery/approve:
     parameters:
@@ -1714,11 +1909,17 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/DeliveryBinding' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: 'The delivery view after the approval.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/delivery/publish:
     parameters:
@@ -1734,11 +1935,17 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/DeliveryBinding' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: 'The delivery view after publishing.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/sessions/{sessionId}/run-again:
     parameters:
@@ -1755,9 +1962,11 @@ paths:
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
         '201': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/sessions/{sessionId}/start:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1770,7 +1979,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
   /api/sessions/{sessionId}/pause:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1784,7 +1993,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/resume:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1798,7 +2007,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/cancel:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1812,7 +2021,7 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/retry:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1826,7 +2035,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/capture:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1840,7 +2049,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/deliver:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1854,7 +2063,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/close-work-item:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1867,7 +2076,7 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/review:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1890,7 +2099,7 @@ paths:
               properties:
                 decision: { type: string, enum: [accepted, rejected] }
                 note: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/messages:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1913,7 +2122,7 @@ paths:
               required: [text]
               properties:
                 text: { type: string, minLength: 1, maxLength: 16000 }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/supervision:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1934,7 +2143,7 @@ paths:
               required: [supervision]
               properties:
                 supervision: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/approval:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1956,7 +2165,7 @@ paths:
               required: [approval]
               properties:
                 approval: { type: string, enum: [manual, auto] }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
   /api/sessions/{sessionId}/budget:
     parameters:
       - $ref: '#/components/parameters/SessionId'
@@ -1978,7 +2187,7 @@ paths:
               required: [amountUsd]
               properties:
                 amountUsd: { type: number, exclusiveMinimum: 0 }
-      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthenticated' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '415': { $ref: '#/components/responses/UnsupportedMediaType' } }
 
   /api/actions:
     get:
@@ -2006,6 +2215,8 @@ paths:
                   actions: { type: array, items: { type: object } }
                   nextBefore: { type: [integer, 'null'] }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/actions/filters:
     get:
       tags: [Workbench]
@@ -2024,6 +2235,8 @@ paths:
                 properties:
                   people: { type: array, items: { type: object } }
                   channels: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/handoffs:
     get:
       tags: [Workbench]
@@ -2058,6 +2271,8 @@ paths:
                         note: { type: string }
                   demo: { type: boolean }
                   fetchedAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/linked-sessions:
     get:
@@ -2080,6 +2295,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { sessions: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/linked-sessions/events:
     post:
@@ -2126,9 +2343,20 @@ paths:
                   context: { type: string }
                   suggestedTitle: { type: [string, 'null'] }
                   trackerPrefixes: { type: array, items: { type: string } }
-                  credential: { type: object }
+                  credential:
+                    description: 'When the credential the plugin signed in with expires, or null for a browser session.'
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [expiresAt, expiresSoon]
+                        properties:
+                          expiresAt: { type: string, format: date-time }
+                          expiresSoon: { type: boolean }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/digest:
     get:
       tags: [Linked Sessions]
@@ -2148,6 +2376,8 @@ paths:
             application/json:
               schema: { type: object, properties: { digest: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/linked-sessions/{linkedSessionId}:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2169,6 +2399,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { session: { type: object } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}:
     parameters:
@@ -2186,6 +2418,8 @@ paths:
         - { mcpDelegated: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/LinkedSession' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
@@ -2200,6 +2434,8 @@ paths:
         - { mcpDelegated: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/LinkedSession' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/linked-sessions/{linkedSessionId}/traces:
     parameters:
@@ -2229,10 +2465,27 @@ paths:
                 tool: { type: object, required: [name, version], properties: { name: { type: string }, version: { type: string } } }
                 metadata: { type: object }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '201': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{stored: false, ...}`: the record was already stored, so nothing changed.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stored]
+                properties: { stored: { type: boolean }, aiLines: { type: integer, minimum: 0 }, files: { type: integer, minimum: 0 } }
+        '201':
+          description: '`{stored, aiLines, files}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stored]
+                properties: { stored: { type: boolean }, aiLines: { type: integer, minimum: 0 }, files: { type: integer, minimum: 0 } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/agent-trace:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2249,6 +2502,8 @@ paths:
           content:
             application/x-ndjson:
               schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/agent-trace/{revision}:
     parameters:
@@ -2269,6 +2524,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { records: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/linked-sessions/{linkedSessionId}/suggestions:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2284,6 +2541,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { suggestions: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/linked-sessions/{linkedSessionId}/messages:
     parameters:
@@ -2300,6 +2559,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { messages: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Linked Sessions]
@@ -2326,8 +2587,11 @@ paths:
             application/json:
               schema: { type: object, properties: { message: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/inbox:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2354,7 +2618,10 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { messages: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/start-options:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2376,6 +2643,8 @@ paths:
                   targets: { type: array, items: { type: object } }
                   suggested: { type: [string, 'null'] }
                   message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/work-items:
@@ -2405,11 +2674,60 @@ paths:
                 requestId: { type: string }
                 context: { $ref: '#/components/schemas/LinkedHandoffContext' }
       responses:
-        '201': { $ref: '#/components/responses/Ok' }
+        '201':
+          description: '`{workItem, session, linkError, link}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItem:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      team: { type: string }
+                      state: { type: string }
+                      shiftId: {}
+                      budgetUsd: { type: number }
+                      poolUsd: {}
+                      created: { type: boolean }
+                      replayed: { type: boolean }
+                  session:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      harness: { type: string }
+                      harnessVersion: { type: string }
+                      ownerId: { type: string }
+                      ownerName: { type: string }
+                      title: { type: string }
+                      repository: { type: string }
+                      branch: { type: string }
+                      model: { type: string }
+                      remoteUrl: { type: string }
+                      status: { type: string }
+                      waitingFor: { type: string }
+                      startedAt: { type: string }
+                      lastSeenAt: { type: string }
+                      endedAt: {}
+                      workItems: { type: array }
+                      pullRequests: { type: array, items: {} }
+                      commits: { type: array, items: {} }
+                      state: { type: string }
+                      displayTitle: { type: string }
+                      link: { type: string }
+                      resume: { type: string }
+                      mine: { type: boolean }
+                      aiLines: { type: integer }
+                      handovers: { type: array }
+                  linkError: { type: string }
+                  link: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/handoff:
     parameters:
@@ -2426,6 +2744,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { workItems: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}/handoff:
@@ -2447,11 +2767,31 @@ paths:
           application/json:
             schema: { type: object, properties: { commandId: { type: string }, context: { $ref: '#/components/schemas/LinkedHandoffContext' } } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{requeue, note}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requeue:
+                    type: object
+                    properties:
+                      workItemId: { type: string }
+                      team: { type: string }
+                      state: { type: string }
+                      fromRound: { type: integer }
+                      poolUsd: { type: number }
+                      commandId: { type: string }
+                      replayed: { type: boolean }
+                      demo: { type: boolean }
+                  note: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/linked-sessions/{linkedSessionId}/conversation:
     parameters:
@@ -2477,6 +2817,8 @@ paths:
                   cursor: { type: integer }
                   truncated: { type: boolean }
                   restarted: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/linked-sessions/{linkedSessionId}/conversation/wants:
     parameters:
@@ -2497,7 +2839,10 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { wants: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/conversation/answers/{wantId}:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2534,7 +2879,10 @@ paths:
             application/json:
               schema: { type: object, properties: { delivered: { type: boolean } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-permissions:
     get:
       tags: [Linked Sessions]
@@ -2547,6 +2895,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { requests: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/linked-sessions/{linkedSessionId}/permissions:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2566,6 +2916,8 @@ paths:
                 properties:
                   requests: { type: array, items: { type: object } }
                   remoteApproval: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Linked Sessions]
@@ -2594,9 +2946,11 @@ paths:
             application/json:
               schema: { type: object, properties: { request: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/answer:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2627,8 +2981,11 @@ paths:
             application/json:
               schema: { type: object, properties: { request: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/collect:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2653,7 +3010,10 @@ paths:
                   state: { type: string, enum: [pending, delivered, expired, withdrawn] }
                   decision: { type: string }
                   reason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/withdraw:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
@@ -2672,8 +3032,18 @@ paths:
           application/json:
             schema: { type: object, properties: { answered: { type: boolean } } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{state}`: the prompt''s state after the withdrawal.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties: { state: { type: string, enum: [pending, answered, delivered, withdrawn, expired] } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/asks:
     get:
       tags: [Ploeg]
@@ -2690,6 +3060,8 @@ paths:
                 properties:
                   asks: { type: array, items: { $ref: '#/components/schemas/Ask' } }
                   more: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/ploeg:
     get:
@@ -2712,11 +3084,14 @@ paths:
                   configured: { type: boolean }
                   available: { type: boolean }
                   demo: { type: boolean }
-                  teams: { type: array, items: { type: string } }
+                  teams: { type: array, items: { $ref: '#/components/schemas/PloegTeam' } }
                   selectedTeam: { type: string }
                   lanes: { type: object }
                   message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/teams:
     get:
@@ -2732,7 +3107,9 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { teams: { type: array, items: { type: string } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/summary:
     get:
@@ -2748,8 +3125,28 @@ paths:
         - { name: window, in: query, required: false, schema: { $ref: '#/components/schemas/Window' } }
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, window, generatedAt, teams, totals, unsettled, unsettledError, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  window: { type: string }
+                  generatedAt: { type: string }
+                  teams: { type: array, items: { type: object } }
+                  totals: { type: object, properties: { workItems: { type: object }, runs: { type: object }, spend: { type: object } } }
+                  unsettled:
+                    type: [object, 'null']
+                    properties: { count: { type: integer }, heldUsd: { type: number }, accounts: { type: array } }
+                  unsettledError: { type: [object, 'null'], properties: { code: { type: string }, message: { type: string } } }
+                  fetchedAt: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/economics:
     get:
@@ -2762,8 +3159,41 @@ paths:
         - { name: window, in: query, required: false, schema: { $ref: '#/components/schemas/Window', default: 7d } }
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, window, since, until, merged, settledUsd, costPerMergedUsd, sampleTooSmall, minimumSample, unsettled, unknown, openSpend, openSpendTruncated, cleanMerge, teams, scanned, truncated, runsTruncated}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  window: { type: string }
+                  since: { type: string }
+                  until: { type: string }
+                  merged: { type: integer }
+                  settledUsd: { type: number }
+                  costPerMergedUsd: { type: [number, 'null'] }
+                  sampleTooSmall: { type: boolean }
+                  minimumSample: { type: integer }
+                  unsettled: { type: object, properties: { runs: { type: integer }, usd: { type: number } } }
+                  unknown: { type: object, properties: { runs: { type: integer } } }
+                  openSpend: { type: array, items: { type: object } }
+                  openSpendTruncated: { type: boolean }
+                  cleanMerge:
+                    type: object
+                    properties:
+                      clean: { type: integer }
+                      merged: { type: integer }
+                      closed: { type: integer }
+                      rate: { type: [number, 'null'] }
+                  teams: { type: array, items: { type: object } }
+                  scanned: { type: integer }
+                  truncated: { type: boolean }
+                  runsTruncated: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/deliveries:
     get:
@@ -2781,10 +3211,32 @@ paths:
           description: 'The ledger.'
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [demo]
+                properties:
+                  demo: { type: boolean }
+                  window: { $ref: '#/components/schemas/Window' }
+                  since: { type: string, format: date-time }
+                  until: { type: string, format: date-time }
+                  calendar:
+                    type: object
+                    properties:
+                      workingDays: { type: string }
+                      nonWorkingDates: { type: array, items: { type: string, format: date } }
+                      silentAfterWorkingDays: { type: integer }
+                      timeZone: { type: string }
+                  readyForReview: { type: string }
+                  rows: { type: array, items: { type: object, required: [workItemId, team, state], properties: { workItemId: { type: string }, externalRef: { type: [string, 'null'] }, title: { type: string }, team: { type: string }, state: { type: string }, readyForReviewAt: { type: [string, 'null'] }, silentDueAt: { type: [string, 'null'] }, tokenChargeBaseUsd: { type: number }, unknownRuns: { type: integer }, runsTruncated: { type: boolean } } } }
+                  totals: { type: object, properties: { kinds: { type: object }, tokenChargeBaseUsd: { type: number }, unsettledUsd: { type: number }, unsettledRuns: { type: integer }, unknownRuns: { type: integer } } }
+                  scanned: { type: integer }
+                  truncated: { type: boolean }
             text/csv:
               schema: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/cost-export:
     get:
@@ -2817,7 +3269,9 @@ paths:
             application/vnd.apache.parquet:
               schema: { type: string, contentMediaType: application/vnd.apache.parquet }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/runs:
     get:
@@ -2838,6 +3292,11 @@ paths:
             application/json:
               schema: { type: object, properties: { runs: { type: array, items: { type: object } }, nextBefore: { type: [string, 'null'] } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/events:
     get:
@@ -2855,6 +3314,11 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { events: { type: array, items: { type: object } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/proposed:
     get:
@@ -2870,6 +3334,9 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { items: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/now:
     get:
@@ -2884,7 +3351,28 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, teams, waiting, active, refused, running, recent, runningTruncated, recentTruncated, truncatedStates, errors, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  teams: { type: array, items: { type: string } }
+                  waiting: { type: array, items: { type: object } }
+                  active: { type: array, items: { type: object } }
+                  refused: { type: array, items: { type: object } }
+                  running: { type: array, items: { type: object } }
+                  recent: { type: array, items: { type: object } }
+                  runningTruncated: { type: boolean }
+                  recentTruncated: { type: boolean }
+                  truncatedStates: { type: array, items: {} }
+                  errors: { type: object, properties: { running: { type: string }, recent: { type: string } } }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/connections:
     get:
@@ -2895,7 +3383,38 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, supported, checkedAt, eventWindowDays, repositories, boards, unrouted, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [demo, supported, repositories, boards, unrouted, fetchedAt]
+                properties:
+                  demo: { type: boolean }
+                  supported: { type: boolean }
+                  checkedAt: { type: [string, 'null'] }
+                  eventWindowDays: { type: integer }
+                  repositories: { type: array, items: { type: object } }
+                  boards:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tracker: { type: string }
+                        name: { type: string }
+                        projectId: { type: [string, 'null'] }
+                        team: { type: [string, 'null'] }
+                        webhook: { type: string, enum: [present, missing, unreadable, unresolved, unchecked] }
+                  unrouted:
+                    type: array
+                    items:
+                      type: object
+                      properties: { id: { type: string }, name: { type: string }, provider: { type: string }, project: { type: string } }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items:
     get:
@@ -2919,7 +3438,10 @@ paths:
             application/json:
               schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/WorkItem' } }, nextCursor: { type: [string, 'null'] } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}:
     parameters:
@@ -2948,10 +3470,19 @@ paths:
                   runs: { type: array, items: { type: object } }
                   checkpoints: { type: array, items: { type: object } }
                   events: { type: array, items: { type: object } }
-                  truncated: { type: boolean }
+                  truncated:
+                    type: object
+                    description: 'Which of the lists Ploeg cut short.'
+                    properties:
+                      shifts: { type: boolean }
+                      runs: { type: boolean }
+                      checkpoints: { type: boolean }
+                      events: { type: boolean }
                   demo: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/card:
     parameters:
@@ -2964,8 +3495,50 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{card, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  card:
+                    type: object
+                    properties:
+                      workItemId: { type: string }
+                      title: { type: string }
+                      externalRef: { type: string }
+                      url: { type: string }
+                      team: { type: string }
+                      target: { type: object }
+                      style: { type: object }
+                      state: { type: string }
+                      rarity: { type: [object, 'null'] }
+                      finish: { type: string }
+                      grade: { type: [object, 'null'] }
+                      condition: {}
+                      steward: { type: object }
+                      roster: { type: array }
+                      roles: { type: array }
+                      crew: { type: array }
+                      plays: { type: array }
+                      totals: { type: object }
+                      events: { type: array }
+                      deployments: { type: array }
+                      release: { type: object }
+                      live: {}
+                      gates: { type: [object, 'null'] }
+                      flow: { type: object }
+                      demo: { type: boolean }
+                      set: { type: object }
+                      pipeline: { type: object }
+                      shape: { type: object }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/value-stream:
     parameters:
@@ -2978,8 +3551,26 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, trackerCreatedAt, admittedAt, closed, lanes, notes, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workItemId, closed, lanes, demo, fetchedAt]
+                properties:
+                  workItemId: { type: string }
+                  trackerCreatedAt: { type: [string, 'null'] }
+                  admittedAt: { type: [string, 'null'] }
+                  closed: { type: boolean }
+                  lanes: { type: array, items: { type: object } }
+                  notes: { type: array, items: { type: string } }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/crack-candidates:
     parameters:
@@ -2992,8 +3583,29 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, crackCandidates, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  crackCandidates:
+                    type: object
+                    properties:
+                      bug: { type: object }
+                      fixFiles: { type: integer }
+                      fixFilesTruncated: { type: boolean }
+                      since: { type: string }
+                      until: { type: string }
+                      candidates: { type: array }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/cracks:
     parameters:
@@ -3006,8 +3618,24 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, cracks, viewer, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  cracks: { type: array, items: { type: object } }
+                  viewer:
+                    type: object
+                    properties: { login: { type: [string, 'null'] }, canAct: { type: boolean }, reason: { type: string } }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Ploeg]
@@ -3035,9 +3663,12 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/Crack' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/evolved:
     parameters:
@@ -3063,8 +3694,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Crack' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/cracks/{crackId}/{step}:
     parameters:
@@ -3102,9 +3736,12 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Crack' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/context:
     parameters:
@@ -3117,8 +3754,17 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, context, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { workItemId: { type: string }, context: { type: array, items: { type: object } }, demo: { type: boolean } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Ploeg]
@@ -3138,12 +3784,22 @@ paths:
           application/octet-stream:
             schema: { type: string, contentEncoding: binary }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '201': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{context, created: false, demo}`: Ploeg already held this file.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PloegContextAdded' }
+        '201':
+          description: '`{context, created, demo}`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PloegContextAdded' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/approve:
     parameters:
@@ -3158,7 +3814,22 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{workItemId, team, state, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { workItemId: { type: string }, team: { type: string }, state: { type: string }, demo: { type: boolean } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/reject:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3180,7 +3851,22 @@ paths:
               required: [reason]
               properties:
                 reason: { type: string, minLength: 1, maxLength: 4096 }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{workItemId, team, state, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { workItemId: { type: string }, team: { type: string }, state: { type: string }, demo: { type: boolean } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/cancel:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3194,7 +3880,32 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
         - { mcpDelegated: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{workItemId, team, state, demo, withdrawn, shiftId, cancelledRuns, stoppedRuns, keysBlocked, message}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  team: { type: string }
+                  state: { type: string }
+                  demo: { type: boolean }
+                  withdrawn: { type: boolean }
+                  shiftId: { type: [string, 'null'] }
+                  cancelledRuns: { type: integer }
+                  stoppedRuns: { type: integer }
+                  keysBlocked: { type: [boolean, 'null'] }
+                  message: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/requeue:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3220,7 +3931,30 @@ paths:
                 expectedState: { type: string, enum: [needs_human, stale] }
                 note: { type: string }
                 resume: { type: boolean }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{workItemId, team, state, fromRound, poolUsd, commandId, replayed, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  team: { type: string }
+                  state: { type: string }
+                  fromRound: { type: integer }
+                  poolUsd: { type: [number, 'null'] }
+                  commandId: { type: string }
+                  replayed: { type: boolean }
+                  demo: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/notes:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3246,12 +3980,40 @@ paths:
                 text: { type: string, minLength: 1, maxLength: 4096 }
                 expectedShiftId: { type: [string, integer, 'null'] }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '201': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, noteId, commandId, shiftId, replayed, demo, message}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  noteId: {}
+                  commandId: { type: string }
+                  shiftId: {}
+                  replayed: { type: boolean }
+                  demo: { type: boolean }
+                  message: { type: string }
+        '201':
+          description: '`{workItemId, noteId, commandId, shiftId, replayed, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  noteId: { type: string }
+                  commandId: { type: string }
+                  shiftId: { type: string }
+                  replayed: { type: boolean }
+                  demo: { type: boolean }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/questions/{questionId}/answer:
     parameters:
@@ -3281,12 +4043,23 @@ paths:
                 commandId: { type: string, maxLength: 128 }
                 answer: { type: string, minLength: 1, maxLength: 4096 }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '201': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, questionId, commandId, replayed: true, demo}`: the same command was already applied.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PloegQuestionAnswered' }
+        '201':
+          description: '`{workItemId, questionId, commandId, replayed, demo}`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PloegQuestionAnswered' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/asks:
     parameters:
@@ -3310,7 +4083,10 @@ paths:
                 properties:
                   asks: { type: array, items: { $ref: '#/components/schemas/Ask' } }
                   allowance: { type: [object, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Ploeg]
@@ -3340,8 +4116,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Ask' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/runs/{runId}/logs:
     parameters:
@@ -3356,8 +4136,32 @@ paths:
         - { name: after, in: query, required: false, schema: { type: string } }
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, runId, available, reason?, message?, pods, lines, truncated, live, cursor, grafanaUrl?, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workItemId, runId, available, pods, lines, truncated, live, cursor, demo, fetchedAt]
+                properties:
+                  workItemId: { type: string }
+                  runId: { type: string }
+                  available: { type: boolean }
+                  reason: { type: string }
+                  message: { type: string }
+                  pods: { type: array, items: { type: object } }
+                  lines: { type: array, items: { type: object } }
+                  truncated: { type: boolean }
+                  live: { type: boolean }
+                  cursor: { type: [string, 'null'] }
+                  grafanaUrl: { type: string }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/runs/{runId}/transcript:
     parameters:
@@ -3372,8 +4176,28 @@ paths:
         - { name: after, in: query, required: false, schema: { type: string } }
         - $ref: '#/components/parameters/Refresh'
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, runId, available, entries, nextAfter, hasMore, truncated, complete, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  runId: { type: string }
+                  available: { type: boolean }
+                  entries: { type: array, items: { type: object } }
+                  nextAfter: { type: integer }
+                  hasMore: { type: boolean }
+                  truncated: { type: boolean }
+                  complete: { type: boolean }
+                  demo: { type: boolean }
+                  fetchedAt: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/runs/{runId}/health:
     parameters:
@@ -3385,8 +4209,40 @@ paths:
       summary: 'The health of a running Run'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{runId, state, judge, judgements, history, demo, health, signals, deciding, reason, combined, judgeState, stale, asOf, work}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId: { type: string }
+                  state: { type: string }
+                  judge: {}
+                  judgements: { type: integer }
+                  history: { type: array, items: {} }
+                  demo: { type: boolean }
+                  health: { type: [string, 'null'] }
+                  signals: { type: array, items: { type: object } }
+                  deciding: {}
+                  reason: { type: string }
+                  combined: { type: [object, 'null'], properties: { health: { type: string }, source: { type: string } } }
+                  judgeState: { type: string }
+                  stale: { type: boolean }
+                  asOf: { type: string }
+                  work:
+                    type: [object, 'null']
+                    properties:
+                      kind: { type: string }
+                      family: { type: string }
+                      label: { type: string }
+                      source: { type: string }
+                      rule: { type: string }
+                      expectations: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/runs/{runId}/health/judgements/{judgementId}/wrong:
     parameters:
@@ -3413,7 +4269,12 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { recorded: { const: true } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/tripwire:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3423,8 +4284,25 @@ paths:
       summary: 'What the decider tripwire stored for the Work Item''s Runs'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, status, decider, screened, missed, runs, hits, demo}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  status: { type: string }
+                  decider: {}
+                  screened: { type: integer }
+                  missed: { type: integer }
+                  runs: { type: array, items: {} }
+                  hits: { type: array, items: { type: object } }
+                  demo: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/tripwire/{hitId}/verdict:
     parameters:
@@ -3459,7 +4337,12 @@ paths:
             application/json:
               schema: { type: object, properties: { recorded: { type: boolean }, verdict: { type: string }, demo: { type: boolean } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/take-over:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3469,8 +4352,46 @@ paths:
       summary: 'Where a person''s take-over of a running Run stands'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, title, state, repository, takeOver, takeControl, handBack, latestRun}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  title: { type: string }
+                  state: { type: string }
+                  repository:
+                    type: object
+                    properties: { forge: { type: string }, owner: { type: string }, repo: { type: string }, baseBranch: { type: string } }
+                  takeOver:
+                    type: [object, 'null']
+                    properties:
+                      id: { type: string }
+                      state: { type: string }
+                      by: { type: string }
+                      shiftId: { type: string }
+                      round: { type: integer }
+                      branch: { type: string }
+                      requestedAt: { type: string }
+                      yieldedAt: { type: string }
+                      commit: { type: string }
+                      workInProgress: { type: string }
+                      pushed: { type: boolean }
+                      detail: {}
+                      handedBackAt: {}
+                      handedBackShiftId: {}
+                  takeControl: { type: [object, 'null'], properties: { enabled: { type: boolean }, reason: { type: string } } }
+                  handBack: { type: [object, 'null'], properties: { enabled: { type: boolean }, reason: { type: string } } }
+                  latestRun:
+                    type: [object, 'null']
+                    properties: { id: { type: string }, role: { type: string }, round: { type: integer }, summary: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Ploeg]
@@ -3497,9 +4418,13 @@ paths:
             application/json:
               schema: { type: object, properties: { takeOver: { type: object } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/hand-back:
     parameters:
@@ -3522,7 +4447,31 @@ paths:
               properties:
                 commandId: { type: string }
                 note: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{workItemId, team, state, fromRound, poolUsd, commandId, replayed, demo, resumed}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  team: { type: string }
+                  state: { type: string }
+                  fromRound: { type: integer }
+                  poolUsd: { type: number }
+                  commandId: { type: string }
+                  replayed: { type: boolean }
+                  demo: { type: boolean }
+                  resumed: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/claim:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3539,7 +4488,45 @@ paths:
         content:
           application/json:
             schema: { type: object, properties: { linkedSession: { type: string } } }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{run, dispatch, deadline}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      workItemId: { type: string }
+                      shiftId: { type: string }
+                      team: { type: string }
+                      role: { type: string }
+                      round: { type: integer }
+                      writes: { type: boolean }
+                      actsFor: { type: string }
+                  dispatch:
+                    type: object
+                    properties:
+                      environmentId: { type: string }
+                      ref: { type: string }
+                      branch: { type: string }
+                      baseBranch: { type: string }
+                      repository: { type: object }
+                      title: { type: string }
+                      reference: { type: string }
+                      prompt: { type: string }
+                  deadline: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/claude-session:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3562,7 +4549,20 @@ paths:
               properties:
                 runId: { type: string }
                 sessionId: { type: string }
-      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+      responses:
+        '200':
+          description: '`{recorded, runId, sessionId}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { recorded: { type: boolean }, runId: { type: string }, sessionId: { type: string } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/client-sign-off:
     parameters:
       - $ref: '#/components/parameters/WorkItemId'
@@ -3574,8 +4574,32 @@ paths:
       x-unfold-role: viewer
       x-unfold-requires: [connected-ploeg]
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, team, pullRequest, current, history, scope}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  team: { type: string }
+                  pullRequest: { type: object, properties: { number: { type: integer }, url: { type: string }, headSha: { type: string } } }
+                  current: {}
+                  history: { type: array, items: {} }
+                  scope:
+                    type: object
+                    properties:
+                      rule: { type: string }
+                      covered: { type: array }
+                      excluded: { type: array }
+                      truncated: { type: boolean }
+                      missing: { type: boolean }
+                      wholeChange: { type: boolean }
+                      exclusions: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Ploeg]
@@ -3599,11 +4623,57 @@ paths:
                 note: { type: string, maxLength: 2000 }
                 headSha: { type: string }
       responses:
-        '201': { $ref: '#/components/responses/Ok' }
+        '201':
+          description: '`{id, workItemId, client, pullRequest, headSha, answer, note, scope, person, recordedAt, state, dismissedBy, endedAt, endedBy}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  workItemId: { type: string }
+                  client: { type: string }
+                  pullRequest:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      forge: { type: string }
+                      owner: { type: string }
+                      repo: { type: string }
+                      number: { type: integer }
+                  headSha: { type: string }
+                  answer: { type: string }
+                  note: { type: string }
+                  scope:
+                    type: object
+                    properties:
+                      rule: { type: string }
+                      covered: { type: array }
+                      excluded: { type: array }
+                      truncated: { type: boolean }
+                      missing: { type: boolean }
+                      wholeChange: { type: boolean }
+                      exclusions: { type: object }
+                  person:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      role: { type: string }
+                      attribution: { type: string }
+                      onBehalfOfClient: { type: boolean }
+                  recordedAt: { type: string }
+                  state: { type: string }
+                  dismissedBy: {}
+                  endedAt: {}
+                  endedBy: {}
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/ploeg/work-items/{workItemId}/client-sign-off/withdraw:
     parameters:
@@ -3620,10 +4690,56 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{id, workItemId, client, pullRequest, headSha, answer, note, scope, person, recordedAt, state, dismissedBy, endedAt, endedBy}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  workItemId: { type: string }
+                  client: { type: string }
+                  pullRequest:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      forge: { type: string }
+                      owner: { type: string }
+                      repo: { type: string }
+                      number: { type: integer }
+                  headSha: { type: string }
+                  answer: { type: string }
+                  note: { type: string }
+                  scope:
+                    type: object
+                    properties:
+                      rule: { type: string }
+                      covered: { type: array }
+                      excluded: { type: array }
+                      truncated: { type: boolean }
+                      missing: { type: boolean }
+                      wholeChange: { type: boolean }
+                      exclusions: { type: object }
+                  person:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      role: { type: string }
+                      attribution: { type: string }
+                      onBehalfOfClient: { type: boolean }
+                  recordedAt: { type: string }
+                  state: { type: string }
+                  dismissedBy: {}
+                  endedAt: { type: string }
+                  endedBy: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/client-sign-off/exclusions:
     get:
@@ -3638,6 +4754,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { exclusions: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
     put:
       tags: [Ploeg]
@@ -3662,9 +4780,24 @@ paths:
                 keep: { type: array, maxItems: 100, items: { type: string, maxLength: 200 } }
                 repositoryFile: { type: boolean }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{client, repository, exclude, keep, repositoryFile, updatedAt, updatedBy}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client: { type: string }
+                  repository: { type: string }
+                  exclude: { type: array, items: { type: string } }
+                  keep: { type: array, items: {} }
+                  repositoryFile: { type: boolean }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /api/me/card-identity:
@@ -3675,6 +4808,8 @@ paths:
       x-unfold-role: viewer
       responses:
         '200': { $ref: '#/components/responses/CardIdentity' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     put:
       tags: [Cards]
       operationId: setCardIdentity
@@ -3696,6 +4831,9 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/CardIdentity' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/binder:
     get:
       tags: [Cards]
@@ -3703,7 +4841,44 @@ paths:
       summary: 'The person''s binder of card copies'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, identity, source, now, startedAt, seenAt, copies, readouts, away, awayTotal, seenUntil, filters}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  identity:
+                    type: object
+                    properties:
+                      logins: { type: array }
+                      mapped: { type: [string, 'null'] }
+                      declared: { type: array }
+                      verified: { type: array }
+                      source: { type: string }
+                      updatedAt: { type: [string, 'null'] }
+                  source: { type: object, properties: { kind: { type: string }, scanned: { type: integer }, truncated: { type: boolean } } }
+                  now: { type: string }
+                  startedAt: {}
+                  seenAt: {}
+                  copies: { type: array, items: { type: object } }
+                  readouts:
+                    type: object
+                    properties:
+                      cards: { type: integer }
+                      released: { type: integer }
+                      daysLive: { type: integer }
+                      daysLiveThisQuarter: { type: integer }
+                      quarter: { type: string }
+                      mends: { type: integer }
+                      pulled: { type: integer }
+                  away: { type: array, items: {} }
+                  awayTotal: { type: integer }
+                  seenUntil: { type: string }
+                  filters: { type: object, properties: { teams: { type: array }, roles: { type: array } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/binder/seen:
     post:
@@ -3725,8 +4900,15 @@ paths:
                 until: { type: string, format: date-time }
                 cards: { type: array, maxItems: 12, items: { type: string } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{startedAt, seenAt}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { startedAt: { type: string }, seenAt: { type: string } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/cards/{cardId}/seen:
     parameters:
       - $ref: '#/components/parameters/CardId'
@@ -3736,9 +4918,22 @@ paths:
       summary: 'The person''s seen mark on one card'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, seenAt, snapshot, now}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  seenAt: { type: [string, 'null'] }
+                  snapshot: { type: [object, 'null'], properties: { grade: {}, setComplete: { type: boolean } } }
+                  now: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Cards]
       operationId: markCardSeen
@@ -3758,9 +4953,23 @@ paths:
                 until: { type: string, format: date-time }
                 snapshot: { type: object, properties: { grade: { type: [number, 'null'] }, setComplete: { type: boolean } } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, seenAt, snapshot, now}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  seenAt: { type: string }
+                  snapshot: { type: object, properties: { grade: { type: [number, 'null'] }, setComplete: { type: boolean } } }
+                  now: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/cards/{cardId}/world:
     parameters:
       - $ref: '#/components/parameters/CardId'
@@ -3770,8 +4979,34 @@ paths:
       summary: 'The person''s decoration of one card''s inner world'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, demo, holds, role, world, updatedAt, facts, now, reason}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  demo: { type: boolean }
+                  holds: { type: boolean }
+                  role: { type: [string, 'null'] }
+                  world:
+                    type: [object, 'null']
+                    properties:
+                      v: { type: integer }
+                      kind: { type: string }
+                      tod: { type: string }
+                      weather: { type: string }
+                      objects: { type: array }
+                  updatedAt: { type: [string, 'null'] }
+                  facts: { type: object, properties: { days: { type: [integer, 'null'] }, merged: { type: boolean }, condition: {} } }
+                  now: { type: string }
+                  reason: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     put:
       tags: [Cards]
       operationId: saveCardWorld
@@ -3798,10 +5033,34 @@ paths:
                     weather: { type: string, enum: [clear, rain, snow, fireflies] }
                     objects: { type: array, maxItems: 24, items: { type: object } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, demo, holds, role, world, updatedAt, facts, now}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  demo: { type: boolean }
+                  holds: { type: boolean }
+                  role: { type: string }
+                  world:
+                    type: object
+                    properties:
+                      v: { type: integer }
+                      kind: { type: string }
+                      tod: { type: string }
+                      weather: { type: string }
+                      objects: { type: array }
+                  updatedAt: { type: string }
+                  facts: { type: object, properties: { days: { type: integer }, merged: { type: boolean }, condition: {} } }
+                  now: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     delete:
       tags: [Cards]
       operationId: resetCardWorld
@@ -3811,9 +5070,26 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{workItemId, demo, holds, role, world, updatedAt, facts, now}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workItemId: { type: string }
+                  demo: { type: boolean }
+                  holds: { type: boolean }
+                  role: { type: string }
+                  world: {}
+                  updatedAt: {}
+                  facts: { type: object, properties: { days: { type: integer }, merged: { type: boolean }, condition: {} } }
+                  now: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/packs:
     get:
       tags: [Cards]
@@ -3821,7 +5097,29 @@ paths:
       summary: 'The person''s packs, oldest first'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, identity, source, now, odds, packs}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  identity:
+                    type: object
+                    properties:
+                      logins: { type: array }
+                      mapped: { type: string }
+                      declared: { type: array }
+                      verified: { type: array }
+                      source: { type: string }
+                      updatedAt: { type: [string, 'null'] }
+                  source: { type: object, properties: { kind: { type: string }, scanned: { type: integer }, truncated: { type: boolean } } }
+                  now: { type: string }
+                  odds: { type: object, properties: { version: { type: string } } }
+                  packs: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/packs/odds:
     get:
       tags: [Cards]
@@ -3829,7 +5127,20 @@ paths:
       summary: 'Every pack probability in basis points'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{version, scale, patterns, extras, altArtChoices}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  scale: { type: number }
+                  patterns: { type: array, items: { type: object } }
+                  extras: { type: array, items: { type: object } }
+                  altArtChoices: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/packs/{packId}:
     parameters:
       - $ref: '#/components/parameters/PackId'
@@ -3840,7 +5151,25 @@ paths:
       description: '404 for a pack this person has not opened.'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, odds, pack}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  odds: { type: object, properties: { version: { type: string } } }
+                  pack:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      period: { type: object }
+                      openedAt: { type: string }
+                      demo: { type: boolean }
+                      entries: { type: array }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/packs/{packId}/open:
     parameters:
@@ -3856,9 +5185,28 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, odds, pack}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  odds: { type: object, properties: { version: { type: string } } }
+                  pack:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      period: { type: object }
+                      openedAt: { type: string }
+                      demo: { type: boolean }
+                      entries: { type: array }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/season:
     get:
       tags: [Cards]
@@ -3870,7 +5218,37 @@ paths:
         - $ref: '#/components/parameters/TeamQuery'
         - { name: quarter, in: query, required: false, schema: { type: string } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{demo, team, teams, quarters, quarter, justStarted, aggregates, source}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  demo: { type: boolean }
+                  team: { type: string }
+                  teams: { type: array, items: { type: string } }
+                  quarters: { type: array, items: { type: object } }
+                  quarter: { type: object, properties: { id: { type: string }, start: { type: string }, end: { type: string } } }
+                  justStarted: {}
+                  aggregates:
+                    type: object
+                    properties:
+                      quarter: { type: object }
+                      team: { type: string }
+                      cards: { type: integer }
+                      shipped: { type: integer }
+                      daysLiveAdded: { type: integer }
+                      finishes: { type: object }
+                      cracks: { type: integer }
+                      mends: { type: integer }
+                      rightFirstTime: { type: object }
+                      bounceReasons: { type: object }
+                      sets: { type: object }
+                      medians: { type: object }
+                  source: { type: object, properties: { kind: { type: string }, scanned: { type: integer }, truncated: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/card-themes:
     get:
@@ -3879,7 +5257,29 @@ paths:
       summary: 'The themes, the skins'' theme rules, asset limits and art generation'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{themes, canEdit, skins, limits, art, directory}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes: { type: array, items: { type: object } }
+                  canEdit: { type: boolean }
+                  skins: { type: array, items: { type: object } }
+                  limits:
+                    type: object
+                    properties: { assets: { type: object }, maxImageSide: { type: integer }, quotaMb: { type: integer } }
+                  art:
+                    type: object
+                    properties:
+                      configured: { type: boolean }
+                      model: { type: [string, 'null'] }
+                      maxAttempts: { type: integer }
+                      demo: { type: boolean }
+                  directory: { type: [object, 'null'], properties: { problems: { type: array } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/card-themes/{themeId}:
     parameters:
       - $ref: '#/components/parameters/ThemeId'
@@ -3889,7 +5289,32 @@ paths:
       summary: 'A theme with the metadata of its assets'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{schemaVersion, id, name, extends, tokens, frame, foilPattern, art, world, setSymbol, cardBack, soundBank, version, updatedAt, updatedBy, source, assets}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemaVersion: { type: integer }
+                  id: { type: string }
+                  name: { type: string }
+                  extends: { type: string }
+                  tokens: { type: object }
+                  frame: { type: string }
+                  foilPattern: {}
+                  art: { type: [object, 'null'], properties: { shader: { type: string } } }
+                  world: {}
+                  setSymbol: { type: [string, 'null'] }
+                  cardBack: {}
+                  soundBank: {}
+                  version: { type: integer }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
+                  source: { type: string }
+                  assets: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Cards]
@@ -3911,11 +5336,59 @@ paths:
                 theme: { $ref: 'card-theme.v1.schema.json' }
                 baseVersion: { type: [integer, 'null'] }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '201': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{schemaVersion, id, name, extends, tokens, frame, foilPattern, art, world, setSymbol, cardBack, soundBank, version, updatedAt, updatedBy, source, assets}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemaVersion: { type: integer }
+                  id: { type: string }
+                  name: { type: string }
+                  extends: { type: string }
+                  tokens: { type: object }
+                  frame: {}
+                  foilPattern: {}
+                  art: { type: [object, 'null'], properties: { media: { type: string } } }
+                  world: {}
+                  setSymbol: { type: [string, 'null'] }
+                  cardBack: {}
+                  soundBank: {}
+                  version: { type: integer }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
+                  source: { type: string }
+                  assets: { type: object }
+        '201':
+          description: '`{schemaVersion, id, name, extends, tokens, frame, foilPattern, art, world, setSymbol, cardBack, soundBank, version, updatedAt, updatedBy, source, assets}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemaVersion: { type: integer }
+                  id: { type: string }
+                  name: { type: string }
+                  extends: { type: string }
+                  tokens: { type: object }
+                  frame: { type: string }
+                  foilPattern: {}
+                  art: {}
+                  world: {}
+                  setSymbol: {}
+                  cardBack: {}
+                  soundBank: {}
+                  version: { type: integer }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
+                  source: { type: string }
+                  assets: { type: object }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Cards]
       operationId: deleteCardTheme
@@ -3925,7 +5398,12 @@ paths:
         - { sessionCookie: [], unfoldRequest: [] }
         - { editorBearer: [], unfoldRequest: [] }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{ok}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { ok: { type: boolean } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -3938,7 +5416,13 @@ paths:
       summary: 'A theme''s saved versions'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{versions}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { versions: { type: array, items: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/card-themes/{themeId}/versions/{version}:
     parameters:
       - $ref: '#/components/parameters/ThemeId'
@@ -3953,7 +5437,32 @@ paths:
       summary: 'One saved version of a theme'
       x-unfold-role: viewer
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{schemaVersion, id, name, extends, tokens, frame, foilPattern, art, world, setSymbol, cardBack, soundBank, version, updatedAt, updatedBy, source, assets}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemaVersion: { type: integer }
+                  id: { type: string }
+                  name: { type: string }
+                  extends: { type: string }
+                  tokens: { type: object }
+                  frame: { type: string }
+                  foilPattern: {}
+                  art: {}
+                  world: {}
+                  setSymbol: {}
+                  cardBack: {}
+                  soundBank: {}
+                  version: { type: integer }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
+                  source: { type: string }
+                  assets: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/card-assets:
     post:
@@ -3984,6 +5493,7 @@ paths:
                   mediaType: { type: string }
                   bytes: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
@@ -4009,6 +5519,8 @@ paths:
             application/octet-stream:
               schema: { type: string, contentEncoding: binary }
         '206': { description: The requested range. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '416': { description: The range lies outside the asset. }
   /api/card-art/generate:
@@ -4037,9 +5549,20 @@ paths:
           description: '`{code, problems, attempt, model}`'
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  problems: { type: array, items: {} }
+                  attempt: { type: integer }
+                  model: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /api/me/notifications:
@@ -4051,6 +5574,8 @@ paths:
       x-unfold-role: viewer
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     put:
       tags: [Notifications]
       operationId: setNotificationPreferences
@@ -4082,7 +5607,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Notifications]
       operationId: forgetNotifications
@@ -4094,6 +5622,8 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/me/notifications/test:
     post:
@@ -4117,7 +5647,10 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { demo: { type: boolean }, queued: { type: integer } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/me/notifications/channels/ntfy/topic:
     post:
       tags: [Notifications]
@@ -4131,8 +5664,11 @@ paths:
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/me/notifications/channels/web-push/subscriptions:
     post:
       tags: [Notifications]
@@ -4162,8 +5698,11 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/NotificationsView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/me/notifications/channels/web-push/subscriptions/{pushSubscriptionId}:
     parameters:
       - name: pushSubscriptionId
@@ -4182,6 +5721,8 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/me/notifications/channels/slack/link:
     post:
@@ -4205,9 +5746,11 @@ paths:
       responses:
         '202': { $ref: '#/components/responses/NotificationsView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
     delete:
       tags: [Notifications]
@@ -4220,6 +5763,8 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/me/notifications/channels/teams/webhooks:
     post:
@@ -4244,8 +5789,11 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/NotificationsView' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/me/notifications/channels/teams/webhooks/{teamsWebhookId}:
     parameters:
       - name: teamsWebhookId
@@ -4264,6 +5812,8 @@ paths:
         - { editorBearer: [], unfoldRequest: [] }
       responses:
         '200': { $ref: '#/components/responses/NotificationsView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/notifications/channels/slack/interactions:
     post:
@@ -4289,7 +5839,11 @@ paths:
               properties:
                 payload: { type: string, description: 'The interaction payload as JSON.' }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{}` when Unfold takes no action, `{refused}` naming an action it never takes from chat, or `{linked: false}`.'
+          content:
+            application/json:
+              schema: { type: object, properties: { refused: { type: string }, linked: { type: boolean } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401':
           description: '`slack_signature`: the signature is missing, does not verify, or its timestamp is more than 5 minutes from now.'
@@ -4323,6 +5877,7 @@ paths:
                   owners: { type: array, items: { type: object } }
                   lines: { type: array, items: { $ref: '#/components/schemas/BillingLine' } }
                   counts: { type: object }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/billing/mappings:
     put:
@@ -4361,11 +5916,22 @@ paths:
           description: 'The stored mapping `{tenant, client, target, price: {perTicketCents, perSizeCents}, since, updatedAt, updatedBy}`.'
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  tenant: { type: string }
+                  client: { type: string }
+                  target: { type: object, properties: { projectId: { type: string }, defaultServiceId: { type: string } } }
+                  price: { type: object, properties: { perTicketCents: { type: integer }, perSizeCents: { type: object } } }
+                  since: { type: string }
+                  updatedAt: { type: string }
+                  updatedBy: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Billing]
       operationId: deleteBillingMapping
@@ -4379,7 +5945,12 @@ paths:
         - { name: tenant, in: query, required: false, schema: { type: string, default: default } }
         - { name: client, in: query, required: false, schema: { type: string } }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{ok: true}`'
+          content:
+            application/json:
+              schema: { type: object, required: [ok], properties: { ok: { const: true } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/billing/sync:
@@ -4406,8 +5977,10 @@ paths:
                   sent: { type: integer }
                   failed: { type: integer }
                   waiting: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/billing/lines:
     get:
       tags: [Billing]
@@ -4424,8 +5997,17 @@ paths:
             text/csv:
               schema: { type: string }
             application/json:
-              schema: { type: array, items: { type: object } }
+              schema:
+                type: object
+                description: 'UBL 2.1 invoice lines as one JSON object: the namespace prefixes `_D`, `_A` and `_B`, and the `InvoiceLine` list.'
+                required: [InvoiceLine]
+                properties:
+                  _D: { type: string, const: 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2' }
+                  _A: { type: string }
+                  _B: { type: string }
+                  InvoiceLine: { type: array, items: { type: object } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/billing/lines/{billingLineId}/send:
     parameters:
@@ -4446,9 +6028,11 @@ paths:
             schema: { type: object, properties: { checked: { type: boolean } } }
       responses:
         '200': { $ref: '#/components/responses/BillingLine' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/billing/lines/{billingLineId}/found:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -4464,9 +6048,11 @@ paths:
       requestBody: { $ref: '#/components/requestBodies/Empty' }
       responses:
         '200': { $ref: '#/components/responses/BillingLine' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/billing/lines/{billingLineId}/price:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -4492,9 +6078,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/BillingLine' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/billing/lines/{billingLineId}/reverse:
     parameters:
       - $ref: '#/components/parameters/BillingLineId'
@@ -4520,9 +6108,11 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/BillingLine' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
 
   /api/intake/{intakeSourceId}:
     parameters:
@@ -4594,6 +6184,8 @@ paths:
                 properties:
                   templates: { type: array, items: { type: object } }
                   verifiers: { type: array, items: { type: object } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/intake/sources:
     get:
@@ -4608,6 +6200,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { sources: { type: array, items: { $ref: '#/components/schemas/IntakeSource' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: [Request intake]
@@ -4641,9 +6235,11 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/IntakeSourceWithSecret' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/intake/sources/{intakeSourceId}:
     parameters:
       - $ref: '#/components/parameters/IntakeSourceId'
@@ -4662,6 +6258,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { removed: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/intake/sources/{intakeSourceId}/secret:
     parameters:
@@ -4683,7 +6281,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/IntakeSourceWithSecret' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/intake/requests:
     get:
       tags: [Request intake]
@@ -4701,6 +6302,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { requests: { type: array, items: { $ref: '#/components/schemas/IntakeRequest' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/intake/requests/{intakeRequestId}:
     parameters:
@@ -4721,6 +6324,8 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { request: { $ref: '#/components/schemas/IntakeRequest' } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /api/admin/audit:
@@ -4751,6 +6356,7 @@ paths:
             application/x-ndjson:
               schema: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/admin/audit/verify:
@@ -4798,6 +6404,7 @@ paths:
                                 key: { type: string }
                                 detail: { type: string }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/admin/webhooks:
@@ -4820,6 +6427,7 @@ paths:
                   eventTypes: { type: array, items: { type: object, properties: { type: { type: string }, title: { type: string }, summary: { type: string } } } }
                   allowedPrivateTargets: { type: array, items: { type: string } }
                   subscriptions: { type: array, items: { $ref: '#/components/schemas/WebhookSubscription' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Administration]
@@ -4856,8 +6464,10 @@ paths:
             application/json:
               schema: { type: object, properties: { subscription: { $ref: '#/components/schemas/WebhookSubscription' }, secret: { type: string } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/webhooks/{subscriptionId}:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -4868,6 +6478,7 @@ paths:
       x-unfold-role: admin
       responses:
         '200': { $ref: '#/components/responses/WebhookSubscription' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
@@ -4893,8 +6504,10 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/WebhookSubscription' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
     delete:
       tags: [Administration]
       operationId: deleteWebhook
@@ -4909,6 +6522,7 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { deleted: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/admin/webhooks/{subscriptionId}/rotate-secret:
@@ -4935,8 +6549,10 @@ paths:
                   subscription: { $ref: '#/components/schemas/WebhookSubscription' }
                   secret: { type: string }
                   previousSignsUntil: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/webhooks/{subscriptionId}/test:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -4956,8 +6572,10 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { queued: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/webhooks/{subscriptionId}/deliveries:
     parameters:
       - $ref: '#/components/parameters/SubscriptionId'
@@ -4972,6 +6590,7 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { deliveries: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
   /api/admin/webhooks/{subscriptionId}/deliveries/{deliveryId}/resend:
@@ -4998,9 +6617,11 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { delivery: { $ref: '#/components/schemas/WebhookDelivery' } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
 
   /api/admin/tenant-exports:
     get:
@@ -5017,6 +6638,7 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { exports: { type: array, items: { $ref: '#/components/schemas/TenantExport' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Administration]
@@ -5043,9 +6665,11 @@ paths:
       responses:
         '202': { $ref: '#/components/responses/TenantExport' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
   /api/admin/tenant-exports/{tenantExportId}:
     parameters:
       - $ref: '#/components/parameters/TenantExportId'
@@ -5059,6 +6683,7 @@ paths:
         - sessionCookie: []
       responses:
         '200': { $ref: '#/components/responses/TenantExport' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
@@ -5075,6 +6700,7 @@ paths:
           content:
             application/json:
               schema: { type: object, properties: { deleted: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -5097,6 +6723,7 @@ paths:
           content:
             application/gzip:
               schema: { type: string, contentEncoding: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -5172,7 +6799,11 @@ paths:
           application/octet-stream:
             schema: { type: string, contentEncoding: binary }
       responses:
-        '200': { $ref: '#/components/responses/Ok' }
+        '200':
+          description: '`{ok: true}`, with `cancelled: true` when the request was cancelled before the answer arrived.'
+          content:
+            application/json:
+              schema: { type: object, required: [ok], properties: { ok: { const: true }, cancelled: { type: boolean } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5371,6 +7002,9 @@ components:
           properties:
             code: { type: string, examples: [not_found, forbidden, csrf] }
             message: { type: string }
+      examples:
+        - error: { code: csrf, message: 'The request is missing the application request header.' }
+        - error: { code: approval_requires_isolation, message: 'Automatic approval needs a container or pod placement.' }
     User:
       type: object
       required: [id, name, role]
@@ -5379,6 +7013,8 @@ components:
         name: { type: string }
         role: { type: string, enum: [admin, operator, viewer] }
         memberships: { type: array, items: { type: object } }
+      examples:
+        - { id: op-1, name: op-1, role: operator, memberships: [{ kind: tenant, tenant: default, role: developer }] }
     LinkedHandoffContext:
       type: object
       description: 'What `/unfold:handoff` found in the person''s checkout. Never the diff itself.'
@@ -5421,6 +7057,28 @@ components:
         failure: { type: object }
         review: { type: object }
         candidate: { type: object }
+      examples:
+        - id: 8b3755c4-38fc-48e6-a48f-8934900ae27d
+          title: 'Correct the order rounding'
+          objective: 'Fix the order rounding regression and provide the actual verification result.'
+          repositoryId: order-service
+          teamId: delivery
+          crewId: delivery
+          runtime: demo
+          approval: manual
+          ownerId: demo-operator
+          ownerName: 'Demo operator'
+          status: queued
+          budgetUsd: 3
+          spentUsd: 0
+          costStatus: demo
+          createdAt: '2026-10-30T09:00:00.000Z'
+          updatedAt: '2026-10-30T09:00:00.000Z'
+          branch: operator/8b3755c4-38fc-48e6-a48f-8934900ae27d
+          runs:
+            - { id: 723da597-9bed-4fde-a106-10cc211f295a, sessionId: 8b3755c4-38fc-48e6-a48f-8934900ae27d, roleId: builder, roleName: Builder, mode: write, status: queued, costUsd: 0 }
+            - { id: d4bf8e87-a700-4280-a029-b64af1211179, sessionId: 8b3755c4-38fc-48e6-a48f-8934900ae27d, roleId: reviewer, roleName: Reviewer, mode: read, status: queued, costUsd: 0 }
+          artifacts: []
     SessionEvent:
       type: object
       required: [id, sessionId, type, at]
@@ -5475,12 +7133,67 @@ components:
         user: { type: string }
         role: { type: string }
         credentialDays: { type: integer }
+    DeliveryView:
+      type: object
+      properties:
+        configured: { type: boolean }
+        policySha256: { type: string }
+        localPhase: { type: string }
+        checks: { type: array, items: { type: object } }
+        candidate: { type: [object, 'null'] }
+        receipt: { type: [object, 'null'] }
+        approval: { type: [object, 'null'] }
+        operation: { type: [object, 'null'] }
+        publication: { type: object }
+        publicationEnabled: { type: boolean }
+    PloegContextAdded:
+      type: object
+      required: [context, created, demo]
+      properties:
+        context:
+          type: object
+          required: [id, workItemId, name, mediaType, sha256, bytes]
+          properties:
+            id: { type: string, pattern: '^ctx_[A-Za-z0-9]{1,64}$' }
+            workItemId: { type: string }
+            name: { type: string }
+            mediaType: { type: string }
+            sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+            bytes: { type: integer, minimum: 0 }
+            files: { type: integer, minimum: 0 }
+            note: { type: string }
+            addedBy: { type: string }
+            addedAt: { type: string }
+            phase: { type: string }
+        created: { type: boolean }
+        demo: { type: boolean }
+    PloegQuestionAnswered:
+      type: object
+      required: [workItemId, questionId, commandId, replayed, demo]
+      properties:
+        workItemId: { type: string }
+        questionId: { type: string }
+        commandId: { type: string }
+        replayed: { type: boolean }
+        demo: { type: boolean }
+    PloegTeam:
+      type: object
+      description: 'A Team the caller may see, with its queue.'
+      required: [id]
+      properties:
+        id: { type: string }
+        paused: { type: [boolean, 'null'] }
+        queueDepth: { type: integer, minimum: 0 }
+        roles: { type: array, items: { type: object, properties: { id: { type: string }, queueDepth: { type: integer, minimum: 0 } } } }
+        assignees: { type: array, items: { type: string } }
+        pinnedScopes: { type: array, items: { type: string } }
+        spendCap: { type: [object, 'null'] }
     EditorWindow:
       type: object
       required: [protocol, windowId]
       properties:
         protocol: { type: string, enum: [vscode, vscode-insiders] }
-        windowId: { type: integer }
+        windowId: { type: [string, integer], pattern: '^[1-9][0-9]{0,8}$', description: 'The VS Code window id. A request may send it as a number; Unfold answers it as a string of digits.' }
     Placement:
       type: string
       enum: [local, docker, kubernetes]
@@ -5665,17 +7378,76 @@ components:
       description: '`{session, attached, address, connectionAuthority, links: {stable, insiders}}`'
       content:
         application/json:
-          schema: { type: object }
+          schema:
+            type: object
+            required: [session, attached, address, connectionAuthority, links]
+            properties:
+              session: { type: string, description: 'The Agent Host Protocol session URI, such as `ahp-session:/wi-205`.' }
+              attached: { type: boolean }
+              address: { type: string, description: 'The WebSocket address of the agent host.' }
+              connectionAuthority: { type: string }
+              links:
+                type: object
+                required: [stable, insiders]
+                properties:
+                  stable: { type: string, format: uri }
+                  insiders: { type: string, format: uri }
     TaskPloegStatus:
       description: '`TaskPloegStatus`: Ploeg''s Teams, the task''s hand-off and its Work Items, with optional `warnings`.'
       content:
         application/json:
-          schema: { type: object }
+          schema:
+            type: object
+            required: [available, demo, handoff, teams, assignedTeams, workItems, fetchedAt]
+            properties:
+              available: { type: boolean }
+              message: { type: string }
+              demo: { type: boolean }
+              handoff: { type: object, required: [allowed], properties: { allowed: { type: boolean }, reason: { type: string } } }
+              teams:
+                type: array
+                items:
+                  type: object
+                  required: [id, assignee, queueDepth, paused, roles]
+                  properties:
+                    id: { type: string }
+                    assignee: { type: string }
+                    queueDepth: { type: integer, minimum: 0 }
+                    paused: { type: [boolean, 'null'] }
+                    roles: { type: array, items: { type: string } }
+                    spendCap: { type: [object, 'null'] }
+              assignedTeams: { type: array, items: { type: string } }
+              workItems:
+                type: array
+                items:
+                  type: object
+                  required: [id, team, state, attempts, updatedAt]
+                  properties:
+                    id: { type: string }
+                    team: { type: string }
+                    state: { type: string }
+                    attempts: { type: integer, minimum: 0 }
+                    updatedAt: { type: string }
+                    prUrl: { type: string }
+                    branch: { type: string }
+                    spentUsd: { type: number }
+                    budgetUsd: { type: number }
+              fetchedAt: { type: string, format: date-time }
+              warnings: { type: array, items: { type: string } }
     CardIdentity:
       description: '`{logins, mapped, declared, verified, source, updatedAt}`'
       content:
         application/json:
-          schema: { type: object }
+          schema:
+            type: object
+            required: [logins, mapped, declared, verified, source, updatedAt]
+            properties:
+              logins: { type: array, items: { type: string } }
+              mapped: { type: [string, 'null'] }
+              declared: { type: array, items: { type: string } }
+              verified: { type: array, items: { type: string } }
+              source: { type: string, enum: [mapped, setting, demo, none] }
+              updatedAt: { type: [string, 'null'], format: date-time }
     Crack:
       description: '`{crack, demo, message}`'
       content:
@@ -5763,8 +7535,18 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    UnprocessableContent:
+      description: 'The input is well formed, but the target cannot do it; `code` says why, such as `handoff_unsupported`.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
     NotImplemented:
       description: 'The connected Ploeg does not support this command.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BadGateway:
+      description: 'Ploeg, a tracker or another upstream answered something Unfold cannot use; `code` names it, such as `ploeg_response` or `task_response_invalid`.'
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
