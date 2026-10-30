@@ -16,6 +16,7 @@ import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
 import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameOwnership, type Ownership } from './tenancy.ts';
 import { tenancySettings } from './tenant-scope.ts';
+import { intakeConfig, trustedProxySettings } from './intake/limiter.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -584,5 +585,8 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
 
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);
+  const proxies = trustedProxySettings(raw.trustedProxies);
+  if (proxies) config.trustedProxies = proxies;
+  config.intake = intakeConfig(raw.intake);
   return config;
 }

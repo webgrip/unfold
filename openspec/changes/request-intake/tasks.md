@@ -14,6 +14,7 @@
 - [x] 2.4 MIME and inbound-mail JSON parsing with threading ids (`src/intake/mail.ts`)
 - [x] 2.5 Store, service and routes; one route block in `src/http.ts`; the `intake.requests` flag
 - [x] 2.6 Settings page `#settings/intake` for administrators
+- [x] 2.7 Token buckets per sending address and per source, 429 with `Retry-After`, failures charged to the address, `trustedProxies` for `X-Forwarded-For`
 
 ## 3. Tests and docs
 

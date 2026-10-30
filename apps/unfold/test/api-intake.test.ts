@@ -9,15 +9,17 @@ import { hashPassword } from '../src/auth.ts';
 import { Store } from '../src/store.ts';
 import { IntakeService, IntakeStore } from '../src/intake/service.ts';
 import { standardWebhookSignature } from '../src/intake/signatures.ts';
-import type { User } from '../src/types.ts';
+import type { AppConfig, User } from '../src/types.ts';
+import { clientAddress } from '../src/intake/limiter.ts';
 import { application, login, request } from './api-support.ts';
 
 type Json = Record<string, any>;
 const payloads = JSON.parse(readFileSync(new URL('./fixtures/intake/payloads.json', import.meta.url), 'utf8')) as Json;
 
-async function workbench(t: TestContext, flag = true) {
+async function workbench(t: TestContext, flag = true, configure?: (config: AppConfig) => void) {
   const server = await application('live', config => {
     config.baseUrl = 'https://unfold.example';
+    configure?.(config);
     if (flag) config.flags = { document: { flags: { 'intake.requests': { defaultVariant: 'on' } } }, unknown: [] };
   });
   t.after(() => server.close());
@@ -142,7 +144,7 @@ test('Requests and sources are scoped by Tenant and Client while tenancy is enfo
   for (const client of ['acme', 'globex', null]) {
     const made = intake.create(agencyAdmin, { id: `form-${client ?? 'agency'}`, tenant: 'agency', client, template: 'form', verifier: 'token' });
     tokens[made.source.id] = made.secret!;
-    const answer = await intake.receive(made.source.id, { headers: { 'x-unfold-intake-token': made.secret! }, query: new URLSearchParams(), body: Buffer.from(JSON.stringify({ title: `For ${client ?? 'the agency'}` })), contentType: 'application/json' });
+    const answer = await intake.receive(made.source.id, { headers: { 'x-unfold-intake-token': made.secret! }, query: new URLSearchParams(), body: Buffer.from(JSON.stringify({ title: `For ${client ?? 'the agency'}` })), contentType: 'application/json', client: '192.0.2.1' });
     assert.equal(answer.status, 201);
   }
   const titles = (user: User) => intake.requests(user).map(entry => entry.title).sort();
@@ -161,6 +163,67 @@ test('the intake never reaches Ploeg, the engine, a runtime or a mail transport'
   for (const file of readdirSync(directory)) {
     const source = readFileSync(new URL(file, directory), 'utf8');
     const imports = [...source.matchAll(/from '([^']+)'/g)].map(match => match[1]);
-    assert.deepEqual(imports.filter(path => /ploeg|engine|runtime|broker|delivery|smtp|nodemailer|net$|tls$/.test(path)), [], `${file} imports ${imports}`);
+    assert.deepEqual(imports.filter(path => /ploeg|engine|runtime|broker|delivery|smtp|nodemailer|tls$|dgram$|fetch/.test(path)), [], `${file} imports ${imports}`);
+    assert.doesNotMatch(source, /\bfetch\(|createConnection|\.connect\(|new Socket\b/, `${file} opens no outbound connection`);
+  }
+});
+
+test('a sender past its burst gets 429 with Retry-After before any signature is checked', async t => {
+  const { url, admin } = await workbench(t, true, config => { config.intake = { rateLimit: { client: { perMinute: 6, burst: 3 }, source: { perMinute: 600, burst: 100 }, failureCost: 5 } }; });
+  const created = await request(url, '/api/intake/sources', { method: 'POST', cookie: admin, body: { id: 'site-form', tenant: 'default', template: 'form' } });
+  const secret = created.body.secret;
+  for (let index = 0; index < 3; index++) {
+    const body = JSON.stringify({ id: `f${index}`, title: `Request ${index}` });
+    assert.equal((await deliver(url, 'site-form', body, signed(secret, `msg_${index}`, body))).status, 201);
+  }
+  const body = JSON.stringify({ id: 'f9', title: 'One too many' });
+  const response = await fetch(`${url}/api/intake/site-form`, { method: 'POST', headers: { 'content-type': 'application/json', ...signed(secret, 'msg_9', body) }, body });
+  assert.equal(response.status, 429);
+  assert.equal((await response.json() as Json).error.code, 'rate_limited');
+  assert.equal(response.headers.get('retry-after'), '10', 'one token refills in ten seconds at six a minute');
+});
+
+test('an unknown source id or a failed signature costs the sender several tokens, so probing is throttled', async t => {
+  const { url, admin } = await workbench(t, true, config => { config.intake = { rateLimit: { client: { perMinute: 60, burst: 10 }, source: { perMinute: 600, burst: 100 }, failureCost: 5 } }; });
+  const created = await request(url, '/api/intake/sources', { method: 'POST', cookie: admin, body: { id: 'site-form', tenant: 'default', template: 'form' } });
+  assert.equal((await deliver(url, 'guess-1', '{}', {})).status, 404);
+  assert.equal((await deliver(url, 'site-form', '{}', signed(`whsec_${randomBytes(32).toString('base64')}`, 'msg_x', '{}'))).status, 401);
+  const body = JSON.stringify({ title: 'Real' });
+  assert.equal((await deliver(url, 'site-form', body, signed(created.body.secret, 'msg_ok', body))).status, 429, 'two refusals at cost 5 plus their own tokens emptied a burst of 10');
+});
+
+test('each source has its own bucket, and a per-source rate overrides the default', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'unfold-intake-'));
+  const store = new Store(join(directory, 'unfold.sqlite'));
+  t.after(async () => { store.db.close(); await rm(directory, { recursive: true, force: true }); });
+  const intake = new IntakeService(new IntakeStore(store), { enforced: false, enabled: async () => true, rateLimit: { client: { perMinute: 1000, burst: 1000 }, source: { perMinute: 60, burst: 2 }, failureCost: 5 } });
+  const admin: User = { id: 'ada', name: 'ada', role: 'admin' };
+  const quiet = intake.create(admin, { id: 'quiet', tenant: 'default', template: 'form', verifier: 'token' });
+  const busy = intake.create(admin, { id: 'busy', tenant: 'default', template: 'form', verifier: 'token', rateLimit: { perMinute: 60, burst: 4 } });
+  assert.deepEqual(busy.source.rateLimit, { perMinute: 60, burst: 4 });
+  const send = (made: typeof quiet, n: number, client: string) => intake.receive(made.source.id, { headers: { 'x-unfold-intake-token': made.secret! }, query: new URLSearchParams(), body: Buffer.from(JSON.stringify({ id: `${made.source.id}-${n}`, title: `t${n}` })), contentType: 'application/json', client });
+  const status = (promise: Promise<{ status: number }>) => promise.then(answer => answer.status, (error: any) => error.status);
+  assert.deepEqual([await status(send(quiet, 1, 'a')), await status(send(quiet, 2, 'b')), await status(send(quiet, 3, 'c'))], [201, 201, 429], 'the source bucket holds two, whichever address sends');
+  assert.deepEqual([await status(send(busy, 1, 'a')), await status(send(busy, 2, 'a')), await status(send(busy, 3, 'a')), await status(send(busy, 4, 'a')), await status(send(busy, 5, 'a'))], [201, 201, 201, 201, 429], 'another source is unaffected, at its own rate');
+  assert.throws(() => intake.create(admin, { id: 'bad-rate', tenant: 'default', template: 'form', verifier: 'token', rateLimit: { perMinute: 0 } }), (error: any) => error.code === 'intake_source');
+});
+
+test('the client address is the socket peer unless a trusted proxy forwarded the request', () => {
+  const req = (peer: string, forwarded?: string) => ({ socket: { remoteAddress: peer }, headers: forwarded === undefined ? {} : { 'x-forwarded-for': forwarded } }) as any;
+  assert.equal(clientAddress(req('10.0.0.5', '203.0.113.9'), undefined), '10.0.0.5', 'without trustedProxies the header is ignored');
+  assert.equal(clientAddress(req('10.0.0.5', '203.0.113.9'), ['10.0.0.0/8']), '203.0.113.9');
+  assert.equal(clientAddress(req('::ffff:10.0.0.5', '198.51.100.7, 203.0.113.9, 10.1.2.3'), ['10.0.0.0/8']), '203.0.113.9', 'the right-most address that is not a trusted proxy');
+  assert.equal(clientAddress(req('192.0.2.50', '203.0.113.9'), ['10.0.0.0/8']), '192.0.2.50', 'a peer that is no trusted proxy cannot choose its address');
+  assert.equal(clientAddress(req('10.0.0.5', 'garbage'), ['10.0.0.0/8']), '10.0.0.5');
+});
+
+test('behind a trusted proxy each forwarded client has its own bucket; without the setting they share the peer address', async t => {
+  const limits = { rateLimit: { client: { perMinute: 6, burst: 1 }, source: { perMinute: 600, burst: 100 }, failureCost: 1 } };
+  for (const trusted of [true, false]) {
+    const { url, admin } = await workbench(t, true, config => { config.intake = limits; if (trusted) config.trustedProxies = ['127.0.0.1', '::1']; });
+    const token = (await request(url, '/api/intake/sources', { method: 'POST', cookie: admin, body: { id: 'tok', tenant: 'default', template: 'form', verifier: 'token' } })).body.secret;
+    const from = (address: string, n: number) => deliver(url, 'tok', JSON.stringify({ id: `${address}-${n}`, title: 'x' }), { 'x-unfold-intake-token': token, 'x-forwarded-for': address }).then(answer => answer.status);
+    const statuses = [await from('203.0.113.1', 1), await from('203.0.113.2', 1), await from('203.0.113.1', 2)];
+    assert.deepEqual(statuses, trusted ? [201, 201, 429] : [201, 429, 429], trusted ? 'keyed by the forwarded address' : 'keyed by the socket address, the header ignored');
   }
 });

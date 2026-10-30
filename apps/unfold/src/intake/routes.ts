@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { User } from '../types.ts';
 import { IntakeError, intakeSettings, publicSource, type IntakeService } from './service.ts';
+import { clientAddress } from './limiter.ts';
 
 /** What the intake routes borrow from the HTTP server. */
 export type IntakeRouteContext = {
@@ -10,6 +11,7 @@ export type IntakeRouteContext = {
   readJson: () => Promise<Record<string, unknown>>;
   enabledFor: (user: User) => Promise<boolean>;
   baseUrl: string;
+  trustedProxies?: readonly string[];
   send: (status: number, value: unknown) => void;
 };
 
@@ -38,7 +40,12 @@ export async function intakeRoute(req: IncomingMessage, res: ServerResponse, pat
     if (parts.length !== 1 || !parts[0]) return false;
     if (method !== 'POST') throw new IntakeError(405, 'method', 'Deliver a Request with POST.');
     const body = await rawBody(req);
-    const answer = await context.service.receive(decodeURIComponent(parts[0]), { headers: req.headers, query, body, contentType: String(req.headers['content-type'] ?? '').toLowerCase() });
+    let answer;
+    try { answer = await context.service.receive(decodeURIComponent(parts[0]), { headers: req.headers, query, body, contentType: String(req.headers['content-type'] ?? '').toLowerCase(), client: clientAddress(req, context.trustedProxies) }); }
+    catch (error) {
+      if (error instanceof IntakeError && error.retryAfter !== undefined) res.setHeader('Retry-After', String(error.retryAfter));
+      throw error;
+    }
     context.send(answer.status, answer.body);
     return true;
   }

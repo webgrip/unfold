@@ -43,8 +43,10 @@ Non-goals: see the proposal.
 
 ## Risks / Trade-offs
 
-- [No rate limit on the public route] → a source answers 404 unless the flag
-  is on for its Tenant, verification is cheap HMAC, and the body cap is 5 MiB.
+- [Public route abuse] → token buckets per sending address and per source,
+  checked before any signature, with failures costing the address extra
+  tokens; `trustedProxies` keys them on the forwarded client behind an
+  ingress. The buckets are per process, so each replica counts on its own.
 - [Freshdesk and Zendesk placeholders may not be JSON-escaped] → the docs say
   to test with a ticket containing quotes; a broken body answers 400.
 - [Token mode in the URL leaks to logs] → documented as the weakest mode.

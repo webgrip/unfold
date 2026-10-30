@@ -8,6 +8,7 @@ import { applies, applyMapping, intakeLimits, MappingError, validateMapping, typ
 import { parseInboundJson, parseMime, withoutQuote, type ParsedMail } from './mail.ts';
 import { intakeTemplate, intakeTemplates } from './templates.ts';
 import { intakeVerifier, intakeVerifierNames } from './signatures.ts';
+import { bucketRate, defaultIntakeRateLimit, TokenBuckets, type BucketRate, type IntakeRateLimit } from './limiter.ts';
 
 /** Where a source's Requests come from: a JSON webhook read through a mapping, or inbound email. */
 export type IntakeKind = 'webhook' | 'email';
@@ -24,6 +25,7 @@ export type IntakeSource = {
   verifier: string;
   address: string | null;
   senders: string[];
+  rateLimit?: BucketRate;
   createdAt: string;
   createdBy: string;
   secretSetAt: string;
@@ -62,11 +64,13 @@ export type IntakeAnswer = { status: number; body: Record<string, unknown> };
 export class IntakeError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  readonly retryAfter?: number;
+  constructor(status: number, code: string, message: string, retryAfter?: number) {
     super(message);
     this.name = 'IntakeError';
     this.status = status;
     this.code = code;
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
   }
 }
 
@@ -149,8 +153,8 @@ export class IntakeStore {
   }
 }
 
-/** What the intake needs from the application: whether the flag is on for a Tenant, and the clock. */
-export type IntakeOptions = { enabled: (tenant: string) => Promise<boolean>; now?: () => Date; enforced: boolean };
+/** What the intake needs from the application: whether the flag is on for a Tenant, the clock and the rate limit. */
+export type IntakeOptions = { enabled: (tenant: string) => Promise<boolean>; now?: () => Date; enforced: boolean; rateLimit?: IntakeRateLimit };
 
 /** A source as an administrator sees it: never its secret, and the address senders post to. */
 export function publicSource(source: IntakeSource, baseUrl: string): IntakeSource & { url: string } {
@@ -173,10 +177,13 @@ function text(value: unknown, label: string, max: number, required = true): stri
 export class IntakeService {
   readonly store: IntakeStore;
   private readonly options: IntakeOptions;
+  private readonly buckets: TokenBuckets;
   constructor(store: IntakeStore, options: IntakeOptions) {
     this.store = store;
     this.options = options;
+    this.buckets = new TokenBuckets(() => this.now().getTime());
   }
+  private get limits(): IntakeRateLimit { return this.options.rateLimit ?? defaultIntakeRateLimit; }
   private now(): Date { return this.options.now?.() ?? new Date(); }
 
   /** Whether `user` administers intake sources of `tenant`: an administrator, and while tenancy is enforced an Admin of that Tenant. */
@@ -228,9 +235,12 @@ export class IntakeService {
     if (problem) throw new IntakeError(400, 'intake_secret', problem);
     const address = kind === 'email' ? text(input.address, 'Address', 320, false) || null : null;
     if (address && !/^[^\s@<>]+@[^\s@<>]+$/.test(address)) throw new IntakeError(400, 'intake_source', 'Address must be an email address.');
+    let rateLimit: BucketRate | undefined;
+    try { rateLimit = input.rateLimit === undefined || input.rateLimit === null ? undefined : bucketRate(input.rateLimit, this.limits.source, 'rateLimit'); }
+    catch (error) { throw new IntakeError(400, 'intake_source', (error as Error).message); }
     const senders = kind === 'email' && Array.isArray(input.senders) ? input.senders.slice(0, 50).map(item => text(item, 'Sender', 320).toLowerCase().replace(/^@/, '')).filter(Boolean) : [];
     const at = this.now().toISOString();
-    const source: IntakeSource = { id, name: text(input.name, 'Name', 100, false) || id, kind, tenant, client, template, mapping, verifier: verifierName, address: address?.toLowerCase() ?? null, senders, createdAt: at, createdBy: user.id, secretSetAt: at };
+    const source: IntakeSource = { id, name: text(input.name, 'Name', 100, false) || id, kind, tenant, client, template, mapping, verifier: verifierName, address: address?.toLowerCase() ?? null, senders, ...(rateLimit ? { rateLimit } : {}), createdAt: at, createdBy: user.id, secretSetAt: at };
     this.store.saveSource(source, secret);
     return { source, secret: given ? null : secret };
   }
@@ -283,18 +293,28 @@ export class IntakeService {
   }
 
   /**
-   * Handles one inbound delivery to `sourceId`: proves it came from the sender, drops a delivery it has seen, reads the
-   * payload and stores a new Request or threads an email reply onto the Request it answers.
+   * Handles one inbound delivery to `sourceId` from the address `client`: refuses it with 429 when the client's or the
+   * source's token bucket is empty, before any signature is checked; proves it came from the sender; drops a delivery
+   * it has seen; reads the payload and stores a new Request or threads an email reply onto the Request it answers. An
+   * unknown source and a failed proof cost the client `failureCost` tokens, so probing slows down.
    */
-  async receive(sourceId: string, delivery: { headers: IncomingHttpHeaders; query: URLSearchParams; body: Buffer; contentType: string }): Promise<IntakeAnswer> {
+  async receive(sourceId: string, delivery: { headers: IncomingHttpHeaders; query: URLSearchParams; body: Buffer; contentType: string; client: string }): Promise<IntakeAnswer> {
+    const limits = this.limits;
+    const clientKey = `client:${delivery.client}`;
+    const tooMany = (wait: number) => new IntakeError(429, 'rate_limited', 'Too many deliveries; retry later.', wait);
+    const clientWait = this.buckets.take(clientKey, limits.client);
+    if (clientWait) throw tooMany(clientWait);
+    const refuse = (error: IntakeError): never => { this.buckets.charge(clientKey, limits.client, limits.failureCost); throw error; };
     const source = this.store.source(sourceId);
-    if (!source || !await this.options.enabled(source.tenant)) throw new IntakeError(404, 'not_found', 'Intake source not found.');
+    if (!source || !await this.options.enabled(source.tenant)) return refuse(new IntakeError(404, 'not_found', 'Intake source not found.'));
     const secret = this.store.secret(source.id);
     const verifier = intakeVerifier(source.verifier);
-    if (!secret || !verifier) throw new IntakeError(404, 'not_found', 'Intake source not found.');
+    if (!secret || !verifier) return refuse(new IntakeError(404, 'not_found', 'Intake source not found.'));
+    const sourceWait = this.buckets.take(`source:${source.id}`, source.rateLimit ?? limits.source);
+    if (sourceWait) throw tooMany(sourceWait);
     const now = this.now();
     const verdict = verifier.verify({ headers: delivery.headers, query: delivery.query, body: delivery.body, secret, nowMs: now.getTime(), windowSeconds: intakeSettings.windowSeconds });
-    if (!verdict.ok) throw new IntakeError(401, verdict.code, verdict.message);
+    if (!verdict.ok) return refuse(new IntakeError(401, verdict.code, verdict.message));
     if (verdict.deliveryId) {
       const seen = this.store.delivery(source.id, verdict.deliveryId);
       if (seen) return { status: 200, body: { replayed: true, outcome: seen.outcome, request: seen.requestId } };

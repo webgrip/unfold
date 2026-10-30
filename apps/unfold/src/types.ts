@@ -7,6 +7,7 @@ import type { FlagSettings } from './flags.ts';
 import type { McpHttpSettings } from './mcp-auth.ts';
 import type { PersonTokenSettings } from './person-proof.ts';
 import type { Membership } from './tenancy.ts';
+import type { IntakeConfig } from './intake/limiter.ts';
 import type { AcceptanceCalendar } from './delivery-ledger.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
@@ -78,6 +79,10 @@ export type AppConfig = {
   acceptanceCalendar?: AcceptanceCalendar;
   /** Whether Tenant and Client memberships limit what people reach (system ADR-0017). Absent means not enforced. */
   tenancy?: { enforce: boolean };
+  /** The reverse proxies whose `X-Forwarded-For` names the client: IP addresses and CIDR ranges. Absent trusts none. */
+  trustedProxies?: string[];
+  /** The Request intake's rate limit. */
+  intake?: IntakeConfig;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */

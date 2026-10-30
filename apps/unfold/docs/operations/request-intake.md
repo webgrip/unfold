@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Written with the implementation on branch feat/request-intake: src/intake/ (service.ts, routes.ts, mapping.ts, templates.ts, signatures.ts, mail.ts), the intake route block in src/http.ts and public/views/intake.js; test/intake.test.ts and test/api-intake.test.ts passed, including the Standard Webhooks specification's own example signature. Vendor payloads were read on 2026-10-30 from the documentation each template cites; no live Marker.io, BugHerd, Userback, Freshdesk, Zendesk, Postmark or mail server was called."
+verified_by: "Written with the implementation on branch feat/request-intake: src/intake/ (service.ts, routes.ts, mapping.ts, templates.ts, signatures.ts, mail.ts, limiter.ts), trustedProxies and intake in src/config.ts, the intake route block in src/http.ts and public/views/intake.js; test/intake.test.ts and test/api-intake.test.ts passed, including the Standard Webhooks specification's own example signature. Vendor payloads were read on 2026-10-30 from the documentation each template cites; no live Marker.io, BugHerd, Userback, Freshdesk, Zendesk, Postmark or mail server was called."
 ---
 
 # Receive Requests from feedback tools, forms and email
@@ -35,6 +35,7 @@ An administrator adds sources under **Settings → Request intake**, or through 
 | `verifier` | How a delivery proves its sender: `standard-webhooks`, `hub-signature-256`, `zendesk` or `token`. Defaults to the template's |
 | `secret` | Leave it empty and Unfold makes one, which it shows once. A sender that signs with its own secret (Zendesk, Marker.io) needs that secret pasted here |
 | `address`, `senders` | For email: the address your mail provider forwards to this source (for display), and the domains or addresses accepted. Empty `senders` accepts everyone |
+| `rateLimit` | Optional `{perMinute, burst}` for this source's own bucket, in place of the deployment's `intake.rateLimit.source` ([Rate limit](#rate-limit)) |
 
 Unfold stores the secret encrypted in its store. **New secret** replaces it; the old one stops working at once.
 
@@ -86,6 +87,30 @@ For a sender that cannot sign, the `token` verifier accepts the source's token i
 
 Without a delivery id there is no replay check, so every token and vendor-signed source also deduplicates on the Request's external id: a second delivery with the same id answers 200 `outcome: duplicate` and changes nothing. Updates from the sender are not applied to a stored Request.
 
+## Rate limit
+
+The delivery address is public, so Unfold limits it with token buckets, in this order:
+
+1. The body is capped at 5 MiB while it is read.
+2. The sender's address takes one token from its own bucket. An empty bucket answers 429 before Unfold looks the source up or checks a signature.
+3. The source takes one token from its bucket. An empty bucket answers 429 before the signature is checked.
+4. An unknown source id, a source whose flag is off, and a failed signature or token each cost the sender's address `failureCost` more tokens, so guessing source ids or secrets slows down after a few tries. A failure costs the source only the one token every delivery takes, never the extra ones, so bad signatures from one address cannot drain a real sender's source; senders spread over many addresses still can, up to the source's rate.
+
+A 429 carries `Retry-After` in seconds: the time until one more token fits. The defaults, and how to change them in the configuration:
+
+```json
+{
+  "intake": { "rateLimit": { "client": { "perMinute": 60, "burst": 30 }, "source": { "perMinute": 300, "burst": 60 }, "failureCost": 5 } },
+  "trustedProxies": ["10.42.0.0/16"]
+}
+```
+
+A source's own `rateLimit` replaces `source` for that source; raise it for a busy form or mailbox. The buckets live in memory per Unfold process: a restart refills them, and each replica counts on its own.
+
+### Behind a reverse proxy
+
+The sender's address is the socket's peer. Behind an ingress controller or load balancer that peer is the proxy, so every sender would share one bucket and one noisy sender would block all the others. Set `trustedProxies` (top-level, IP addresses and CIDR ranges) to the proxies' addresses: when the peer is one of them, Unfold reads `X-Forwarded-For` from the right and takes the first address that is not a trusted proxy. Without `trustedProxies` the header is ignored, because any client can write it. List only the proxies themselves, such as the ingress controller's pod network, never `0.0.0.0/0`. Today only the intake reads `trustedProxies`; login throttling still keys on the socket address.
+
 ## Answers
 
 | Status | Body | Meaning |
@@ -96,6 +121,7 @@ Without a delivery id there is no replay check, so every token and vendor-signed
 | 202 | `{outcome: "ignored", reason}` | Accepted but not a Request: an event the template skips (`not_a_new_request`) or a sender not allowed (`sender_not_allowed`) |
 | 401 | `signature_missing`, `signature_invalid`, `timestamp_outside_window` | Not proven |
 | 404 | `not_found` | No such source, or the flag is off for its Tenant |
+| 429 | `rate_limited`, with `Retry-After` | The sender's address or the source sent too many deliveries |
 | 413, 415, 400, 422 | `body_too_large` (over 5 MiB), `content_type`, `invalid_json`, `intake_no_title` | The payload cannot become a Request |
 
 The answer never echoes the payload.
