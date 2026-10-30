@@ -42,6 +42,19 @@ An editor signs in through the same browser flow, and its person approves it ([A
 
 The `token` is an editor credential, `vle_` followed by 43 base64url characters, sent as `Authorization: Bearer <token>`. Unfold stores only its SHA-256 hash. It lasts thirty days from approval and is not renewed by use. It also ends after fourteen days without use, counted from its last use or, when never used, from its approval: an idle credential no longer authenticates, drops off the list and ends the Agent Host connection tokens it issued, exactly like an expired one. A request with the credential, or an Agent Host connection token it issued, records a use at most once a minute. It acts as its person with their current role, except that the `editor-requests` and `editor-credentials` routes answer 403 `browser_only` to it. `POST /api/logout` with the bearer token revokes that credential only. A request with a malformed or unknown bearer token is unauthenticated, whatever cookie it also carries.
 
+### Provisioning and Shared Signals
+
+`/scim/v2` and `/ssf/events` sit outside `/api/`: the identity provider calls them without a browser, so neither takes `X-Unfold-Request` or the origin checks. Each answers 404 while its flag (`identity.scim`, `identity.shared-signals`) is off or its `identity` block is absent. [Provision and deprovision people](../operations/provision-and-deprovision-people.md) describes their behaviour and the identity provider setup.
+
+| Method and path | Behaviour |
+| --- | --- |
+| `GET /scim/v2/ServiceProviderConfig`, `/ResourceTypes`, `/ResourceTypes/{User\|Group}`, `/Schemas`, `/Schemas/{urn}` | SCIM discovery (RFC 7643, RFC 7644), `application/scim+json` |
+| `GET, POST /scim/v2/Users`, `/Groups` | List with `filter` (one `eq`), `startIndex`, `count` (at most 200), and `excludedAttributes=members` on Groups; create → 201 |
+| `GET, PUT, PATCH, DELETE /scim/v2/Users/{id}`, `/Groups/{id}` | Read, replace, patch (`PatchOp`) and delete → 200 or 204. `active: false` or `DELETE` on a User turns its account off and ends every credential it holds |
+| `POST /ssf/events` | One SET as `application/secevent+jwt` (RFC 8935) → 202 empty, or 400 `{err, description}` (401 for `authentication_failed`) |
+
+Every SCIM call needs `Authorization: Bearer <token>` with the token `identity.scim.tokenEnv` names, and answers 401 with a SCIM Error otherwise. Each change, refusal, SET event and revocation leaves an Action Record with channel `scim` or `ssf`, role `system` and a `person` or `group` target. `POST /api/logout` ends its sign-in through the same revocation: the session or editor credential, the Agents-window connection tokens it issued and the sign-in tokens kept for it.
+
 ## Status
 
 Every signed-in person can read `GET /api/status`; only administrators post and resolve notes. Mutations follow the [identity rules](#identity-and-mutation-requests).

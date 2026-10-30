@@ -18,8 +18,8 @@ export type ActionRecord = {
   outcome: 'done' | 'refused' | 'failed';
 };
 
-/** What an action was about: a Ploeg Work Item, a workbench session or a tracker task. */
-export type ActionTarget = { kind: 'work-item' | 'session' | 'task'; id: string };
+/** What an action was about: a Ploeg Work Item, a workbench session, a tracker task, or a person or group the identity provider provisions. */
+export type ActionTarget = { kind: 'work-item' | 'session' | 'task' | 'person' | 'group'; id: string };
 
 /**
  * The channel and confirmation of the request being served, which the Ploeg client forwards as `X-Ploeg-Via` and

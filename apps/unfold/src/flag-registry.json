@@ -147,6 +147,34 @@
         "labs": false
       }
     },
+    "identity.scim": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "SCIM provisioning",
+        "description": "Serves the SCIM 2.0 service provider at /scim/v2 for the identity provider, with the bearer token identity.scim.tokenEnv names: Users and Groups, where a Group named unfold/<tenant>/<role> or unfold/<tenant>/client/<client> grants that membership. Deactivating or deleting a User turns the account off and ends every browser session, editor credential, Agents-window token and kept sign-in at once. While off, /scim/v2 answers 404. Evaluated for the default Tenant.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "identity.shared-signals": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Shared Signals receiver",
+        "description": "Accepts Security Event Tokens pushed to /ssf/events (RFC 8935) by the transmitters identity.sharedSignals lists, each verified against its JWKS, issuer, audience and jti. CAEP session-revoked, credential-change and token-claims-change and RISC account-credential-change-required end every credential of the person; RISC account-disabled and account-purged and the SCIM deactivate and delete events also turn the account off. While off, /ssf/events answers 404. Evaluated for the default Tenant.",
+        "client": false,
+        "labs": false
+      }
+    },
     "linked.trace-comment": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

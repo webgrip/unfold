@@ -64,6 +64,7 @@ import { AgentTraceComments } from './agent-trace-comments.ts';
 import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
+import { IdentityLifecycle } from './identity/lifecycle.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -260,6 +261,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   agentHost?.useChat(new ChatService(chatAuthority, chatTools, { demo: config.mode === 'demo', gatewayUrl: config.litellm?.baseUrl, secrets }));
   const flags = new FeatureFlags({ registry: loadRegistry(), settings: config.flags ?? { document: {}, unknown: [] }, store });
   flags.watch();
+  const lifecycle = new IdentityLifecycle({ config, store, auth, agentHost, proof, enabled: flag => flags.getBooleanValue(flag, false, { targetingKey: `tenant:${defaultTenant}`, tenantId: defaultTenant, mode: config.mode }) });
   const flagContext = (user: User): FlagContext => {
     const choices = store.flagChoices(user.id);
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
@@ -317,7 +319,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
     settings: config.mcp,
     subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
-    findUser: id => { const record = store.getUser(id); return record ? signedInUser(record) : undefined; },
+    findUser: id => { const record = store.getUser(id); return record && lifecycle.admit({ id }) ? signedInUser(record) : undefined; },
     entitle: claims => entitledRole(config.auth.oidc!, claims),
     memberships: claims => membershipsFromGroups(claims[config.auth.oidc!.groupsClaim]),
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
@@ -346,6 +348,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
+      if (lifecycle.handles(path)) return await lifecycle.handle(req, res, url);
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
       if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect && !ofrep) mutationGuard(req, config);
@@ -380,6 +383,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         try {
           if (denied) throw Object.assign(new Error(denied), { code: denied.replace(/[^a-z_]/gi, '').slice(0, 40) || 'denied' });
           const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req));
+          if (!lifecycle.admit(identity)) throw Object.assign(new Error('The identity provider turned this account off.'), { code: 'account_disabled' });
           const claimedName = identity.email ?? identity.name;
           const name = store.upsertUser({ id: identity.id, name: claimedName, role: identity.role, passwordHash: '', memberships: identity.memberships });
           if (name !== claimedName) console.error(JSON.stringify({ level: 'warn', event: 'login.name_taken', method: 'oidc', user: identity.id, name }));
@@ -396,8 +400,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       if (method === 'POST' && path === '/api/logout') {
         const signIn = auth.signIn(req);
-        if (signIn) agentHost?.revokeSignIn(signIn);
-        if (signIn) proof?.forget(signIn);
+        if (signIn) lifecycle.signOut(signIn, auth.user(req)?.id);
         res.setHeader('Set-Cookie', auth.logout(req));
         return json(res, 200, { ok: true });
       }
