@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createECDH } from 'node:crypto';
 import { decryptPayload, encryptPayload, fromBase64Url, generateVapidKeys, toBase64Url, vapidAuthorization, vapidSigningKey, verifyVapidToken } from '../src/notify/web-push.ts';
 
 const printed = (...lines: string[]) => lines.join('');
@@ -58,6 +59,21 @@ test('a VAPID header names the origin, the subject and a 12-hour expiry, and ver
   assert.deepEqual(JSON.parse(fromBase64Url(match[1].split('.')[0]).toString()), { typ: 'JWT', alg: 'ES256' });
   assert.deepEqual(verifyVapidToken(match[1], keys.publicKey), { aud: 'https://push.example.net', exp: 1_043_200, sub: 'mailto:ops@example.org' });
   assert.equal(verifyVapidToken(match[1], generateVapidKeys().publicKey), null);
+});
+
+test('a VAPID private scalar that starts with a zero byte signs whether it is written with 31 or 32 bytes', () => {
+  const ecdh = createECDH('prime256v1');
+  ecdh.setPrivateKey(Buffer.concat([Buffer.from([0]), Buffer.alloc(31, 7)]));
+  const publicKey = toBase64Url(ecdh.getPublicKey());
+  assert.equal(ecdh.getPrivateKey().length, 31);
+  for (const privateKey of [toBase64Url(ecdh.getPrivateKey()), toBase64Url(Buffer.concat([Buffer.from([0]), ecdh.getPrivateKey()]))]) {
+    const keys = { publicKey, privateKey };
+    assert.ok(vapidSigningKey(keys));
+    const [, token] = /^vapid t=([^,]+), k=/.exec(vapidAuthorization('https://push.example.net/x', 'mailto:ops@example.org', keys, 1_000_000))!;
+    assert.equal(verifyVapidToken(token, publicKey)?.aud, 'https://push.example.net');
+  }
+  assert.throws(() => vapidSigningKey({ publicKey, privateKey: toBase64Url(Buffer.alloc(33, 1)) }), /at most 32 bytes/);
+  for (let round = 0; round < 1024; round++) assert.equal(fromBase64Url(generateVapidKeys().privateKey).length, 32);
 });
 
 test('a VAPID key pair whose halves do not match is refused', () => {

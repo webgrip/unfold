@@ -56,6 +56,7 @@ function fixture(options: { demo?: boolean; flag?: (user: User) => boolean; answ
   return { store, notify, sent, events, facts, clock, user };
 }
 const body = (value: unknown) => async () => value;
+const readable = (entry: Sent) => { const { topic: _random, ...notice } = JSON.parse(entry.body.toString()); return JSON.stringify(notice); };
 const event = (id: string, action: string, workItemId = '7', team = 'bronze', detail: Record<string, unknown> = {}): PloegEvent => ({ id, at: '2026-10-30T12:00:00Z', actor: 'ploeg', action, workItemId, team, detail });
 const facts = (title: string, extra: Record<string, unknown> = {}) => ({ workItem: { title, team: 'bronze', target: null }, shifts: [], ...extra });
 
@@ -143,7 +144,7 @@ test('each trigger occurrence is sent once, also when Ploeg events are read agai
   await f.notify.tick();
   const titles = f.sent.map(entry => JSON.parse(entry.body.toString()).title);
   assert.deepEqual(titles, ['A question waits for you', 'A pull request is ready for review', 'A Work Item needs you']);
-  assert.ok(!f.sent.some(entry => entry.body.toString().includes('locale')));
+  assert.ok(!f.sent.some(entry => readable(entry).includes('locale')));
 });
 
 test('a budget notice names the highest share crossed once per Shift, never an amount', async () => {
@@ -157,7 +158,7 @@ test('a budget notice names the highest share crossed once per Shift, never an a
   assert.equal(f.sent.length, 1);
   const sent = JSON.parse(f.sent[0].body.toString());
   assert.equal(sent.title, 'A Work Item used 80 % of its budget');
-  assert.doesNotMatch(f.sent[0].body.toString(), /20|16\.5|\$/);
+  assert.doesNotMatch(readable(f.sent[0]), /20|16\.5|\$/);
   f.facts['7'].shifts[0].spentUsd = 20;
   f.events.push(event('3', 'outcome.failed', '7'));
   await f.notify.tick();
@@ -177,7 +178,7 @@ test('a tool-permission request notifies only the owner of the Linked Session', 
   const sent = JSON.parse(f.sent[0].body.toString());
   assert.equal(sent.topic, f.notify.store.targets('ann', 'ntfy')[0].address.topic);
   assert.equal(sent.click, 'https://unfold.example.org/#linked-session/session-abcdefgh');
-  assert.doesNotMatch(f.sent[0].body.toString(), /Bash|rm -rf/);
+  assert.doesNotMatch(readable(f.sent[0]), /Bash|rm -rf/);
 });
 
 test('a Client Sign-off notifies the readers of its Work Item', async () => {
@@ -190,7 +191,7 @@ test('a Client Sign-off notifies the readers of its Work Item', async () => {
   f.store.db.prepare('INSERT INTO client_sign_offs VALUES (?,?,?,?,?,?,?)').run('s1', '7', 'pr', 'abc', 'current', '2026-10-30T12:00:00Z', JSON.stringify({ note: 'client secret note' }));
   await f.notify.tick();
   assert.equal(JSON.parse(f.sent[0].body.toString()).title, 'A Client Sign-off was recorded');
-  assert.doesNotMatch(f.sent[0].body.toString(), /secret note/);
+  assert.doesNotMatch(readable(f.sent[0]), /secret note/);
 });
 
 test('quiet hours hold a notice until they end, in the person\'s time zone', async () => {
