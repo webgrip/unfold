@@ -62,10 +62,15 @@ import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-
 import { agentTraceMediaType } from './agent-trace.ts';
 import { AgentTraceComments } from './agent-trace-comments.ts';
 import { ClientSignOffError, ClientSignOffStore, ClientSignOffs, exclusionGlobs, unassignedClient } from './client-sign-off.ts';
+import { OutboundError, OutboundEvents } from './outbound/service.ts';
+import { IntakeService, IntakeStore } from './intake/service.ts';
+import { intakeRoute } from './intake/routes.ts';
 import { BillingError, BillingService, BillingStore, billingRoute } from './billing.ts';
 import { billingExporters } from './billing-exporters.ts';
 import type { AddressInfo } from 'node:net';
 import { SnoozeError, maxNowSnoozes, parseSnooze, snoozeKey, snoozeRetentionDays } from './now-snoozes.ts';
+import { AuditTrail } from './audit/service.ts';
+import { TenantExports, isTenantExportRoute, tenantExportRoute } from './tenant-export-jobs.ts';
 
 const reportRefreshWaitMs = 2500;
 export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -92,6 +97,16 @@ function fault(status: number, code: string, message: string): never { throw Obj
 function json(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(value));
+}
+
+/** Where the OpenAPI description of this API lives, served read-only at `GET /api/openapi.yaml`. */
+export const openApiDocument = new URL('../docs/contracts/openapi.yaml', import.meta.url);
+
+function sendOpenApi(res: ServerResponse): void {
+  let document: Buffer;
+  try { document = readFileSync(openApiDocument); } catch { return fault(404, 'not_found', 'This build carries no OpenAPI description.'); }
+  res.writeHead(200, { 'Content-Type': 'application/yaml; charset=utf-8', 'Cache-Control': 'no-cache' });
+  res.end(document);
 }
 
 const parsedBodies = new WeakMap<IncomingMessage, Record<string, unknown>>();
@@ -203,6 +218,7 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
 const personProofLine = (line: PersonProofStatus | undefined) => line ? { personProof: line } : {};
 
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
+  const audit = new AuditTrail({ store, settings: config.audit, config, exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
@@ -286,6 +302,19 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
+  const outbound = new OutboundEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo' });
+  outbound.start();
+  const tenantExports = new TenantExports({
+    config, store, application: { name: 'unfold', version: applicationVersion },
+    secrets: [...secrets, ...(config.repositories ?? []).flatMap(entry => entry.access?.password ? [entry.access.password] : [])],
+    enabled: user => flags.getBooleanValue('tenant.export', false, flagContext(user)),
+    flagDocument: () => flags.exportDocument(),
+    ...(config.ploeg && !ploeg.isDemo ? {
+      deliveryLedger: async (user: User) => ({ window: '30d', rows: (await readDeliveryLedger(ploeg, { window: '30d', teams: (await ploeg.teams(user)).map(team => team.id), calendar: config.acceptanceCalendar })).rows }),
+      workItemsInTenant: (user: User, tenant: string, ids: string[]) => ploeg.reachableWorkItems({ ...user, memberships: [{ kind: 'tenant', tenant, role: 'admin' }] }, ids),
+    } : {}),
+  });
+  const intake = new IntakeService(new IntakeStore(store), { enforced: tenants.enforced, rateLimit: config.intake?.rateLimit, enabled: tenant => flags.getBooleanValue('intake.requests', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }) });
   const billingDefinition = config.billing ? billingExporters.get(config.billing.exporter) : undefined;
   const billing = new BillingService(new BillingStore(store.db), {
     ...(config.billing && billingDefinition ? { settings: config.billing, definition: billingDefinition, exporter: billingDefinition.create(config.billing.options, { fetch, env: process.env, dataDir: config.dataDir, timeoutMs: 20_000 }) } : {}),
@@ -332,6 +361,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     delegate: (user, ttlMs, proof) => auth.delegate(user, ttlMs, proof),
     apiUrl: () => loopbackUrl(server.address() as AddressInfo),
     linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
+    audit: entry => audit.mcp(entry),
     version: applicationVersion,
   }) : undefined;
   function visible(id: string, user: User): Session {
@@ -357,6 +387,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (relay && await relay.handle(req, res, url)) return;
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
+      if (path.startsWith('/api/intake/') && await intakeRoute(req, res, path, url.searchParams, { service: intake, user: () => auth.user(req), guard: () => mutationGuard(req, config), readJson: () => body(req), enabledFor: user => flags.getBooleanValue('intake.requests', false, flagContext(user)), baseUrl: config.baseUrl ?? `http://${req.headers.host}`, trustedProxies: config.trustedProxies, send: (status, value) => json(res, status, sanitize(value)) })) return;
       if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect && !ofrep) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         if (!localLoginEnabled(config)) throw localLoginOff();
@@ -365,6 +396,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         res.setHeader('Set-Cookie', result.cookie);
         return json(res, 200, { user: result.user });
       }
+      if (method === 'GET' && path === '/api/openapi.yaml') return sendOpenApi(res);
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: localLoginEnabled(config), oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
         const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
@@ -537,6 +569,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (path === '/api/admin/audit' || path === '/api/admin/audit/verify') return await audit.serve(res, { method, path, query: url.searchParams, user });
+        if (path === '/api/admin/webhooks' || path.startsWith('/api/admin/webhooks/')) {
+          try { const answer = await outbound.route(user, method, path, () => body(req)); return json(res, answer.status, sanitize(answer.body)); }
+          catch (error) { if (error instanceof OutboundError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
+        }
         const flagOverride = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/override$/);
         const flagRollout = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/rollout$/);
         const flagSegment = path.match(/^\/api\/admin\/flag-segments\/([a-z][a-z0-9-]{0,63})$/);
@@ -563,6 +600,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const override = flags.setOverride(flagOverride[1], variant, user.name, reason);
           console.log(JSON.stringify({ level: 'info', event: override ? 'flag.override_set' : 'flag.override_cleared', actor: user.id, 'feature_flag.key': flagOverride[1], variant }));
           return json(res, 200, await adminFlags(user));
+        }
+        if (isTenantExportRoute(path)) {
+          const answer = await tenantExportRoute(tenantExports, { method, path, user, scope: auth.scope(req), body: () => body(req), res });
+          return answer ? json(res, answer.status, answer.body) : undefined;
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
@@ -964,14 +1005,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               const window = url.searchParams.get('window') ?? '7d';
               if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
               if (ploeg.isDemo) return json(res, 200, { demo: true, window });
-              return json(res, 200, sanitize(await readDeliveryEconomics(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), fresh })));
+              return json(res, 200, sanitize(await readDeliveryEconomics(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), reaches: facts => tenants.reachesWorkItem(user, facts.workItem.target), fresh })));
             }
             if (path === '/api/ploeg/deliveries') {
               const window = url.searchParams.get('window') ?? '7d';
               const format = url.searchParams.get('format') ?? 'json';
               if (!isEconomicsWindow(window)) fault(400, 'ploeg_filter', 'Choose a window of 24h, 7d or 30d.');
               if (!['json', 'csv'].includes(format)) fault(400, 'ploeg_filter', 'Choose a format of json or csv.');
-              const ledger = ploeg.isDemo ? null : sanitize(await readDeliveryLedger(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), calendar: config.acceptanceCalendar, fresh }));
+              const ledger = ploeg.isDemo ? null : sanitize(await readDeliveryLedger(ploeg, { window, teams: (await ploeg.teams(user, fresh)).map(team => team.id), reaches: facts => tenants.reachesWorkItem(user, facts.workItem.target), calendar: config.acceptanceCalendar, fresh }));
               if (format === 'json') return json(res, 200, ledger ?? { demo: true, window });
               res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="unfold-deliveries-${ledger ? '' : 'demo-'}${window}.csv"`, 'Cache-Control': 'no-store' });
               res.end(deliveriesCsv(ledger?.rows ?? [])); return;
@@ -1158,6 +1199,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     }
   };
   const server = createServer((req, res) => {
+    audit.watch(req, res, auth, () => parsedBodies.get(req));
     const method = req.method || 'GET';
     const requested = new URL(req.url || '/', 'http://localhost');
     const path = requested.pathname;
@@ -1179,5 +1221,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); billing.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { audit.stop(); insight.stop(); reports.stop(); flags.close(); tripwire.stop(); outbound.stop(); billing.stop(); }, reports };
 }

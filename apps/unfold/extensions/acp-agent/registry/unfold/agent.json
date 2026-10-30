@@ -1,0 +1,16 @@
+{
+  "id": "unfold",
+  "name": "Unfold",
+  "version": "0.1.0",
+  "description": "Follow, ask about and steer the agent work your Unfold runs, from your editor. Spending and tool permissions always ask you first.",
+  "repository": "https://forgejo.webgrip.dev/webgrip/unfold",
+  "website": "https://unfoldhq.dev",
+  "authors": ["Webgrip"],
+  "license": "Apache-2.0",
+  "license_url": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/LICENSE",
+  "distribution": {
+    "npx": {
+      "package": "@webgrip/unfold-acp-agent@0.1.0"
+    }
+  }
+}

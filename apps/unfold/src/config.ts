@@ -16,6 +16,9 @@ import { defaultJudgeModels } from './run-health/judge.ts';
 import { acceptanceCalendarSettings } from './delivery-ledger.ts';
 import { configuredOwnership, describeOwnership, ownership, repositoryKey, sameOwnership, type Ownership } from './tenancy.ts';
 import { tenancySettings } from './tenant-scope.ts';
+import { auditSettings } from './audit/settings.ts';
+import { outboundEventsSettings } from './outbound/address.ts';
+import { intakeConfig, trustedProxySettings } from './intake/limiter.ts';
 import { billingSettings } from './billing-export.ts';
 import { billingExporters } from './billing-exporters.ts';
 
@@ -525,6 +528,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     observability,
     insight: insightSettings(),
+    audit: auditSettings(raw.audit),
     errorReports: errorReportSettings(mode),
     mcpServers: mcpServerSettings(),
     productEvents: productEventsSetting(),
@@ -587,6 +591,10 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
 
   config.acceptanceCalendar = acceptanceCalendarSettings(raw.acceptanceCalendar);
   if (raw.tenancy !== undefined) config.tenancy = tenancySettings(raw.tenancy);
+  if (raw.outboundEvents !== undefined) config.outboundEvents = outboundEventsSettings(raw.outboundEvents);
+  const proxies = trustedProxySettings(raw.trustedProxies);
+  if (proxies) config.trustedProxies = proxies;
+  config.intake = intakeConfig(raw.intake);
   const billing = billingSettings(raw.billing, billingExporters, { env: process.env, dataDir, agentEnvironment: config.runtime.agentEnvironment ?? [] });
   if (billing) config.billing = billing;
   return config;

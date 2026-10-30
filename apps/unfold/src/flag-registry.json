@@ -161,6 +161,20 @@
         "labs": false
       }
     },
+    "intake.requests": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Request intake",
+        "description": "Lets senders deliver Requests to POST /api/intake/<source-id>, signed as Standard Webhooks, with a vendor signature or with a token, and lets administrators add intake sources under Settings. A webhook payload is mapped by a template; an email arrives as raw MIME or an inbound-parse JSON body and replies thread onto their Request. A Request waits for Refinement: it never becomes a Run and Unfold never writes back to the sender. Evaluated per Tenant for deliveries (the context carries tenantId) and per person for Settings.",
+        "client": true,
+        "labs": false
+      }
+    },
     "client.sign-off": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
@@ -185,6 +199,34 @@
         "created": "2026-10-29",
         "title": "Client Sign-off comment on pull requests",
         "description": "Keeps one comment, keyed client-sign-off, on the open pull request of a Work Item with a Client Sign-off: the answer, the head commit and what it covers, and that the Agency decides Acceptance. It names the Client only, never the person, the note, a price or spend. Written through Ploeg's keyed pull request comment 30 seconds after a change, only when the text changed. Evaluated per Team: the context carries the Work Item's team.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "audit.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Audit export",
+        "description": "Lets a Tenant's OCSF security audit leave Unfold: as OTLP logs to UNFOLD_AUDIT_OTLP_URL, and as NDJSON from GET /api/admin/audit for the Tenant's administrators. Recording, retention and chain verification run whatever the flag says. Evaluated per Tenant: the context carries tenantId, with targetingKey tenant:<id>.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "tenant.export": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Tenant export",
+        "description": "Lets an administrator export everything Unfold holds for a Tenant as one bundle (system ADR-0050 rule 6): a gzip-compressed tar of JSON Lines, one file per entity, a JSON Schema per entity and a manifest with row counts and SHA-256 checksums. No secrets are exported. The export runs as a background job and its download expires after 24 hours. Browser sign-in only; every start, download and deletion is logged and kept as an Action Record.",
         "client": false,
         "labs": false
       }
@@ -227,6 +269,20 @@
         "created": "2026-10-19",
         "title": "Decider progress checks",
         "description": "Lets the decider read what the Team's running agents write (RFC-0009): each thought or message of 40 characters or more is scored 0 to 3 on three checks (thinks the work is already done, asks for a person, off the brief), and a Run no rule recognises gets a Work Kind guessed from its title. Same free EU-hosted decider, key and rate limit as the tripwire, off the Run's path. Hits scoring 2 or more are listed on the Work Item page with right and wrong controls, and a 3 on a shown check raises the Run's health to Watch; it never stops, cancels, steers or notes a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
+      }
+    },
+    "events.webhooks": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-30",
+        "title": "Outbound webhooks",
+        "description": "Lets an administrator subscribe a URL to Unfold's product events, delivered as signed CloudEvents over Standard Webhooks from a durable outbox with retries (docs/operations/outbound-events.md). Evaluated per Tenant on the server: the context carries tenantId and a targetingKey of tenant:<id>. While it is off for a Tenant, Unfold refuses new subscriptions there and queues and sends nothing for it.",
         "client": false,
         "labs": false
       }

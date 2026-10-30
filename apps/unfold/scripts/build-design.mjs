@@ -51,7 +51,7 @@ const content = [
   '- [Domain YAML](../../../docs/domain/model.yaml) generates the [glossary](../../../docs/domain/glossary.md) and [rules](../../../docs/domain/rules.md). Product intentions and open choices are marked explicitly.',
   '- [ADR index](adrs/README.md) records decisions and their status.',
   '- [Market source ledger](research/market-sources.json) retains research provenance.',
-  '- [Proposed WorkOrder schema](contracts/work-order.v1.schema.json) and [event envelope](contracts/event-envelope.v1.schema.json) describe proposed interfaces; use [the HTTP API](contracts/api.md) for implemented requests.',
+  '- [Proposed WorkOrder schema](contracts/work-order.v1.schema.json) and [event envelope](contracts/event-envelope.v1.schema.json) describe proposed interfaces, the envelope superseded by the [CloudEvent schema](contracts/cloudevent.v1.schema.json) of [outbound events](contracts/events.asyncapi.yaml); use [the HTTP API](contracts/api.md) for implemented requests.',
   '',
   '## History and maintenance',
   '',

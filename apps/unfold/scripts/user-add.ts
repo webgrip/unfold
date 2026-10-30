@@ -4,6 +4,7 @@ import { resolve, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { Store, storeKeyFromEnvironment } from '../src/store.ts';
 import { hashPassword } from '../src/auth.ts';
+import { AuditTrail } from '../src/audit/service.ts';
 import type { UserRole } from '../src/types.ts';
 
 const dataDir = resolve(process.env.UNFOLD_DATA_DIR || '.unfold');
@@ -18,6 +19,7 @@ try {
   const store = new Store(join(dataDir, 'unfold.sqlite'), { key: storeKeyFromEnvironment() });
   try {
     if (store.getUserByName(name)) throw new Error('An account with that name already exists.');
+    new AuditTrail({ store });
     store.addUser({ id: randomBytes(12).toString('hex'), name, role, passwordHash: hashPassword(password) });
     console.log(`Created ${name} (${role}).${generated ? `\nGenerated password (shown once): ${password}` : ''}`);
   } finally { store.close(); }

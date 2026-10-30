@@ -1,0 +1,4433 @@
+openapi: 3.1.0
+info:
+  title: Unfold HTTP API
+  version: 1.0.0
+  summary: 'The HTTP API of the Unfold workbench, where people define, follow and review the work Ploeg runs.'
+  description: |
+    This document describes every route under `/api/` that [`src/http.ts`](../../src/http.ts) serves, and the
+    routes it hands to `linked-handoff.ts`, `take-over.ts`, `linked-permissions.ts`, `linked-conversation.ts` and
+    the workspace relay. The prose contract, [HTTP contract](api.md), carries the full behaviour of each route;
+    this document carries its shape. `test/openapi.test.ts` fails when a route exists in one and not the other.
+
+    Conventions:
+
+    * Every error is `{"error":{"code":"...","message":"..."}}` (schema `Error`). A route lists the error codes it
+      answers with in its description.
+    * JSON request bodies need `Content-Type: application/json`; an action without input sends `{}`.
+    * Every `POST`, `PUT`, `PATCH` and `DELETE` needs `X-Unfold-Request: 1` (security scheme `unfoldRequest`) and
+      passes same-origin checks, except the editor sign-in under `/api/auth/editor`, OFREP evaluation and the
+      workspace relay. A refused header or origin answers 403 `csrf` or `origin`.
+    * `x-unfold-role` is the lowest role that may call an operation: `viewer`, `operator` or `admin`. A route that
+      also needs a Tenant membership or object access says so in its description.
+    * `x-unfold-requires` names configuration a route needs: `oidc` (single sign-on configured) or
+      `connected-ploeg` (a live, non-demo Ploeg). Without it the route is not served or answers 503.
+    * Any route that calls Ploeg answers 503 `ploeg_contract_incompatible` while the connected Ploeg does not serve
+      a contract major this Unfold requires.
+    * A response schema lists the fields clients rely on; responses may carry more fields. Additive fields are not
+      a breaking change.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+externalDocs:
+  description: 'HTTP contract (prose)'
+  url: https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/contracts/api.md
+servers:
+  - url: /
+    description: 'The workbench that serves this document.'
+tags:
+  - name: Identity
+    description: 'Sign-in, sign-out, single sign-on and editor credentials.'
+  - name: Workbench
+    description: 'Bootstrap, status, health, reports, product events and the API description.'
+  - name: Flags
+    description: 'Feature flags, Labs choices and OpenFeature Remote Evaluation (OFREP).'
+  - name: Sessions
+    description: 'Sessions Unfold executes, their events, candidates and delivery.'
+  - name: Tasks
+    description: 'Tracker connections, task previews, imports and hand-offs to Ploeg.'
+  - name: Linked Sessions
+    description: 'Agent sessions a person runs outside Unfold that report through a plugin.'
+  - name: Ploeg
+    description: 'Ploeg''s operator view and Work Item commands, passed through Unfold''s connector.'
+  - name: Agent host
+    description: 'The Agent Host Protocol host for VS Code''s Agents window.'
+  - name: Cards
+    description: 'Run cards, the binder, packs, seasons and card themes.'
+  - name: Linked accounts
+    description: 'A person''s own GitLab and ClickUp links.'
+  - name: Workspace relay
+    description: 'Sandbox worker routes, authenticated by workspace and pod tokens; not part of the operator contract.'
+    x-internal: true
+security:
+  - sessionCookie: []
+  - editorBearer: []
+paths:
+  /api/openapi.yaml:
+    get:
+      tags: [Workbench]
+      operationId: getOpenApiDocument
+      summary: 'This OpenAPI description'
+      description: 'Serves this document read-only. It needs no sign-in, because it describes the API and holds no workbench data.'
+      security: []
+      responses:
+        '200':
+          description: 'The OpenAPI 3.1 document.'
+          content:
+            application/yaml:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/login:
+    post:
+      tags: [Identity]
+      operationId: login
+      summary: 'Sign in with a local name and password'
+      description: 'Sets the login cookie. With local sign-in off it answers 404 `local_login_off` without reading the credentials.'
+      security:
+        - unfoldRequest: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, password]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                password: { type: string }
+      responses:
+        '200':
+          description: 'Signed in; `Set-Cookie` carries the login cookie.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/logout:
+    post:
+      tags: [Identity]
+      operationId: logout
+      summary: 'Sign out'
+      description: 'Expires the login cookie. With an editor bearer token it revokes that credential only.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/auth/methods:
+    get:
+      tags: [Identity]
+      operationId: getAuthMethods
+      summary: 'The sign-in methods this workbench offers'
+      security: []
+      responses:
+        '200':
+          description: 'Whether local sign-in is on, and the single sign-on provider when configured.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [local, oidc]
+                properties:
+                  local: { type: boolean }
+                  oidc:
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        properties:
+                          name: { type: string }
+                          issuer: { type: string }
+  /api/auth/editor:
+    post:
+      tags: [Identity]
+      operationId: startEditorSignIn
+      summary: 'Start an editor sign-in'
+      description: |
+        Returns a one-time code, a secret only the editor holds, a `userCode` to display and the `url` to open. Exempt
+        from the mutation header and origin checks. 20 starts per client address per ten minutes and 1000 waiting
+        tickets, then 429 `rate_limited`.
+      x-unfold-requires: [oidc]
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client: { type: string, enum: [vscode, mcp] }
+                host: { type: string, maxLength: 63 }
+      responses:
+        '200':
+          description: 'The editor sign-in ticket.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, secret, userCode, expiresIn, interval, url]
+                properties:
+                  code: { type: string }
+                  secret: { type: string }
+                  userCode: { type: string, examples: [BCDF-GHJK] }
+                  expiresIn: { type: integer, examples: [600] }
+                  interval: { type: integer, examples: [2] }
+                  url: { type: string, format: uri }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/auth/editor/{code}:
+    parameters:
+      - $ref: '#/components/parameters/EditorCode'
+    post:
+      tags: [Identity]
+      operationId: collectEditorCredential
+      summary: 'Poll for the editor credential'
+      description: |
+        202 `{status:"pending"}` until the person approves; 200 `{status:"ready", token, expiresAt, user}` once after
+        approval; 403 `editor_login_denied` once after a denial; 404 for an unknown, expired, consumed or wrong-secret
+        poll (five wrong secrets end the ticket); 429 `slow_down` for a poll within one second of the last. Exempt from
+        the mutation header and origin checks.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [secret]
+              properties:
+                secret: { type: string }
+      responses:
+        '200':
+          description: 'The editor credential, `vle_` followed by 43 base64url characters.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: ready }
+                  token: { type: string, pattern: '^vle_[A-Za-z0-9_-]{43}$' }
+                  expiresAt: { type: string, format: date-time }
+                  user: { $ref: '#/components/schemas/User' }
+        '202':
+          description: 'The person has not approved yet.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: pending }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/auth/oidc:
+    get:
+      tags: [Identity]
+      operationId: beginOidcSignIn
+      summary: 'Redirect to the single sign-on provider'
+      description: 'Starts an authorization-code request with PKCE, `state` and `nonce`. With `editor`, the sign-in completes that editor ticket; an unknown, expired or claimed one answers 404 `editor_login_unknown`.'
+      x-unfold-requires: [oidc]
+      security: []
+      parameters:
+        - { name: editor, in: query, required: false, schema: { type: string } }
+      responses:
+        '303': { description: Redirect to the provider. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/auth/oidc/callback:
+    get:
+      tags: [Identity]
+      operationId: completeOidcSignIn
+      summary: 'Complete single sign-on'
+      description: 'The provider''s redirect target. Redirects to `/` with the login cookie, to `/#editor-sign-in/<code>` for an editor sign-in, or to `/?login_error=<code>` (for example `oidc_not_entitled`).'
+      x-unfold-requires: [oidc]
+      security: []
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '303': { description: Redirect back into the workbench. }
+  /api/editor-requests/{code}:
+    parameters:
+      - $ref: '#/components/parameters/EditorCode'
+    get:
+      tags: [Identity]
+      operationId: getEditorRequest
+      summary: 'An editor sign-in waiting for its person'
+      description: 'For the person who signed in for the ticket; 404 `editor_login_unknown` for anyone else or an expired ticket. A browser session only; an editor credential answers 403 `browser_only`.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: 'The ticket.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EditorRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/editor-requests/{code}/{decision}:
+    parameters:
+      - $ref: '#/components/parameters/EditorCode'
+      - name: decision
+        in: path
+        required: true
+        schema: { type: string, enum: [approve, deny] }
+    post:
+      tags: [Identity]
+      operationId: decideEditorRequest
+      summary: 'Approve or deny an editor sign-in'
+      description: 'One decision per ticket, then 409 `editor_login_decided`. A browser session only (403 `browser_only`).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: 'The decided ticket.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EditorRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/editor-credentials:
+    get:
+      tags: [Identity]
+      operationId: listEditorCredentials
+      summary: 'The person''s live editor credentials'
+      description: 'A browser session only (403 `browser_only`).'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+      responses:
+        '200': { $ref: '#/components/responses/EditorCredentials' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/editor-credentials/{credentialId}:
+    parameters:
+      - name: credentialId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[a-f0-9]{24}$' }
+        example: 0123456789abcdef01234567
+    delete:
+      tags: [Identity]
+      operationId: revokeEditorCredential
+      summary: 'Revoke an editor credential'
+      description: 'Revokes one, with the Agent Host connection tokens it issued, and returns the remaining list. A browser session only (403 `browser_only`).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/EditorCredentials' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/bootstrap:
+    get:
+      tags: [Workbench]
+      operationId: getBootstrap
+      summary: 'What the browser needs to start'
+      description: 'The current user, mode, repositories, Teams (also as the deprecated `crews`), models, runtimes, placements, limits, report target, product-event switch and the browser-visible flag values.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The bootstrap document.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  mode: { type: string, enum: [demo, live] }
+                  sharedExecution: { type: boolean }
+                  agentHost: { type: boolean }
+                  deliveryRepositories: { type: array, items: { type: string } }
+                  deliveryPublisher: { type: boolean }
+                  gateway: { type: string }
+                  gatewayPolicy: { type: [object, 'null'] }
+                  observability: { type: [object, 'null'] }
+                  insight: { type: object, properties: { events: { type: boolean } } }
+                  reports: { type: object }
+                  repositories: { type: array, items: { type: object } }
+                  taskSources: { type: array, items: { type: object } }
+                  teams: { type: array, items: { type: object } }
+                  crews: { type: array, items: { type: object }, deprecated: true }
+                  models: { type: array, items: { type: object } }
+                  runtimes: { type: array, items: { type: object } }
+                  placements: { type: array, items: { type: object } }
+                  maxBudgetUsd: { type: number }
+                  maxConcurrentSessions: { type: integer }
+                  flags: { type: object, additionalProperties: true }
+  /api/status:
+    get:
+      tags: [Workbench]
+      operationId: getStatus
+      summary: 'The Status page'
+      description: '`{generatedAt, overall, checks, waiting, failures, notes}`, with `ploegContract`, `personProof` and `residency` when they apply. `detail` and other administrator-only fields are left out for other roles.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The status report.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generatedAt: { type: string, format: date-time }
+                  overall: { type: string, enum: [operational, degraded, down] }
+                  checks: { type: array, items: { type: object } }
+                  waiting: { type: array, items: { type: object } }
+                  failures: { type: object }
+                  notes: { type: array, items: { $ref: '#/components/schemas/StatusNote' } }
+                  ploegContract: { type: object }
+                  personProof: { type: object }
+                  residency: { type: object }
+  /api/status/notes:
+    post:
+      tags: [Workbench]
+      operationId: addStatusNote
+      summary: 'Post a status note'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [severity, text]
+              properties:
+                severity: { type: string, enum: [info, degraded, outage] }
+                text: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '201':
+          description: 'The note.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusNote' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/status/notes/{noteId}/resolve:
+    parameters:
+      - name: noteId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-f-]{36}$' }
+        example: 3f2b9c1e-8a7d-4e6f-9b0a-1c2d3e4f5a6b
+    post:
+      tags: [Workbench]
+      operationId: resolveStatusNote
+      summary: 'Resolve a status note'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: 'The note with `resolvedAt` and `resolvedBy`.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusNote' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/health:
+    get:
+      tags: [Workbench]
+      operationId: getHealth
+      summary: 'Configuration and readiness summary'
+      description: 'Does not prove that upstream providers are reachable. The unauthenticated probes are `/healthz` and `/readyz`, outside `/api/`.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The summary.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: ok }
+                  mode: { type: string }
+                  version: { type: string }
+                  runtimes: { type: array, items: { type: string } }
+                  litellm: { type: boolean }
+                  gateway: { type: string }
+                  workspaceBackend: { type: string }
+                  workspaceBackends: { type: array, items: { type: string } }
+  /api/mcp-servers:
+    get:
+      tags: [Workbench]
+      operationId: listMcpServers
+      summary: 'Remote MCP servers people may add to their editor'
+      description: 'Never carries headers, a token or a secret.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The servers; empty when none is configured.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  servers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        label: { type: string }
+                        type: { const: http }
+                        url: { type: string, format: uri }
+                        oauth: { type: object, properties: { clientId: { type: string } } }
+  /api/models:
+    get:
+      tags: [Workbench]
+      operationId: listModels
+      summary: 'The configured models through the gateway''s catalogue'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'Each model''s provider, and an auto-router''s tiers.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models: { type: array, items: { type: object } }
+  /api/attestations/public-key:
+    get:
+      tags: [Sessions]
+      operationId: getAttestationPublicKey
+      summary: 'The workbench''s attestation public key'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'PEM Ed25519 public key; `X-Key-Id` carries its identifier.'
+          headers:
+            X-Key-Id: { schema: { type: string } }
+          content:
+            application/x-pem-file:
+              schema: { type: string }
+  /api/reports:
+    get:
+      tags: [Workbench]
+      operationId: listMyReports
+      summary: 'The person''s own five latest problem reports'
+      description: 'Reads the tracker again for reports last read over two minutes ago, waiting at most 2.5 seconds.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The reports and how many have unread activity.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reports: { type: array, items: { type: object } }
+                  updates: { type: integer }
+    post:
+      tags: [Workbench]
+      operationId: fileReport
+      summary: 'Report a problem'
+      description: '10 reports an hour per person, then 429. 8 MB in all.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [happened]
+              properties:
+                kind: { type: string, enum: [broken, confusing, idea], default: broken }
+                impact: { type: string, enum: [blocks, slows, minor] }
+                happened: { type: string }
+                expected: { type: string }
+                title: { type: string }
+                context: { type: string, description: JSON text. }
+                duplicateOf: { type: string }
+                screenshot: { type: string, contentMediaType: image/png }
+                console: { type: string, contentMediaType: application/json }
+                requests: { type: string, contentMediaType: application/json }
+      responses:
+        '201':
+          description: 'The outcome.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [filed, retrying, failed, kept] }
+                  url: { type: string }
+                  message: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/reports/seen:
+    post:
+      tags: [Workbench]
+      operationId: markReportsSeen
+      summary: 'Mark the person''s filed reports as seen'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{updates: 0}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { updates: { const: 0 } } }
+  /api/reports/similar:
+    get:
+      tags: [Workbench]
+      operationId: findSimilarReports
+      summary: 'Open filed reports that share words with a draft'
+      x-unfold-role: viewer
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 4000 } }
+        - { name: route, in: query, required: false, schema: { type: string, maxLength: 200 } }
+      responses:
+        '200':
+          description: 'Up to three reports; only titles travel.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reports: { type: array, items: { type: object } }
+  /api/reports/{reportId}/replies:
+    parameters:
+      - name: reportId
+        in: path
+        required: true
+        schema: { type: string }
+        example: r-42
+    post:
+      tags: [Workbench]
+      operationId: replyToReport
+      summary: 'Reply on the person''s own filed report'
+      description: '404 for someone else''s or an unknown report, 409 before it is filed, 429 after 20 replies an hour.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, maxLength: 4000 }
+      responses:
+        '201':
+          description: 'The report.'
+          content:
+            application/json:
+              schema: { type: object, properties: { report: { type: object } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/insight/events:
+    post:
+      tags: [Workbench]
+      operationId: postProductEvents
+      summary: 'Post product events'
+      description: 'At most 50 events and 32 KB per call (413 `insight_batch_too_large`). Viewers get 403; more than 600 events a minute gets 429. With product events off it stores nothing and answers 204.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [name, at]
+                    properties:
+                      name: { type: string }
+                      at: { type: string, format: date-time }
+                      screen: { type: string }
+                      workItemId: { type: [integer, string] }
+                      shiftId: { type: [integer, string] }
+                      props: { type: object }
+      responses:
+        '202':
+          description: 'How many were kept and dropped.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: integer }
+                  dropped: { type: integer }
+        '204': { description: Product events are off. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/flags:
+    get:
+      tags: [Flags]
+      operationId: getLabs
+      summary: 'Browser-visible flag values and the Labs the caller may choose'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/LabsView' }
+  /api/flags/{flagKey}/choice:
+    parameters:
+      - $ref: '#/components/parameters/FlagKey'
+    put:
+      tags: [Flags]
+      operationId: setLabsChoice
+      summary: 'Opt in or out of a Labs flag'
+      description: '404 `flag_not_found` for a flag not offered in Labs, 400 `flag_choice` otherwise.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choice]
+              properties:
+                choice: { type: string, enum: ['on', 'off', default] }
+      responses:
+        '200': { $ref: '#/components/responses/LabsView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/flags:
+    get:
+      tags: [Flags]
+      operationId: getAdminFlags
+      summary: 'Every flag with its rule, source, override, rollout and experiment readout'
+      x-unfold-role: admin
+      responses:
+        '200': { $ref: '#/components/responses/AdminFlags' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/admin/flags/export:
+    get:
+      tags: [Flags]
+      operationId: exportFlags
+      summary: 'The flagd rules the authored rollouts compile to'
+      x-unfold-role: admin
+      responses:
+        '200':
+          description: '`{flags}`, with segments inlined.'
+          content:
+            application/json:
+              schema: { type: object, properties: { flags: { type: object } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/admin/flags/{flagKey}/override:
+    parameters:
+      - $ref: '#/components/parameters/FlagKey'
+    put:
+      tags: [Flags]
+      operationId: setFlagOverride
+      summary: 'Force or clear a flag''s variant for everyone'
+      description: '404 `flag_not_found`, 400 `flag_variant` for a variant the flag lacks. Appended to the audit trail.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variant]
+              properties:
+                variant: { type: [string, 'null'], maxLength: 64 }
+                reason: { type: string, maxLength: 300, description: Required unless `variant` is null. }
+      responses:
+        '200': { $ref: '#/components/responses/AdminFlags' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/flags/{flagKey}/rollout:
+    parameters:
+      - $ref: '#/components/parameters/FlagKey'
+    put:
+      tags: [Flags]
+      operationId: setFlagRollout
+      summary: 'Store or remove an authored rollout'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rollout]
+              properties:
+                rollout:
+                  type: [object, 'null']
+                  properties:
+                    state: { type: string }
+                    defaultVariant: { type: string }
+                    respectLabs: { type: boolean }
+                    rules: { type: array, items: { type: object } }
+                reason: { type: string, maxLength: 300, description: Required unless `rollout` is null. }
+      responses:
+        '200': { $ref: '#/components/responses/AdminFlags' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/flag-segments/{segment}:
+    parameters:
+      - name: segment
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,63}$' }
+        example: beta-testers
+    put:
+      tags: [Flags]
+      operationId: setFlagSegment
+      summary: 'Store a segment'
+      description: 'Every rollout that uses it recompiles.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: '{ type: string }'
+                audience: { type: object, description: 'Any of `roles`, `teams`, `users`, `tenants`.' }
+      responses:
+        '200': { $ref: '#/components/responses/AdminFlags' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Flags]
+      operationId: deleteFlagSegment
+      summary: 'Delete a segment'
+      description: '409 `flag_segment_in_use` while a rollout uses it.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/AdminFlags' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/ofrep/v1/evaluate/flags:
+    post:
+      tags: [Flags]
+      operationId: ofrepEvaluateAll
+      summary: 'OFREP bulk evaluation'
+      description: 'OFREP 0.4.0 for the signed-in person or editor; only browser-visible flags. Identity attributes come from the session; a client may add up to 32 scalar attributes. Needs no `X-Unfold-Request` header and records no Action Record.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+      parameters:
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfrepRequest' }
+      responses:
+        '200':
+          description: 'Every client flag; `ETag` names this answer.'
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flags: { type: array, items: { $ref: '#/components/schemas/OfrepFlag' } }
+        '304': { description: Unchanged since the `If-None-Match` tag. }
+  /api/ofrep/v1/evaluate/flags/{ofrepKey}:
+    parameters:
+      - name: ofrepKey
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[A-Za-z0-9_.-]{1,200}$' }
+        example: now.loop
+    post:
+      tags: [Flags]
+      operationId: ofrepEvaluateOne
+      summary: 'OFREP single evaluation'
+      description: '404 `{key, errorCode: "FLAG_NOT_FOUND"}` for a flag clients cannot see, 400 with `errorCode` when evaluation failed. Needs no `X-Unfold-Request` header.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfrepRequest' }
+      responses:
+        '200':
+          description: 'The evaluation.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfrepFlag' }
+        '400':
+          description: 'Evaluation failed.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfrepError' }
+        '404':
+          description: 'No client-visible flag has this key.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfrepError' }
+  /api/now/snoozes:
+    get:
+      tags: [Flags]
+      operationId: listNowSnoozes
+      summary: 'The person''s snoozed Now items'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Snoozes' }
+    put:
+      tags: [Flags]
+      operationId: setNowSnooze
+      summary: 'Keep or replace a snooze'
+      description: 'Drops the person''s oldest beyond `limit` (200).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, fingerprint, until]
+              properties:
+                key: { type: string }
+                fingerprint: { type: string }
+                until: { type: string, format: date-time }
+                kind: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Snoozes' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [Flags]
+      operationId: clearNowSnooze
+      summary: 'Remove the snooze for one key'
+      description: 'An unknown key changes nothing.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      parameters:
+        - { name: key, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/Snoozes' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/agent-host:
+    get:
+      tags: [Agent host]
+      operationId: getAgentHost
+      summary: 'The agent host''s protocol, address and the caller''s connections'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The host description and the VS Code setting shape.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  protocolVersion: { type: string }
+                  protocolVersions: { type: array, items: { type: string } }
+                  address: { type: string }
+                  connectionAuthority: { type: string }
+                  provider: { const: unfold }
+                  clients: { type: integer }
+                  attached: { type: array, items: { type: object } }
+                  folders: { type: array, items: { type: object } }
+                  vscodeSetting: { type: object }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/agent-host/tokens:
+    post:
+      tags: [Agent host]
+      operationId: issueAgentHostToken
+      summary: 'Issue an Agent Host connection token'
+      description: 'Shown once and bound to the caller and the sign-in that issued it. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string, maxLength: 80 }
+      responses:
+        '201':
+          description: 'The token.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  id: { type: string, pattern: '^[0-9a-f]{64}$' }
+                  address: { type: string }
+                  vscodeSetting: { type: object }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/agent-host/tokens/{tokenId}:
+    parameters:
+      - name: tokenId
+        in: path
+        required: true
+        description: 'The token''s SHA-256 digest in lowercase hex.'
+        schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+        example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    delete:
+      tags: [Agent host]
+      operationId: revokeAgentHostToken
+      summary: 'Revoke one of the caller''s connection tokens'
+      description: 'Closes its open connections with WebSocket code 1008. Unknown, revoked or another person''s token answers 404 `not_found`.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{revoked: true}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { revoked: { const: true } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/agent-host/editor-window:
+    put:
+      tags: [Agent host]
+      operationId: rememberEditorWindow
+      summary: 'Remember the caller''s VS Code window'
+      description: 'Anything but a `vscode` or `vscode-insiders` protocol with a numeric `windowId` answers 400 `invalid_editor_window`. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditorWindow' }
+      responses:
+        '200':
+          description: 'The remembered window.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EditorWindow' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Agent host]
+      operationId: forgetEditorWindow
+      summary: 'Forget the caller''s VS Code window'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{forgotten}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { forgotten: { type: boolean } } }
+  /api/agent-host/sessions/{sessionId}/link:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Agent host]
+      operationId: getAgentsWindowSessionLink
+      summary: 'The link that opens a session in the caller''s Agents window'
+      description: 'Its owner and administrators; anyone else gets 404 `not_found`. Viewers get 403.'
+      x-unfold-role: operator
+      responses:
+        '200': { $ref: '#/components/responses/AgentsWindowLink' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/agent-host/work-items/{workItemId}/link:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Agent host]
+      operationId: getAgentsWindowWorkItemLink
+      summary: 'The link that opens a Work Item''s session in the caller''s Agents window'
+      description: 'A Work Item Ploeg hides, one an Operator Execution owns, an unknown id and a workbench without a live Ploeg answer 404 `not_found`. Viewers get 403.'
+      x-unfold-role: operator
+      responses:
+        '200': { $ref: '#/components/responses/AgentsWindowLink' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /api/links:
+    get:
+      tags: [Linked accounts]
+      operationId: listLinks
+      summary: 'The signed-in person''s account links'
+      description: 'Never a token.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{links}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { links: { type: array, items: { type: object } } } }
+  /api/links/{provider}:
+    parameters:
+      - $ref: '#/components/parameters/LinkProvider'
+    post:
+      tags: [Linked accounts]
+      operationId: beginLink
+      summary: 'Start an OAuth link with PKCE'
+      description: 'Returns the provider URL to visit; 409 `link_unconfigured` without an application ID.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{url}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { url: { type: string, format: uri } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+    put:
+      tags: [Linked accounts]
+      operationId: pasteLinkToken
+      summary: 'Link by a pasted personal token'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: '`{link}` with `method: "token"`.'
+          content:
+            application/json:
+              schema: { type: object, properties: { link: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [Linked accounts]
+      operationId: unlink
+      summary: 'Forget the link'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /api/links/{provider}/callback:
+    parameters:
+      - $ref: '#/components/parameters/LinkProvider'
+    get:
+      tags: [Linked accounts]
+      operationId: completeLink
+      summary: 'The provider''s OAuth redirect target'
+      description: 'Needs no cookie; the `state` names the person who started it, once, within ten minutes. Redirects to `/?linked=<provider>` or `/?link_error=<code>`.'
+      security: []
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '303': { description: Redirect back into the workbench. }
+
+  /api/task-sources:
+    get:
+      tags: [Tasks]
+      operationId: listTaskSources
+      summary: 'Task connections the person may use'
+      description: 'Public connection records with `handoff` and `needsLink`; never connector credentials.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The connections.'
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+  /api/task-sources/{sourceId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: 'One page of a connection''s tasks'
+      description: '404 `source_not_found`; 409 `source_unlinked` when the connection reads with the person''s link and they have none.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 1000, default: 1 } }
+      responses:
+        '200':
+          description: '`{tasks, nextPage?}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks: { type: array, items: { type: object } }
+                  nextPage: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/task-sources/{sourceId}/tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: 'The current task snapshot for preview'
+      description: 'Adds `descriptionMarkdown` for display; `truncate=1` shortens the description.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: truncate, in: query, required: false, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: 'The task snapshot.'
+          content:
+            application/json:
+              schema: { type: object }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/task-sources/{sourceId}/tasks/{taskId}/ploeg:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      operationId: getTaskPloegStatus
+      summary: 'Ploeg''s Teams, the task''s hand-off and its Work Items'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/TaskPloegStatus' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/task-sources/{sourceId}/tasks/{taskId}/handoff:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      tags: [Tasks]
+      operationId: handTaskToPloeg
+      summary: 'Hand a task to a Ploeg Team'
+      description: 'Needs a Developer or Admin membership of the Tenant that owns the connection (403 otherwise). Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team, revision]
+              properties:
+                team: { type: string, maxLength: 100 }
+                revision: { type: string, maxLength: 128 }
+      responses:
+        '200': { $ref: '#/components/responses/TaskPloegStatus' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [Tasks]
+      operationId: takeTaskBack
+      summary: 'Take a task back from a Team'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      parameters:
+        - { name: team, in: query, required: true, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/TaskPloegStatus' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/tasks/lookup:
+    get:
+      tags: [Tasks]
+      operationId: lookupTaskSource
+      summary: 'The connection that holds a tracker task'
+      description: '404 `task_source_unknown` when no configured source holds it.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: provider, in: query, required: true, schema: { type: string, enum: [vikunja, clickup] } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: '`{sourceId}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { sourceId: { type: string } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/task-imports:
+    post:
+      tags: [Tasks]
+      operationId: importTask
+      summary: 'Import a task as a queued session'
+      description: '201 for a new session, 200 for the existing one. 409 `task_changed` when the task changed after the preview; 403 `ploeg_owned` when Ploeg owns execution for the connection.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceId, taskId, revision, runtime, budgetUsd]
+              properties:
+                sourceId: { type: string, maxLength: 64 }
+                taskId: { type: string, maxLength: 128 }
+                revision: { type: string, maxLength: 128 }
+                teamId: { type: string, maxLength: 64 }
+                crewId: { type: string, maxLength: 64, deprecated: true }
+                runtime: { type: string, maxLength: 32 }
+                placement: { $ref: '#/components/schemas/Placement' }
+                budgetUsd: { type: number, exclusiveMinimum: 0 }
+                bindingRevision: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      summary: 'Sessions visible to the current user'
+      description: 'The caller''s own; every session for an administrator.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      responses:
+        '200':
+          description: 'The sessions.'
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Session' } }
+    post:
+      tags: [Sessions]
+      operationId: createSession
+      summary: 'Create a session'
+      description: '400 `unknown_profile`, `budget`, `tracker_url`, `objective_too_thin` or `team_conflict`; 409 `policy_provider` when a model the Team uses is served by a provider outside `gatewayPolicy`. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, objective, repositoryId, runtime, budgetUsd]
+              properties:
+                title: { type: string, maxLength: 160 }
+                objective: { type: string, maxLength: 16000 }
+                repositoryId: { type: string, maxLength: 64 }
+                teamId: { type: string, maxLength: 64 }
+                crewId: { type: string, maxLength: 64, deprecated: true }
+                runtime: { type: string, maxLength: 32 }
+                placement: { $ref: '#/components/schemas/Placement' }
+                approval: { type: string, enum: [manual, auto], default: manual }
+                model: { type: string, maxLength: 64 }
+                budgetUsd: { type: number, exclusiveMinimum: 0 }
+                trackerUrl: { type: string, format: uri, maxLength: 2048 }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: getSession
+      summary: 'One session with its runs, artifacts and accounting'
+      description: '404 for a session the caller may not see.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/history:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: getSessionHistory
+      summary: 'Durable events after a cursor'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+      responses:
+        '200':
+          description: 'The events, oldest first.'
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SessionEvent' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/events:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: streamSessionEvents
+      summary: 'Live session events as server-sent events'
+      description: 'Each event has a numeric `id` and a JSON `SessionEvent` in `data`. Resumes after the higher of `after` and `Last-Event-ID`. 429 `streams` beyond 100 live connections.'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/AfterCursor'
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: 'The event stream.'
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/sessions/{sessionId}/permissions:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: listSessionPermissions
+      summary: 'Permission and question requests, without native credential state'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The requests.'
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/permissions/{requestId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string }
+        example: perm-1
+    post:
+      tags: [Sessions]
+      operationId: answerSessionPermission
+      summary: 'Answer a permission or question request'
+      description: '400 `permission` or `answers` for an invalid answer. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [once, always, reject] }
+                answers:
+                  type: array
+                  maxItems: 20
+                  items: { type: array, items: { type: string, maxLength: 4000 } }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sessions/{sessionId}/investigation:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: investigateSession
+      summary: 'A read-only first diagnosis of why the session stopped'
+      description: 'Sends no Ploeg command and records nothing.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The diagnosis.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  class: { type: string, enum: [unfold_stall, ploeg_unreachable, ploeg_refused, unfold_restart, operator_stop, guard, unclear] }
+                  verdict: { type: string }
+                  rule: { type: string }
+                  facts: { type: object }
+                  timeline: { type: array, items: { type: object } }
+                  next: { type: array, items: { type: string } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/recovery:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: getSessionRecovery
+      summary: 'The next steps for a stopped session'
+      description: 'Reads Ploeg and sends it no command. Viewers get 403.'
+      x-unfold-role: operator
+      responses:
+        '200':
+          description: 'The recovery answer.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId: { type: string }
+                  status: { type: string }
+                  stranded: { type: boolean }
+                  summary: '{ type: string }'
+                  review: { type: [object, 'null'] }
+                  execution: { type: [object, 'null'] }
+                  actions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, enum: [capture, deliver, resume, run_again, cancel, close_work_item] }
+                        label: { type: string }
+                        description: '{ type: string }'
+                        method: { type: string }
+                        path: { type: string }
+                        available: { type: boolean }
+                        unavailableReason: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/candidate:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: getCandidate
+      summary: 'Export availability and immutable snapshot metadata'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The candidate, or why it is unavailable.'
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/sessions/{sessionId}/candidate/download:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: downloadCandidate
+      summary: 'Download the candidate in one format'
+      description: '400 `candidate_format` for another format; 409 `candidate_unavailable` without a complete export or without a signed attestation for `attestation` and `trace`.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: format, in: query, required: true, schema: { type: string, enum: [bundle, patch, manifest, attestation, trace] } }
+      responses:
+        '200':
+          description: 'The file as an attachment; its media type follows the format.'
+          content:
+            application/octet-stream:
+              schema: { type: string, contentEncoding: binary }
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sessions/{sessionId}/delivery:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: getDelivery
+      summary: 'Ploeg''s delivery record and the local verification'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The delivery view.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  policySha256: { type: string }
+                  localPhase: { type: string }
+                  checks: { type: array, items: { type: object } }
+                  candidate: { type: [object, 'null'] }
+                  receipt: { type: [object, 'null'] }
+                  approval: { type: [object, 'null'] }
+                  operation: { type: [object, 'null'] }
+                  publication: { type: object }
+                  publicationEnabled: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/sessions/{sessionId}/delivery/download:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [Sessions]
+      operationId: downloadCanonicalCandidate
+      summary: 'The canonical Git bundle'
+      description: '409 `canonical_candidate_unavailable` before verification canonicalized it.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`canonical-candidate.git.bundle`'
+          content:
+            application/octet-stream:
+              schema: { type: string, contentEncoding: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sessions/{sessionId}/delivery/verify:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: verifyDelivery
+      summary: 'Canonicalize, register and check the captured candidate'
+      description: 'A retry replays the retained result instead of running checks again. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/sessions/{sessionId}/delivery/approve:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: approveDelivery
+      summary: 'Record the candidate-bound approval in Ploeg'
+      description: 'Approval alone never publishes. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/DeliveryBinding' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/sessions/{sessionId}/delivery/publish:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: publishDelivery
+      summary: 'Push the canonical commit and open one pull request'
+      description: '400 `publication_binding_required` for a missing identity; refusals include `publication_disabled` and `publication_refused`. Serialized per session and resumable. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/DeliveryBinding' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/sessions/{sessionId}/run-again:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: runSessionAgain
+      summary: 'Create a new queued session with the same brief'
+      description: 'It never starts. A session imported from a tracker answers 409 `tracked_task`. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/sessions/{sessionId}/start:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: startSession
+      summary: 'Start queued work in the background'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: pauseSession
+      summary: 'Deliberately stop active execution, keeping the session'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: resumeSession
+      summary: 'Continue paused or interrupted work, subject to spend reconciliation'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: cancelSession
+      summary: 'Cancel intentionally, with no automatic replacement run'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/retry:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: retrySession
+      summary: 'Retry a standalone session after spend is reconciled'
+      description: '409 `spend_unresolved` for open accounting, `new_authorization_required` for shared Ploeg execution.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/capture:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: captureSession
+      summary: 'Capture the change of a stopped Ploeg-executed session for review'
+      description: '409 `not_capturable`, `interrupt_unconfirmed` or `candidate_unavailable`. Makes no model call and sends Ploeg no command.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/deliver:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: deliverSession
+      summary: 'Deliver a stopped Ploeg-executed session whose last reviewer approved'
+      description: '409 `not_deliverable`, `interrupt_unconfirmed` or `candidate_unavailable`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/close-work-item:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: closeSessionWorkItem
+      summary: 'Close the Work Item of a failed or cancelled Ploeg session'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/review:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: reviewSession
+      summary: 'Record the human review once'
+      description: '`rejected` needs a note. 409 `already_reviewed` names the earlier decision.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [accepted, rejected] }
+                note: { type: string }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: messageSession
+      summary: 'Persist an operator instruction for the next execution'
+      description: 'A Ploeg-executed session that is stopped and cannot run again answers 409 `session_stranded`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 16000 }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/supervision:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: setSessionSupervision
+      summary: 'Change how closely the session is supervised'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supervision]
+              properties:
+                supervision: { type: string }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/approval:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: setSessionApproval
+      summary: 'Switch a live session between manual and auto approval'
+      description: 'Switching to `auto` answers the permissions already waiting with `always`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approval]
+              properties:
+                approval: { type: string, enum: [manual, auto] }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/sessions/{sessionId}/budget:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [Sessions]
+      operationId: addSessionBudget
+      summary: 'Authorize additional budget for a standalone session'
+      description: '409 `pause_required`, `invalid_state` or `authority_budget`; 400 `budget` beyond `maxBudgetUsd`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountUsd]
+              properties:
+                amountUsd: { type: number, exclusiveMinimum: 0 }
+      responses: { '200': { $ref: '#/components/responses/Session' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+
+  /api/actions:
+    get:
+      tags: [Workbench]
+      operationId: listActionRecords
+      summary: 'Action Records, newest first'
+      description: 'A person sees only their own; an administrator sees everyone''s and may filter by `userId`. 400 `outcome` for another outcome.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: workItemId, in: query, required: false, schema: { type: string, maxLength: 40 } }
+        - { name: sessionId, in: query, required: false, schema: { type: string, maxLength: 80 } }
+        - { name: outcome, in: query, required: false, schema: { type: string, enum: [done, refused, failed] } }
+        - { name: channel, in: query, required: false, schema: { type: string, maxLength: 200 } }
+        - { name: userId, in: query, required: false, schema: { type: string } }
+        - { name: before, in: query, required: false, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: '`{actions, nextBefore}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions: { type: array, items: { type: object } }
+                  nextBefore: { type: [integer, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/actions/filters:
+    get:
+      tags: [Workbench]
+      operationId: getActionFilters
+      summary: 'Who acted and through which channels'
+      x-unfold-role: viewer
+      parameters:
+        - { name: userId, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: '`{people, channels}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  people: { type: array, items: { type: object } }
+                  channels: { type: array, items: { type: object } }
+
+  /api/linked-sessions:
+    get:
+      tags: [Linked Sessions]
+      operationId: listLinkedSessions
+      summary: 'Linked Sessions, the person''s own or one Work Item''s'
+      description: 'With `workItemId`, the sessions linked to that Work Item after Ploeg confirms the person may read it (404 otherwise). `all=1` lists everyone''s for an administrator.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: workItemId, in: query, required: false, schema: { type: string } }
+        - { name: telemetry, in: query, required: false, schema: { type: string, enum: ['1'] } }
+        - { name: all, in: query, required: false, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: '`{sessions}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { sessions: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/events:
+    post:
+      tags: [Linked Sessions]
+      operationId: reportLinkedSessionEvent
+      summary: 'One hook report from a plugin'
+      description: 'The first report claims `sessionId` for the sender; a report for another person''s session answers 404. Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [harness, sessionId, event]
+              properties:
+                harness: { type: string, enum: [claude-code, opencode, codex, acp] }
+                sessionId: { type: string }
+                event: { type: string, enum: [start, prompt, waiting, idle, end, commit] }
+                harnessVersion: { type: string }
+                title: { type: string }
+                repository: { type: string }
+                branch: { type: string }
+                model: { type: string }
+                remoteUrl: { type: string }
+                waitingFor: { type: string }
+                workItem: { type: [string, integer] }
+                pullRequests: { type: array, items: { type: string } }
+                commit: { type: object, properties: { sha: { type: string }, subject: { type: string }, trailer: { type: string } } }
+                mentions: { type: object, properties: { refs: { type: array, maxItems: 10, items: { type: string } }, workItems: { type: array, maxItems: 10, items: { type: string } } } }
+                remoteApproval: { type: boolean }
+      responses:
+        '200':
+          description: '`{session, context, suggestedTitle, trackerPrefixes, credential}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session: { type: object }
+                  context: { type: string }
+                  suggestedTitle: { type: [string, 'null'] }
+                  trackerPrefixes: { type: array, items: { type: string } }
+                  credential: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/digest:
+    get:
+      tags: [Linked Sessions]
+      operationId: getLinkedSessionDigest
+      summary: 'The person''s own session digest'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: window, in: query, required: false, schema: { type: string, enum: [7d, 30d], default: 7d } }
+      responses:
+        '200':
+          description: '`{digest}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { digest: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/linked-sessions/{linkedSessionId}:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: getLinkedSession
+      summary: 'One Linked Session'
+      description: 'For its owner, an administrator, or a person who may read a Work Item it is linked to; 404 for anyone else. `telemetry` is added for the owner and administrators only.'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: telemetry, in: query, required: false, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200':
+          description: '`{session}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { session: { type: object } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/WorkItemId'
+    put:
+      tags: [Linked Sessions]
+      operationId: linkWorkItem
+      summary: 'Link a Work Item to the session'
+      description: 'Owner or administrator; linking needs a Work Item the person may read.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/LinkedSession' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    delete:
+      tags: [Linked Sessions]
+      operationId: unlinkWorkItem
+      summary: 'Unlink a Work Item from the session'
+      description: 'An unlinked Work Item is not linked again by the branch.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/LinkedSession' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/traces:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: addAgentTrace
+      summary: 'Store an Agent Trace 0.1 record for one of the session''s commits'
+      description: 'Owner only. 400 `agent_trace_invalid` names the first problem. 201 when stored, 200 when it was already stored.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 'An [Agent Trace](https://agent-trace.dev/) 0.1 record.'
+              required: [version, id, timestamp, files]
+              properties:
+                version: { type: string, enum: ['0.1', 0.1.0] }
+                id: { type: string, format: uuid }
+                timestamp: { type: string, format: date-time }
+                files: { type: array, items: { type: object } }
+                tool: { type: object, required: [name, version], properties: { name: { type: string }, version: { type: string } } }
+                metadata: { type: object }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/agent-trace:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: downloadAgentTrace
+      summary: 'The session''s Agent Trace records as JSON Lines'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'One record per line; `X-Agent-Trace-Media-Type` names the record format.'
+          headers:
+            X-Agent-Trace-Media-Type: { schema: { type: string } }
+          content:
+            application/x-ndjson:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/agent-trace/{revision}:
+    parameters:
+      - name: revision
+        in: path
+        required: true
+        description: 'A 40- or 64-character commit id.'
+        schema: { type: string, pattern: '^[0-9a-f]{40}(?:[0-9a-f]{24})?$' }
+        example: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+    get:
+      tags: [Linked Sessions]
+      operationId: getAgentTraceForRevision
+      summary: 'Agent Trace records for one commit from the Linked Sessions the person may read'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{records: [{sessionId, record}]}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { records: { type: array, items: { type: object } } } }
+  /api/linked-sessions/{linkedSessionId}/suggestions:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: getLinkedSessionSuggestions
+      summary: 'Open Work Items the session is not linked to yet'
+      description: 'At most five. Owner or administrator; 404 otherwise.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{suggestions}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { suggestions: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: listLinkedSessionMessages
+      summary: 'The session''s 20 most recent messages'
+      description: 'Owner or administrator only.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{messages}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { messages: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Linked Sessions]
+      operationId: sendLinkedSessionMessage
+      summary: 'Queue one message for the session'
+      description: 'Owner or administrator only. 409 `linked_inbox_full` when 50 messages wait uncollected.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '201':
+          description: '`{message}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { message: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/linked-sessions/{linkedSessionId}/inbox:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: collectLinkedSessionInbox
+      summary: 'Collect the session''s undelivered messages for its plugin'
+      description: 'At most five, oldest first, each delivered once. The owner only. Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kinds: { type: array, items: { type: string, enum: [person, work_item, pull_request, ci] } }
+      responses:
+        '200':
+          description: '`{messages}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { messages: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/start-options:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: getLinkedSessionStartOptions
+      summary: 'Teams and Work Targets a Work Item could start on'
+      description: 'For the session''s owner; 404 for anyone else.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{teams, targets, suggested, message}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  teams: { type: array, items: { type: string } }
+                  targets: { type: array, items: { type: object } }
+                  suggested: { type: [string, 'null'] }
+                  message: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/linked-sessions/{linkedSessionId}/work-items:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: startWorkItemFromLinkedSession
+      summary: 'Admit a Work Item through Ploeg and link the session to it'
+      description: 'Owner only. Admission only queues; the Work Item runs when Ploeg picks it.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team, target, title, brief]
+              properties:
+                team: { type: string }
+                target: { type: string }
+                title: { type: string }
+                brief: { type: string, minLength: 1, maxLength: 20000 }
+                requestId: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/linked-sessions/{linkedSessionId}/handoff:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: getLinkedSessionHandoffReadiness
+      summary: 'Whether each of the session''s Work Items can be handed to Ploeg now'
+      description: 'For the owner or an administrator.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{workItems: [{id, title, state, available, reason}]}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { workItems: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}/handoff:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Linked Sessions]
+      operationId: handLinkedSessionToPloeg
+      summary: 'Let Ploeg finish this'
+      description: 'Requeues the Work Item from Round 1 with a note naming the session''s branch, last commit and pull request. Owner or administrator, on a Work Item the session is linked to (else 409 `handoff_not_linked`).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { commandId: { type: string } } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/linked-sessions/{linkedSessionId}/conversation:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: readLinkedConversation
+      summary: 'The session''s conversation, relayed from the owner''s machine'
+      description: 'Never stored; Unfold asks the plugin and waits at most 8 seconds.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: after, in: query, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: '`{reachable, entries, cursor, truncated, restarted}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reachable: { type: boolean }
+                  entries: { type: array, items: { type: object } }
+                  cursor: { type: integer }
+                  truncated: { type: boolean }
+                  restarted: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/conversation/wants:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: pollConversationWants
+      summary: 'The plugin''s poll for conversation reads'
+      description: 'Held at most 25 seconds; a newer poll for the same session releases the older one empty. The owner only. Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{wants: [{id, after}]}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { wants: { type: array, items: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/conversation/answers/{wantId}:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - name: wantId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[0-9a-f-]{36}$' }
+        example: 3f2b9c1e-8a7d-4e6f-9b0a-1c2d3e4f5a6b
+    post:
+      tags: [Linked Sessions]
+      operationId: answerConversationWant
+      summary: 'Hand back one conversation read'
+      description: 'Entries are re-validated and clipped. The owner only. Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entries: { type: array, items: { type: object } }
+                cursor: { type: integer }
+                truncated: { type: boolean }
+                restarted: { type: boolean }
+                missing: { type: boolean }
+      responses:
+        '200':
+          description: '`{delivered}`, false for a read that timed out.'
+          content:
+            application/json:
+              schema: { type: object, properties: { delivered: { type: boolean } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-permissions:
+    get:
+      tags: [Linked Sessions]
+      operationId: listLinkedPermissions
+      summary: 'Waiting tool prompts in all of the person''s own opted-in sessions'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{requests}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { requests: { type: array, items: { type: object } } } }
+  /api/linked-sessions/{linkedSessionId}/permissions:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+    get:
+      tags: [Linked Sessions]
+      operationId: listLinkedSessionPermissions
+      summary: 'The session''s waiting tool prompts and whether it opted in'
+      description: 'The owner only; an administrator and anyone else get 404.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{requests, remoteApproval}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests: { type: array, items: { type: object } }
+                  remoteApproval: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Linked Sessions]
+      operationId: reportLinkedSessionPermission
+      summary: 'The plugin reports one tool prompt it waits on'
+      description: 'Owner only, and only with an editor credential; a browser session or a delegated credential answers 403 `remote_approval_editor`.'
+      x-unfold-role: viewer
+      security:
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tool]
+              properties:
+                tool: { type: string }
+                summary: '{ type: string }'
+                detail: { type: string }
+                waitSeconds: { type: integer }
+      responses:
+        '201':
+          description: '`{request}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { request: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/answer:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/PermissionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: answerLinkedSessionPermission
+      summary: 'Answer one waiting tool prompt, once'
+      description: 'The owner only. 400 `permission_decision`; 409 `remote_approval_off` or `permission_closed`.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [allow, deny] }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: '`{request}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { request: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/collect:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/PermissionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: collectLinkedSessionPermission
+      summary: 'The plugin''s look at its own prompt'
+      description: 'Needs the editor credential that reported it (404 for any other). Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200':
+          description: '`{state}`: `pending`, `delivered` with the decision, `expired` or `withdrawn`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: { type: string, enum: [pending, delivered, expired, withdrawn] }
+                  decision: { type: string }
+                  reason: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/linked-sessions/{linkedSessionId}/permissions/{permissionId}/withdraw:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/PermissionId'
+    post:
+      tags: [Linked Sessions]
+      operationId: withdrawLinkedSessionPermission
+      summary: 'The plugin withdraws its own prompt'
+      description: 'Same credential rule as collect. Not an Action Record.'
+      x-unfold-role: viewer
+      security:
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { answered: { type: boolean } } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/asks:
+    get:
+      tags: [Ploeg]
+      operationId: listMyAsks
+      summary: 'The caller''s own eight most recent Asks'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{asks, more}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asks: { type: array, items: { $ref: '#/components/schemas/Ask' } }
+                  more: { type: boolean }
+
+  /api/ploeg:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegOverview
+      summary: 'The Ploeg overview with its lanes'
+      description: '`configured: false` with a message when no Ploeg is connected; 403 `ploeg_scope` for a Team outside the caller''s scope.'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/TeamQuery'
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{configured, available, demo, teams, selectedTeam?, lanes?, fetchedAt?, trackerUrl?, message}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  available: { type: boolean }
+                  demo: { type: boolean }
+                  teams: { type: array, items: { type: string } }
+                  selectedTeam: { type: string }
+                  lanes: { type: object }
+                  message: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/teams:
+    get:
+      tags: [Ploeg]
+      operationId: listPloegTeams
+      summary: 'The caller''s Team ids'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{teams}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { teams: { type: array, items: { type: string } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/summary:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegSummary
+      summary: 'Per-Team and total counts and spend'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: window, in: query, required: false, schema: { $ref: '#/components/schemas/Window' } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/economics:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegEconomics
+      summary: 'Cost per merged Work Item and the clean-merge rate'
+      description: '400 `ploeg_filter` for another window. The demo answers `{demo: true, window}`.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: window, in: query, required: false, schema: { $ref: '#/components/schemas/Window', default: 7d } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/deliveries:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegDeliveries
+      summary: 'The Delivery read model, as JSON or CSV'
+      description: 'Figures only, never a charge. 400 `ploeg_filter` for another window or format.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: window, in: query, required: false, schema: { $ref: '#/components/schemas/Window', default: 7d } }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [json, csv], default: json } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: 'The ledger.'
+          content:
+            application/json:
+              schema: { type: object }
+            text/csv:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/runs:
+    get:
+      tags: [Ploeg]
+      operationId: listPloegRuns
+      summary: 'Runs across the caller''s Teams'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/TeamQuery'
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: outcome, in: query, required: false, schema: { type: string } }
+        - $ref: '#/components/parameters/BeforeCursor'
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{demo, runs, nextBefore, fetchedAt}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { runs: { type: array, items: { type: object } }, nextBefore: { type: [string, 'null'] } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/events:
+    get:
+      tags: [Ploeg]
+      operationId: listPloegEvents
+      summary: 'Ploeg events across the caller''s Teams'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/TeamQuery'
+        - $ref: '#/components/parameters/BeforeCursor'
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{demo, events, nextCursor, fetchedAt}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { events: { type: array, items: { type: object } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/proposed:
+    get:
+      tags: [Ploeg]
+      operationId: listProposedWorkItems
+      summary: 'Proposed Work Items across Teams'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{demo, items, truncated, fetchedAt}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { items: { type: array, items: { type: object } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/now:
+    get:
+      tags: [Ploeg]
+      operationId: getNow
+      summary: 'What waits on the person, what runs and what finished recently'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/connections:
+    get:
+      tags: [Ploeg]
+      operationId: getPloegConnections
+      summary: 'Ploeg''s registered connections and Work Targets'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items:
+    get:
+      tags: [Ploeg]
+      operationId: listWorkItems
+      summary: 'One page of a Team''s Work Items'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - { name: team, in: query, required: true, schema: { type: string, maxLength: 100 } }
+        - { name: state, in: query, required: false, schema: { type: string, default: all } }
+        - { name: cursor, in: query, required: false, schema: { type: string, default: '0' } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{items, nextCursor}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/WorkItem' } }, nextCursor: { type: [string, 'null'] } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getWorkItem
+      summary: 'One Work Item with its Shifts, Runs, checkpoints and events'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200':
+          description: '`{item, shifts, runs, checkpoints, events, truncated, demo, fetchedAt}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item: { $ref: '#/components/schemas/WorkItem' }
+                  shifts: { type: array, items: { type: object } }
+                  runs: { type: array, items: { type: object } }
+                  checkpoints: { type: array, items: { type: object } }
+                  events: { type: array, items: { type: object } }
+                  truncated: { type: boolean }
+                  demo: { type: boolean }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/card:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getRunCard
+      summary: 'The proposed Run Card'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/value-stream:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getValueStream
+      summary: 'The Work Item''s value stream as chart lanes'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/crack-candidates:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getCrackCandidates
+      summary: 'Candidate causes of a bug Work Item'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/cracks:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: listCracks
+      summary: 'Every attribution where the Work Item is the bug or the card'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Ploeg]
+      operationId: proposeCrack
+      summary: 'Attribute a bug to the card that caused it'
+      description: 'The bug and the card must be in the caller''s Teams and the same Team. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card, severity, share]
+              properties:
+                card: { type: string }
+                play: { type: string }
+                severity: { type: string }
+                share: { type: number }
+                discovery: { type: string }
+                note: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Crack' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/evolved:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: markEvolved
+      summary: 'The bug is a changed requirement, so the card evolves'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card]
+              properties:
+                card: { type: string }
+                note: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Crack' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/cracks/{crackId}/{step}:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - name: crackId
+        in: path
+        required: true
+        schema: { type: string }
+        example: crack-7
+      - name: step
+        in: path
+        required: true
+        schema: { type: string, enum: [confirm, dispute, resolve] }
+    post:
+      tags: [Ploeg]
+      operationId: decideCrack
+      summary: 'Confirm, dispute or resolve an attribution'
+      description: '`confirm` takes `{severity?, share?, note?}`, `dispute` a required `reason` of at most 2000 characters, `resolve` `{resolution: upheld | unlinked, note?}`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                severity: { type: string }
+                share: { type: number }
+                note: { type: string }
+                reason: { type: string, maxLength: 2000 }
+                resolution: { type: string, enum: [upheld, unlinked] }
+      responses:
+        '200': { $ref: '#/components/responses/Crack' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/context:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: listWorkItemContext
+      summary: 'The context files added to a Work Item'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Ploeg]
+      operationId: addWorkItemContext
+      summary: 'Add a context file to a Work Item'
+      description: 'A raw upload; 413 `context_too_large` beyond the limit. 201 when added, 200 for the same file again. Viewers get 403.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      parameters:
+        - { name: name, in: query, required: true, schema: { type: string } }
+        - { name: note, in: query, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, contentEncoding: binary }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: approveWorkItem
+      summary: 'Approve a proposed Work Item'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: rejectWorkItem
+      summary: 'Reject a proposed Work Item'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 4096 }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: cancelWorkItem
+      summary: 'Cancel a Work Item'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/requeue:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: requeueWorkItem
+      summary: 'Restart a Work Item that needs you or went stale'
+      description: '400 `ploeg_requeue` for another state; with `resume`, 409 `question_unanswered` or `nothing_to_resume`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedState]
+              properties:
+                commandId: { type: string, maxLength: 128 }
+                expectedState: { type: string, enum: [needs_human, stale] }
+                note: { type: string }
+                resume: { type: boolean }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/notes:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: noteWorkItem
+      summary: 'Leave a note for a queued or running Work Item''s next Run'
+      description: '201 `{workItemId, noteId, commandId, shiftId, replayed, demo}`. The demo refuses with 200 and `demo: true`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                commandId: { type: string, maxLength: 128 }
+                text: { type: string, minLength: 1, maxLength: 4096 }
+                expectedShiftId: { type: [string, integer, 'null'] }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/questions/{questionId}/answer:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - name: questionId
+        in: path
+        required: true
+        schema: { type: string }
+        example: q-3
+    post:
+      tags: [Ploeg]
+      operationId: answerWorkItemQuestion
+      summary: 'Store a person''s answer to a question a Run asked'
+      description: '201, or 200 on a replay. 409 `already_answered` or `command_conflict`; 501 `ploeg_answers_unsupported` from an older Ploeg.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                commandId: { type: string, maxLength: 128 }
+                answer: { type: string, minLength: 1, maxLength: 4096 }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '501': { $ref: '#/components/responses/NotImplemented' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/asks:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: listWorkItemAsks
+      summary: 'Up to 50 Asks about a Work Item'
+      x-unfold-role: viewer
+      security:
+        - sessionCookie: []
+        - editorBearer: []
+        - mcpDelegated: []
+      responses:
+        '200':
+          description: '`{asks, allowance}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asks: { type: array, items: { $ref: '#/components/schemas/Ask' } }
+                  allowance: { type: [object, 'null'] }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Ploeg]
+      operationId: askAboutWorkItem
+      summary: 'Ask a question about a Work Item'
+      description: 'Answered from the Client-safe Work Item Brief, never reaching the agent. 400 `ask_request` for both `askModel` and `recordOnly`. Viewers may ask.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+        - { mcpDelegated: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 2000 }
+                askModel: { type: boolean }
+                recordOnly: { type: boolean }
+      responses:
+        '201':
+          description: 'The stored Ask.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ask' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/runs/{runId}/logs:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [Ploeg]
+      operationId: getRunLogs
+      summary: 'The agent pod''s stdout and stderr for one Run'
+      x-unfold-role: viewer
+      parameters:
+        - { name: after, in: query, required: false, schema: { type: string } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/runs/{runId}/transcript:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [Ploeg]
+      operationId: getRunTranscript
+      summary: 'One page of the Run''s agent transcript'
+      x-unfold-role: viewer
+      parameters:
+        - { name: after, in: query, required: false, schema: { type: string } }
+        - $ref: '#/components/parameters/Refresh'
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/runs/{runId}/health:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [Ploeg]
+      operationId: getRunHealth
+      summary: 'The health of a running Run'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/runs/{runId}/health/judgements/{judgementId}/wrong:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - $ref: '#/components/parameters/RunId'
+      - name: judgementId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+        example: judge-1
+    post:
+      tags: [Ploeg]
+      operationId: reportWrongJudgement
+      summary: 'Report that a health verdict was wrong'
+      description: 'Any role that can see the Work Item; an unknown judgement answers 404.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '202':
+          description: '`{recorded: true}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { recorded: { const: true } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/ploeg/work-items/{workItemId}/tripwire:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getTripwire
+      summary: 'What the decider tripwire stored for the Work Item''s Runs'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/tripwire/{hitId}/verdict:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+      - name: hitId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,160}$' }
+        example: hit-1
+    post:
+      tags: [Ploeg]
+      operationId: markTripwireHit
+      summary: 'Store a person''s verdict on one tripwire hit'
+      description: '400 `tripwire_verdict` for another verdict.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verdict]
+              properties:
+                verdict: { type: string, enum: [right, wrong] }
+      responses:
+        '200':
+          description: '`{recorded, verdict, demo}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { recorded: { type: boolean }, verdict: { type: string }, demo: { type: boolean } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/ploeg/work-items/{workItemId}/take-over:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getTakeOver
+      summary: 'Where a person''s take-over of a running Run stands'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Ploeg]
+      operationId: takeControl
+      summary: 'Take control of a running Run at its next safe point'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commandId: { type: string }
+                expectedShiftId: { type: [string, integer] }
+                actFor: { type: string }
+      responses:
+        '202':
+          description: '`{takeOver}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { takeOver: { type: object } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/hand-back:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: handBack
+      summary: 'Hand a taken-over Work Item back to Ploeg on the same branch'
+      description: '409 `taken_over_by_another` or `nothing_to_hand_back`.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commandId: { type: string }
+                note: { type: string }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/claim:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: claimRun
+      summary: 'Start in my Claude — claim the client-carried Run waiting for the person'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { linkedSession: { type: string } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/claude-session:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: recordClaudeSession
+      summary: 'Record the session the person''s own Claude dispatched for a claimed Run'
+      description: 'Only the person who claimed the Run; 404 `claim_not_found` otherwise.'
+      x-unfold-role: operator
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runId, sessionId]
+              properties:
+                runId: { type: string }
+                sessionId: { type: string }
+      responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/BadRequest' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' }, '503': { $ref: '#/components/responses/ServiceUnavailable' } }
+  /api/ploeg/work-items/{workItemId}/client-sign-off:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    get:
+      tags: [Ploeg]
+      operationId: getClientSignOff
+      summary: 'The Client Sign-offs of the Work Item''s newest open pull request'
+      description: '503 `facts_unavailable` without a connected Ploeg.'
+      x-unfold-role: viewer
+      x-unfold-requires: [connected-ploeg]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: [Ploeg]
+      operationId: recordClientSignOff
+      summary: 'Record a Client Sign-off bound to the head commit'
+      description: '`note` is required for `needs_changes`; another head than `headSha` answers 409.'
+      x-unfold-role: viewer
+      x-unfold-requires: [connected-ploeg]
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer, headSha]
+              properties:
+                answer: { type: string, enum: [looks_good, needs_changes] }
+                note: { type: string, maxLength: 2000 }
+                headSha: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/ploeg/work-items/{workItemId}/client-sign-off/withdraw:
+    parameters:
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Ploeg]
+      operationId: withdrawClientSignOff
+      summary: 'Withdraw the current Client Sign-off'
+      description: '409 `no_current_sign_off`.'
+      x-unfold-role: viewer
+      x-unfold-requires: [connected-ploeg]
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/client-sign-off/exclusions:
+    get:
+      tags: [Ploeg]
+      operationId: listSignOffExclusions
+      summary: 'The exclusion globs per repository'
+      x-unfold-role: viewer
+      x-unfold-requires: [connected-ploeg]
+      responses:
+        '200':
+          description: '`{exclusions}`'
+          content:
+            application/json:
+              schema: { type: object, properties: { exclusions: { type: array, items: { type: object } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    put:
+      tags: [Ploeg]
+      operationId: setSignOffExclusions
+      summary: 'Set the exclusion globs for one repository'
+      description: '400 `sign_off_repository` unless `repository` is `owner/name`.'
+      x-unfold-role: admin
+      x-unfold-requires: [connected-ploeg]
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [repository]
+              properties:
+                repository: { type: string, maxLength: 300 }
+                exclude: { type: array, maxItems: 100, items: { type: string, maxLength: 200 } }
+                keep: { type: array, maxItems: 100, items: { type: string, maxLength: 200 } }
+                repositoryFile: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /api/me/card-identity:
+    get:
+      tags: [Cards]
+      operationId: getCardIdentity
+      summary: 'The forge logins that find the person''s cards'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/CardIdentity' }
+    put:
+      tags: [Cards]
+      operationId: setCardIdentity
+      summary: 'Set the person''s declared logins'
+      description: 'At most 10; anything else is 400 `card_logins`.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [logins]
+              properties:
+                logins: { type: array, maxItems: 10, items: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/CardIdentity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/binder:
+    get:
+      tags: [Cards]
+      operationId: getBinder
+      summary: 'The person''s binder of card copies'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/binder/seen:
+    post:
+      tags: [Cards]
+      operationId: markBinderSeen
+      summary: 'Move the binder''s seen mark forward'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [until]
+              properties:
+                until: { type: string, format: date-time }
+                cards: { type: array, maxItems: 12, items: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/cards/{cardId}/seen:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    get:
+      tags: [Cards]
+      operationId: getCardSeen
+      summary: 'The person''s seen mark on one card'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Cards]
+      operationId: markCardSeen
+      summary: 'Move one card''s seen mark forward and store its snapshot'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [snapshot]
+              properties:
+                until: { type: string, format: date-time }
+                snapshot: { type: object, properties: { grade: { type: [number, 'null'] }, setComplete: { type: boolean } } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/cards/{cardId}/world:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    get:
+      tags: [Cards]
+      operationId: getCardWorld
+      summary: 'The person''s decoration of one card''s inner world'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Cards]
+      operationId: saveCardWorld
+      summary: 'Save the decoration'
+      description: 'Only a holder of a copy (403 `card_copy` for anyone else, administrators included).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [world]
+              properties:
+                world:
+                  type: object
+                  properties:
+                    v: { const: 1 }
+                    kind: { type: string, enum: [islands, deepsea, city, 'off'] }
+                    tod: { type: string }
+                    weather: { type: string, enum: [clear, rain, snow, fireflies] }
+                    objects: { type: array, maxItems: 24, items: { type: object } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Cards]
+      operationId: resetCardWorld
+      summary: 'Forget the decoration'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/packs:
+    get:
+      tags: [Cards]
+      operationId: listPacks
+      summary: 'The person''s packs, oldest first'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /api/packs/odds:
+    get:
+      tags: [Cards]
+      operationId: getPackOdds
+      summary: 'Every pack probability in basis points'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /api/packs/{packId}:
+    parameters:
+      - $ref: '#/components/parameters/PackId'
+    get:
+      tags: [Cards]
+      operationId: getPack
+      summary: 'An opened pack'
+      description: '404 for a pack this person has not opened.'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/packs/{packId}/open:
+    parameters:
+      - $ref: '#/components/parameters/PackId'
+    post:
+      tags: [Cards]
+      operationId: openPack
+      summary: 'Open the next pack'
+      description: '409 `pack_opened`, `pack_filling` or `pack_order`; 404 `pack_not_found`.'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/season:
+    get:
+      tags: [Cards]
+      operationId: getSeason
+      summary: 'A Team''s quarter in aggregates'
+      description: '404 `team_not_found` for a Team outside the caller''s scope.'
+      x-unfold-role: viewer
+      parameters:
+        - $ref: '#/components/parameters/TeamQuery'
+        - { name: quarter, in: query, required: false, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/card-themes:
+    get:
+      tags: [Cards]
+      operationId: listCardThemes
+      summary: 'The themes, the skins'' theme rules, asset limits and art generation'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /api/card-themes/{themeId}:
+    parameters:
+      - $ref: '#/components/parameters/ThemeId'
+    get:
+      tags: [Cards]
+      operationId: getCardTheme
+      summary: 'A theme with the metadata of its assets'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Cards]
+      operationId: saveCardTheme
+      summary: 'Create or change a theme'
+      description: '201 for a new theme, 200 for a changed one. 409 `theme_changed` on a stale `baseVersion`, 409 `theme_managed` for a theme from the mounted folder.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [theme]
+              properties:
+                theme: { $ref: 'card-theme.v1.schema.json' }
+                baseVersion: { type: [integer, 'null'] }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '201': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Cards]
+      operationId: deleteCardTheme
+      summary: 'Delete a stored theme and its versions'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/card-themes/{themeId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/ThemeId'
+    get:
+      tags: [Cards]
+      operationId: listCardThemeVersions
+      summary: 'A theme''s saved versions'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /api/card-themes/{themeId}/versions/{version}:
+    parameters:
+      - $ref: '#/components/parameters/ThemeId'
+      - name: version
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[1-9][0-9]{0,8}$' }
+        example: '3'
+    get:
+      tags: [Cards]
+      operationId: getCardThemeVersion
+      summary: 'One saved version of a theme'
+      x-unfold-role: viewer
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/card-assets:
+    post:
+      tags: [Cards]
+      operationId: uploadCardAsset
+      summary: 'Upload a theme asset'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      parameters:
+        - { name: purpose, in: query, required: true, schema: { type: string, enum: [art, back, symbol, shader] } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, contentEncoding: binary }
+      responses:
+        '201':
+          description: '`{id, purpose, mediaType, bytes}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  purpose: { type: string }
+                  mediaType: { type: string }
+                  bytes: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+  /api/card-assets/{assetId}:
+    parameters:
+      - name: assetId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+        example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    get:
+      tags: [Cards]
+      operationId: getCardAsset
+      summary: 'The asset, with its stored type, `nosniff` and a sandboxing CSP'
+      description: 'Honours a single `Range`.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: Range, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: 'The asset.'
+          content:
+            application/octet-stream:
+              schema: { type: string, contentEncoding: binary }
+        '206': { description: The requested range. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '416': { description: The range lies outside the asset. }
+  /api/card-art/generate:
+    post:
+      tags: [Cards]
+      operationId: generateCardArt
+      summary: 'Generate card art shader code'
+      description: 'Live mode with `cardThemes.ai` only.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
+                attempt: { type: integer }
+                compilerLog: { type: string }
+      responses:
+        '200':
+          description: '`{code, problems, attempt, model}`'
+          content:
+            application/json:
+              schema: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /api/relay/pool/claim:
+    get:
+      tags: [Workspace relay]
+      operationId: claimPoolAssignment
+      summary: 'A pooled worker pod claims its assignment'
+      description: 'Long-polls up to the relay limit. 401 `unauthorized` for a rejected pod token, 403 `pod` for another pod''s assignment, 503 `verifier_unavailable`.'
+      x-internal: true
+      security:
+        - podToken: []
+      parameters:
+        - { name: pod, in: query, required: false, schema: { type: string } }
+        - { name: wait, in: query, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: '`{assignment}`, null when none waits.'
+          content:
+            application/json:
+              schema: { type: object, properties: { assignment: { type: [object, 'null'] } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/relay/{relaySessionId}/requests:
+    parameters:
+      - $ref: '#/components/parameters/RelaySessionId'
+    get:
+      tags: [Workspace relay]
+      operationId: pollRelayRequests
+      summary: 'The workspace worker polls for relayed requests'
+      description: '401 `revoked` tells the worker to stop at once; 401 `unauthorized` otherwise.'
+      x-internal: true
+      security:
+        - relayToken: []
+      parameters:
+        - { name: wait, in: query, required: false, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: '`{requests, cancelled}`, at most 32 requests.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests: { type: array, items: { type: object } }
+                  cancelled: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/relay/{relaySessionId}/responses/{relayRequestId}:
+    parameters:
+      - $ref: '#/components/parameters/RelaySessionId'
+      - name: relayRequestId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[a-zA-Z0-9_-]{1,32}$' }
+        example: req-1
+    post:
+      tags: [Workspace relay]
+      operationId: postRelayResponse
+      summary: 'The workspace worker uploads one relayed response'
+      description: 'The body is the relayed response body; `X-Relay-Status` and `X-Relay-Headers` carry its status and headers. 400 `invalid_status`, 404 `unknown_request`.'
+      x-internal: true
+      security:
+        - relayToken: []
+      parameters:
+        - { name: X-Relay-Status, in: header, required: true, schema: { type: integer, minimum: 200, maximum: 599 } }
+        - { name: X-Relay-Headers, in: header, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, contentEncoding: binary }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: unfold
+      description: 'The login cookie, HttpOnly and SameSite Strict. With secure cookies (an HTTPS base URL) its name is `__Host-unfold`.'
+    unfoldRequest:
+      type: apiKey
+      in: header
+      name: X-Unfold-Request
+      description: 'Not a credential. Every mutation sends `X-Unfold-Request: 1` beside its credential, and passes the same-origin checks.'
+    editorBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: vle_ followed by 43 base64url characters
+      description: 'An editor credential, issued after its person approves the editor sign-in. It acts as its person with their current role, except on the browser-only routes.'
+    mcpDelegated:
+      type: http
+      scheme: bearer
+      bearerFormat: vlm_ followed by 43 base64url characters
+      description: 'A credential `unfold-mcp` over HTTP mints for at most five minutes to call this API for the person behind its access token. It reaches only the operations that list it, never more than the person''s role.'
+    relayToken:
+      type: http
+      scheme: bearer
+      description: 'A per-workspace relay credential held by that workspace''s worker.'
+    podToken:
+      type: http
+      scheme: bearer
+      description: 'A Kubernetes service account token of a pooled worker pod.'
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-zA-Z0-9_-]+$' }
+      example: 6b1f0c2e-5d4a-4c3b-9a8e-7f6d5c4b3a21
+    WorkItemId:
+      name: workItemId
+      in: path
+      required: true
+      description: 'Ploeg''s Work Item id.'
+      schema: { type: string, pattern: '^[1-9][0-9]{0,18}$' }
+      example: '184'
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string }
+      example: run-901
+    LinkedSessionId:
+      name: linkedSessionId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[A-Za-z0-9_-]{8,128}$' }
+      example: claude-7f3a9c21
+    PermissionId:
+      name: permissionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 3f2b9c1e-8a7d-4e6f-9b0a-1c2d3e4f5a6b
+    EditorCode:
+      name: code
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[A-Za-z0-9_-]{8,32}$' }
+      example: Zk3vQ9pLx2Rt
+    FlagKey:
+      name: flagKey
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z][a-z0-9.-]{2,100}$' }
+      example: now.loop
+    LinkProvider:
+      name: provider
+      in: path
+      required: true
+      schema: { type: string, enum: [gitlab, clickup] }
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9-]+$' }
+      example: vikunja-glide
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-zA-Z0-9_-]+$' }
+      example: '2051'
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      description: 'The card''s Work Item id.'
+      schema: { type: string, maxLength: 40 }
+      example: '184'
+    PackId:
+      name: packId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[A-Za-z0-9_.:@~-]{1,120}$' }
+      example: 2026-W40
+    ThemeId:
+      name: themeId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{0,63}$' }
+      example: forge-night
+    RelaySessionId:
+      name: relaySessionId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-zA-Z0-9_-]{1,80}$' }
+      example: 6b1f0c2e-5d4a-4c3b-9a8e-7f6d5c4b3a21
+    TeamQuery:
+      name: team
+      in: query
+      required: false
+      schema: { type: string }
+    Refresh:
+      name: refresh
+      in: query
+      required: false
+      description: '`1` bypasses the short cache.'
+      schema: { type: string, enum: ['1'] }
+    AfterCursor:
+      name: after
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0 }
+    BeforeCursor:
+      name: before
+      in: query
+      required: false
+      schema: { type: string }
+  requestBodies:
+    Empty:
+      description: 'An action without input sends `{}`.'
+      required: true
+      content:
+        application/json:
+          schema: { type: object }
+    DeliveryBinding:
+      description: 'The candidate, receipt and policy as displayed.'
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [candidateId, receiptId, policySha256]
+            additionalProperties: false
+            properties:
+              candidateId: { type: string }
+              receiptId: { type: string }
+              policySha256: { type: string }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [not_found, forbidden, csrf] }
+            message: { type: string }
+    User:
+      type: object
+      required: [id, name, role]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [admin, operator, viewer] }
+        memberships: { type: array, items: { type: object } }
+    Session:
+      type: object
+      description: 'A public session view. Every session carries both `teamId` and the deprecated `crewId`.'
+      required: [id, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        objective: { type: string }
+        status: { type: string }
+        repositoryId: { type: string }
+        teamId: { type: string }
+        crewId: { type: string, deprecated: true }
+        runtime: { type: string }
+        placement: { type: string }
+        budgetUsd: { type: number }
+        spentUsd: { type: number }
+        observedUsd: { type: number }
+        runs: { type: array, items: { type: object } }
+        failure: { type: object }
+        review: { type: object }
+        candidate: { type: object }
+    SessionEvent:
+      type: object
+      required: [id, sessionId, type, at]
+      properties:
+        id: { type: integer }
+        sessionId: { type: string }
+        type: { type: string }
+        at: { type: string, format: date-time }
+        actor: { type: string }
+        runId: { type: string }
+        data: { type: object }
+    WorkItem:
+      type: object
+      properties:
+        id: { type: string }
+        team: { type: string }
+        state: { type: string }
+        title: { type: string }
+        url: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Ask:
+      type: object
+      properties:
+        id: { type: string }
+        workItemId: { type: string }
+        question: { type: string }
+        answer: { type: [string, 'null'] }
+        status: { type: string }
+        source: { type: string }
+        costUsd: { type: [number, 'null'] }
+        createdAt: { type: string, format: date-time }
+    StatusNote:
+      type: object
+      properties:
+        id: { type: string }
+        severity: { type: string, enum: [info, degraded, outage] }
+        text: { type: string }
+        author: { type: string }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time }
+        resolvedBy: { type: string }
+    EditorRequest:
+      type: object
+      properties:
+        userCode: { type: string }
+        label: { type: string }
+        status: { type: string, enum: [waiting, approved, denied] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        workbench: { type: string }
+        user: { type: string }
+        role: { type: string }
+        credentialDays: { type: integer }
+    EditorWindow:
+      type: object
+      required: [protocol, windowId]
+      properties:
+        protocol: { type: string, enum: [vscode, vscode-insiders] }
+        windowId: { type: integer }
+    Placement:
+      type: string
+      enum: [local, docker, kubernetes]
+    Window:
+      type: string
+      enum: [24h, 7d, 30d]
+    OfrepRequest:
+      type: object
+      properties:
+        context: { type: object, additionalProperties: true }
+    OfrepFlag:
+      type: object
+      properties:
+        key: { type: string }
+        value: {}
+        reason: { type: string }
+        variant: { type: string }
+        metadata: { type: object }
+    OfrepError:
+      type: object
+      properties:
+        key: { type: string }
+        errorCode: { type: string }
+        errorDetails: { type: string }
+  responses:
+    Ok:
+      description: 'The JSON answer; [HTTP contract](api.md) lists its fields.'
+      content:
+        application/json:
+          schema: { type: object }
+    Session:
+      description: 'The session.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Session' }
+    LinkedSession:
+      description: '`{session}`'
+      content:
+        application/json:
+          schema: { type: object, properties: { session: { type: object } } }
+    LabsView:
+      description: '`{values, labs}`'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              values: { type: object, additionalProperties: true }
+              labs: { type: array, items: { type: object } }
+    AdminFlags:
+      description: '`{flags, segments, audit, file, providers, strategy, console}`'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              flags: { type: array, items: { type: object } }
+              segments: { type: array, items: { type: object } }
+              audit: { type: array, items: { type: object } }
+    Snoozes:
+      description: '`{snoozes, limit, demo}`'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              snoozes: { type: array, items: { type: object } }
+              limit: { type: integer }
+              demo: { type: boolean }
+    EditorCredentials:
+      description: '`{editors}`'
+      content:
+        application/json:
+          schema: { type: object, properties: { editors: { type: array, items: { type: object } } } }
+    AgentsWindowLink:
+      description: '`{session, attached, address, connectionAuthority, links: {stable, insiders}}`'
+      content:
+        application/json:
+          schema: { type: object }
+    TaskPloegStatus:
+      description: '`TaskPloegStatus`: Ploeg''s Teams, the task''s hand-off and its Work Items, with optional `warnings`.'
+      content:
+        application/json:
+          schema: { type: object }
+    CardIdentity:
+      description: '`{logins, mapped, declared, verified, source, updatedAt}`'
+      content:
+        application/json:
+          schema: { type: object }
+    Crack:
+      description: '`{crack, demo, message}`'
+      content:
+        application/json:
+          schema: { type: object, properties: { crack: { type: object }, demo: { type: boolean }, message: { type: string } } }
+    BadRequest:
+      description: 'Invalid input; `code` names the field rule, such as `invalid_input` or `invalid_json`.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthenticated:
+      description: '`unauthenticated`: no valid credential.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: '`forbidden`, `csrf`, `origin`, `browser_only` or a route-specific refusal.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 'Unknown, or not visible to the caller.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 'The object''s state refuses the request; `code` says why.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PayloadTooLarge:
+      description: '`body_too_large` or a route-specific size limit.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UnsupportedMediaType:
+      description: '`content_type`: the body has the wrong media type.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: 'A rate or connection limit; `code` names it.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotImplemented:
+      description: 'The connected Ploeg does not support this command.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ServiceUnavailable:
+      description: '`ploeg_unconfigured`, `ploeg_credential`, `ploeg_contract_incompatible` or another unavailable dependency.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

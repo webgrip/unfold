@@ -13,6 +13,7 @@ COPY src ./src
 COPY public ./public
 COPY examples ./examples
 COPY scripts ./scripts
+COPY docs/contracts/openapi.yaml ./docs/contracts/openapi.yaml
 ARG IMAGE_VERSION=dev
 RUN if [ "${IMAGE_VERSION}" != dev ]; then node scripts/stamp-version.mjs "${IMAGE_VERSION}" app; fi
 RUN install -d -o node -g node -m 0700 /data && install -d /app/.node-cache && chown -R node:node /app
