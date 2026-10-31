@@ -10,6 +10,10 @@ verified_by: "mise run docs-check (every link resolves); apps/unfold/llms.txt li
 
 Unfold provides durable operator sessions, agent workspaces, intervention and reviewable evidence. Start with the guide for your task.
 
+## At a glance
+
+- [Unfold at a glance](product/at-a-glance.md): what Unfold does for engineering leads and agency owners, its integrations, controls, security and what is new, each with its status
+
 ## Try it
 
 - [Local fixture demonstration](operations/demo.md)
