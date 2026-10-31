@@ -1,0 +1,152 @@
+---
+import timeline from '../../data/demo-timeline.json';
+import type { Locale } from '../../i18n/config.ts';
+import { dictionary } from '../../i18n/index.ts';
+import StatusTag from '../StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const o = dictionary(locale).agencies.object;
+---
+
+<figure class="billing-line" aria-labelledby="billing-line-caption">
+  <div class="line-perforation" aria-hidden="true"></div>
+  <dl class="line-fields">
+    <div>
+      <dt class="micro">{o.client}</dt>
+      <dd>{o.clientValue}</dd>
+    </div>
+    <div class="line-wide">
+      <dt class="micro">{o.workItem}</dt>
+      <dd lang="en">{timeline.workItem.title}</dd>
+    </div>
+    <div>
+      <dt class="micro">{o.accepted}</dt>
+      <dd>{o.acceptedValue}</dd>
+    </div>
+    <div>
+      <dt class="micro">{o.cost}</dt>
+      <dd>{o.costValue}</dd>
+    </div>
+    <div>
+      <dt class="micro">{o.price}</dt>
+      <dd class="line-slot">{o.priceValue}</dd>
+    </div>
+    <div>
+      <dt class="micro">{o.destination}</dt>
+      <dd>{o.destinationValue} <StatusTag locale={locale} status="labs" /></dd>
+    </div>
+  </dl>
+  <span class="line-stamp" aria-hidden="true">{o.stamp}</span>
+  <figcaption id="billing-line-caption" class="object-caption">
+    <span class="sr-only">{o.label}. </span>{o.caption}
+  </figcaption>
+</figure>
+
+<style>
+  .billing-line {
+    position: relative;
+    margin: 0;
+  }
+  .line-perforation {
+    border-top: 2px dashed var(--fg-muted);
+    margin-bottom: 1.5rem;
+  }
+  .line-fields {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 0.9fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 0.8fr)
+      minmax(0, 1.2fr);
+    border-top: 2px solid var(--fg);
+  }
+  .line-fields > div {
+    padding: 0.9rem 1rem 1rem 0;
+    border-bottom: 1px solid var(--border);
+    min-width: 0;
+  }
+  .line-fields > div + div {
+    padding-left: 1rem;
+    border-left: 1px solid var(--border);
+  }
+  .line-fields dt {
+    color: var(--fg-muted);
+    font-size: 0.62rem;
+    margin-bottom: 0.4rem;
+  }
+  .line-fields dd {
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+    font-size: clamp(0.95rem, 0.85rem + 0.4vw, 1.2rem);
+  }
+  .line-fields dd :global(.status-tag) {
+    margin-top: 0.5rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .line-slot {
+    color: var(--fg-muted);
+    text-decoration: underline dotted var(--accent) 2px;
+    text-underline-offset: 0.3em;
+  }
+  .line-stamp {
+    position: absolute;
+    right: 18%;
+    top: -0.4rem;
+    z-index: 1;
+    background: color-mix(in oklab, var(--bg) 80%, transparent);
+    padding: 0.35rem 0.9rem;
+    border: 3px solid var(--accent);
+    color: var(--accent);
+    font: 800 clamp(1rem, 0.8rem + 1vw, 1.6rem) / 1 var(--font-sans);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transform: rotate(7deg);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .line-stamp {
+      animation: stamp-lands 320ms var(--ease-out) 450ms both;
+    }
+  }
+  @keyframes stamp-lands {
+    from {
+      transform: rotate(14deg) scale(1.45);
+    }
+    to {
+      transform: rotate(7deg) scale(1);
+    }
+  }
+  @container (max-width: 56rem) {
+    .line-fields {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 1.5rem;
+    }
+    .line-wide {
+      order: -1;
+      grid-column: span 2;
+    }
+    .line-stamp {
+      right: 0;
+      top: -1rem;
+    }
+    .line-fields > div,
+    .line-fields > div + div {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+  @container (max-width: 26rem) {
+    .line-fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .line-wide {
+      grid-column: auto;
+    }
+    .line-stamp {
+      right: 0;
+    }
+  }
+</style>

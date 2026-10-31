@@ -1,0 +1,63 @@
+---
+import type { Status } from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+  status: Status;
+}
+
+const { locale, status } = Astro.props;
+const t = dictionary(locale).catalogue;
+---
+
+<span class={`status-tag status-tag--${status}`} title={t.statusHelp[status]}
+  ><span class="sr-only">{t.statusLabel}: </span>{t.status[status]}</span
+>
+
+<style>
+  .status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    padding: 0.18rem 0.5rem 0.18rem 0.4rem;
+    border: 1px solid var(--tag-edge, currentColor);
+    font: 600 0.66rem/1.4 var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .status-tag::before {
+    content: '';
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: none;
+    border: 1px solid currentColor;
+  }
+  .status-tag--available::before {
+    background: currentColor;
+  }
+  .status-tag--labs::before {
+    background: linear-gradient(135deg, currentColor 50%, transparent 50%);
+  }
+  .status-tag--experimental::before {
+    border-style: dotted;
+    border-width: 2px;
+  }
+  .status-tag--planned {
+    border-style: dashed;
+    color: var(--fg-muted);
+  }
+  .status-tag--planned::before {
+    border-style: dashed;
+    border-radius: 50%;
+  }
+  @media (forced-colors: active) {
+    .status-tag--labs::before {
+      background: none;
+      border-width: 2px;
+    }
+  }
+</style>

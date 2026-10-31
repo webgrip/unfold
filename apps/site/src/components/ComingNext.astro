@@ -1,0 +1,60 @@
+---
+import type { Feature } from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+  features: readonly Feature[];
+}
+
+const { locale, features } = Astro.props;
+const t = dictionary(locale).catalogue;
+---
+
+<div class="next">
+  <StatusTag locale={locale} status="planned" />
+  <ol class="next-rows" role="list">
+    {features.map((feature) => <li>
+      <span class="next-title">{t.items[feature.id as keyof typeof t.items].title}</span>
+      <span class="next-text">{t.items[feature.id as keyof typeof t.items].text}</span>
+    </li>)}
+  </ol>
+</div>
+
+<style>
+  .next {
+    display: grid;
+    justify-items: start;
+    gap: 0.75rem;
+  }
+  .next-rows {
+    list-style: none;
+    padding: 0;
+    width: 100%;
+    border-top: 1px dashed var(--border-strong);
+  }
+  .next-rows li {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr);
+    gap: 0.25rem 1.5rem;
+    max-width: none;
+    padding: 0.7rem 0;
+    border-bottom: 1px dashed var(--border-strong);
+  }
+  .next-title {
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+  }
+  .next-text {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  @media (max-width: 40rem) {
+    .next-rows li {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

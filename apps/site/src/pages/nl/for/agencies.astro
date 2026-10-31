@@ -1,0 +1,19 @@
+---
+import AudiencePage from '../../../components/AudiencePage.astro';
+import BillingLine from '../../../components/objects/BillingLine.astro';
+import { dictionary } from '../../../i18n/index.ts';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const t = dictionary('nl');
+---
+
+<BaseLayout
+  locale="nl"
+  routeKey="forAgencies"
+  title={t.meta.agenciesTitle}
+  description={t.meta.agenciesDescription}
+>
+  <AudiencePage locale="nl" audience="agencies">
+    <BillingLine slot="object" locale="nl" />
+  </AudiencePage>
+</BaseLayout>

@@ -1,0 +1,469 @@
+---
+import {
+  INTEGRATION_RULES_URL,
+  PORTS_DECISION_URL,
+  SOURCE_URL,
+  PLOEG_SOURCE_URL,
+} from '../config/site.ts';
+import { featureById } from '../data/catalogue.ts';
+import { NEXT_GROUPS, STANDARDS } from '../data/integrations.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import ComingNext from './ComingNext.astro';
+import PortBoard from './objects/PortBoard.astro';
+import SignupForm from './SignupForm.astro';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale);
+const p = t.integrationsPage;
+const rows = [
+  { key: 'trackersUnfold', status: 'planned' },
+  { key: 'trackersPloeg', status: 'available' },
+  { key: 'forges', status: 'planned' },
+  { key: 'agents', status: 'available' },
+  { key: 'others', status: null },
+  { key: 'gateway', status: 'planned' },
+] as const;
+---
+
+<section class="ip-hero" aria-labelledby="ip-title">
+  <div class="container">
+    <p class="eyebrow ip-eyebrow">
+      <span class="registration" aria-hidden="true"></span>{p.kicker}
+    </p>
+    <div class="ip-hero-layout">
+      <h1 id="ip-title">{p.hookLine} <span>{p.hookAccent}</span></h1>
+      <p class="ip-category">{p.category}</p>
+    </div>
+  </div>
+  <div class="ip-band">
+    <div class="container">
+      <div class="ip-board-head">
+        <h2 id="ip-board-title"><span class="micro">{p.boardKicker}</span> {p.boardTitle}</h2>
+        <p>{p.boardIntro}</p>
+      </div>
+      <PortBoard locale={locale} />
+      <p class="ip-note">{p.editorsNote}</p>
+    </div>
+  </div>
+</section>
+
+<section class="section ip-standards" aria-labelledby="ip-standards-title">
+  <div class="container">
+    <p class="eyebrow">{p.standardsKicker}</p>
+    <div class="section-heading">
+      <h2 id="ip-standards-title" class="section-title">{p.standardsTitle}</h2>
+      <p>{p.standardsIntro}</p>
+    </div>
+    <dl class="ip-standard-list">
+      {STANDARDS.map((standard) => <div>
+        <dt>{standard.name} <StatusTag locale={locale} status={standard.status} /></dt>
+        <dd>{p.standards[standard.id]}</dd>
+      </div>)}
+    </dl>
+  </div>
+</section>
+
+<section class="section ip-extend" aria-labelledby="ip-extend-title">
+  <div class="container">
+    <p class="eyebrow">{p.extendKicker}</p>
+    <div class="section-heading">
+      <h2 id="ip-extend-title" class="section-title">{p.extendTitle}</h2>
+      <p>{p.extendIntro}</p>
+    </div>
+    <ol class="ip-steps" role="list">
+      {p.extendSteps.map((step, index) => <li>
+        <span class="ip-step-number" aria-hidden="true">{index + 1}</span>
+        <h3>{step.title}</h3>
+        <p>{step.text}</p>
+      </li>)}
+    </ol>
+    <div class="ip-table-wrap" role="region" aria-labelledby="ip-table-caption" tabindex="0">
+      <table class="ip-table">
+        <caption id="ip-table-caption">
+          {p.table.caption}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{p.table.port}</th>
+            <th scope="col">{p.table.how}</th>
+            <th scope="col">{p.table.tests}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => <tr>
+            <th scope="row">{p.rows[row.key].port}</th>
+            <td>{p.rows[row.key].how}</td>
+            <td>
+              {row.status && <StatusTag locale={locale} status={row.status} />}
+              <span class="ip-tests">{p.rows[row.key].tests}</span>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="ip-links">
+      <a href={PORTS_DECISION_URL}>{p.portsAdr}</a>
+      <a href={SOURCE_URL}>Unfold</a>
+      <a href={PLOEG_SOURCE_URL}>Ploeg</a>
+    </p>
+  </div>
+</section>
+
+<section class="section ip-rules" aria-labelledby="ip-rules-title">
+  <div class="container ip-rules-layout">
+    <div>
+      <p class="eyebrow">{p.rulesKicker}</p>
+      <h2 id="ip-rules-title" class="section-title">{p.rulesTitle}</h2>
+      <p class="ip-rules-intro">{p.rulesIntro}</p>
+      <a href={INTEGRATION_RULES_URL}>{p.adr}</a>
+    </div>
+    <ul class="ip-rules-list" role="list">
+      {p.rules.map((rule) => <li>
+        <h3>{rule.title}</h3>
+        <p>{rule.text}</p>
+      </li>)}
+    </ul>
+  </div>
+</section>
+
+<section class="section ip-leave" aria-labelledby="ip-leave-title">
+  <div class="container ip-leave-layout">
+    <h2 id="ip-leave-title">{p.leaveTitle}</h2>
+    <div>
+      <p>{p.leaveText}</p>
+      <StatusTag locale={locale} status={featureById('openExport').status} />
+    </div>
+  </div>
+</section>
+
+<section class="section ip-next" aria-labelledby="ip-next-title">
+  <div class="container">
+    <p class="eyebrow">{p.nextKicker}</p>
+    <div class="section-heading">
+      <h2 id="ip-next-title" class="section-title">{p.nextTitle}</h2>
+      <p>{p.nextIntro}</p>
+    </div>
+    <div class="ip-next-groups">
+      {NEXT_GROUPS.map((group) => <div class="ip-next-group">
+        <h3 class="micro">{p.nextGroups[group.id]}</h3>
+        <ComingNext locale={locale} features={group.features.map(featureById)} />
+      </div>)}
+    </div>
+  </div>
+</section>
+
+<SignupForm locale={locale} interest="self-host-support" title={p.ctaTitle} lead={p.ctaText} />
+
+<style>
+  .ip-hero {
+    padding-top: 2rem;
+    container-type: inline-size;
+  }
+  .ip-band {
+    color-scheme: dark;
+    --bg: var(--brand-ground-dark);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --border: color-mix(in oklab, var(--brand-paper) 16%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 34%, var(--brand-ground-dark));
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --link: var(--brand-accent-night);
+    --link-hover: var(--brand-paper);
+    --focus-ring: var(--brand-accent-night);
+    color: var(--fg);
+    background: var(--bg);
+    padding-block: clamp(2rem, 4vw, 3rem) clamp(3rem, 6vw, 5rem);
+  }
+  .ip-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding-bottom: 1.5rem;
+  }
+  .registration {
+    width: 11px;
+    height: 11px;
+    background: var(--accent-decor);
+    flex: none;
+  }
+  .ip-hero h1 {
+    font-size: clamp(2.5rem, 1.4rem + 4.6vw, 6.4rem);
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+    max-width: 16ch;
+    text-wrap: balance;
+  }
+  .ip-hero h1 span {
+    color: var(--accent);
+  }
+  .ip-hero-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 1.5rem 4rem;
+    align-items: end;
+    padding-bottom: clamp(2rem, 4vw, 3rem);
+  }
+  .ip-board-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 0.5rem 4rem;
+    align-items: end;
+    margin-bottom: 1.5rem;
+  }
+  .ip-category {
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+  .ip-board-head h2 {
+    font-size: 1.4rem;
+    letter-spacing: -0.035em;
+    margin-bottom: 0.4rem;
+  }
+  .ip-board-head h2 .micro {
+    display: block;
+    color: var(--accent);
+    font-weight: 400;
+    margin-bottom: 0.3rem;
+  }
+  .ip-board-head p {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  .ip-note {
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .ip-standard-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+    gap: 0 2.5rem;
+    border-top: 1px solid var(--border-strong);
+  }
+  .ip-standard-list > div {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ip-standard-list dt {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-size: 1.1rem;
+  }
+  .ip-standard-list dd {
+    margin-top: 0.4rem;
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  .ip-extend {
+    background: var(--bg-raised);
+    border-block: 1px solid var(--border);
+  }
+  .ip-steps {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+  }
+  .ip-steps li {
+    max-width: none;
+  }
+  .ip-step-number {
+    display: block;
+    font: 800 clamp(3rem, 2rem + 3vw, 5rem) / 1 var(--font-sans);
+    letter-spacing: -0.06em;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+  }
+  .ip-steps h3 {
+    font-size: 1.3rem;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+  }
+  .ip-steps p {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .ip-table-wrap {
+    position: relative;
+    overflow-x: auto;
+  }
+  .ip-table {
+    width: 100%;
+    min-width: 40rem;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .ip-table caption {
+    text-align: left;
+    font: 0.7rem/1.5 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.075em;
+    color: var(--fg-muted);
+    padding-bottom: 0.75rem;
+  }
+  .ip-table th,
+  .ip-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.9rem 1rem 0.9rem 0;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .ip-table thead th {
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    font-weight: 600;
+    border-bottom: 2px solid var(--fg);
+  }
+  .ip-table tbody th {
+    font-weight: 700;
+    width: 22%;
+  }
+  .ip-table td :global(.status-tag) {
+    margin-bottom: 0.4rem;
+  }
+  .ip-tests {
+    display: block;
+    color: var(--fg-muted);
+  }
+  .ip-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+  }
+  .ip-rules {
+    color-scheme: dark;
+    --bg: var(--brand-ground-dark);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --border: color-mix(in oklab, var(--brand-paper) 16%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 34%, var(--brand-ground-dark));
+    --accent: var(--brand-accent-night);
+    --link: var(--brand-accent-night);
+    --link-hover: var(--brand-paper);
+    --focus-ring: var(--brand-accent-night);
+    color: var(--fg);
+    background: var(--bg);
+  }
+  .ip-rules-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 3rem 5rem;
+  }
+  .ip-rules-intro {
+    color: var(--fg-muted);
+    margin-bottom: 1.25rem;
+  }
+  .ip-rules-list {
+    list-style: none;
+    padding: 0;
+    border-top: 1px solid var(--border-strong);
+  }
+  .ip-rules-list li {
+    max-width: none;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ip-rules-list h3 {
+    font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+    letter-spacing: -0.035em;
+  }
+  .ip-rules-list p {
+    margin-top: 0.4rem;
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .ip-leave {
+    --fg: var(--brand-on-accent);
+    --fg-muted: var(--brand-on-accent);
+    color: var(--fg);
+    background: var(--brand-accent-deep);
+  }
+  .ip-leave-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 2rem 4rem;
+    align-items: end;
+  }
+  .ip-leave h2 {
+    font-size: clamp(2.6rem, 1.5rem + 5vw, 6.5rem);
+    line-height: 0.96;
+    letter-spacing: -0.065em;
+  }
+  .ip-leave p {
+    margin-bottom: 1rem;
+    font-size: 1.05rem;
+  }
+  .ip-next-groups {
+    display: grid;
+    gap: 2.5rem;
+  }
+  .ip-next-group h3 {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--fg-muted);
+    margin-bottom: 0.75rem;
+  }
+  @container (max-width: 56rem) {
+    .ip-steps,
+    .ip-rules-layout,
+    .ip-leave-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @container (max-width: 52rem) {
+    .ip-hero-layout,
+    .ip-board-head {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 40rem) {
+    .ip-standards,
+    .ip-extend,
+    .ip-rules,
+    .ip-leave,
+    .ip-next {
+      padding-block: 2.5rem;
+    }
+    .ip-steps {
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .ip-steps li {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 0 0.75rem;
+    }
+    .ip-step-number {
+      grid-row: span 2;
+      font-size: 2rem;
+      margin: 0;
+    }
+    .ip-standard-list > div,
+    .ip-rules-list li {
+      padding: 0.7rem 0;
+    }
+    .ip-standard-list dd,
+    .ip-rules-list p {
+      font-size: 0.82rem;
+    }
+    .ip-next-groups {
+      gap: 1.5rem;
+    }
+  }
+</style>

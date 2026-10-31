@@ -30,13 +30,13 @@ On the light ground, accent text, links and filled buttons use Baken Diep, and B
 
 ## Locales
 
-English is the default locale at `/`; Dutch is at `/nl`. Astro's i18n routing is configured with `prefixDefaultLocale: false`. Each page is a thin file under `src/pages` that passes a locale to a shared component (`Home.astro`, `NotFound.astro`). `src/i18n/routes.ts` builds paths and the `hreflang` alternates, including `x-default` pointing at English, and `BaseHead.astro` emits them with the canonical URL, Open Graph locale tags and JSON-LD. The sitemap lists both home pages with their alternates and leaves out both 404 pages.
+English is the default locale at `/`; Dutch is at `/nl`. Astro's i18n routing is configured with `prefixDefaultLocale: false`. Each page is a thin file under `src/pages` that passes a locale to a shared component (`Home.astro`, `NotFound.astro`). `src/i18n/routes.ts` builds paths and the `hreflang` alternates, including `x-default` pointing at English, and `BaseHead.astro` emits them with the canonical URL, Open Graph locale tags and JSON-LD. The sitemap lists every indexable page in both locales with its alternates and leaves out both 404 pages.
 
 Copy is a typed dictionary per locale. `nl.ts` is typed against `en.ts`, and `src/i18n/dictionary.test.ts` checks at runtime that both declare the same keys and list lengths, that no entry is empty or carries emoji, and that the glossary terms keep their spelling.
 
 ## Output and security
 
-`build.format: 'file'` writes one HTML file per page and locale (`index.html`, `nl.html`, `privacy.html`, `thanks.html`, `signup-problem.html`, `404.html` and their `nl/` twins); Cloudflare's `html_handling = "auto-trailing-slash"` serves them at clean URLs, and `not_found_handling = "404-page"` serves the nearest `404.html`. `trailingSlash: 'never'` keeps canonical URLs without a trailing slash.
+`build.format: 'file'` writes one HTML file per page and locale (`index.html`, `nl.html`, `features.html`, `integrations.html`, `for/agencies.html` and the other three audience pages, `privacy.html`, `thanks.html`, `signup-problem.html`, `404.html` and their `nl/` twins); Cloudflare's `html_handling = "auto-trailing-slash"` serves them at clean URLs, and `not_found_handling = "404-page"` serves the nearest `404.html`. `trailingSlash: 'never'` keeps canonical URLs without a trailing slash.
 
 Stylesheets are inlined (`inlineStylesheets: 'always'`), and Vite never inlines assets as `data:` URIs (`assetsInlineLimit: 0`), because `font-src 'self'` would block an inlined font. `compressHTML` stays off: the compressor can remove the space between a text node and a following element.
 
@@ -67,5 +67,9 @@ Ploeg's unattended worker workflow can publish pull requests. Unfold's managed c
 The homepage uses distinct paper, ink and accent chapters. The evidence section has its own dark semantic tokens in both themes; the human-control interlude uses the approved deep accent with on-accent text. These fixed contrast contexts also apply to the hero's paper illustration and the dark footer. The footer's enlarged wordmark still uses the generated outline, not live type. The evidence, architecture and current/planned disclosures remain semantic text.
 
 The [October 2026 design record](design/redesign-2026-10.md) preserves the research rationale, product boundaries and measured validation results.
+
+## Audience, feature and integration pages
+
+Four audience pages (`/for/agencies`, `/for/teams`, `/for/developers`, `/for/platform`) share `AudiencePage.astro` and differ in the thesis object they pass in from `src/components/objects/`. `/features` lists every feature from `src/data/catalogue.ts` with its status and filters by audience and category; the filter's only state is the URL query, and without scripting every feature stays listed. `/integrations` draws the port board from `src/data/integrations.ts`. Feature, port and standard words live in the dictionaries under the same ids, and `src/data/catalogue.test.ts` keeps data and copy in step. The [audience design record](design/audiences-2026-10.md) holds the claim ledger, the decision and the validation.
 
 The mobile menu uses a native disclosure. Without scripting it is in flow and the header is not sticky. With scripting it closes on section navigation or Escape. Both themes share the unchanged brand palette and geometry. The desktop composition becomes a single column on narrow screens; code blocks scroll within their own labelled regions.

@@ -7,7 +7,19 @@
         "http://localhost:4173/",
         "http://localhost:4173/nl",
         "http://localhost:4173/privacy",
-        "http://localhost:4173/nl/privacy"
+        "http://localhost:4173/nl/privacy",
+        "http://localhost:4173/features",
+        "http://localhost:4173/integrations",
+        "http://localhost:4173/for/agencies",
+        "http://localhost:4173/for/teams",
+        "http://localhost:4173/for/developers",
+        "http://localhost:4173/for/platform",
+        "http://localhost:4173/nl/features",
+        "http://localhost:4173/nl/integrations",
+        "http://localhost:4173/nl/for/agencies",
+        "http://localhost:4173/nl/for/teams",
+        "http://localhost:4173/nl/for/developers",
+        "http://localhost:4173/nl/for/platform"
       ],
       "numberOfRuns": 3,
       "settings": {

@@ -1,7 +1,14 @@
+import type { Audience } from '../data/catalogue.ts';
 import { DEFAULT_LOCALE, LOCALES, LOCALE_TAGS, type Locale } from './config.ts';
 
 export const ROUTES = {
   home: '',
+  features: '/features',
+  integrations: '/integrations',
+  forAgencies: '/for/agencies',
+  forTeams: '/for/teams',
+  forDevelopers: '/for/developers',
+  forPlatform: '/for/platform',
   privacy: '/privacy',
   thanks: '/thanks',
   signupProblem: '/signup-problem',
@@ -9,6 +16,13 @@ export const ROUTES = {
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;
+
+export const AUDIENCE_ROUTES = {
+  agencies: 'forAgencies',
+  teams: 'forTeams',
+  developers: 'forDevelopers',
+  platform: 'forPlatform',
+} as const satisfies Record<Audience, RouteKey>;
 
 export function routePath(key: RouteKey, locale: Locale): string {
   const prefix = locale === DEFAULT_LOCALE ? '' : `/${locale}`;

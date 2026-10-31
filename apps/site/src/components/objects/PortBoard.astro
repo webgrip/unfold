@@ -1,0 +1,190 @@
+---
+import { PORTS } from '../../data/integrations.ts';
+import type { Locale } from '../../i18n/config.ts';
+import { dictionary } from '../../i18n/index.ts';
+import StatusTag from '../StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const p = dictionary(locale).integrationsPage;
+const statusWord = dictionary(locale).catalogue.status.available;
+const kindLabel = { registry: p.registry, standard: p.standard, contract: p.contract } as const;
+---
+
+<ul class="board" role="list">
+  {PORTS.map((port) => <li class={`port port--${port.kind}`}>
+    <div class="port-label">
+      <h3 id={`port-${port.id}`}>{p.ports[port.id].name}</h3>
+      <p>{p.ports[port.id].job}</p>
+      <span class="port-kind micro">{kindLabel[port.kind]}</span>
+    </div>
+    <ul class="socket" role="list" aria-labelledby={`port-${port.id}`}>
+      {port.adapters.map((adapter) => <li class={`plug plug--${adapter.status}`}>
+        <span class="plug-name"
+          >{adapter.name ?? (adapter.label ? p.notes[adapter.label] : '')}</span
+        >
+        {adapter.note && <span class="plug-note micro">{p.notes[adapter.note]}</span>}
+        {adapter.status === 'available' ? (
+          <span class="sr-only">{statusWord}</span>
+        ) : (
+          <StatusTag locale={locale} status={adapter.status} />
+        )}
+      </li>)}
+      {port.openSocket && <li class="plug plug--open"><span class="plug-name">{p.yours}</span></li>}
+    </ul>
+  </li>)}
+</ul>
+
+<style>
+  .board {
+    list-style: none;
+    padding: 0;
+    border-top: 1px solid var(--border-strong);
+  }
+  .port {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    gap: 1rem 2rem;
+    padding: 1.4rem 0;
+    border-bottom: 1px solid var(--border);
+    max-width: none;
+  }
+  .port-label h3 {
+    font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+  }
+  .port-label p {
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--fg-muted);
+  }
+  .port-kind {
+    display: inline-block;
+    margin-top: 0.6rem;
+    font-size: 0.6rem;
+    color: var(--accent);
+  }
+  .socket {
+    position: relative;
+    list-style: none;
+    padding: 0.6rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-content: start;
+    min-width: 0;
+  }
+  .socket::before {
+    content: '';
+    position: absolute;
+    left: -2rem;
+    right: 0;
+    top: 50%;
+    border-top: 1px dashed var(--border-strong);
+    z-index: 0;
+  }
+  .plug {
+    position: relative;
+    z-index: 1;
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    padding: 0.55rem 0.7rem 0.55rem 0.8rem;
+    max-width: 100%;
+    min-width: 0;
+    background: var(--brand-surface);
+    color: var(--brand-ink);
+    border-top: 4px solid var(--brand-ink);
+    --fg-muted: var(--brand-muted);
+  }
+  .plug-name {
+    font-weight: 700;
+    font-size: 0.92rem;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    min-width: 0;
+  }
+  .plug-note {
+    grid-row: 2;
+    font-size: 0.58rem;
+    color: var(--brand-muted);
+  }
+  .plug :global(.status-tag) {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    justify-self: end;
+  }
+  .plug--available {
+    border-top-color: var(--brand-accent-deep);
+  }
+  .plug--labs {
+    border-top-color: var(--brand-muted);
+  }
+  .plug--experimental {
+    border-top-style: dotted;
+    border-top-color: var(--brand-ink);
+  }
+  .plug--planned {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px dashed var(--border-strong);
+    border-top: 4px dashed var(--border-strong);
+    --fg-muted: var(--brand-muted-light);
+  }
+  .plug--planned .plug-note {
+    color: var(--fg-muted);
+  }
+  .plug--open {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px dashed var(--accent);
+    border-top: 4px solid transparent;
+    grid-template-columns: auto;
+  }
+  .plug--open .plug-name::before {
+    content: '+ ';
+    color: var(--accent);
+  }
+  @container (max-width: 48rem) {
+    .port {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.75rem;
+      padding: 1rem 0;
+    }
+    .port-label p {
+      display: none;
+    }
+    .socket {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.4rem;
+      padding: 0;
+    }
+    .socket::before {
+      display: none;
+    }
+    .plug {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.2rem;
+      padding: 0.4rem 0.5rem;
+      border-top-width: 3px;
+    }
+    .plug-name {
+      font-size: 0.82rem;
+    }
+    .plug-note {
+      grid-row: auto;
+    }
+    .plug :global(.status-tag) {
+      grid-row: auto;
+      grid-column: auto;
+      justify-self: start;
+      font-size: 0.58rem;
+    }
+  }
+</style>

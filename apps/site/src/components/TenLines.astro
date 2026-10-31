@@ -1,0 +1,173 @@
+---
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { DOCS_URL, LICENSE_URL, SOURCE_URL } from '../config/site.ts';
+import { routePath } from '../i18n/routes.ts';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale);
+const l = t.tenLines;
+---
+
+<section id="status" class="section ten" aria-labelledby="ten-title">
+  <div class="container">
+    <p class="eyebrow">{l.kicker}</p>
+    <div class="section-heading">
+      <h2 id="ten-title" class="section-title">{l.title}</h2>
+      <div class="ten-intro">
+        <p>{l.intro}</p>
+        <StatusTag locale={locale} status="available" />
+      </div>
+    </div>
+    <ol class="ten-list">
+      {l.items.map((item) => <li>
+        <span class="ten-title">{item.title}</span>
+        <p>{item.text}</p>
+      </li>)}
+    </ol>
+    <div class="ten-foot">
+      <div>
+        <h3 class="ten-stands">{t.redesign.statusTitle}</h3>
+        <dl class="ten-status">
+          {t.status.items.map((item) => <div>
+            <dt>{item.label}</dt>
+            <dd>{item.text}</dd>
+          </div>)}
+        </dl>
+      </div>
+      <div class="ten-more">
+        <a class="button ten-button" href={routePath('features', locale)}
+          >{l.features}<span aria-hidden="true">→</span></a
+        >
+        <a href={routePath('integrations', locale)}>{l.integrations}</a>
+        <a href={DOCS_URL}>{t.open.docs}</a>
+        <a href={SOURCE_URL}>{t.open.source}</a>
+        <a href={LICENSE_URL}>{t.open.license}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ten {
+    color-scheme: dark;
+    --bg: var(--brand-ground-dark);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --border: color-mix(in oklab, var(--brand-paper) 16%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 34%, var(--brand-ground-dark));
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --link: var(--brand-accent-night);
+    --link-hover: var(--brand-paper);
+    --focus-ring: var(--brand-accent-night);
+    color: var(--fg);
+    background: var(--bg);
+  }
+  .ten .section-title {
+    font-size: clamp(2.7rem, 1.6rem + 4.5vw, 6rem);
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+  }
+  .ten-intro {
+    display: grid;
+    justify-items: start;
+    gap: 0.9rem;
+    color: var(--fg-muted);
+  }
+  .ten-list {
+    counter-reset: ten;
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 4rem;
+    border-top: 1px solid var(--border-strong);
+  }
+  .ten-list li {
+    counter-increment: ten;
+    position: relative;
+    max-width: none;
+    padding: 1.3rem 0 1.3rem 4.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ten-list li::before {
+    content: counter(ten);
+    position: absolute;
+    left: 0;
+    top: 1rem;
+    font: 800 2.4rem/1 var(--font-sans);
+    letter-spacing: -0.06em;
+    color: var(--accent);
+  }
+  .ten-title {
+    display: block;
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+  }
+  .ten-list p {
+    margin-top: 0.35rem;
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .ten-foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 2rem 4rem;
+    margin-top: 2.5rem;
+  }
+  .ten-stands {
+    font-size: 1.2rem;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.75rem;
+  }
+  .ten-status > div {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 1rem;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+  .ten-status dt {
+    font-weight: 700;
+  }
+  .ten-status dd {
+    color: var(--fg-muted);
+  }
+  .ten-more {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: start;
+    align-items: center;
+    gap: 1rem 1.5rem;
+  }
+  .ten-button {
+    background: var(--brand-paper);
+    color: var(--brand-ink);
+    gap: 1.25rem;
+  }
+  .ten-button:hover {
+    background: var(--brand-surface);
+    color: var(--brand-ink);
+  }
+  @container (max-width: 52rem) {
+    .ten-foot {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ten-status > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
+    }
+    .ten-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
