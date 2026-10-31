@@ -444,6 +444,7 @@ const rows: Record<ErrorArea, readonly Row[]> = {
     ['timestamp_outside_window', [401], 'The delivery\'s signed time is too far from now.', 'Check the sender\'s clock; replayed deliveries are refused.'],
   ],
   'Audit and export': [
+    ['job_kind', [400], 'The background jobs filter names no job kind Unfold could have.', 'Name a job kind such as outbound.delivery, or leave the filter out.'],
     ['audit_export_off', [404], 'Audit export is off for this Tenant.', 'An administrator turns it on with the audit.export flag.'],
     ['audit_tenant', [400], 'The request names no Tenant.', 'Name the Tenant with ?tenant=.'],
     ['audit_tenant_forbidden', [403], 'You are not an administrator of this Tenant.', 'Ask one of its administrators.'],
