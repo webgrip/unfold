@@ -455,6 +455,7 @@ const rows: Record<ErrorArea, readonly Row[]> = {
     ['audit_cursor', [400], 'The cursor is not a record sequence number.', 'Pass the sequence number of the last record you read.'],
     ['audit_limit', [400], 'The limit is outside what a page holds.', 'Choose a limit within the range the message names.'],
     ['audit_since', [400], 'since is not a UTC time.', 'Give it as an ISO 8601 UTC time, such as 2026-10-01T00:00:00Z.'],
+    ['job_kind', [400], 'The job kind is not a kind name.', 'Name a kind GET /api/admin/jobs lists, such as outbound.delivery.'],
     ['cost_export_filter', [400], 'A cost export filter is not valid.', 'Fix the parameter the message names.'],
     ['tenant', [400], 'The Tenant id is not valid.', 'Use lower-case letters, digits and inner hyphens.'],
     ['tenant_not_found', [404], 'There is no such Tenant here.', 'Use the Tenant the message names.'],

@@ -334,7 +334,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { jobs, enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const signOffs = config.ploeg && !ploeg.isDemo ? new ClientSignOffs(ploeg, new ClientSignOffStore(store.db), { jobs, enabled: team => flags.getBooleanValue('client.sign-off', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }), commentEnabled: team => flags.getBooleanValue('client.sign-off-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   const mcpPerson = (id: string) => { const record = store.getUser(id); return record && lifecycle.admit({ id }) ? signedInUser(record) : undefined; };
-  const mcpEvents = new McpEvents(store, { settings: config.outboundEvents, tenancy: tenants, enabled: user => flags.getBooleanValue('mcp.events', false, flagContext(user)), allowsTeam: (user, team) => ploeg.allows(user, team), findUser: mcpPerson, baseUrl: config.baseUrl });
+  const mcpEvents = new McpEvents(store, { jobs, settings: config.outboundEvents, tenancy: tenants, enabled: user => flags.getBooleanValue('mcp.events', false, flagContext(user)), allowsTeam: (user, team) => ploeg.allows(user, team), findUser: mcpPerson, baseUrl: config.baseUrl });
   const outbound = new OutboundEvents(store, { jobs, settings: config.outboundEvents, tenancy: tenants, enabled: tenant => flags.getBooleanValue('events.webhooks', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), ...(config.ploeg && !ploeg.isDemo ? { ploeg, ploegTeams: config.ploeg.teams } : {}), baseUrl: config.baseUrl, calendar: config.acceptanceCalendar, demo: config.mode === 'demo', sink: (event, source, facts, at) => mcpEvents.sink(event, source, facts, at) });
   outbound.start();
   mcpEvents.start();
@@ -588,7 +588,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const single = path.match(/^\/api\/ofrep\/v1\/evaluate\/flags\/([A-Za-z0-9_.-]{1,200})$/);
           if (single) {
             const key = decodeURIComponent(single[1]);
-            if (!flags.provider.registry.flags[key]?.metadata.client) return json(res, 404, { key, errorCode: 'FLAG_NOT_FOUND', errorDetails: 'No flag by this key is visible to clients.' });
+            if (!Object.hasOwn(flags.provider.registry.flags, key) || !flags.provider.registry.flags[key].metadata.client) return json(res, 404, { key, errorCode: 'FLAG_NOT_FOUND', errorDetails: 'No flag by this key is visible to clients.' });
             const flag = ofrepFlag(await flags.details(key, context));
             return json(res, 'errorCode' in flag ? 400 : 200, flag);
           }
