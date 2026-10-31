@@ -28,7 +28,10 @@ export function referencePrefixes(): Readonly<Record<string, string>> {
   return Object.fromEntries(taskProviders().flatMap(adapter => adapter.reference && 'prefix' in adapter.reference ? [[adapter.reference.prefix.toLowerCase(), adapter.name]] : []));
 }
 
+/** A description tidied for display by its adapter, or unchanged when the adapter does not tidy descriptions. */
+export function displayDescription(provider: string, text: string): string { return findTaskProvider(provider)?.displayDescription?.(text) ?? text; }
+
 /** Whether a provider sends task descriptions as HTML. */
 export function sendsHtml(provider: string): boolean { return findTaskProvider(provider)?.descriptionFormat === 'html'; }
 
-export { andList, findTaskProvider, handoffLabels, issueLabels, orList, providerByPrefix, registerTaskProvider, taskProvider, taskProviders, type IssueFiling, type TaskHandoff, type TaskProviderAdapter } from './registry.ts';
+export { andList, findTaskProvider, handoffLabels, issueLabels, orList, providerByPrefix, registerTaskProvider, taskProvider, taskProviders, type IssueFiling, type ScopeDescription, type ScopeEntry, type TaskHandoff, type TaskProviderAdapter, type TaskSetup } from './registry.ts';

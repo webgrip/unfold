@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { TaskPage, TaskSnapshot, TaskSourceConfig } from '../tasks.ts';
 import { taskProvider, type DetailReaders, type TaskReading } from './registry.ts';
 
@@ -5,11 +6,14 @@ import { taskProvider, type DetailReaders, type TaskReading } from './registry.t
 export class TaskError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  /** Seconds until the tracker allows asking again, for a `Retry-After` header. */
+  readonly retryAfter?: number;
+  constructor(status: number, code: string, message: string, retryAfter?: number) {
     super(message);
     this.name = 'TaskError';
     this.status = status;
     this.code = code;
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
   }
 }
 
@@ -21,6 +25,50 @@ const uploadTimeoutMs = 30000;
 export const numericId = /^[1-9][0-9]{0,19}$/;
 export const projectPart = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,254}$/;
 const maxCommentText = 600;
+const quietRetryMs = 2000;
+const limitedUntil = new Map<string, number>();
+
+function limitKey(source: TaskSourceConfig): string { return createHash('sha256').update(`${source.baseUrl}\u0000${source.token ?? ''}`).digest('hex'); }
+
+/** Milliseconds until a tracker allows asking again, read from `Retry-After` or `X-RateLimit-Reset` (epoch seconds, as ClickUp and GitHub send it), or undefined when it says neither. */
+export function retryDelay(headers: Headers, now = Date.now()): number | undefined {
+  const after = headers.get('retry-after');
+  if (after) {
+    const seconds = Number(after);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    const at = Date.parse(after);
+    if (Number.isFinite(at)) return Math.max(0, at - now);
+  }
+  const reset = Number(headers.get('x-ratelimit-reset'));
+  if (!Number.isFinite(reset) || reset <= 0) return undefined;
+  return Math.max(0, (reset > 1e12 ? reset : reset * 1000) - now);
+}
+
+function rateLimited(source: TaskSourceConfig, waitMs: number | undefined): TaskError {
+  const wait = Math.min(Math.max(waitMs ?? 60_000, 1000), 3_600_000);
+  if (limitedUntil.size >= 500 && !limitedUntil.has(limitKey(source))) limitedUntil.delete(limitedUntil.keys().next().value!);
+  limitedUntil.set(limitKey(source), Date.now() + wait);
+  const adapter = taskProvider(source.provider);
+  const seconds = Math.ceil(wait / 1000);
+  return new TaskError(503, 'task_rate_limited', `${adapter.label} is limiting how often this account may ask.${adapter.rateLimit ? ` ${adapter.rateLimit}` : ''} Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`, seconds);
+}
+
+/** Refuses without asking while a tracker has said this account must wait. */
+function holdBack(source: TaskSourceConfig): void {
+  const until = limitedUntil.get(limitKey(source));
+  if (until === undefined) return;
+  if (until <= Date.now()) { limitedUntil.delete(limitKey(source)); return; }
+  throw rateLimited(source, until - Date.now());
+}
+
+/** Remembers a spent allowance, so the next request waits for the reset instead of earning a 429. */
+function noteAllowance(source: TaskSourceConfig, headers: Headers): void {
+  if (headers.get('x-ratelimit-remaining') !== '0') return;
+  const wait = retryDelay(headers);
+  if (wait) limitedUntil.set(limitKey(source), Date.now() + Math.min(wait, 3_600_000));
+}
+
+const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
 
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TaskError(502, 'task_response_invalid', 'The task service returned an unsupported response.');
@@ -88,22 +136,35 @@ export function headers(source: TaskSourceConfig): Record<string, string> {
   return result;
 }
 
-/** Reads one JSON response from a tracker, refusing redirects, non-JSON answers and anything over 2 MiB. */
+/**
+ * Reads one JSON response from a tracker, refusing redirects, non-JSON answers and anything over 2 MiB. A 429 that
+ * asks for at most two seconds is waited out and asked once more; a longer one, or a spent allowance the tracker
+ * announced, refuses with `task_rate_limited` and its `retryAfter` without asking again until the reset.
+ */
 export async function request(source: TaskSourceConfig, path: string, query: Record<string, string> = {}): Promise<{ value: unknown; headers: Headers }> {
   const url = new URL(`${source.baseUrl}${path}`);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  holdBack(source);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { method: 'GET', headers: headers(source), redirect: 'manual', signal: controller.signal });
+    let response = await fetch(url, { method: 'GET', headers: headers(source), redirect: 'manual', signal: controller.signal });
+    if (response.status === 429) {
+      const wait = retryDelay(response.headers);
+      await response.body?.cancel();
+      if (wait === undefined || wait > quietRetryMs) throw rateLimited(source, wait);
+      await pause(wait);
+      response = await fetch(url, { method: 'GET', headers: headers(source), redirect: 'manual', signal: controller.signal });
+    }
     if (!response.ok) {
       await response.body?.cancel();
       if (response.status >= 300 && response.status < 400) throw new TaskError(502, 'task_redirect_refused', 'The task service redirected the request. Update its configured API root.');
       if (response.status === 401 || response.status === 403) throw new TaskError(502, 'task_credentials_rejected', 'The task service rejected its configured credentials or permissions.');
       if (response.status === 404) throw new TaskError(404, 'task_not_found', 'The task or configured source was not found or is inaccessible.');
-      if (response.status === 429) throw new TaskError(503, 'task_rate_limited', 'The task service rate limit was reached. Try again later.');
+      if (response.status === 429) throw rateLimited(source, retryDelay(response.headers));
       throw new TaskError(502, 'task_service_failed', 'The task service could not complete this request.');
     }
+    noteAllowance(source, response.headers);
     const type = response.headers.get('content-type') || '';
     if (!/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(type)) { await response.body?.cancel(); throw new TaskError(502, 'task_response_invalid', 'The task service did not return JSON.'); }
     if (Number(response.headers.get('content-length')) > maxResponseBytes) { await response.body?.cancel(); throw new TaskError(502, 'task_response_too_large', 'The task service response exceeded the supported size.'); }
@@ -132,17 +193,18 @@ export async function request(source: TaskSourceConfig, path: string, query: Rec
 
 /** Changes a task with the source's server credential; an error names what the token needs. */
 export async function write(source: TaskSourceConfig, method: 'PUT' | 'POST' | 'DELETE', path: string, payload?: unknown): Promise<void> {
+  holdBack(source);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(new URL(`${source.baseUrl}${path}`), { method, headers: { ...headers(source), ...(payload === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(payload === undefined ? {} : { body: JSON.stringify(payload) }), redirect: 'manual', signal: controller.signal });
     await response.body?.cancel();
-    if (response.ok) return;
+    if (response.ok) { noteAllowance(source, response.headers); return; }
     if (response.status >= 300 && response.status < 400) throw new TaskError(502, 'task_redirect_refused', 'The task service redirected the request. Update its configured API root.');
     if (response.status === 401 || response.status === 403) throw new TaskError(502, 'task_write_forbidden', `The workbench’s ${taskProvider(source.provider).label} token may not change this task. Give it permission to add and remove task assignees and to add task comments, then try again.`);
     if (response.status === 404) throw new TaskError(404, 'task_not_found', 'The task or configured source was not found or is inaccessible.');
     if (response.status === 400 || response.status === 409) throw new TaskError(409, 'task_write_conflict', 'The task service refused the change. Refresh the task and try again.');
-    if (response.status === 429) throw new TaskError(503, 'task_rate_limited', 'The task service rate limit was reached. Try again later.');
+    if (response.status === 429) throw rateLimited(source, retryDelay(response.headers));
     throw new TaskError(502, 'task_service_failed', 'The task service could not complete this request.');
   } catch (error) {
     if (error instanceof TaskError) throw error;

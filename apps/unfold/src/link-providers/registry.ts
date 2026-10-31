@@ -22,6 +22,8 @@ export interface LinkProviderAdapter {
   /** Whether an OAuth application is configured. */
   oauth(config: AppConfig): boolean;
   host(config: AppConfig): string;
+  /** The tracker API root a linked token reads, for setting a task source up by name. Absent when the link reads no tracker. */
+  trackerApiRoot?(config: AppConfig): string;
   /** The origin of the provider's repositories, when a link also clones them. */
   repositoryOrigin?(config: AppConfig): string | undefined;
   authorizeUrl(context: LinkContext, state: string, challenge: string): string;

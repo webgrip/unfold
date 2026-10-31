@@ -1,8 +1,34 @@
-import type { TaskProviderAdapter } from './registry.ts';
+import type { ScopeEntry, TaskProviderAdapter, TaskRequest } from './registry.ts';
 import { authorize } from './repository-issues.ts';
 import { apiWebRoot, entries, field, listPage, nativeTaskId, numericId, readOne, record, requireSuffix, TaskError, updated } from './shared.ts';
 
 const clickupTaskId = /^[a-zA-Z0-9_-]{1,128}$/;
+const containerId = /^[a-zA-Z0-9_-]{1,64}$/;
+const homeList = (value: unknown): string => { const list = value && typeof value === 'object' ? (value as Record<string, unknown>).list : undefined; return list && typeof list === 'object' ? String((list as Record<string, unknown>).id ?? '') : ''; };
+const named = (value: unknown): value is Record<string, unknown> & { id: string | number; name: string } => Boolean(value) && typeof value === 'object' && (typeof (value as Record<string, unknown>).id === 'string' || typeof (value as Record<string, unknown>).id === 'number') && containerId.test(String((value as Record<string, unknown>).id)) && typeof (value as Record<string, unknown>).name === 'string' && ((value as Record<string, unknown>).name as string).trim().length > 0;
+const live = (value: Record<string, unknown>) => value.archived !== true;
+
+function containers(value: unknown, key: string, kind: string, project: boolean, children: boolean): ScopeEntry[] {
+  const list = record(value)[key];
+  if (!Array.isArray(list)) throw new TaskError(502, 'task_response_invalid', 'ClickUp returned an unsupported list of containers.');
+  return list.filter(named).filter(live).slice(0, 500).map(entry => ({ kind, id: String(entry.id), name: field(entry.name, 500).trim(), project, children }));
+}
+
+async function spaceChildren(id: string, request: TaskRequest): Promise<ScopeEntry[]> {
+  const folders = (await request(`/space/${encodeURIComponent(id)}/folder`, { archived: 'false' })).value;
+  const lists = (await request(`/space/${encodeURIComponent(id)}/list`, { archived: 'false' })).value;
+  const hidden = new Set(entries(record(folders).folders).filter(folder => folder.hidden === true).map(folder => String(folder.id)));
+  const visible = containers({ folders: entries(record(folders).folders).filter(folder => !hidden.has(String(folder.id))) }, 'folders', 'folder', false, true);
+  return [...visible, ...containers(lists, 'lists', 'list', true, false)];
+}
+
+/** ClickUp's own Markdown, tidied for Unfold's renderer: images become links that say so, and the inline HTML ClickUp mixes in (underline, line breaks) becomes plain text. */
+export function clickupMarkdown(text: string): string {
+  return text
+    .replace(/!\[([^\]\n]{0,500})\]\((https?:\/\/[^)\s]{1,2048})\)/g, (_, alt: string, href: string) => `[${alt.trim() ? `Image: ${alt.trim()}` : 'Image'}](${href})`)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:u|span|font|mark)(?:\s[^<>]{0,500})?>/gi, '');
+}
 
 /**
  * ClickUp tasks of one home List, read with a personal token or a linked account. Hand-off assigns a team's ClickUp
@@ -14,6 +40,8 @@ export const clickup: TaskProviderAdapter = {
   label: 'ClickUp',
   descriptionFormat: 'markdown',
   linkedAccount: 'clickup',
+  rateLimit: 'ClickUp lets each account ask 100 times a minute on most plans.',
+  displayDescription: clickupMarkdown,
   taskId: clickupTaskId,
   apiRoot: (_url, path) => requireSuffix(path, '/api/v2'),
   project(value) {
@@ -43,9 +71,34 @@ export const clickup: TaskProviderAdapter = {
     query: { page: String(page - 1), include_closed: 'false', include_timl: 'false', include_markdown_description: 'true', subtasks: 'true', order_by: 'updated', reverse: 'true' },
     pageSize: 100,
     tasks: value => record(value).tasks,
+    skip: value => homeList(value) !== source.project,
     lastPage: value => typeof record(value).last_page === 'boolean' ? record(value).last_page === true : undefined,
   }),
   read: (_source, id, truncate, reading) => readOne(id, truncate, reading, `/task/${encodeURIComponent(id)}`, { include_markdown_description: 'true' }),
+  setup: {
+    levels: [{ kind: 'workspace', label: 'Workspace' }, { kind: 'space', label: 'Space' }, { kind: 'folder', label: 'Folder' }, { kind: 'list', label: 'List' }],
+    async children(parent, request) {
+      if (!parent) return containers((await request('/team')).value, 'teams', 'workspace', false, true);
+      if (!containerId.test(parent.id)) throw new TaskError(400, 'setup_scope_invalid', 'Choose a Workspace, Space or Folder from the list.');
+      if (parent.kind === 'workspace') return containers((await request(`/team/${encodeURIComponent(parent.id)}/space`, { archived: 'false' })).value, 'spaces', 'space', false, true);
+      if (parent.kind === 'space') return spaceChildren(parent.id, request);
+      if (parent.kind === 'folder') return containers((await request(`/folder/${encodeURIComponent(parent.id)}/list`, { archived: 'false' })).value, 'lists', 'list', true, false);
+      throw new TaskError(400, 'setup_scope_invalid', 'Choose a Workspace, Space or Folder from the list.');
+    },
+    async describe(project, request) {
+      const value = record((await request(`/list/${encodeURIComponent(project)}`)).value);
+      if (String(value.id ?? '') !== project) throw new TaskError(502, 'task_response_invalid', 'ClickUp returned a different List than requested.');
+      const folder = value.folder && typeof value.folder === 'object' ? value.folder as Record<string, unknown> : {};
+      const space = value.space && typeof value.space === 'object' ? value.space as Record<string, unknown> : {};
+      const path = [typeof space.name === 'string' ? space.name : '', folder.hidden === true || typeof folder.name !== 'string' ? '' : folder.name].map(part => part.trim()).filter(Boolean).map(part => part.slice(0, 200));
+      const statuses = entries(value.statuses).filter(status => typeof status.status === 'string' && status.status.trim()).map(status => ({ name: String(status.status).slice(0, 100), closed: status.type === 'closed' || status.type === 'done' }));
+      return { name: field(value.name, 500).trim(), path, archived: value.archived === true, statuses };
+    },
+    async account(request) {
+      const user = record(record((await request('/user')).value).user);
+      return [user.username, user.email].find((name): name is string => typeof name === 'string' && name.trim().length > 0)?.trim().slice(0, 255);
+    },
+  },
   handoff: {
     commentFormat: 'text',
     handles: user => [user.username, user.email].filter((name): name is string => typeof name === 'string' && name.length > 0).map(name => name.toLowerCase()),

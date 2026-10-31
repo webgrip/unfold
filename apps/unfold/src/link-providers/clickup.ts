@@ -29,6 +29,7 @@ export const clickupLinks: LinkProviderAdapter = {
   configured: () => true,
   oauth: config => Boolean(settings(config)?.clientId && settings(config)?.clientSecret),
   host: config => new URL(appUrl(config)).host,
+  trackerApiRoot: config => `${apiUrl(config).replace(/\/+$/, '')}/api/v2`,
   authorizeUrl(context, state, challenge) {
     const { clientId, appUrl: app } = settings(context.config)!;
     const url = new URL(`${app}/api`);

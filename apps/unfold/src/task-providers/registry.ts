@@ -59,6 +59,22 @@ export interface IssueFiling {
   comment(source: TaskSourceConfig, project: string, issue: FiledIssue, body: string, call: FileRequest): Promise<void>;
 }
 
+/** One container a person picks on the way to a project, such as a ClickUp Workspace, Space, Folder or List. `project` marks one a task source can read; `children` one that holds more containers. */
+export type ScopeEntry = { kind: string; id: string; name: string; project: boolean; children: boolean };
+/** What a tracker says about one project before it becomes a task source: its name, the containers above it, whether it is archived and its statuses. */
+export type ScopeDescription = { name: string; path: string[]; archived: boolean; statuses: { name: string; closed: boolean }[] };
+
+/** Setting a source up by name with a person's linked account: the hierarchy to pick through and what a picked project holds. */
+export interface TaskSetup {
+  /** The container kinds from the top down, the last being the project a source reads. */
+  readonly levels: readonly { kind: string; label: string }[];
+  /** The containers under `parent`, or the top level when it is undefined. Archived containers are left out. */
+  children(parent: { kind: string; id: string } | undefined, request: TaskRequest): Promise<ScopeEntry[]>;
+  describe(project: string, request: TaskRequest): Promise<ScopeDescription>;
+  /** The name of the account a token belongs to. */
+  account(request: TaskRequest): Promise<string | undefined>;
+}
+
 /** A tracker's reference format: `prefix` and the native id, such as `ABC-12` for prefix `ABC`, or `native` when the native id is already the reference people write, such as a Jira issue key. */
 export type ReferenceFormat = { prefix: string; ploegDefault?: true } | { native: true };
 
@@ -78,6 +94,11 @@ export interface TaskProviderAdapter {
   readonly linkedAccount?: string;
   readonly handoff?: TaskHandoff;
   readonly issues?: IssueFiling;
+  readonly setup?: TaskSetup;
+  /** One sentence on how often the tracker lets one account ask, for a rate-limit message. */
+  readonly rateLimit?: string;
+  /** Tidies a description for the browser's Markdown renderer without changing the snapshot or its revision. */
+  displayDescription?(text: string): string;
   /** The native task id. */
   readonly taskId: RegExp;
   /** Throws unless `url` is this tracker's API root; `path` has no trailing slash. */
