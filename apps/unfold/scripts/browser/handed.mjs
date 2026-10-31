@@ -19,6 +19,7 @@ export async function run({ app, page, assert, screenshot }) {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1040 });
       await page.goto(`${origin}/#now`);
+      await page.reload();
       const card = page.locator('.now-handed');
       await card.waitFor();
       assert.match(await card.locator('h2').textContent(), /^Handed off by you/);

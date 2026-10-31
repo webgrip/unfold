@@ -171,7 +171,7 @@ export async function run({ page, app, assert, screenshot }) {
   failedSession.blocker = failedSession.failure.message;
   app.store.saveSession(failedSession);
   await page.reload();
-  const failure = page.getByRole('region', { name: 'Prompt submission needs attention' });
+  const failure = page.getByRole('region', { name: 'Prompt submission failed' });
   await failure.getByText(failedSession.failure.message, { exact: true }).waitFor();
   assert.deepEqual(await failure.getByRole('listitem').allTextContents(), ['Do not resubmit the prompt.', 'Confirm the remote turn has stopped.', 'Inspect its evidence.', 'Reconcile gateway spend before deciding whether to start new work.'], 'The remediation is not a list of steps');
   await page.locator('#evidence-panel-stream').getByText(failedSession.failure.message, { exact: true }).waitFor();

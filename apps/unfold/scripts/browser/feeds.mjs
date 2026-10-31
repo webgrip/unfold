@@ -28,7 +28,8 @@ export async function run({ page, assert, screenshot }) {
     assert.match(page.url(), /#insights$/, 'The default window keeps the address short');
     await page.getByRole('button', { name: 'Refresh', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: '7 days', exact: true }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.locator('.insights .stat').count(), 12, 'two outcome tiles, four Run tiles and six Work Item tiles, Cannot release included');
+    assert.equal(await page.locator('.insights .stat').count(), 13, 'three outcome tiles, four Run tiles and six Work Item tiles, Cannot release included');
+    await page.locator('.insights-stats-outcomes .stat', { hasText: 'Clean-merge rate' }).getByText('Demo · nothing merged', { exact: true }).waitFor();
     await page.locator('.insights-stats-outcomes a.stat[href="#work?lane=closed"]', { hasText: 'Merge rate' }).waitFor();
     await page.locator('.insights-stats-outcomes .stat', { hasText: 'Cost per merged Work Item' }).getByText('No model calls', { exact: true }).waitFor();
     assert.equal(await page.locator('.insights a.stat[href="#work?lane=needs_human"]').count(), 1, 'The Needs you tile links to its lane');

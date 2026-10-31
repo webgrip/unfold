@@ -168,7 +168,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   }
   await page.unroute('**/api/ploeg/now*');
 
-  await search('notifications', 'Desktop notifications');
+  await search('desktop notifications', 'Desktop notifications');
   assert.equal(await results.locator('#palette-option-0').getAttribute('aria-disabled'), 'true', 'a browser that blocks notifications gets an explained, disabled row');
   await results.locator('#palette-option-0').getByText('Blocked for this site. Allow notifications in the browser’s site settings.').waitFor();
   await page.keyboard.press('Enter');
@@ -181,7 +181,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
     document.hasFocus = () => false;
   });
   assert.equal(await page.evaluate(async () => { const { state } = await import('/core/state.js'); for (let tries = 0; tries < 100 && !state.now.data; tries++) await new Promise(done => setTimeout(done, 50)); return Boolean(state.now.data?.waiting?.length); }), true, 'the Now page loaded what waits');
-  await search('notifications', 'Turn on desktop notifications');
+  await search('desktop notifications', 'Turn on desktop notifications');
   await page.keyboard.press('Enter');
   await page.locator('#toast').getByText(/^Desktop notifications are on\./).waitFor();
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('unfold.prefs')).notify), true, 'the choice is remembered in this browser');
@@ -203,7 +203,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   assert.deepEqual(sent.shown.map(item => [item.title, item.tag]), [['A new item that needs you', 'unfold-waiting-990']], 'one notification for the item that started waiting');
   assert.equal(sent.plain, 'favicon.svg', 'the plain favicon returns when nothing waits');
   assert.match(await favicon(), /^data:image\/png;base64,/);
-  await search('notifications', 'Turn off desktop notifications');
+  await search('desktop notifications', 'Turn off desktop notifications');
   await page.keyboard.press('Enter');
   await page.locator('#toast').getByText('Desktop notifications are off.').waitFor();
   await page.evaluate(() => { window.Notification = window.RealNotification; delete document.hasFocus; });

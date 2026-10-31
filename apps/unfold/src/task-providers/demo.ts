@@ -1,7 +1,7 @@
 import type { TaskSnapshot } from '../tasks.ts';
 import type { TaskProviderAdapter, TaskReading } from './registry.ts';
 import { field, nativeTaskId, numericId, TaskError } from './shared.ts';
-import { vikunjaDetails } from './vikunja.ts';
+import { vikunja, vikunjaDetails } from './vikunja.ts';
 
 const demoBrief = (change: string, check: string) => `This is a local demonstration task, not a linked external tracker item.\n\n${change}\n\nAcceptance criteria:\n- ${check}\n- Keep the change ready for human review; do not publish or merge it.\n\nThis fixture makes no model calls and spends nothing.`;
 const demoDue = (days: number) => new Date(Math.floor(Date.now() / 86400000 + days) * 86400000).toISOString();
@@ -25,6 +25,7 @@ export const demo: TaskProviderAdapter = {
   name: 'demo',
   label: 'Demo fixture',
   fixture: true,
+  ...(vikunja.priorities ? { priorities: vikunja.priorities } : {}),
   descriptionFormat: 'markdown',
   taskId: numericId,
   apiRoot: () => undefined,

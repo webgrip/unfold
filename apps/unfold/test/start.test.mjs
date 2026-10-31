@@ -52,6 +52,7 @@ test('a ClickUp priority counts down from urgent, a Vikunja one up to do now', (
   assert.deepEqual(priorityOf({ provider: 'clickup', priority: 1 }), { rank: 4, name: 'urgent' });
   assert.deepEqual(priorityOf({ provider: 'clickup', priority: 4 }), { rank: 1, name: 'low' });
   assert.equal(priorityOf({ provider: 'vikunja' }), null);
+  assert.deepEqual(priorityOf({ provider: 'demo', priority: 4 }), { rank: 4, name: 'urgent' }, 'the demo fixture reads its tasks as Vikunja does, priority words included');
   const lists = [{ sourceId: 'list', tasks: [{ ...task(1, { provider: 'clickup' }), priority: 4 }, { ...task(2, { provider: 'clickup' }), priority: 1 }] }];
   assert.deepEqual(startQueue(lists, new Map()).map(entry => entry.task.id), ['2', '1'], 'ClickUp urgent comes before ClickUp low');
 });
