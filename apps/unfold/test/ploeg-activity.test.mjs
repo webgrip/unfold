@@ -621,7 +621,10 @@ test('Insights lists Deliveries with Acceptance, Token Charge base and unsettled
   assert.match(demo, /Demo · no model calls/);
   assert.doesNotMatch(demo, /US\$/);
   assert.equal(deliveriesCsvLink({ deliveries: { demo: true } }, '30d', true, helpers), '');
-  assert.match(focusCostLink({ deliveries }, false, { ...helpers, costExport: true }), /href="\/api\/ploeg\/cost-export\?format=csv" download title="[^"]*FinOps FOCUS 1\.4[^"]*">Download FOCUS cost</);
+  const focus = focusCostLink({ deliveries }, false, { ...helpers, costExport: true });
+  assert.match(focus, /role="group" aria-labelledby="insights-focus-label"><span class="meta" id="insights-focus-label">FOCUS cost</);
+  assert.match(focus, /href="\/api\/ploeg\/cost-export\?format=csv" download aria-label="Download this month’s FOCUS cost as CSV" title="[^"]*FinOps FOCUS 1\.4[^"]*">CSV</);
+  assert.match(focus, /id="insights-focus-parquet" href="\/api\/ploeg\/cost-export\?format=parquet" download aria-label="Download this month’s FOCUS cost as Parquet" title="[^"]*data tool[^"]*">Parquet</, 'the Parquet download sits next to the CSV one');
   assert.equal(focusCostLink({ deliveries }, false, { ...helpers, costExport: false }), '', 'a viewer gets no cost export');
   assert.match(focusCostLink({ deliveries: { demo: true } }, true, { ...helpers, costExport: true }), /Demo · no cost to export/);
   assert.match(deliveriesMarkup({ deliveries: null, deliveriesError: { code: 'ploeg_unsupported' } }, '30 days', false, helpers), /Not reported by this Ploeg/);

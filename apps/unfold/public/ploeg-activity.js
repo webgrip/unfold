@@ -352,14 +352,16 @@ export function deliveriesCsvLink(view, windowId, demo, { escape }) {
 }
 
 /**
- * The FinOps FOCUS 1.4 cost download for this calendar month, beside the Deliveries CSV, for operators and administrators
- * (`helpers.costExport`). The demo exports nothing and says so.
+ * The FinOps FOCUS 1.4 cost downloads for this calendar month, as CSV for a spreadsheet and as Parquet for a data tool,
+ * beside the Deliveries CSV, for operators and administrators (`helpers.costExport`). The demo exports nothing and says so.
  */
 export function focusCostLink(view, demo, { escape, costExport }) {
   if (!costExport) return '';
   if (demo || view.deliveries?.demo) return `<span class="meta" id="insights-focus-demo">${escape('Demo · no cost to export')}</span>`;
   if (!view.deliveries) return '';
-  return `<a class="button secondary sm" id="insights-focus-csv" href="/api/ploeg/cost-export?format=csv" download title="${escape('This month’s settled model cost per Run as FinOps FOCUS 1.4, in US$')}">Download FOCUS cost</a>`;
+  const what = 'This month’s settled model cost per Run as FinOps FOCUS 1.4, in US$';
+  const link = (format, label, use) => `<a class="button secondary sm" id="insights-focus-${format}" href="/api/ploeg/cost-export?format=${format}" download aria-label="${escape(`Download this month’s FOCUS cost as ${label}`)}" title="${escape(`${what}, ${use}`)}">${escape(label)}</a>`;
+  return `<span class="insights-focus" role="group" aria-labelledby="insights-focus-label"><span class="meta" id="insights-focus-label">FOCUS cost</span>${link('csv', 'CSV', 'for a spreadsheet')}${link('parquet', 'Parquet', 'for a data tool such as DuckDB, BigQuery or a FinOps tool')}</span>`;
 }
 
 function teamTable({ caption, columns, rows }, { escape }) {
