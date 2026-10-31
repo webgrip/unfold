@@ -725,6 +725,7 @@ export class Engine {
     let session = this.owned(id, user);
     if (this.managed(session) || this.authority) throw new EngineError(409, 'new_authorization_required', 'A session Ploeg ran and failed cannot start again. Start a new session for the same work.');
     if (session.status !== 'failed') throw new EngineError(409, 'invalid_state', 'Only a failed session can be tried again.');
+    if (!session.failure || session.failure.promptAcceptance === 'unknown') throw new EngineError(409, 'submission_unconfirmed', 'Unfold cannot tell whether the agent received the first prompt, so trying again could do the same work and spend twice. Read its Activity, then start a new session if the work still needs doing.');
     if (this.active.has(id)) throw new EngineError(409, 'stopping', 'The previous attempt is still stopping. Wait until it has stopped, then try again.');
     if (session.runtime !== 'demo') {
       if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
