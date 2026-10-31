@@ -410,6 +410,8 @@ A tool that asks the person to confirm returns, to a 2026-07-28 client that decl
 | No `spendCap` | The spend limit for the Team is not known until Ploeg picks this up |
 | The demo | It is the illustrative demo, no Run starts and no money is spent |
 
+The browser states the same figures where a person picks a Team, on the Tasks page and in the Up next hand-off sheet: the `spendCap` of each Team in `GET /api/task-sources/:source/tasks/:id/ploeg`, as "US$ 12,34 of US$ 20,00 left this day (UTC), resets 2026-10-31 00:00 UTC", with the cap and what is left rounded the same way (`public/core/spend-cap.js`, which `src/hand-off-spend.ts` shares).
+
 The pool of one Work Item (Ploeg's `poolUsd`) comes from the Team's plan, which Ploeg's operator API reports only for a Work Item that exists, so a hand-off cannot show it. Over the 2026-07-28 revision, the confirmation is planned again when the person answers: if what is left of the cap changed in between, the call refuses with "changed since you confirmed" and nothing is handed off.
 
 ### MCP Tasks

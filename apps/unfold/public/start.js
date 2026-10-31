@@ -3,6 +3,7 @@ import { icon } from './core/icons.js';
 import { count as formatCount, money, namedDate, plural } from './core/format.js';
 import { badge, button, callout, count, demoNote, emptyState, errorCodeNote, kbd, listRow, skeleton } from './core/ui.js';
 import { openTaskLabel, trackerOf, trackerOr } from './core/trackers.js';
+import { spendCapLine, spendCapShort } from './core/spend-cap.js';
 
 /** How many agent pull requests may wait for your review before the Start lane says to decide first. */
 export const reviewRoom = 4;
@@ -291,10 +292,12 @@ function trackerNames(sources) {
   return names.length ? names.join(' or ') : 'your tracker';
 }
 
-function teamFacts(team, summary) {
+function teamFacts(team, summary, demo) {
   const facts = [];
   if (team.paused) facts.push('paused');
   else facts.push(team.queueDepth > 0 ? `${formatCount(team.queueDepth)} queued` : 'nothing queued');
+  const cap = spendCapShort(team.spendCap, { demo });
+  if (cap) facts.push(cap);
   if (summary) {
     const runs = summary.runs || {};
     const done = (runs.finished ?? 0) + (runs.failed ?? 0) + (runs.stuck ?? 0);
@@ -344,13 +347,13 @@ export function sheetMarkup({ task, source, repository = '', status, statusError
   if (!status && !statusError) teamBody = skeleton({ rows: 2 });
   else if (statusError) teamBody = callout({ tone: 'danger', title: 'Could not ask Ploeg', body: `<p>${escape(statusError)} Nothing was handed over.</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-sheet-retry', id: 'start-sheet-retry' }) });
   else if (!teams.length) teamBody = `<p class="sheet-none">${escape(status.handoff?.reason || 'No Team of yours can take this task.')}</p>`;
-  else teamBody = `<fieldset class="sheet-teams"><legend class="sr-only">Team</legend>${teams.map((entry, index) => `<label class="sheet-team" for="sheet-team-${escape(entry.id)}"><input type="radio" id="sheet-team-${escape(entry.id)}" name="team" value="${escape(entry.id)}"${entry.id === chosen?.id ? ' checked' : ''}${busy ? ' disabled' : ''}><span class="sheet-team-name">${escape(entry.id)}</span>${entry.id === labelledTeam(task) ? `<span class="sheet-team-why">labelled team/${escape(entry.id)}</span>` : entry.id === remembered ? '<span class="sheet-team-why">last used here</span>' : singleKeys && index < 9 ? `<span class="sheet-team-key" aria-hidden="true">${index + 1}</span>` : ''}<span class="sheet-team-roles">${escape(entry.roles.length ? entry.roles.join(' → ') : 'No Roles reported')}</span><span class="sheet-team-facts">${teamFacts(entry, perTeam.get(entry.id)).map(fact => `<span>${escape(fact)}</span>`).join('')}</span></label>`).join('')}</fieldset>`;
+  else teamBody = `<fieldset class="sheet-teams"><legend class="sr-only">Team</legend>${teams.map((entry, index) => `<label class="sheet-team" for="sheet-team-${escape(entry.id)}"><input type="radio" id="sheet-team-${escape(entry.id)}" name="team" value="${escape(entry.id)}"${entry.id === chosen?.id ? ' checked' : ''}${busy ? ' disabled' : ''}><span class="sheet-team-name">${escape(entry.id)}</span>${entry.id === labelledTeam(task) ? `<span class="sheet-team-why">labelled team/${escape(entry.id)}</span>` : entry.id === remembered ? '<span class="sheet-team-why">last used here</span>' : singleKeys && index < 9 ? `<span class="sheet-team-key" aria-hidden="true">${index + 1}</span>` : ''}<span class="sheet-team-roles">${escape(entry.roles.length ? entry.roles.join(' → ') : 'No Roles reported')}</span><span class="sheet-team-facts">${teamFacts(entry, perTeam.get(entry.id), Boolean(status.demo)).map(fact => `<span>${escape(fact)}</span>`).join('')}</span></label>`).join('')}</fieldset>`;
   const allowed = Boolean(status?.available && status.handoff?.allowed && chosen && !status.assignedTeams?.length);
   const held = status?.assignedTeams?.length ? `Already handed to ${status.assignedTeams.join(', ')}.` : status?.message && !status.handoff?.allowed ? status.message : '';
   const refusal = status && !statusError && !allowed && teams.length ? `<p class="sheet-none">${escape(held || status.handoff?.reason || 'Ploeg does not take this task right now.')}</p>` : '';
   const terms = [
     ['Where', repository ? `A branch of ${repository}, then a pull request for your review. Nothing merges without you.` : 'A branch, then a pull request for your review. Nothing merges without you.'],
-    ['Budget', 'Set by the Team in Ploeg. The Work Item shows it once a Run starts.'],
+    ['Budget', chosen ? `${spendCapLine(chosen.spendCap, { demo: Boolean(status.demo) })}. What this task alone may spend is set by the Team’s plan; the Work Item shows it once a Run starts.` : 'Set by the Team in Ploeg. The Work Item shows it once a Run starts.'],
     ['In ' + tracker, chosen?.assignee ? `Assigns “${chosen.assignee}” to ${ref} in ${tracker} and leaves a comment there. Assigning that user in ${tracker} yourself does the same.` : `Assigns the Team’s user in ${tracker} and leaves a comment there.`],
     ['Next', 'Ploeg queues it for the Team. A worker starts it when one is free; you follow it on Now and on its Work Item page.'],
     ['Take back', `Free until a worker starts it: Take back on Now or Tasks, which removes ${chosen?.assignee ? `“${chosen.assignee}”` : 'the Team’s user'} in ${tracker} again. After a worker starts it, Cancel on its Work Item page stops it.`],
