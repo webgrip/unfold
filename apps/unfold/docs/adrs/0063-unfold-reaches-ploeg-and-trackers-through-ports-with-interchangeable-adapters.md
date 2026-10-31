@@ -38,6 +38,8 @@ Four places call Ploeg's HTTP API without `PloegClient`. Each builds its own hea
 * tracker hosts (`public/core/insight.js:5`)
 * per-provider account copy (`public/views/account.js:13`)
 
+Open PR #751 replaces most of these maps with one browser module fed by the server. Step T2 lists the branches it leaves.
+
 The configuration has per-provider shapes: `links.gitlab` and `links.clickup` (`src/types.ts:67`, `src/config.ts:488`–`496`). Forgejo, GitHub and GitLab each appear in up to three registries: as a tracker, an account link and a publisher. ClickUp is both a tracker and an account link. Each role has its own configuration. The tests read the adapters through per-provider branches inside one loop (`test/tasks.test.ts:21`–`145`). Jira is tested in a file of its own, and the demo fixture in a test of its own.
 
 How does Unfold reach Ploeg and trackers so that each outside system sits behind one port? The demo or a test should be a different adapter, not a branch, and adding a tracker should mean writing one adapter that passes one shared suite.
@@ -88,6 +90,14 @@ There are three adapters, and `PloegClient` chooses one when it is built:
 
 The `demo` flag on each result comes from the adapter's `kind`. It is no longer read from a branch.
 
+**What stays behind the port.** Some screens still read Ploeg's raw shapes, and those reads move behind the port as typed fields:
+
+* `provider === 'ploeg'` and `'manual'` special cases in `public/core/terms.js`, `workItemRef` in `public/ploeg.js` and `briefText` in `src/ahp/work-items.ts`. These become an origin field (`tracker`, `agent` or `manual`) and a reference the port supplies.
+* Reason strings parsed in the browser: `parseBudgetReason` and `parseStuckReason` in `public/core/reasons.js`, `closeReasonLabel` in `public/core/states.js`. These become typed reason codes with their values, parsed once in the live adapter.
+* The Now and Work Item pages read `latestShift` and state fields from Ploeg's answer as it arrives. These become the port's Work Item view.
+
+The demo adapter answers with the same typed fields, so the browser never sees which adapter answered except through the `demo` flag.
+
 ### The Tracker port
 
 `TaskProviderAdapter` becomes the Tracker port, keeping its registry and its rule that code outside an adapter never names a provider. Its parts:
@@ -105,9 +115,11 @@ The `demo` flag on each result comes from the adapter's `kind`. It is no longer 
   * `testConnection`: one cheap authenticated call that says what is wrong
   * `webhooks`: the assignment event Ploeg listens for, and whether a board has it. Ploeg's connections report already tells Unfold this.
 
-`GET /api/trackers` returns each registered tracker's display facts and capabilities. The browser builds its labels, priority names and reference formats from that answer.
+Open Unfold PR #751 starts this. `src/tracker-display.ts` turns the registry into display facts, which `GET /api/bootstrap` sends as `trackers`. `public/core/trackers.js` becomes the only browser module that names a tracker, and the adapters gain the optional facts `idMark` and `priorities`. A guard test keeps tracker names out of the Now, Start, Ploeg, reasons, states and live-kit modules. This record builds on that answer and adds no second endpoint. The capabilities above join the same `trackers` facts, and so does `descriptionFormat`, which the browser does not receive yet.
 
-**Conformance suite.** `test/tracker-conformance.test.ts` runs for every adapter in `taskProviders()`. It fails when an adapter has no fixture. Each adapter brings a fixture, `test/trackers/<name>.ts`: a fake server handler built from that tracker's documented answers, and the tasks it should produce. The suite then checks the same rules for every adapter:
+The words follow Ploeg's own tracker port (Ploeg ADR-0183, open in ploeg-hq PR #393): a Tracker port made of capability interfaces, and a conformance suite every adapter passes. Ploeg plans a `ReferenceNamer` capability that names a task the way people write it, such as `CU-<id>` or `#<id>`. Unfold's reference fact uses the same name and the same output, so a reference reads the same in Ploeg's records and on Unfold's screens. Only Unfold depends on Ploeg here. Ploeg's port names no consumer, and Unfold copies its vocabulary without asking Ploeg for anything.
+
+**Conformance suite.** Like Ploeg's `pkg/provider/trackertest`, `test/tracker-conformance.test.ts` runs for every adapter in `taskProviders()`. It fails when an adapter has no fixture. Each adapter brings a fixture, `test/trackers/<name>.ts`: a fake server handler built from that tracker's documented answers, and the tasks it should produce. The suite then checks the same rules for every adapter:
 
 * Scope is enforced: a task outside the configured project is refused.
 * The token never appears in a snapshot, error, link or revision.
@@ -132,10 +144,11 @@ Each step merges on its own and leaves `mise run verify` green.
 | P4 | The fake adapter, and the contract-bundle schema check on every request the live adapter sends (ADR-0027). | About 400 lines, mostly tests. Low risk; it may surface drift, which is its purpose. |
 | P5 | Move the remaining areas one PR at a time: spend, then approvals and steering, then hand-off, then reads. Each PR deletes its `this.demo` branches. | 5 PRs of 200–500 lines. Medium risk: the demo must answer exactly as before. The demo tests and the site demo's recorded replay (system ADR-0015) catch a change. |
 | P6 | The 12 `isDemo` checks in `http.ts` and `main.ts` ask the port instead, for example whether it serves facts or can follow events. | About 80 lines. Low risk. |
+| P6b | Move the Ploeg shapes listed under "What stays behind the port" into typed fields: the origin, typed reason codes and the Work Item view. Delete the browser's reason-string parsers. | About 400 lines across 2 PRs. Medium risk: the reason wording on Now and the Work Item page must stay the same, and `reasons` and `states` tests pin it. |
 | P7 | Split `src/ploeg.ts` into `src/ploeg/`: the port, the wire parsers, and the live, demo and fake adapters, with `service.ts` holding `PloegClient`. | Mechanical, but conflicts with any open PR that changes `ploeg.ts`. Do it when few are open. |
 | T1 | The tracker conformance suite with fixtures for read and list. The per-provider branches in `test/tasks.test.ts` move into the fixtures. | About 400 lines, tests only. Low risk. |
-| T2 | Display facts on each adapter, `GET /api/trackers`, and the eight browser maps read from it. | About 300 lines. Medium risk: it changes `public/`, where daily-use screens are being changed too. |
-| T3 | The browser's tracker logic (priority scales, Vikunja HTML, the `VIK-` default, tracker hosts) becomes adapter facts. | About 150 lines. Low risk. |
+| T2 | Finish what PR #751 starts. Add the capabilities and `descriptionFormat` to the `trackers` facts. Move the remaining tracker names into adapters: `public/views/tasks.js:22`, `public/connections.js:13`, `providerLabels` in `public/core/lookup.js`, `public/app.js:84`, `public/views/account.js:13`, `public/views/linked-sessions.js:32`, `src/ahp/customizations.ts:17` and `src/outbound/catalogue.ts:20`. Give `src/ploeg-demo.ts` a ClickUp item so the demo shows a second tracker. | About 250 lines once #751 has merged. Medium risk: it changes `public/`, where daily-use screens are being changed too. |
+| T3 | The browser's tracker logic becomes adapter facts. The Vikunja HTML check in `public/views/session.js:173` reads `descriptionFormat`. The `VIK-` copy of Ploeg's `work.Reference` in `public/core/terms.js:37` reads the reference fact, in the shape of Ploeg's `ReferenceNamer`. Tracker hosts in `public/core/insight.js:5` also move. | About 150 lines. Low risk. |
 | T4 | The `browse`, `search` and `testConnection` capabilities, with ClickUp first, from the ClickUp setup work. Then their conformance checks. | Sized with that work. |
 | T5 | Connections: one record per origin and credential for the tracker, link and publisher roles, with the configuration schema per adapter. | Larger; needs owner decision 5 and a configuration migration. |
 
@@ -155,7 +168,7 @@ P1 changes one error. A delivery facts read in the demo now refuses with `cards_
 * P1: `test/ploeg-port.test.ts` checks the demo adapter's answers. It also checks that a demo-mode `PloegClient` makes its own checks (role, upload size, Team scope, id format) before the adapter answers. The existing Ploeg, cards, client sign-off and contract tests pass unchanged against the live adapter.
 * After P3, `grep -rn "/api/v1/" src` finds Ploeg routes only in the live adapter.
 * After P5, `grep -c "this.demo" src/ploeg.ts` is 0.
-* After T1, the conformance suite fails for a registered tracker without a fixture. After T2, `public/` holds no tracker name map.
+* After T1, the conformance suite fails for a registered tracker without a fixture. After T2, #751's guard test covers every module under `public/`, not only the six it covers now, and still passes. After P6b, `public/` holds no parser for Ploeg reason strings.
 
 ## Pros and Cons of the Options
 
