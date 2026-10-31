@@ -227,3 +227,16 @@ test('behind a trusted proxy each forwarded client has its own bucket; without t
     assert.deepEqual(statuses, trusted ? [201, 201, 429] : [201, 429, 429], trusted ? 'keyed by the forwarded address' : 'keyed by the socket address, the header ignored');
   }
 });
+
+test('a path with malformed percent-encoding is a missing source or Request, never a server error', async t => {
+  const { url, admin } = await workbench(t);
+  const body = JSON.stringify({ tenant: {} });
+  for (const source of ['%ff', '%E0%A4%A', '%']) {
+    const answer = await deliver(url, source, body, {});
+    assert.deepEqual([answer.status, answer.body.error?.code], [404, 'not_found'], source);
+  }
+  for (const [path, method] of [['/api/intake/requests/%ff', 'GET'], ['/api/intake/sources/%ff', 'DELETE'], ['/api/intake/sources/%ff/secret', 'POST']] as const) {
+    const answer = await request(url, path, { method, cookie: admin, ...(method === 'POST' ? { body: { tenant: {} } } : {}) });
+    assert.deepEqual([answer.status, answer.body.error?.code], [404, 'not_found'], `${method} ${path}`);
+  }
+});

@@ -59,6 +59,10 @@ function send(res: ServerResponse, status: number, value?: unknown, headers: Rec
 
 function digest(value: string): Buffer { return createHash('sha256').update(value).digest(); }
 
+function pathSegment(raw: string): string {
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 /** Whether `req` carries `Authorization: Bearer <token>` with the token `tokenEnv` names, compared in constant time. */
 export function scimAuthorized(req: IncomingMessage, tokenEnv: string): boolean {
   const expected = process.env[tokenEnv];
@@ -202,7 +206,7 @@ export class ScimService {
     if (method === 'GET' && resourceType) return send(res, 200, this.resourceTypes().find(item => item.id === resourceType[1]));
     if (method === 'GET' && path === '/Schemas') return send(res, 200, list(schemas(), 2, 1));
     const schemaPath = /^\/Schemas\/(.+)$/.exec(path);
-    if (method === 'GET' && schemaPath) return send(res, 200, schemas().find(item => item.id === decodeURIComponent(schemaPath[1])) ?? fail(404, 'No such schema.'));
+    if (method === 'GET' && schemaPath) return send(res, 200, schemas().find(item => item.id === pathSegment(schemaPath[1])) ?? fail(404, 'No such schema.'));
     if (!resource) return fail(404, 'No such resource.');
     const [, kind, id] = resource;
     if (kind === 'Users') {
