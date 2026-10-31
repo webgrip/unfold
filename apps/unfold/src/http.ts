@@ -587,7 +587,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const single = path.match(/^\/api\/ofrep\/v1\/evaluate\/flags\/([A-Za-z0-9_.-]{1,200})$/);
           if (single) {
             const key = decodeURIComponent(single[1]);
-            if (!flags.provider.registry.flags[key]?.metadata.client) return json(res, 404, { key, errorCode: 'FLAG_NOT_FOUND', errorDetails: 'No flag by this key is visible to clients.' });
+            if (!Object.hasOwn(flags.provider.registry.flags, key) || !flags.provider.registry.flags[key].metadata.client) return json(res, 404, { key, errorCode: 'FLAG_NOT_FOUND', errorDetails: 'No flag by this key is visible to clients.' });
             const flag = ofrepFlag(await flags.details(key, context));
             return json(res, 'errorCode' in flag ? 400 : 200, flag);
           }
