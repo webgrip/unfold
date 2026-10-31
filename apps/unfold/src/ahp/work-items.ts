@@ -1,6 +1,6 @@
 import type { AppConfig, User } from '../types.ts';
-import { PloegClient, PloegError, type PloegDetail, type PloegItem, type PloegRun, type PloegShift, type PloegState } from '../ploeg.ts';
-import { listReason, sessionDriven, withdrawnReason } from '../../public/core/reasons.js';
+import { PloegClient, PloegError, nowItem, reviewRead, reviewRowsRead, type PloegDetail, type PloegItem, type PloegNowItem, type PloegRun, type PloegShift, type PloegState } from '../ploeg.ts';
+import { listReason, reviewHold, sessionDriven, withdrawnReason } from '../../public/core/reasons.js';
 import { money } from '../../public/core/format.js';
 import { resumeOffer, waitingQuestions } from '../../public/core/blackboard.js';
 import { findTaskProvider, ploegTrackerReference } from '../task-providers/index.ts';
@@ -84,16 +84,23 @@ export function admittedBy(event: { action: string; actor: string }): string | u
   return kind === 'operator' && person.join(':') ? person.join(':') : undefined;
 }
 
+/** What Now reads about a waiting Work Item's pull request beside Ploeg's record: the CI on its head and whether it is open, merged or closed. */
+export type WorkItemReviewFacts = Pick<PloegNowItem, 'ci' | 'pullRequestState'>;
+
 /** How a Work Item shows in the Agents window: the session status, the activity line under its title and, when it waits on a person or went stale, the reason. */
 export type WorkItemActivity = { status: keyof typeof statusBits; activity: string; reason?: { code: string; chip: string; sentence: string } };
 
 /**
  * The state map of ADR 0023: queued or ingested work is idle, a leased Work Item is in progress with its working Role,
  * Round and spend, a proposal, a needs-human stop and a pull request ready for review need the person, a stale item is
- * an error, and done or withdrawn work is idle with how it ended.
+ * an error, and done or withdrawn work is idle with how it ended. With the `facts` Now reads about its pull request, a
+ * waiting Work Item reads Now's reason: "CI did not pass" or "CI running" on a pull request ready for review, and
+ * "Approved: merge it", "Merged" or "Pull request closed" once the agent reviewers approved.
  */
-export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = []): WorkItemActivity {
-  const reasonOf = () => { const reason = listReason(item); return reason ? { code: String(reason.code), chip: String(reason.chip), sentence: String(reason.sentence) } : undefined; };
+export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = [], facts: WorkItemReviewFacts = {}): WorkItemActivity {
+  const withFacts = { ...item, ...facts };
+  const shown = (reason: { code: unknown; chip: unknown; sentence: unknown } | null) => reason ? { code: String(reason.code), chip: String(reason.chip), sentence: String(reason.sentence) } : undefined;
+  const reasonOf = () => shown(listReason(withFacts));
   switch (item.state) {
     case 'ingested': case 'queued': return { status: 'idle', activity: `Queued for ${item.team}` };
     case 'leased': {
@@ -105,7 +112,11 @@ export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = []
     }
     case 'proposed': return { status: 'inputNeeded', activity: 'Waiting for approval' };
     case 'needs_human': { const reason = reasonOf(); return { status: 'inputNeeded', activity: `${reason?.chip ?? 'Needs you'}${spentSoFar(item)}`, ...(reason ? { reason } : {}) }; }
-    case 'awaiting_review': { const number = item.pullRequest?.number; return { status: 'inputNeeded', activity: `${number ? `Ready for review · PR #${number}` : 'Ready for review'}${spentSoFar(item)}` }; }
+    case 'awaiting_review': {
+      const number = item.pullRequest?.number;
+      const hold = shown(reviewHold(withFacts));
+      return { status: 'inputNeeded', activity: `${hold?.chip ?? 'Ready for review'}${number ? ` · PR #${number}` : ''}${spentSoFar(item)}`, ...(hold ? { reason: hold } : {}) };
+    }
     case 'stale': { const reason = reasonOf(); return { status: 'error', activity: `${reason?.chip ?? 'Stale'}${spentSoFar(item)}`, ...(reason ? { reason } : {}) }; }
     case 'done': return { status: 'idle', activity: `${item.pullRequest ? 'Merged' : 'Done'}${spentSoFar(item)}` };
     case 'withdrawn': return { status: 'idle', activity: `${withdrawnReason(item.latestShift?.closeReason)?.replace(/\.$/, '') ?? 'Withdrawn'}${spentSoFar(item)}` };
@@ -118,8 +129,8 @@ export function workItemActivity(item: PloegItem, runs: readonly PloegRun[] = []
 /** One Work Item as the host knows it for a viewer: Ploeg's record, the Runs behind its activity, and whether Ploeg could not be read since. */
 export type WorkItemRecord = { workItemId: string; publicId: string; item: PloegItem; activity: WorkItemActivity; stale: boolean };
 
-function record(item: PloegItem, runs: readonly PloegRun[] = [], stale = false): WorkItemRecord {
-  return { workItemId: item.id, publicId: workItemSessionId(item.id), item, activity: workItemActivity(item, runs), stale };
+function record(item: PloegItem, runs: readonly PloegRun[] = [], stale = false, facts: WorkItemReviewFacts = {}): WorkItemRecord {
+  return { workItemId: item.id, publicId: workItemSessionId(item.id), item, activity: workItemActivity(item, runs, facts), stale };
 }
 const fingerprint = (entry: WorkItemRecord) => JSON.stringify([entry.item.state, entry.item.title, entry.item.updatedAt, entry.activity, entry.stale]);
 const waiting = (entry: WorkItemRecord) => entry.item.state === 'queued' || entry.item.state === 'ingested';
@@ -482,7 +493,7 @@ export class WorkItemSessions {
     }
     if (sessionDriven(detail.item)) return undefined;
     this.keep(workItemId, detail);
-    const entry = record(detail.item, detail.runs, this.stale);
+    const entry = record(detail.item, detail.runs, this.stale, await this.reviewFacts(detail.item));
     const seen = this.seen.get(user.id) ?? new Map();
     seen.set(entry.publicId, { entry, fingerprint: fingerprint(entry) });
     this.seen.set(user.id, seen);
@@ -556,7 +567,7 @@ export class WorkItemSessions {
     try { detail = await this.ploeg.detail(allowed[0], workItemId, true); }
     catch (error) { if (!(error instanceof PloegError) || ![403, 404].includes(error.status)) throw error; }
     if (!detail) { for (const user of allowed) if (this.seen.get(user.id)?.has(publicId)) this.publishList(user, [], [], [publicId]); return; }
-    const entry = record(detail.item, detail.runs);
+    const entry = record(detail.item, detail.runs, false, await this.reviewFacts(detail.item));
     const listed = !sessionDriven(detail.item) && this.inWindow(detail.item);
     const before = this.details.get(workItemId);
     this.keep(workItemId, detail);
@@ -640,7 +651,16 @@ export class WorkItemSessions {
     const candidates = [...this.recent].filter(([id, seen]) => !openIds.has(id) && this.allows(user, seen.team) && Date.parse(seen.at) >= cutoff).sort(([, a], [, b]) => b.at.localeCompare(a.at)).slice(0, this.cap - open.length).map(([id]) => id);
     const finished = (await Promise.all(candidates.map(id => this.finishedItem(user, id)))).filter((item): item is PloegItem => Boolean(item && finishedStates.includes(item.state) && this.inWindow(item) && !sessionDriven(item))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || byId(b, a));
     const runs = new Map(await Promise.all(open.filter(item => item.state === 'leased').map(async item => [item.id, (await this.ploeg.detail(user, item.id).catch(() => undefined))?.runs ?? []] as const)));
-    return [...open, ...finished].slice(0, this.cap).map(item => record(item, runs.get(item.id) ?? []));
+    const read = (kind: 'ci' | 'approved') => open.filter(item => reviewRead(nowItem(item)) === kind).slice(0, reviewRowsRead);
+    const facts = new Map(await Promise.all([...read('ci'), ...read('approved')].map(async item => [item.id, await this.reviewFacts(item)] as const)));
+    return [...open, ...finished].slice(0, this.cap).map(item => record(item, runs.get(item.id) ?? [], false, facts.get(item.id)));
+  }
+
+  private async reviewFacts(item: PloegItem): Promise<WorkItemReviewFacts> {
+    const row = nowItem(item);
+    if (!reviewRead(row)) return {};
+    const { ci, pullRequestState } = await this.ploeg.reviewFacts(row);
+    return { ...(ci === undefined ? {} : { ci }), ...(pullRequestState === undefined ? {} : { pullRequestState }) };
   }
 
   private async stateItems(user: User, team: string, state: PloegState): Promise<PloegItem[]> {

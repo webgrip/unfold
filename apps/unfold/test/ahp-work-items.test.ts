@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from '../src/auth.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
-import { PloegClient, cancelShiftChanged, noteFailures, type PloegItem } from '../src/ploeg.ts';
+import { PloegClient, cancelShiftChanged, noteFailures, nowItem, type PloegItem } from '../src/ploeg.ts';
+import { listReason, waitingGroup } from '../public/core/reasons.js';
 import { money } from '../public/core/format.js';
 import { agentHostAuthority } from '../public/core/agents-window.js';
 import { briefText, noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemMessageRefusal, workItemRefusals } from '../src/ahp/work-items.ts';
@@ -555,6 +556,74 @@ test('only saving an answer runs nothing, and a question someone else answered f
   assert.match(reply, /Someone had already answered it, so Ploeg kept their answer\./);
   assert.deepEqual(f.state.writes.map(write => write.path), ['work-items/204/questions/q302-1/answer'], 'no restart');
   assert.equal(f.state.details.get('204')!.item.state, 'needs_human');
+});
+
+const failingCi = { state: 'failure', checks: [{ context: 'unit', state: 'failure' }, { context: 'lint', state: 'success' }] };
+const approvedItem = (id: string) => workItem(id, { state: 'needs_human', closeReason: 'review_approved', pullRequest: Number(id) - 170, updated: minutesAgo(5) });
+
+test('a waiting Work Item reads Now\'s reason, chip and sentence for CI that did not pass or still runs, and for a pull request the agent reviewers approved', () => {
+  const item = (id: string) => (id === '213' ? approvedItem('213') : world().details.get(id)!).item as PloegItem;
+  const cases: Array<[string, Json, string]> = [
+    ['205', { ci: failingCi }, 'CI did not pass · PR #42'],
+    ['205', { ci: { state: 'pending', checks: [] } }, 'CI running · PR #42'],
+    ['205', { ci: { state: 'success', checks: [] } }, 'Ready for review · PR #42'],
+    ['205', { ci: null }, 'Ready for review · PR #42'],
+    ['213', { pullRequestState: 'open' }, 'Approved: merge it'],
+    ['213', { pullRequestState: 'merged' }, 'Merged'],
+    ['213', { pullRequestState: 'closed' }, 'Pull request closed'],
+    ['213', { pullRequestState: null }, 'Pull request closed'],
+  ];
+  for (const [id, facts, activity] of cases) {
+    const mapped = workItemActivity(item(id), [], facts);
+    const now = { ...nowItem(item(id)), ...facts };
+    const reason = listReason(now);
+    assert.equal(mapped.activity, activity, `${id} with ${JSON.stringify(facts)}`);
+    assert.deepEqual(mapped.reason, reason ? { code: reason.code, chip: reason.chip, sentence: reason.sentence } : undefined, `${id} carries Now's own reason`);
+    assert.equal(mapped.status, 'inputNeeded', `${id} waits on the person, as Now lists it in its ${waitingGroup(now)} group`);
+  }
+  assert.equal(workItemActivity(item('205'), [], { ci: failingCi }).reason?.sentence, 'CI did not pass on pull request #42, so it is not ready for review. Not passing: unit.');
+  assert.equal(workItemActivity(item('213'), [], { pullRequestState: 'open' }).reason?.sentence, 'The agent reviewers approved and the pull request is still open. Ploeg leaves the merge to you.');
+  assert.equal(workItemActivity(item('213')).activity, 'Pull request closed', 'without the facts Now reads, the Agents window says what Now says without them');
+});
+
+test('the Agents window lists a waiting Work Item with the reason Now gives it, from the same delivery facts read, and follows a pull request that merged', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  f.state.details.set('213', approvedItem('213'));
+  const pulls = new Map<string, Json>([
+    ['205', { number: 42, url: 'https://forge.invalid/pulls/42', state: 'open', headSha: 'abc', commitStatus: { ...failingCi, headSha: 'abc' } }],
+    ['213', { number: 43, url: 'https://forge.invalid/pulls/43', state: 'open', headSha: 'def', commitStatus: null }],
+  ]);
+  const facts = (id: string) => ({ pullRequests: pulls.has(id) ? [pulls.get(id)] : [] });
+  const read: string[] = [];
+  Object.assign(f.host.workItems.client, {
+    factsSupported: async () => true,
+    workItemFacts: async (id: string) => { read.push(id); return facts(id); },
+  });
+  const op = await f.attach('op-1');
+  const work = new Map(workItemsOf(await f.listed(op)).map(item => [item.resource, item]));
+  assert.deepEqual([...new Set(read)].sort(), ['205', '213'], 'only the Work Items Now reads facts for: one ready for review and one the agent reviewers approved');
+  const failed = work.get('unfold:/wi-205')!;
+  assert.equal(failed.activity, 'CI did not pass · PR #42');
+  assert.equal(failed.status & 24, 24, 'CI that did not pass needs the person');
+  assert.deepEqual(failed._meta['unfold.workItem'].reason, { code: 'ci_failed', chip: 'CI did not pass', sentence: 'CI did not pass on pull request #42, so it is not ready for review. Not passing: unit.' });
+  const approved = work.get('unfold:/wi-213')!;
+  assert.equal(approved.activity, 'Approved: merge it');
+  assert.equal(approved.status & 24, 24);
+  assert.equal(approved._meta['unfold.workItem'].reason.code, 'approved_to_merge');
+
+  const ploeg = new PloegClient(f.server.config);
+  Object.assign(ploeg, { factsSupported: async () => true, workItemFacts: async (id: string) => facts(id) });
+  const now = await ploeg.now({ id: 'op-1', name: 'op-1', role: 'operator' });
+  for (const id of ['205', '213']) {
+    const row = now.waiting.find(entry => entry.id === id)!;
+    assert.equal(work.get(`unfold:/wi-${id}`)!._meta['unfold.workItem'].reason.chip, listReason(row)!.chip, `Now and the Agents window agree on #${id}`);
+  }
+
+  pulls.set('213', { ...pulls.get('213'), state: 'merged' });
+  f.host.workItems.reconcileMs = 0;
+  await f.host.workItems.tick();
+  const merged = await op.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === 'unfold:/wi-213');
+  assert.equal(merged.params.changes.activity, 'Merged', 'a merge on the forge reaches the list on the next reconcile, with no Ploeg event');
 });
 
 test('a Work Item waiting for review points a message at its pull request, and a stopped or finished one shows what its attempt spent', { timeout: testTimeout(20_000) }, async t => {

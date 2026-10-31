@@ -112,7 +112,8 @@ export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]
 export type PloegNowTruncatedState = 'awaiting_review' | 'needs_human' | 'proposed' | 'leased' | 'queued';
 /** How many Work Items Now reads per team and state before it marks that state truncated. */
 export const nowStateCap = 200;
-const reviewRowsRead = 10;
+/** How many waiting Work Items of each kind Now reads pull request facts for, per read: ready for review, and approved by the agent reviewers. */
+export const reviewRowsRead = 10;
 const questionRowsRead = 10;
 const questionTextLimit = 1000;
 type Blackboard = {
@@ -501,6 +502,20 @@ function demoReviewPlay(row: PloegNowItem): { url: string; ci: PloegNowCI | null
   const play = plays.find(entry => entry.state === 'open') ?? plays[0];
   const state = play?.state === 'open' || play?.state === 'merged' || play?.state === 'closed' ? play.state : null;
   return { url: play?.url ?? '', state, ci: play?.ci ? { state: play.ci.state, checks: play.ci.checks.map(check => ({ ...check })) } : null };
+}
+type ReviewPlay = { url: string; ci: PloegNowCI | null; state?: 'open' | 'merged' | 'closed' | null };
+/**
+ * Which facts Now reads about a waiting Work Item's pull request: `ci` for one ready for review, `approved` (its state and
+ * CI) for one Ploeg handed back because the agent reviewers approved it, and null for every other Work Item.
+ */
+export function reviewRead(row: Pick<PloegNowItem, 'state' | 'closeReason'>): 'ci' | 'approved' | null {
+  if (row.state === 'awaiting_review') return 'ci';
+  return row.state === 'needs_human' && row.closeReason === 'review_approved' ? 'approved' : null;
+}
+function applyReview(row: PloegNowItem, play: ReviewPlay): void {
+  if (reviewRead(row) === 'ci') { row.ci = play.ci; return; }
+  row.pullRequestState = play.state ?? null;
+  if (play.ci) row.ci = play.ci;
 }
 /** A Work Item as a Now row: its latest Shift's close reason and spend, with no pull request link, CI or question read yet. */
 export function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
@@ -1664,18 +1679,13 @@ export class PloegClient {
     const proposed = await this.proposed(user, fresh);
     const order: Record<string, number> = { awaiting_review: 0, needs_human: 1, proposed: 2 };
     const rows = [...reads.flatMap(read => read.items), ...proposed.items].map(nowItem);
-    await Promise.all(rows.filter(row => row.state === 'awaiting_review').slice(0, reviewRowsRead).map(async row => {
+    await Promise.all(rows.filter(row => reviewRead(row) === 'ci').slice(0, reviewRowsRead).map(async row => {
       const play = await this.reviewPlay(row, fresh);
-      row.ci = play.ci;
+      applyReview(row, play);
       row.pullRequestUrl = row.pullRequest?.url || play.url || await this.reviewUrl(user, row.id, fresh);
     }));
     await Promise.all(rows.filter(row => row.state === 'needs_human').slice(0, questionRowsRead).map(row => this.waitingQuestion(user, row, fresh)));
-    await Promise.all(rows.filter(row => row.state === 'needs_human' && row.closeReason === 'review_approved').slice(0, reviewRowsRead).map(async row => {
-      const play = await this.reviewPlay(row, fresh);
-      row.pullRequestState = play.state ?? null;
-      row.pullRequestUrl = row.pullRequest?.url || play.url || row.pullRequestUrl;
-      if (play.ci) row.ci = play.ci;
-    }));
+    await Promise.all(rows.filter(row => reviewRead(row) === 'approved').slice(0, reviewRowsRead).map(row => this.reviewFacts(row, fresh)));
     const truncated: PloegNowTruncatedState[] = [...states.filter(state => reads.some(read => read.state === state && read.truncated)), ...(proposed.truncated ? ['proposed' as const] : [])];
     return { rows: rows.sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1)), truncated };
   }
@@ -1690,7 +1700,19 @@ export class PloegClient {
     }
     return { items: items.slice(0, nowStateCap), truncated: true };
   }
-  private async reviewPlay(row: PloegNowItem, fresh: boolean): Promise<{ url: string; ci: PloegNowCI | null; state?: 'open' | 'merged' | 'closed' | null }> {
+  /**
+   * Adds to a Now row what Now reads of its pull request from Ploeg's delivery facts (`reviewRead`): its CI, and once the
+   * agent reviewers approved it, its state. A row Now reads nothing for comes back as it was. Unreadable facts never
+   * invent a blocker.
+   */
+  async reviewFacts(row: PloegNowItem, fresh = false): Promise<PloegNowItem> {
+    if (!reviewRead(row)) return row;
+    const play = await this.reviewPlay(row, fresh);
+    applyReview(row, play);
+    row.pullRequestUrl = row.pullRequest?.url || play.url || row.pullRequestUrl;
+    return row;
+  }
+  private async reviewPlay(row: PloegNowItem, fresh: boolean): Promise<ReviewPlay> {
     if (this.demo) return demoReviewPlay(row);
     if (!(await this.factsSupported())) return { url: '', ci: null };
     let facts: WorkItemFacts;
