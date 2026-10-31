@@ -44,6 +44,7 @@ test('SCIM describes itself: ServiceProviderConfig, ResourceTypes and Schemas', 
   const schemas = await scim(server.url, '/Schemas');
   assert.deepEqual(schemas.body.Resources.map((item: { id: string }) => item.id), [userSchema, groupSchema]);
   assert.equal((await scim(server.url, `/Schemas/${userSchema}`)).body.name, 'User');
+  assert.equal((await scim(server.url, '/Schemas/%ff')).status, 404, 'a schema id with malformed percent-encoding is no such schema');
 });
 
 test('SCIM creates, reads, filters, pages, replaces and patches a User', async t => {

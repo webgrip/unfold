@@ -28,6 +28,10 @@ async function rawBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+function pathSegment(raw: string): string {
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 /**
  * Serves every `/api/intake` route: the public, signed `POST /api/intake/:sourceId` a sender calls, and the signed-in
  * routes that list templates, manage sources and read Requests. Answers false for a path it does not serve.
@@ -41,7 +45,7 @@ export async function intakeRoute(req: IncomingMessage, res: ServerResponse, pat
     if (method !== 'POST') throw new IntakeError(405, 'method', 'Deliver a Request with POST.');
     const body = await rawBody(req);
     let answer;
-    try { answer = await context.service.receive(decodeURIComponent(parts[0]), { headers: req.headers, query, body, contentType: String(req.headers['content-type'] ?? '').toLowerCase(), client: clientAddress(req, context.trustedProxies) }); }
+    try { answer = await context.service.receive(pathSegment(parts[0]), { headers: req.headers, query, body, contentType: String(req.headers['content-type'] ?? '').toLowerCase(), client: clientAddress(req, context.trustedProxies) }); }
     catch (error) {
       if (error instanceof IntakeError && error.retryAfter !== undefined) res.setHeader('Retry-After', String(error.retryAfter));
       throw error;
@@ -62,7 +66,7 @@ export async function intakeRoute(req: IncomingMessage, res: ServerResponse, pat
   }
   if (parts[0] === 'requests') {
     if (method !== 'GET') throw new IntakeError(405, 'method', 'Read Requests with GET.');
-    if (parts.length === 2) { context.send(200, { request: service.request(user, decodeURIComponent(parts[1])) }); return true; }
+    if (parts.length === 2) { context.send(200, { request: service.request(user, pathSegment(parts[1])) }); return true; }
     if (parts.length !== 1) return false;
     const limit = Number(query.get('limit') ?? 50);
     context.send(200, { requests: service.requests(user, { sourceId: query.get('source') ?? undefined, limit: Number.isInteger(limit) ? limit : 50, before: query.get('before') ?? undefined }) });
@@ -76,7 +80,7 @@ export async function intakeRoute(req: IncomingMessage, res: ServerResponse, pat
     context.send(201, { source: shown(created.source), secret: created.secret });
     return true;
   }
-  const id = decodeURIComponent(parts[1]);
+  const id = pathSegment(parts[1]);
   if (parts.length === 2 && method === 'DELETE') { service.remove(user, id); context.send(200, { removed: id }); return true; }
   if (parts.length === 3 && parts[2] === 'secret' && method === 'POST') {
     const rotated = service.rotate(user, id, await context.readJson());
