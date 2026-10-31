@@ -381,8 +381,26 @@ test('checks-unfold installs only what the unfold group reads, and leaves the sh
   assert.equal(verification.inputs.setup.default, 'setup');
   const fullOnly = ['Restore Go module and build caches', 'Restore pnpm store'];
   for (const name of fullOnly) assert.equal(verification.runs.steps.find(step => step.name === name).if, "inputs.setup == 'setup'", name);
-  assert.equal(verification.runs.steps.find(step => step.name === 'Save mise tool installs').if, "steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup'", 'a partial install never becomes the shared mise cache');
+  assert.equal(verification.runs.steps.find(step => step.name === 'Save mise tool installs').if, "steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup' && github.event_name != 'pull_request'", 'a partial install never becomes the shared mise cache');
   assert.match(verification.runs.steps.find(step => step.name === 'Restore npm download cache').with.key, /^unfold-npm-\$\{\{ runner\.os \}\}-\$\{\{ inputs\.setup \}\}-/, 'each setup saves its own npm cache');
+});
+
+test('a pull request restores the dependency caches and leaves saving them to development', () => {
+  const steps = read('.forgejo/actions/verify/action.yml').runs.steps;
+  for (const step of steps) {
+    const uses = String(step.uses);
+    if (!uses.includes('actions/cache')) continue;
+    if (step.name === 'Restore verified gate results') {
+      assert.match(uses, /^actions\/cache@/, 'a pull request records its passed gates for its next push');
+      continue;
+    }
+    assert.doesNotMatch(uses, /^actions\/cache@/, `${step.name}: restore and save are separate steps`);
+    if (uses.startsWith('actions/cache/save@')) assert.match(step.if, /github\.event_name != 'pull_request'/, `${step.name}: a pull request never saves`);
+  }
+  const saves = steps.filter(step => String(step.uses).startsWith('actions/cache/save@')).map(step => step.name);
+  assert.deepEqual(saves, ['Save mise tool installs', 'Save Go module and build caches', 'Save npm download cache', 'Save pnpm store']);
+  const verify = steps.findIndex(verifyStep);
+  for (const name of saves.slice(1)) assert.ok(steps.findIndex(step => step.name === name) > verify, `${name} runs after a passing verification`);
 });
 
 test('the pull-request jobs that need one or two tools install only those, never every tool of mise.toml', () => {
