@@ -64,3 +64,5 @@ Chosen option: **one `jobs` table in the workbench database**, because it gives 
 ## More Information
 
 Operators read [Background jobs](../operations/background-jobs.md). Ticket VIK-2528.
+
+* 2026-10-31: MCP event deliveries moved onto the queue as `mcp_events.delivery`, replacing their own 5-second loop; deliveries pending at the upgrade each get one job. A sweep of the remaining timers and unawaited promises found none that holds work of its own; the operations page lists them.
