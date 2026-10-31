@@ -114,7 +114,7 @@ jobs:
     needs: [pending, checks, checks-unfold, build-contexts, ploeg-pin]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release:2.3.1@sha256:a39fd2d6a0b29a947903def7ba88b20d17e73d22040ed01fc7b2e2bb6973068a
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.4.0@sha256:de662dc17763088f6f76b1af280defde74006ec5bdd50485051a6168c14167e7
     permissions:
       contents: write
     steps:
@@ -142,7 +142,7 @@ jobs:
     needs: [pending, release]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release:2.3.1@sha256:a39fd2d6a0b29a947903def7ba88b20d17e73d22040ed01fc7b2e2bb6973068a
+      image: harbor.webgrip.dev/webgrip/semantic-release:2.4.0@sha256:de662dc17763088f6f76b1af280defde74006ec5bdd50485051a6168c14167e7
     permissions:
       contents: write
     steps:
