@@ -25,7 +25,7 @@ It is off twice over: the `notifications.push` [feature flag](feature-flags.md) 
 
 "Readers" means people whose Teams include the Work Item's Team and, while `tenancy.enforce` is on, whose Tenant or Client membership reaches it (system ADR-0017).
 
-A notice carries a fixed headline, the Work Item's number and its title with secrets masked, and a link into Unfold when `baseUrl` is set. It never carries a price, a spend figure, a Ploeg reason, a note, a question's text or a tool's arguments. A budget notice names the share, not the amount.
+A notice carries a fixed headline, the Work Item's number and its title with secrets masked, and a link into Unfold when `baseUrl` is set. For work a tracker holds it also names the task as its tracker shows it, such as `ClickUp #86c0abc12`, and carries the task's link: a second Slack button and Teams action (**Open in ClickUp**, named after the tracker), and an ntfy view action. A Web Push notice names the task in its body and opens Unfold. It never carries a price, a spend figure, a Ploeg reason, a note, a question's text or a tool's arguments. A budget notice names the share, not the amount.
 
 ## Work a person handed off
 
@@ -122,7 +122,7 @@ Preferences, the ntfy topic, Web Push subscriptions, the Slack link and Teams wo
 
 ## Slack
 
-Each person gets their notices as direct messages from an Unfold Slack app. A message is Block Kit: the headline and the Work Item's number and masked title as plain text, so a title cannot inject Slack formatting, and an **Open in Unfold** button (**Answer in Unfold** for a question) that links to the page. It carries nothing more than the other channels: no price, spend, note or question text.
+Each person gets their notices as direct messages from an Unfold Slack app. A message is Block Kit: the headline and the Work Item's number and masked title as plain text, so a title cannot inject Slack formatting, and an **Open in Unfold** button (**Answer in Unfold** for a question) that links to the page, plus an **Open in** button for the tracker task when the Work Item came from one. It carries nothing more than the other channels: no price, spend, note or question text.
 
 ### Create the Slack app
 

@@ -84,8 +84,8 @@ test('a handed-off Work Item notifies its person once per transition, with only 
   assert.deepEqual(Object.keys(notice).sort(), ['click', 'message', 'priority', 'tags', 'title', 'topic']);
   assert.equal(notice.title, 'Work you handed off asks you a question');
   assert.equal(notice.click, 'https://unfold.example.org/#work/7');
-  assert.match(String(notice.message), /^#7 Fix login <script>alert\(1\)<\/script> token=\[redacted\] x+…$/);
-  assert.ok(String(notice.message).length <= 125);
+  assert.match(String(notice.message), /^#7 Fix login <script>alert\(1\)<\/script> token=\[redacted\] x+… · Vikunja DEMO-7$/, 'the clipped title, then the tracker task it came from');
+  assert.ok(String(notice.message).length <= 125 + ' · '.length + 80, 'the title is cut to 120 characters and the task to 80');
 
   f.events.push(event('2', 'work_item.stale'));
   await f.notify.tick();

@@ -25,7 +25,7 @@ const run = (text: string, extra: Record<string, unknown> = {}) => ({ type: 'Tex
 
 /**
  * The Adaptive Card a workflow webhook posts: the headline and body as `RichTextBlock` text runs, which render no
- * Markdown, and an `Action.OpenUrl` into Unfold. Teams takes it as a `message` with one attachment.
+ * Markdown, an `Action.OpenUrl` into Unfold and, for work a tracker holds, one to the tracker task. Teams takes it as a `message` with one attachment.
  */
 export function adaptiveCardMessage(message: NotificationMessage): Record<string, unknown> {
   const label = message.trigger === 'question' ? 'Answer in Unfold' : 'Open in Unfold';
@@ -42,7 +42,7 @@ export function adaptiveCardMessage(message: NotificationMessage): Record<string
           { type: 'RichTextBlock', inlines: [run(message.title, { weight: 'Bolder', size: 'Medium' })] },
           { type: 'RichTextBlock', inlines: [run(message.body)] },
         ],
-        actions: message.url ? [{ type: 'Action.OpenUrl', title: label, url: message.url }] : [],
+        actions: [...(message.url ? [{ type: 'Action.OpenUrl', title: label, url: message.url }] : []), ...(message.task?.url ? [{ type: 'Action.OpenUrl', title: message.task.label, url: message.task.url }] : [])],
       },
     }],
   };

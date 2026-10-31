@@ -29,6 +29,7 @@ export const slackLinkMinutes = 15;
 export const slackActions = {
   open: 'unfold.open',
   linkConfirm: 'unfold.link.confirm',
+  openTask: 'unfold.open.task',
   permissionReview: 'unfold.permission.review',
   permissionAllow: 'unfold.permission.allow',
   permissionDeny: 'unfold.permission.deny',
@@ -146,10 +147,11 @@ export class SlackChannel implements NotificationChannel {
     return { ok: data.ok === true, ...(typeof data.error === 'string' ? { error: data.error } : {}), status: result.status, ...(wait !== undefined ? { retryAfterMs: wait } : {}), data };
   }
 
-  /** The Block Kit of one notice: the headline and body as plain text, an Open button, and a Review button for the owner's own prompt. */
+  /** The Block Kit of one notice: the headline and body as plain text, an Open button, an Open-in-tracker button for work a tracker holds, and a Review button for the owner's own prompt. */
   blocks(message: NotificationMessage): Record<string, unknown>[] {
     const elements: Record<string, unknown>[] = [];
     if (message.url) elements.push({ type: 'button', action_id: slackActions.open, text: plain(message.trigger === 'question' ? 'Answer in Unfold' : 'Open in Unfold', 75), url: message.url });
+    if (message.task?.url) elements.push({ type: 'button', action_id: slackActions.openTask, text: plain(message.task.label, 75), url: message.task.url });
     if (message.subject?.kind === 'permission' && this.answersPermissions()) elements.push({ type: 'button', action_id: slackActions.permissionReview, style: 'primary', text: plain('Review and answer', 75), value: message.subject.requestId });
     return [{ type: 'section', text: plain(`${message.title}\n${message.body}`) }, ...(elements.length ? [{ type: 'actions', block_id: 'unfold.notice', elements }] : [])];
   }
@@ -266,7 +268,7 @@ export class SlackChannel implements NotificationChannel {
     const actionId = String(action?.action_id ?? '');
     const value = String(action?.value ?? '');
     if (this.settings?.teamId && teamId !== this.settings.teamId) return refuse(403, 'slack_workspace', 'This Slack workspace is not the one Unfold serves.');
-    if (actionId === slackActions.open) return { status: 200, body: {} };
+    if (actionId === slackActions.open || actionId === slackActions.openTask) return { status: 200, body: {} };
     if (actionId === slackActions.linkConfirm) return this.confirmLink(payload, teamId, slackUserId, value, request.at, context);
     if (actionId === slackActions.permissionReview || actionId === slackActions.permissionAllow || actionId === slackActions.permissionDeny) return this.permission(payload, actionId, teamId, slackUserId, value, request.at, context);
     await this.reply(payload.response_url, chatRefusal);

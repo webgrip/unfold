@@ -143,7 +143,7 @@ export class NtfyChannel implements NotificationChannel {
   async send(message: NotificationMessage, target: Target): Promise<SendOutcome> {
     if (!this.settings) return { kind: 'failed', reason: 'not_configured' };
     const token = this.token();
-    const body = { topic: String(target.address.topic), title: message.title, message: message.body, tags: ['bell'], priority: priorities[message.trigger] ?? 3, ...(message.url ? { click: message.url } : {}) };
+    const body = { topic: String(target.address.topic), title: message.title, message: message.body, tags: ['bell'], priority: priorities[message.trigger] ?? 3, ...(message.url ? { click: message.url } : {}), ...(message.task?.url ? { actions: [{ action: 'view', label: message.task.label, url: message.task.url }] } : {}) };
     const result = await this.transport(new URL(`${this.settings.server}/`), { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, Buffer.from(JSON.stringify(body)), false);
     return outcomeOf(result);
   }
