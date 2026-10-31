@@ -130,7 +130,24 @@ The words follow Ploeg's own tracker port (Ploeg ADR-0183, open in ploeg-hq PR #
 
 Every declared capability runs its own checks: hand-off assign and unassign, comment format, issue create, attach and state, and `testConnection` with a good and a bad token. A capability the adapter does not declare must produce the shared "which trackers can" refusal.
 
-**Connections.** A tracker, an account link and a publisher on the same origin share one Connection: one origin, one credential reference and one Tenant grant (system [ADR-0048](../../../../docs/adr/adr-0048-projects-share-accounts-and-repositories-within-a-tenant-and-a-work-item-has-one-origin.md)). The adapter registers the configuration schema of its part of that Connection, replacing `links.gitlab` and `links.clickup` as fixed fields.
+**Connections.** The owner decided this on 2026-10-31. A tracker, an account link and a publisher on the same origin share one Connection: one origin, one credential reference and one Tenant grant (system [ADR-0048](../../../../docs/adr/adr-0048-projects-share-accounts-and-repositories-within-a-tenant-and-a-work-item-has-one-origin.md)). The adapter registers the configuration schema of its part of that Connection, replacing `links.gitlab` and `links.clickup` as fixed fields.
+
+**Who talks to the tracker.** The owner decided on 2026-10-31 to split the work by job. Unfold's adapters do what a person starts. Ploeg's adapters (Ploeg ADR-0183) do intake and write-back. Each operation has one owner:
+
+| Operation | Owner | Why |
+| --- | --- | --- |
+| Browse the hierarchy and pick a project | Unfold | A person does it while setting up a connection |
+| Search and read a task | Unfold | A person reads it before handing it off, with their own linked token where the adapter has one |
+| Hand off by assigning the Team's tracker user, with a note | Unfold | A person starts it (Unfold [0025](0025-hand-tracker-tasks-to-ploeg-by-assignment.md)) |
+| File an issue (Report a problem) and follow its state | Unfold | A person starts it (system ADR-0024) |
+| Link a person's account | Unfold | It is the person's own credential |
+| Test a connection | Unfold | Run during setup; Ploeg checks its own credentials |
+| Receive the assignment webhook and queue a Work Item | Ploeg | Ploeg owns intake and dispatch |
+| Read task content for a Run's brief | Ploeg | Ploeg briefs the agent |
+| Write back status, comments and links to the pull request as work moves | Ploeg | Ploeg knows the work's state |
+| Register and check board webhooks | Ploeg | Unfold reads the result from Ploeg's connections report |
+| Name a task's reference (`ReferenceNamer`) | Both, same output | Each side shows references; Unfold copies Ploeg's shape |
+
 
 ### Migration
 
@@ -149,8 +166,8 @@ Each step merges on its own and leaves `mise run verify` green.
 | T1 | The tracker conformance suite with fixtures for read and list. The per-provider branches in `test/tasks.test.ts` move into the fixtures. | About 400 lines, tests only. Low risk. |
 | T2 | Finish what PR #751 starts. Add the capabilities and `descriptionFormat` to the `trackers` facts. Move the remaining tracker names into adapters: `public/views/tasks.js:22`, `public/connections.js:13`, `providerLabels` in `public/core/lookup.js`, `public/app.js:84`, `public/views/account.js:13`, `public/views/linked-sessions.js:32`, `src/ahp/customizations.ts:17` and `src/outbound/catalogue.ts:20`. Give `src/ploeg-demo.ts` a ClickUp item so the demo shows a second tracker. | About 250 lines once #751 has merged. Medium risk: it changes `public/`, where daily-use screens are being changed too. |
 | T3 | The browser's tracker logic becomes adapter facts. The Vikunja HTML check in `public/views/session.js:173` reads `descriptionFormat`. The `VIK-` copy of Ploeg's `work.Reference` in `public/core/terms.js:37` reads the reference fact, in the shape of Ploeg's `ReferenceNamer`. Tracker hosts in `public/core/insight.js:5` also move. | About 150 lines. Low risk. |
-| T4 | The `browse`, `search` and `testConnection` capabilities, with ClickUp first, from the ClickUp setup work. Then their conformance checks. | Sized with that work. |
-| T5 | Connections: one record per origin and credential for the tracker, link and publisher roles, with the configuration schema per adapter. | Larger; needs owner decision 5 and a configuration migration. |
+| T4 | The `browse`, `search` and `testConnection` capabilities, with ClickUp first. Open PR #753 (ClickUp setup) adds the setup pickers and a connection test; T4 turns them into declared capabilities with their conformance checks, and then adds them for the other trackers. | Sized after #753 lands. |
+| T5 | Connections: one record per origin and credential for the tracker, link and publisher roles, with the configuration schema per adapter. The owner decided this on 2026-10-31; it starts after #753 lands. | Larger; needs a configuration migration. |
 
 P1 changes one error. A delivery facts read in the demo now refuses with `cards_facts_unavailable` instead of the misleading `ploeg_credential`. No route reaches that read in the demo, because `http.ts` already keeps facts consumers out of it.
 
@@ -161,7 +178,7 @@ P1 changes one error. A delivery facts read in the demo now refuses with `cards_
 * Good, because a new tracker is one adapter plus one fixture. The suite says what it must do, and the browser learns its names and formats from the server.
 * Bad, because `PloegClient` and the port overlap until P5 is finished, and two styles live side by side in `ploeg.ts`.
 * Bad, because the split in P7 touches the most-changed file in the application and will conflict with open work.
-* Neutral, because Ploeg also talks to the same trackers for intake and write-back. This record does not merge the two sides (owner decision 4).
+* Neutral, because Ploeg also talks to the same trackers. The ownership table above says which side owns each operation, and the two sides' adapters stay separate.
 
 ### Confirmation
 
@@ -184,13 +201,13 @@ P1 changes one error. A delivery facts read in the demo now refuses with `cards_
 
 ## More Information
 
-Owner decisions this record needs, each with a recommendation:
+Decisions 4 and 5 were made by the owner on 2026-10-31. Decisions 1–3 and 6 are still open, so this record stays proposed. Each open decision has a recommendation:
 
 1. **One Ploeg port made of areas, or one port per area.** Recommended: one `PloegPort` made of area interfaces, so consumers can depend on the area they use.
 2. **Hand-written live adapter checked against the schemas, or one generated from them.** Recommended: hand-written and checked (ADR-0027); generated types can come later.
 3. **The demo as an adapter inside Unfold, or a fake Ploeg server that the live adapter talks to.** Recommended: an adapter. A demo server would exercise the live path, but it is another process to run. Reconsider it together with the hosted replay in system ADR-0015.
-4. **Who talks to trackers.** Unfold keeps its own adapters for the operations people start: browse, read, hand off, file an issue, link an account. Ploeg keeps its own for intake and write-back. The alternative is that Unfold reaches trackers only through Ploeg. Recommended: keep the split and write down which side owns which operation. Reconsider when a third tracker needs adapters on both sides.
-5. **One Connection per origin for the tracker, link and publisher roles.** Recommended: yes, after the ClickUp setup work lands, as part of ADR-0048's shared connections.
+4. **Who talks to trackers. Decided by the owner on 2026-10-31: split by job.** Unfold keeps its adapters for the operations people start: browse, read, hand off, file an issue and link an account. Ploeg keeps its own for intake and write-back. The table under Connections says who owns each operation. Reconsider when a third tracker needs adapters on both sides.
+5. **One Connection per origin for the tracker, link and publisher roles. Decided by the owner on 2026-10-31: yes.** It is built after the ClickUp setup PR #753 lands, as part of ADR-0048's shared connections (step T5).
 6. **Rename `PloegClient`.** Recommended: only in P7, when it becomes `src/ploeg/service.ts`.
 
 Related: [architecture](../architecture.md), [Managed execution](../../../../docs/workflows/managed-execution.md), [0008](0008-task-connections-and-candidate-handoff.md) task connections, [0015](0015-ploeg-operator-read-api.md) the operator read API.
