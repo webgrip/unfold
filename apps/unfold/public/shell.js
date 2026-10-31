@@ -32,8 +32,11 @@ const groups = [
 ];
 const cardPages = [['binder', '#binder', 'cards', 'Binder'], ['packs', '#packs', 'pack', 'Packs'], ['season', '#season', 'calendar', 'Season']];
 const quick = ['now', 'work', 'runs'];
-const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['labs', '#settings/labs', 'Labs'], ['notifications', '#settings/notifications', 'Notifications'], ['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['task-setup', '#settings/task-setup', 'Connect a tracker'], ['webhooks', '#settings/webhooks', 'Webhooks'], ['intake', '#settings/intake', 'Request intake'], ['billing', '#settings/billing', 'Billing'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
-const areas = { actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', webhooks: 'settings', intake: 'settings', billing: 'settings', preferences: 'settings', notifications: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
+const settingsGroups = [
+  { id: 'yours', label: 'Yours', pages: [['preferences', '#settings/preferences', 'Preferences'], ['notifications', '#settings/notifications', 'Notifications'], ['labs', '#settings/labs', 'Labs'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['linked-sessions', '#settings/agent-sessions', 'Agent sessions'], ['card-identity', '#settings/cards', 'Card logins']] },
+  { id: 'workbench', label: 'Workbench', pages: [['system', '#settings/environment', 'Environment'], ['connections', '#settings/connections', 'Connections'], ['task-setup', '#settings/task-setup', 'Connect a tracker'], ['webhooks', '#settings/webhooks', 'Webhooks', 'admin'], ['intake', '#settings/intake', 'Request intake', 'admin'], ['billing', '#settings/billing', 'Billing', 'admin'], ['admin', '#settings/admin', 'Administration', 'admin'], ['designer', '#settings/card-designer', 'Card designer']] },
+];
+const areas = { admin: 'settings', actions: 'activity', session: 'sessions', account: 'settings', system: 'settings', connections: 'settings', 'task-setup': 'settings', webhooks: 'settings', intake: 'settings', billing: 'settings', preferences: 'settings', notifications: 'settings', labs: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
 const groupOf = { binder: 'Your cards', card: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {
@@ -46,7 +49,7 @@ const ploegStates = {
 };
 let lastTitle = 'Unfold';
 
-const area = () => areas[state.view] || state.view;
+const area = () => state.view === 'linked-sessions' && globalThis.location?.hash === '#settings/agent-sessions' ? 'settings' : areas[state.view] || state.view;
 
 /** Whether the Sessions area is offered: in demo mode, with shared execution configured, or when sessions exist. */
 export function showsSessions() {
@@ -185,9 +188,26 @@ function headerMarkup(page) {
   return `<div class="app-page-header"><div class="app-page-heading">${page.overline ? `<p class="app-overline">${escape(page.overline)}</p>` : ''}<h1 id="page-title" class="app-page-title" tabindex="-1">${escape(page.title)}</h1>${page.subtitle ? `<p class="app-page-subtitle">${escape(page.subtitle)}</p>` : ''}</div>${actions ? `<div class="app-page-actions">${actions}</div>` : ''}</div>`;
 }
 
+/**
+ * The Settings sub-navigation: the person's own pages under "Yours" and the workbench's under "Workbench". A page
+ * marked `admin` shows to administrators only, and Request intake also needs the `intake.requests` flag.
+ * @param {string} view The current view id.
+ * @param {{ admin: boolean, intake: boolean }} access
+ */
+export function settingsNavMarkup(view, { admin, intake }) {
+  const offered = ([id, , , only]) => (only !== 'admin' || admin) && (id !== 'intake' || intake);
+  const groups = settingsGroups.map(group => {
+    const pages = group.pages.filter(offered);
+    if (!pages.length) return '';
+    return `<div class="app-subnav-group"><p class="app-subnav-heading" id="subnav-${group.id}">${escape(group.label)}</p><ul aria-labelledby="subnav-${group.id}">${pages.map(([id, href, label]) => `<li><a href="${href}" ${view === id ? 'aria-current="page"' : ''}>${escape(label)}</a></li>`).join('')}</ul></div>`;
+  }).join('');
+  return `<nav class="app-subnav" aria-label="Settings">${groups}</nav>`;
+}
+
 function settingsMarkup() {
   if (area() !== 'settings') return '';
-  return `<nav class="app-subnav" aria-label="Settings"><ul>${settingsPages.filter(([id]) => (id !== 'intake' || (enabled('intake.requests') && state.bootstrap?.user?.role === 'admin')) && (id !== 'billing' || state.bootstrap?.user?.role === 'admin')).map(([id, href, label]) => `<li><a href="${href}" ${state.view === id ? 'aria-current="page"' : ''}>${escape(label)}</a></li>`).join('')}</ul></nav>`;
+  const admin = state.bootstrap?.user?.role === 'admin';
+  return settingsNavMarkup(state.view, { admin, intake: admin && enabled('intake.requests') });
 }
 
 function tabbarMarkup() {

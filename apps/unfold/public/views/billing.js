@@ -3,10 +3,12 @@ import { api } from '../core/api.js';
 import { escape, renderHtml, announce, notify } from '../core/dom.js';
 import { badge, button, callout, demoNote, disclosure, skeleton, table } from '../core/ui.js';
 import { parseAmount, date } from '../core/format.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
+import { confirmAction } from './dialogs.js';
 
-const view = { data: null, error: '', loading: false, busy: '' };
-onForget(() => Object.assign(view, { data: null, error: '', loading: false, busy: '' }));
+const view = { data: null, error: null, loading: false, busy: '' };
+onForget(() => Object.assign(view, { data: null, error: null, loading: false, busy: '' }));
 
 const stateLabels = { pending: ['neutral', 'Waiting to send'], needs_price: ['attention', 'Needs your price'], sending: ['neutral', 'Sending'], sent: ['success', 'Sent'], failed: ['danger', 'Failed'], cancelled: ['neutral', 'Cancelled'] };
 const acceptedWords = { merged: 'Merged', approved: 'Approved', silent: 'Silent (10 working days)' };
@@ -88,7 +90,7 @@ function linesCard(data) {
 }
 
 function body() {
-  if (view.error && !view.data) return callout({ tone: 'danger', title: 'Could not read billing', body: `<p>${escape(view.error)}</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'billing-refresh' }) });
+  if (view.error && !view.data) return failureCallout({ title: 'Could not read billing', failure: view.error, action: 'billing-refresh' });
   if (!view.data) return skeleton({ rows: 4 });
   if (view.data.demo) return `${demoNote()}${callout({ title: 'No billing in the demo', body: '<p>The demo never writes a line into a real billing tool.</p>' })}`;
   if (!view.data.configured) return callout({ title: 'Billing is not configured', body: '<p>Add a <code>billing</code> block to the configuration and turn on the <code>billing.export</code> flag for a Tenant. The operations guide “Bill accepted tickets through Simplicate” has the steps.</p>' });
@@ -101,10 +103,10 @@ function renderBilling() {
 }
 
 async function load() {
-  view.loading = true; view.error = '';
+  view.loading = true; view.error = null;
   if (state.view === 'billing') renderBilling();
   try { view.data = await api('/api/billing'); }
-  catch (error) { if (error.status !== 401) view.error = error.message || 'Unfold did not answer.'; }
+  catch (error) { if (error.status !== 401) view.error = failureOf(error); }
   view.loading = false;
   if (state.view === 'billing') renderBilling();
 }
@@ -125,11 +127,14 @@ async function saveMapping(data, form) {
   notify('Mapping saved.');
 }
 
-async function unmap(element) {
-  const query = new URLSearchParams({ tenant: element.dataset.tenant, ...(element.dataset.client ? { client: element.dataset.client } : {}) });
-  await api(`/api/billing/mappings?${query}`, { method: 'DELETE' });
-  await load();
-  notify('Mapping removed.');
+function unmap(element) {
+  const owner = { tenant: element.dataset.tenant, client: element.dataset.client || null };
+  const query = new URLSearchParams({ tenant: owner.tenant, ...(owner.client ? { client: owner.client } : {}) });
+  confirmAction(`Remove the mapping of ${ownerName(owner)}?`, 'Unfold forgets where this Client’s lines go and your prices for it. Lines it already made stay as they are; a ticket accepted from now on gets no line until you map the Client again.', 'Remove mapping', async () => {
+    await api(`/api/billing/mappings?${query}`, { method: 'DELETE' });
+    await load();
+    notify('Mapping removed.');
+  }, { tone: 'danger', dismiss: 'Keep the mapping' });
 }
 
 async function sync() {
@@ -155,7 +160,7 @@ export default {
   actions: {
     'billing-refresh': () => load(),
     'billing-sync': () => sync(),
-    'billing-unmap': element => unmap(element),
+    'billing-unmap': unmap,
     'billing-send': element => act(`/api/billing/lines/${element.dataset.id}/send`, { checked: element.dataset.checked === '1' }, 'Sent again.'),
     'billing-found': element => act(`/api/billing/lines/${element.dataset.id}/found`, {}, 'Marked as found in the tool.'),
   },

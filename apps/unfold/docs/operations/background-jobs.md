@@ -45,7 +45,7 @@ A lease that runs out while Unfold keeps running, because an attempt hung, is ha
 
 ## Look at the queue
 
-An administrator reads the queue at `GET /api/admin/jobs` ([API](../contracts/api.md#background-jobs)):
+An administrator reads the queue on **Settings › Administration** under **Background work**: each kind in plain words with its counts, then the jobs that gave up or wait for a retry with their last error. The page reads `GET /api/admin/jobs` ([API](../contracts/api.md#background-jobs)), which a script can call too:
 
 ```sh
 curl -s -H "cookie: $UNFOLD_COOKIE" -H 'x-unfold-request: 1' https://unfold.example.com/api/admin/jobs | jq

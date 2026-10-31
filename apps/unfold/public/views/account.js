@@ -3,8 +3,9 @@ import { api } from '../core/api.js';
 import { escape, safeUrl, renderHtml, notify } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { date, dateTime, plural, relative } from '../core/format.js';
-import { badge, button, callout, chip, disclosure, dl, emptyState, skeleton, timeAt } from '../core/ui.js';
+import { badge, button, chip, disclosure, dl, emptyState, skeleton, timeAt } from '../core/ui.js';
 import { providerLabels } from '../core/lookup.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
 import { confirmAction } from './dialogs.js';
 
@@ -13,7 +14,7 @@ const tokenHelp = {
   clickup: { where: 'In ClickUp: your avatar › Settings › Apps › API Token.', placeholder: 'pk_…', without: 'ClickUp task connections show nothing until you link.' },
 };
 
-let loadError = '';
+let loadError = null;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
 const nameOf = provider => providerLabels[provider] || provider;
@@ -93,7 +94,7 @@ function linkCard(link) {
 function renderAccount() {
   const links = state.links;
   let content;
-  if (loadError && !links) content = callout({ tone: 'danger', title: 'Could not read your linked accounts', body: `<p>${escape(loadError)}</p>`, actions: act('data-action="accounts-retry"', { label: 'Try again', icon: 'refresh', size: 'sm' }) });
+  if (loadError && !links) content = failureCallout({ title: 'Could not read your linked accounts', failure: loadError, action: 'accounts-retry' });
   else if (!links) content = `<div class="account-grid" aria-busy="true"><section class="card settings-card account-card account-loading">${skeleton({ rows: 2 })}</section></div>`;
   else if (!links.length) content = `<section class="card settings-card account-empty">${emptyState({ icon: 'link', title: 'No accounts to link', body: 'This workbench has no GitLab or ClickUp connection that works with personal accounts. When an administrator adds one, you link your account here, once.' })}</section>`;
   else content = `<div class="account-grid">${links.map(linkCard).join('')}</div>`;
@@ -109,9 +110,9 @@ export function linkFailure(code) {
 }
 
 async function loadAccount() {
-  loadError = '';
+  loadError = null;
   try { state.links = (await api('/api/links')).links; }
-  catch (error) { loadError = error.message; state.links = null; }
+  catch (error) { if (error.status !== 401) loadError = failureOf(error); state.links = null; }
   if (state.view === 'account' && state.bootstrap) renderAccount();
 }
 

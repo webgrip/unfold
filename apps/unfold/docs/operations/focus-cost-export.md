@@ -18,7 +18,7 @@ Operators and administrators. A viewer gets 403. The rows cover only the Teams y
 
 ## Download it from Insights
 
-Open **Insights**. The **Deliveries** section has **Download FOCUS cost** next to **Download CSV**. It downloads this calendar month's settled cost per Run, in US$, as CSV. For another period, Client, currency or format, use the API.
+Open **Insights**. The **Deliveries** section has **FOCUS cost** with two downloads next to **Download CSV**: **CSV** for a spreadsheet and **Parquet** for a data tool such as DuckDB or BigQuery. Both hold this calendar month's settled cost per Run, in US$. For another period, Client, currency or JSON Lines, use the API.
 
 ## Fetch it from the API
 
