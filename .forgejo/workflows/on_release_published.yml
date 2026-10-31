@@ -142,7 +142,7 @@ jobs:
       - name: Build and push (Harbor)
         id: build
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v3.3.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v3.3.2
         with:
           registry: harbor.webgrip.dev
           docker-context: ${{ matrix.context }}
@@ -183,7 +183,7 @@ jobs:
           vex-dir: apps/unfold/ops/vex/statements
 
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v3.3.0
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v3.3.2
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/${{ matrix.name }}
@@ -405,7 +405,7 @@ jobs:
 
   site-deploy-staging:
     needs: [site-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v3.3.0
+    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v3.3.2
     with:
       enabled: ${{ needs.site-release-tag.outputs.channel == 'prerelease' }}
       environment: production
@@ -431,7 +431,7 @@ jobs:
 
   site-deploy-production:
     needs: [site-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v3.3.0
+    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v3.3.2
     with:
       enabled: ${{ needs.site-release-tag.outputs.channel == 'stable' }}
       environment: production
