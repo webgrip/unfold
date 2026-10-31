@@ -1,10 +1,10 @@
+import { taskIdText, trackerOf } from '../core/trackers.js';
 import { closeReasonLabel } from '../core/states.js';
 import { liveSentence } from './parts.js';
 import { collisionSentence, collisions, collisionsOf, runningRunsOf } from '../core/collisions.js';
 import { linkedWaitReason } from '../core/linked-waiting.js';
 import { attachSession, attachmentWords, workTracks } from '../core/session-tracks.js';
 
-const providers = Object.freeze({ vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo tracker', manual: 'Manual' });
 const harnesses = Object.freeze({ 'claude-code': 'Claude Code', claude_code: 'Claude Code', opencode: 'OpenCode', codex: 'Codex', openhands: 'OpenHands', cursor: 'Cursor' });
 
 /** The gap in seconds after which a timeline folds the quiet time between two entries shut. */
@@ -40,8 +40,8 @@ function origin(detail, session) {
   const item = detail.item;
   if (session) return { kind: 'unfold', label: `Started in Unfold${session.ownerName ? ` by ${session.ownerName}` : ''}`, by: session.ownerName || '', initials: initial(session.ownerName || 'Unfold'), sessionId: session.id };
   if (item.parentId || item.followUpOf) return { kind: 'follow-up', label: `Follow-Up of #${item.parentId ?? item.followUpOf}`, by: '', initials: 'F', sessionId: null };
-  const provider = providers[item.provider] ?? String(item.provider ?? 'Tracker');
-  return { kind: 'tracker', label: `From ${provider} #${item.externalId}`, by: '', initials: provider[0] ?? 'T', url: item.url || null, sessionId: null };
+  const provider = trackerOf(item.provider)?.label ?? String(item.provider ?? 'Tracker');
+  return { kind: 'tracker', label: `From ${provider} ${taskIdText(item.provider, item.externalId)}`, by: '', initials: provider[0] ?? 'T', url: item.url || null, sessionId: null };
 }
 
 function conditionsOf(brief, proofs) {

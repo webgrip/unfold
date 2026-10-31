@@ -19,7 +19,7 @@ import { linkedWaitingCard } from '../core/linked-waiting.js';
 import { handedOffCard } from '../core/handed-off.js';
 import { permissionsChangedEvent } from '../core/linked-permissions.js';
 import { taskStandings } from '../handoff.js';
-import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
+import { handedMarkup, handedNotice, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
 const baselineKey = 'unfold.nowSince';
 const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null, handed: null, snoozeOpen: null, showSnoozed: false, showOlder: false });
@@ -130,10 +130,11 @@ function startLane(standings) {
   const sources = startSources();
   const lists = sources.map(source => ({ sourceId: source.id, tasks: start.lists.get(source.id)?.tasks || [] }));
   const errors = sources.map(source => start.lists.get(source.id)?.error).filter(Boolean);
+  const errorCode = sources.map(source => start.lists.get(source.id)?.code).find(Boolean) || '';
   const failed = sources.length > 0 && errors.length === sources.length;
   const refused = new Map((Array.isArray(view.data?.refused) ? view.data.refused : []).map(entry => [`${entry.provider}:${entry.externalId}`, refusalSentence(entry)]));
   const queue = !start.loaded || failed ? null : startQueue(lists, standings, start.handed, { sources, connections: start.connections, refused });
-  return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard(), all: start.all, include: start.include });
+  return startCard({ queue, sources, error: failed ? errors[0] : '', errorCode: failed ? errorCode : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard(), all: start.all, include: start.include });
 }
 
 function snoozeOptions() {
@@ -342,7 +343,7 @@ async function loadStart() {
   const connections = api('/api/ploeg/connections').catch(() => null);
   const lists = await Promise.all(sources.map(async source => {
     try { return [source.id, { tasks: (await api(`/api/task-sources/${encodeURIComponent(source.id)}/tasks?page=1`)).tasks || [] }]; }
-    catch (error) { return [source.id, { tasks: start.lists.get(source.id)?.tasks || [], error: error.message || 'The tracker did not answer.' }]; }
+    catch (error) { return [source.id, { tasks: start.lists.get(source.id)?.tasks || [], error: error.message || 'The tracker did not answer.', code: error.code || '' }]; }
   }));
   start.lists = new Map(lists);
   start.connections = await connections;
@@ -364,7 +365,7 @@ function renderSheet() {
   if (!task || !source) { dialog.close(); return; }
   const focused = dialog.contains(document.activeElement) ? document.activeElement.id : '';
   const team = sheet.team || suggestedTeam(sheet.status?.teams, rememberedTeam(sheet.sourceId), labelledTeam(task));
-  dialog.innerHTML = sheetMarkup({ task, source, repository: source.repositoryId ? repoName(source.repositoryId) : '', status: sheet.status, statusError: sheet.statusError, summary: start.week, team, remembered: rememberedTeam(sheet.sourceId), busy: sheet.busy, error: sheet.error, room: roomOf(view.data), singleKeys: singleKeysEnabled() });
+  dialog.innerHTML = sheetMarkup({ task, source, repository: source.repositoryId ? repoName(source.repositoryId) : '', status: sheet.status, statusError: sheet.statusError, summary: start.week, team, remembered: rememberedTeam(sheet.sourceId), busy: sheet.busy, error: sheet.error, errorCode: sheet.errorCode, room: roomOf(view.data), singleKeys: singleKeysEnabled() });
   const target = (focused && document.getElementById(focused)) || document.querySelector('#sheet-submit:not([disabled])') || dialog.querySelector('[data-action="close-dialog"]');
   target?.focus();
 }
@@ -407,7 +408,7 @@ async function handOff(data) {
   const task = sheet && sheetTask(sheet);
   const team = data.team || sheet?.team || suggestedTeam(sheet?.status?.teams, rememberedTeam(sheet?.sourceId), labelledTeam(task));
   if (!sheet || !task || !team || sheet.busy) return;
-  sheet.busy = true; sheet.error = '';
+  sheet.busy = true; sheet.error = ''; sheet.errorCode = '';
   renderSheet();
   try {
     const status = await api(statusPath(sheet.sourceId, task.id, 'handoff'), { method: 'POST', body: JSON.stringify({ team, revision: task.revision }) });
@@ -416,7 +417,7 @@ async function handOff(data) {
     sheet.opener = '';
     sheetDialog()?.close();
     track('now.start_handoff');
-    notify(`Handed to ${team}. Take it back from Now until a worker starts it.`);
+    notify(handedNotice(team, sheet.status?.teams?.find(entry => entry.id === team)?.assignee, taskSources().find(entry => entry.id === sheet.sourceId)?.provider));
     announce(`Handed to ${team}.`);
     for (const warning of status.warnings || []) notify(warning, true);
     renderNow();
@@ -425,6 +426,7 @@ async function handOff(data) {
   } catch (error) {
     sheet.busy = false;
     sheet.error = error.message || 'Ploeg did not answer.';
+    sheet.errorCode = error.code || '';
     if (error.status === 409 && error.code === 'task_changed') { await loadStart(); sheet.error = `${sheet.error} The sheet now shows the current version.`; }
     renderSheet();
   }

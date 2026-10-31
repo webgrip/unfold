@@ -1,3 +1,4 @@
+import { taskIdText, trackerOf } from '../core/trackers.js';
 import { failureReason } from '../core/states.js';
 import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
 import { guardSignals, policyDrift } from '../core/guard.js';
@@ -32,7 +33,6 @@ const byStart = (a, b) => (toMs(a.startedAt) ?? Infinity) - (toMs(b.startedAt) ?
 const interrupt = /^(c-c|ctrl[- ]?c|\^c)$|\b(interrupt|kill|sigint|sigterm|stuck|hung|hang)\b/i;
 const latest = moments => { const known = moments.filter(at => at !== null); return known.length ? Math.max(...known) : null; };
 const earliest = moments => { const known = moments.filter(at => at !== null); return known.length ? Math.min(...known) : null; };
-const providers = { vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo', manual: 'Manual' };
 
 function runStatus(run) {
   if (run.state === 'pending') return 'pending';
@@ -305,7 +305,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const lastTrouble = [...moves].reverse().find(move => move.trouble && !move.live) ?? null;
   return {
     id: String(item.id),
-    ref: `${providers[item.provider] ?? capital(item.provider)} #${item.externalId}`,
+    ref: `${trackerOf(item.provider)?.label ?? capital(item.provider)} ${taskIdText(item.provider, item.externalId)}`,
     title: item.title,
     team: item.team,
     state: item.state,

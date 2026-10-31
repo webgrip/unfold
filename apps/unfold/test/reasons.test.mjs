@@ -1,3 +1,4 @@
+import './trackers-support.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { approvedToMerge, closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, sessionDriven, withdrawnReason } from '../public/core/reasons.js';

@@ -1,3 +1,4 @@
+import './trackers-support.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { handedMarkup, labelledTeam, pendingHandoffs, priorityOf, readiness, retryMarkup, reviewRoom, roomOf, routeOf, sheetMarkup, startCard, startLimit, startQueue, suggestedTeam, taskKey, whyHere } from '../public/start.js';
@@ -167,7 +168,9 @@ test('the sheet shows readiness, each Team with its last 7 days, the terms and o
   assert.match(html, /writer → reviewer/);
   assert.match(html, /58 Runs in 7 d: 21 failed, 4 stuck/);
   assert.match(html, /A branch of webgrip\/unfold, then a pull request for your review/);
-  assert.match(html, /Assigns “pewter” in Vikunja/);
+  assert.match(html, /<dt>In Vikunja<\/dt><dd>Assigns “pewter” to #1 in Vikunja and leaves a comment there/);
+  assert.match(html, /<dt>Next<\/dt><dd>Ploeg queues it for the Team/);
+  assert.match(html, /<dt>Take back<\/dt><dd>Free until a worker starts it: Take back on Now or Tasks, which removes “pewter” in Vikunja again\. After a worker starts it, Cancel on its Work Item page stops it\./);
   assert.match(html, /Hand to pewter/);
   assert.doesNotMatch(html, /id="sheet-submit"[^>]*disabled/);
 });

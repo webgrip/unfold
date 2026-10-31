@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
+import { trackerDisplay } from './tracker-display.ts';
 import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
@@ -671,6 +672,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
           repositories: tenants.repositories(user).map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: sourceLinkProvider(source) ?? null })),
+          trackers: trackerDisplay(),
           teams: config.teams, crews: config.teams, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),

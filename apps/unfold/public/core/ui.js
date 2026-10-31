@@ -177,6 +177,17 @@ export function chip({ label = '', tone, icon: glyph, title, href, external = fa
 }
 
 /**
+ * The error code a failure came with, as a line a person can quote when they ask for help; the code is listed on the
+ * error codes page. Empty without a code.
+ * @param {string} [code]
+ * @returns {string}
+ */
+export function errorCodeNote(code) {
+  const value = String(code ?? '').trim();
+  return /^[a-z][a-z0-9_]{0,63}$/.test(value) ? `<p class="error-code">Error code <code>${escape(value)}</code></p>` : '';
+}
+
+/**
  * A round count badge. Returns an empty string when `n` is null or undefined (unknown is not zero).
  * @param {number|string|null|undefined} n
  * @param {object} [options]

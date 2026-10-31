@@ -1,3 +1,4 @@
+import './trackers-support.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { nowMarkup, digestCounts, digestSection, finishedSinceHref, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit, waitingToRun } from '../public/now.js';
@@ -490,7 +491,7 @@ test('Needs you lists a task Ploeg could not start first, says why in plain word
   const data = { ...nowData(), refused: [refusal('label_missing')] };
   const html = nowMarkup(view({ data }), options, nowAt);
   assert.match(html, /id="now-group-needs"[\s\S]*Could not start[\s\S]*Review the rounding criteria/, 'the group leads Needs you');
-  assert.match(html, /Vikunja #1612/, 'the row names the task reference');
+  assert.match(html, /<span class="task-chip"><span class="task-chip-from">Vikunja<\/span> <span class="task-chip-ref">#1612<\/span><\/span>/, 'the row names the task reference as a task chip');
   assert.match(html, /ploeg: cap reviewer retries per Round/);
   assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/homelab-cluster, repo\/unfold\./);
   assert.match(html, /<a class="button[^"]*"[^>]*href="https:\/\/vikunja\.example\.test\/tasks\/1612"[^>]*>[\s\S]*?Open in Vikunja/, 'a primary button opens the task itself');

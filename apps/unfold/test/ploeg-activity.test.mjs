@@ -1,3 +1,4 @@
+import './trackers-support.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { activityMarkup, approveDialogMarkup, deliveriesCsvLink, deliveriesMarkup, focusCostLink, insightsWindow, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, groupSpend, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl, workGroups } from '../public/ploeg-activity.js';

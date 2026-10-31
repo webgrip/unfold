@@ -377,7 +377,7 @@ paths:
       tags: [Workbench]
       operationId: getBootstrap
       summary: 'What the browser needs to start'
-      description: 'The current user, mode, repositories, Teams (also as the deprecated `crews`), models, runtimes, placements, limits, report target, product-event switch and the browser-visible flag values.'
+      description: 'The current user, mode, repositories, task sources, the trackers the registry knows, Teams (also as the deprecated `crews`), models, runtimes, placements, limits, report target, product-event switch and the browser-visible flag values.'
       x-unfold-role: viewer
       responses:
         '200':
@@ -400,6 +400,24 @@ paths:
                   reports: { type: object }
                   repositories: { type: array, items: { type: object } }
                   taskSources: { type: array, items: { type: object } }
+                  trackers:
+                    type: array
+                    description: 'Every registered tracker: its provider key, product name, the mark it shows before a non-numeric task id, and whether a task is handed off by assigning the Team''s tracker user.'
+                    items:
+                      type: object
+                      required: [name, label, handsOffByAssignment]
+                      properties:
+                        name: { type: string }
+                        label: { type: string }
+                        idMark: { type: string }
+                        priorities:
+                          type: object
+                          required: [names, oneIsHighest]
+                          properties:
+                            names: { type: array, items: { type: string } }
+                            oneIsHighest: { type: boolean }
+                        handsOffByAssignment: { type: boolean }
+                        fixture: { type: boolean }
                   teams: { type: array, items: { type: object } }
                   crews: { type: array, items: { type: object }, deprecated: true }
                   models: { type: array, items: { type: object } }

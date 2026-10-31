@@ -13,6 +13,8 @@ export const clickup: TaskProviderAdapter = {
   name: 'clickup',
   label: 'ClickUp',
   descriptionFormat: 'markdown',
+  idMark: '#',
+  priorities: { names: ['', 'urgent', 'high', 'normal', 'low'], oneIsHighest: true },
   linkedAccount: 'clickup',
   taskId: clickupTaskId,
   apiRoot: (_url, path) => requireSuffix(path, '/api/v2'),
