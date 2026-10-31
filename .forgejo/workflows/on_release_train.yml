@@ -131,7 +131,7 @@ jobs:
       - name: Semantic Release
         id: release
         if: steps.head.outputs.current == 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.3.2
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.4.0
         with:
           package-path: apps
           package-name: unfold
@@ -158,7 +158,7 @@ jobs:
       - name: Semantic Release
         id: release
         if: steps.head.outputs.current == 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.3.2
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v3.4.0
         with:
           package-path: apps/site
           package-name: unfold-site
