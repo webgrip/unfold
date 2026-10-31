@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-29
+status: accepted
+date: 2026-10-31
 decision-makers: Ryan Grippeling
 ---
 
@@ -110,6 +110,7 @@ Proposed tests, none of which exist yet:
 
 ## More Information
 
-* Refines [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md): Clients own sources; repositories belong to the Tenant and are granted. Ploeg's glossary entry for Client still says a Client owns repositories; that changes upstream if this ADR is accepted.
+* Refines [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md): Clients own sources; repositories belong to the Tenant and are granted. Ploeg's glossary entry for Client still says a Client owns repositories; that changes upstream.
 * Builds on [connect a repository](../concepts/connect-a-repository.md) directions 3 and 4, and on [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md), which lets work be split into further Work Items.
 * 2026-10-29 — Proposed. The owner asked how Work Items work for projects that share a repository, a forge, an issue tracker or other integrations, and agreed with this direction.
+* 2026-10-31 — Accepted. The owner accepted it, so the tenancy enforcement tickets VIK-1740 and VIK-1878 check Repository Grants instead of Client ownership of repositories.

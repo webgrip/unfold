@@ -135,7 +135,7 @@ A Client's Definition of Ready, Definition of Done and extra instructions for ag
 ## Client Project
 *Context: Offering · Owner: Unfold*
 
-A named grouping inside one Client, or inside the Agency's own work, that bundles its tracker sources, its Repository Grants, its Routing Rules, its default Team and its budget: a share of the Client Budget, or of the Agency Budget for the Agency's own work. A Work Item takes its Client and Client Project from its origin. Proposed in system ADR-0048; not implemented yet.
+A named grouping inside one Client, or inside the Agency's own work, that bundles its tracker sources, its Repository Grants, its Routing Rules, its default Team and its budget: a share of the Client Budget, or of the Agency Budget for the Agency's own work. A Work Item takes its Client and Client Project from its origin. Decided in system ADR-0048; not implemented yet.
 
 **Not to be confused with** [Scope](../reference/glossary.md#scope): A tracker's own container, such as a Vikunja or Jira project.  
 **See also:** [Client](../reference/glossary.md#client), [Integration Account](#integration-account), [Repository Grant](#repository-grant), [Work Item](../reference/glossary.md#work-item)  
@@ -252,7 +252,7 @@ One configured way for Requests to reach a Tenant, and optionally one Client in 
 ## Integration Account
 *Context: Offering · Owner: Unfold*
 
-One account on one tracker or forge instance, such as one ClickUp workspace token or one GitHub App installation, with its credential reference. It belongs to a Tenant, and any number of sources and repositories use it. It grants nothing on its own, and it is not part of a source's or repository's identity. Not the Settings → Connections page, which checks each board's and repository's wiring. Proposed in system ADR-0048; not implemented yet.
+One account on one tracker or forge instance, such as one ClickUp workspace token or one GitHub App installation, with its credential reference. It belongs to a Tenant, and any number of sources and repositories use it. It grants nothing on its own, and it is not part of a source's or repository's identity. Not the Settings → Connections page, which checks each board's and repository's wiring. Decided in system ADR-0048; not implemented yet.
 
 **See also:** [Tenant](../reference/glossary.md#tenant), [Client Project](#client-project), [Repository Grant](#repository-grant)  
 
@@ -380,7 +380,7 @@ Turning a Request into one or more Ready Work Items, each with Acceptance Condit
 ## Repository Grant
 *Context: Offering · Owner: Unfold*
 
-Permission for a Client Project to route work to a repository its Tenant owns. Several Client Projects may hold a grant on one repository, such as a shared library; each Client still sees only its own Work Items on it. Proposed in system ADR-0048; not implemented yet.
+Permission for a Client Project to route work to a repository its Tenant owns. Several Client Projects may hold a grant on one repository, such as a shared library; each Client still sees only its own Work Items on it. Decided in system ADR-0048; not implemented yet.
 
 **See also:** [Client Project](#client-project), [Client](../reference/glossary.md#client), [Work Target](../reference/glossary.md#work-target)  
 
@@ -570,7 +570,7 @@ The Client-safe projection of a Work Item that an Ask answers from. It never hol
 ## Work Item Link
 *Context: Work · Owner: Unfold*
 
-A confirmed "same work as" between a Work Item and another tracker item or forge issue of the same Client, or of the Agency's own sources. A reference in an item only proposes one; a person with access to both confirms it. Assigning a linked item to a Team creates no second Work Item. It maps to a Ploeg contract still to be named upstream. Proposed in system ADR-0048; not implemented yet.
+A confirmed "same work as" between a Work Item and another tracker item or forge issue of the same Client, or of the Agency's own sources. A reference in an item only proposes one; a person with access to both confirms it. Assigning a linked item to a Team creates no second Work Item. It maps to a Ploeg contract still to be named upstream. Decided in system ADR-0048; not implemented yet.
 
 **Not to be confused with** [Linked Session](#linked-session): An agent session run outside Unfold that reports to a Work Item.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Tracker Item](../reference/glossary.md#tracker-item)  
