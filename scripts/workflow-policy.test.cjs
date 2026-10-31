@@ -309,7 +309,7 @@ test('the release train releases only the commit its checks passed, and only whe
 test('warnings from setup and verification turn their own job red without gating a release', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
   const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/unfold-output\//.test(step.run ?? ''));
-  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/unfold install', '-C apps/site install', 'run setup', 'run verify']);
+  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/unfold install', '-C apps/site install', 'run "$SETUP"', 'run verify']);
   for (const step of captured) assert.match(step.run, /^set -o pipefail; /, 'a captured step still fails when its command fails');
   const collect = verification.runs.steps.at(-1);
   assert.equal(collect.id, 'warnings');
@@ -360,6 +360,38 @@ test('a release job publishes through the semantic-release step alone, which ado
   }
   assert.doesNotMatch(JSON.stringify(workflows), /release-repair|release-prepare/);
   assert.ok(!fs.existsSync(path.join(root, 'scripts/release-repair.mjs')));
+});
+
+test('checks-unfold installs only what the unfold group reads, and leaves the shared caches to the job that installs everything', () => {
+  const tasks = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
+  const steps = name => JSON.parse(tasks.match(new RegExp(`\\[tasks\\.${name}\\]\\nrun = (\\[[^\\]]*\\])`))[1].replace(/,\n\]/, ']'));
+  const full = steps('setup');
+  const unfold = steps('setup-unfold');
+  assert.ok(unfold.every(step => full.includes(step)), 'setup-unfold runs only steps of setup');
+  assert.deepEqual(unfold, ['python3 scripts/ploeg-contract.py fetch', 'python3 scripts/ploeg-contract.py chart', 'mise trust apps/unfold/mise.toml', 'mise -C apps/unfold install', 'npm --prefix apps/unfold ci --no-audit --no-fund']);
+  for (const [file, workflow] of [['on_pull_request.yml', workflows['on_pull_request.yml']], ['on_source_change.yml', source], ['on_release_train.yml', train]]) {
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      const verify = (job.steps ?? []).find(step => step.uses === './.forgejo/actions/verify');
+      if (!verify) continue;
+      if (name === 'checks-unfold') assert.deepEqual({ only: verify.with.only, setup: verify.with.setup }, { only: 'unfold', setup: 'setup-unfold' }, `${file}: checks-unfold runs only the unfold group on its smaller setup`);
+      else assert.equal(verify.with?.setup, undefined, `${file}: ${name} installs everything`);
+    }
+  }
+  const verification = read('.forgejo/actions/verify/action.yml');
+  assert.equal(verification.inputs.setup.default, 'setup');
+  const fullOnly = ['Restore Go module and build caches', 'Restore pnpm store'];
+  for (const name of fullOnly) assert.equal(verification.runs.steps.find(step => step.name === name).if, "inputs.setup == 'setup'", name);
+  assert.equal(verification.runs.steps.find(step => step.name === 'Save mise tool installs').if, "steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup'", 'a partial install never becomes the shared mise cache');
+  assert.match(verification.runs.steps.find(step => step.name === 'Restore npm download cache').with.key, /^unfold-npm-\$\{\{ runner\.os \}\}-\$\{\{ inputs\.setup \}\}-/, 'each setup saves its own npm cache');
+});
+
+test('the pull-request jobs that need one or two tools install only those, never every tool of mise.toml', () => {
+  const pr = workflows['on_pull_request.yml'];
+  for (const [name, tools] of [['agents-check', 'uv'], ['opencode-contract', 'node']]) {
+    const job = pr.jobs[name];
+    assert.equal(job.env?.MISE_AUTO_INSTALL, 'false', `${name}: mise run and mise exec install nothing on their own`);
+    assert.equal(job.steps.find(step => String(step.uses).includes('/jdx/mise-action@')).with.install_args, tools, name);
+  }
 });
 
 test('the CI verify gate requires the imported release notes', () => {

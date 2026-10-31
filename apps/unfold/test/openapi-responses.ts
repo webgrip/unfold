@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import { parse } from 'yaml';
 import { openApiDocument } from '../src/http.ts';
@@ -10,10 +13,34 @@ type Parameter = { $ref?: string; name: string; in: string; schema?: { enum?: un
 type PathItem = { parameters?: Parameter[] } & Record<string, Operation | Parameter[] | undefined>;
 type Spec = { paths: Record<string, PathItem>; components: { responses: Record<string, Response>; parameters: Record<string, Parameter> } };
 
+const readJson = (path: string): unknown => {
+  try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return undefined; }
+};
+
+/**
+ * The parsed YAML `source`, read from the JSON copy in the temporary directory named by the source's SHA-256 when an
+ * earlier test process left one there, and parsed and left there otherwise.
+ */
+export function parseDescription(source: string): unknown {
+  const copy = join(tmpdir(), `unfold-openapi-${createHash('sha256').update(source).digest('hex')}.json`);
+  const cached = readJson(copy);
+  if (cached !== undefined) return cached;
+  const parsed = parse(source);
+  const partial = `${copy}.${process.pid}`;
+  try {
+    writeFileSync(partial, JSON.stringify(parsed));
+    renameSync(partial, copy);
+  } catch {
+    rmSync(partial, { force: true });
+  }
+  return parsed;
+}
+
 const documentId = 'https://unfold.invalid/contracts/openapi.yaml';
-const spec = parse(readFileSync(openApiDocument, 'utf8')) as Spec;
+const source = readFileSync(openApiDocument, 'utf8');
+const spec = parseDescription(source) as Spec;
 const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-for (const external of new Set([...readFileSync(openApiDocument, 'utf8').matchAll(/\$ref: '([^#'][^'#]*)/g)].map(match => match[1]))) {
+for (const external of new Set([...source.matchAll(/\$ref: '([^#'][^'#]*)/g)].map(match => match[1]))) {
   const schema = JSON.parse(readFileSync(new URL(external, openApiDocument), 'utf8'));
   ajv.addSchema({ ...schema, $id: new URL(external, documentId).href });
 }

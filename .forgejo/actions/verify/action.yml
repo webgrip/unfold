@@ -7,6 +7,9 @@ inputs:
   except:
     description: Comma-separated gate groups to leave to another job
     default: ''
+  setup:
+    description: The mise task that installs the dependencies; setup-unfold installs only what the unfold group reads and skips the site, Go and docs toolchains and their caches
+    default: setup
 outputs:
   warnings:
     description: Tool warnings in the setup and verification output that scripts/ci-warnings-allow.json does not accept; empty when there are none
@@ -36,10 +39,11 @@ runs:
       run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
     - run: set -o pipefail; mise -C apps/unfold install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
-    - run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
+    - if: inputs.setup == 'setup'
+      run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
     - name: Save mise tool installs
-      if: steps.mise-cache.outputs.cache-hit != 'true'
+      if: steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
@@ -47,16 +51,21 @@ runs:
     - name: Locate dependency caches
       id: caches
       shell: bash
+      env:
+        SETUP: ${{ inputs.setup }}
       run: |
         set -euo pipefail
-        {
-          echo "gomod=$(mise exec -- go env GOMODCACHE)"
-          echo "gobuild=$(mise exec -- go env GOCACHE)"
-          echo "go=$(mise exec -- go env GOVERSION)"
-          echo "npm=$(mise -C apps/unfold exec -- npm config get cache)"
-          echo "pnpm=$(mise -C apps/site exec -- corepack pnpm store path)"
-        } >> "$GITHUB_OUTPUT"
+        echo "npm=$(mise -C apps/unfold exec -- npm config get cache)" >> "$GITHUB_OUTPUT"
+        if [ "$SETUP" = setup ]; then
+          {
+            echo "gomod=$(mise exec -- go env GOMODCACHE)"
+            echo "gobuild=$(mise exec -- go env GOCACHE)"
+            echo "go=$(mise exec -- go env GOVERSION)"
+            echo "pnpm=$(mise -C apps/site exec -- corepack pnpm store path)"
+          } >> "$GITHUB_OUTPUT"
+        fi
     - name: Restore Go module and build caches
+      if: inputs.setup == 'setup'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -71,9 +80,12 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.npm }}
-        key: unfold-npm-${{ runner.os }}-${{ hashFiles('apps/unfold/package-lock.json', 'apps/unfold/extensions/vscode/package-lock.json') }}
-        restore-keys: unfold-npm-${{ runner.os }}-
+        key: unfold-npm-${{ runner.os }}-${{ inputs.setup }}-${{ hashFiles('apps/unfold/package-lock.json', 'apps/unfold/extensions/vscode/package-lock.json') }}
+        restore-keys: |
+          unfold-npm-${{ runner.os }}-${{ inputs.setup }}-
+          unfold-npm-${{ runner.os }}-
     - name: Restore pnpm store
+      if: inputs.setup == 'setup'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.pnpm }}
@@ -85,8 +97,10 @@ runs:
         path: ~/.cache/unfold-verify
         key: unfold-verify-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: unfold-verify-${{ runner.os }}-${{ github.job }}-
-    - run: set -o pipefail; mise run setup 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/setup.log"
+    - run: set -o pipefail; mise run "$SETUP" 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/setup.log"
       shell: bash
+      env:
+        SETUP: ${{ inputs.setup }}
     - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/verify.log"
       shell: bash
       env:

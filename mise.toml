@@ -28,6 +28,16 @@ run = [
 ]
 description = "Install the locked application and documentation dependencies"
 
+[tasks.setup-unfold]
+run = [
+  "python3 scripts/ploeg-contract.py fetch",
+  "python3 scripts/ploeg-contract.py chart",
+  "mise trust apps/unfold/mise.toml",
+  "mise -C apps/unfold install",
+  "npm --prefix apps/unfold ci --no-audit --no-fund",
+]
+description = "Install only what Unfold's gate group reads: the Ploeg bundle and chart, Unfold's tools and npm packages; CI's checks-unfold job runs it instead of setup"
+
 [tasks.agents-install]
 run = "uvx --from 'git+https://forgejo.webgrip.dev/webgrip/agent-standards.git@v0.5.3#subdirectory=cli' agentstd install"
 description = "Install the agent-standards packages pinned in apm.yml and compile .apm into .claude/rules and AGENTS.md"
