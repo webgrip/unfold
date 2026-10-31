@@ -176,6 +176,17 @@ test('the sheet shows readiness, each Team with its last 7 days, the terms and o
   assert.doesNotMatch(html, /id="sheet-submit"[^>]*disabled/);
 });
 
+test('the sheet states each Team\'s spend cap from Ploeg, and says when Ploeg reports none or the cap is unknown', () => {
+  const capped = { usd: 20, period: 'day', periodEnd: '2026-10-31T00:00:00.000Z', remainingUsd: 12.349 };
+  const offered = status({ teams: [{ ...teams[0], spendCap: capped }, { ...teams[1], spendCap: null }] });
+  const html = sheetMarkup({ task: task(1), source, status: offered, team: teams[0].id }).replace(/ /g, ' ');
+  assert.match(html, /US\$ 12,34 left/);
+  assert.match(html, /no spend cap/);
+  assert.match(html, /<dt>Budget<\/dt><dd>US\$ 12,34 of US\$ 20,00 left this day \(UTC\), resets 2026-10-31 00:00 UTC\. What this task alone may spend/);
+  assert.match(sheetMarkup({ task: task(1), source, status: offered, team: teams[1].id }), /<dd>No spend limit: Ploeg reports no cap for this Team\./);
+  assert.match(sheetMarkup({ task: task(1), source, status: status() }), /<dd>Spend limit not known: Ploeg did not report one for this Team\./);
+});
+
 test('the sheet refuses honestly: loading, Ploeg down, already handed, demo fixture', () => {
   assert.match(sheetMarkup({ task: task(1), source, status: null }), /skeleton[\s\S]*id="sheet-submit"[^>]*disabled/);
   assert.match(sheetMarkup({ task: task(1), source, status: null, statusError: 'Ploeg did not answer.' }), /Could not ask Ploeg[\s\S]*Nothing was handed over/);

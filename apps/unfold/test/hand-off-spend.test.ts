@@ -5,7 +5,8 @@ import { handOffSpend, teamSpendCap } from '../src/hand-off-spend.ts';
 const reported = { usd: 20, period: 'day', periodStart: '2026-10-30T00:00:00Z', periodEnd: '2026-10-31T00:00:00Z', settledUsd: 7.5, heldUsd: 0.151, remainingUsd: 12.349 };
 
 test('teamSpendCap reads Ploeg\'s spendCap, keeps null as no cap and treats an unknown shape as not reported', () => {
-  assert.deepEqual(teamSpendCap(reported), { usd: 20, period: 'day', periodEnd: '2026-10-31T00:00:00.000Z', remainingUsd: 12.349 });
+  assert.deepEqual(teamSpendCap(reported), { usd: 20, period: 'day', periodEnd: '2026-10-31T00:00:00.000Z', remainingUsd: 12.349, settledUsd: 7.5, heldUsd: 0.151 });
+  assert.deepEqual(teamSpendCap({ ...reported, settledUsd: undefined, heldUsd: -1 }), { usd: 20, period: 'day', periodEnd: '2026-10-31T00:00:00.000Z', remainingUsd: 12.349 });
   assert.equal(teamSpendCap(null), null);
   assert.equal(teamSpendCap(undefined), undefined);
   for (const broken of [{ ...reported, usd: -1 }, { ...reported, usd: 0 }, { ...reported, usd: '20' }, { ...reported, period: 'year' }, { ...reported, periodEnd: 'soon' }, { ...reported, remainingUsd: Number.NaN }, { ...reported, remainingUsd: undefined }, [reported], 'cap']) {

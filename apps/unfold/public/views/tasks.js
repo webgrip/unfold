@@ -14,6 +14,7 @@ import { onCountsChange } from '../core/counts.js';
 import { attention } from '../core/attention.js';
 import { popMark, prefersStill } from '../core/motion.js';
 import { markSvg } from '../core/brand.js';
+import { spendCapMarkup, spendCapShort } from '../core/spend-cap.js';
 import { shell } from '../shell.js';
 import { currentWorkItem, followDelay, followTarget, handoffTrack, notifyOffer, offersNotify, passesFilter, standingBadge, standingFromStatus, taskFilters, taskStandings, trackKey, trackMarkup } from '../handoff.js';
 
@@ -280,12 +281,14 @@ function teamPicker(status) {
   }
   const chosen = teams.find(team => team.id === ploegTeam);
   const queue = team => team.queueDepth ? `${team.queueDepth} queued` : 'free';
-  const submit = button({ type: 'submit', variant: 'primary', icon: 'arrow', label: ploegBusy === 'handoff' ? 'Handing over…' : `Hand to ${chosen.id}`, busy: ploegBusy === 'handoff', disabled: Boolean(ploegBusy), id: 'task-handoff-submit', kbd: singleKeysEnabled() ? 'H' : undefined });
+  const capShort = team => { const words = spendCapShort(team.spendCap, { demo: status.demo }); return words ? `<span class="handoff-team-cap">${escape(words)}</span>` : ''; };
+  const submit = button({ type: 'submit', variant: 'primary', icon: 'arrow', label: ploegBusy === 'handoff' ? 'Handing over…' : `Hand to ${chosen.id}`, busy: ploegBusy === 'handoff', disabled: Boolean(ploegBusy), id: 'task-handoff-submit', kbd: singleKeysEnabled() ? 'H' : undefined }).replace('<button ', '<button aria-describedby="task-handoff-cap" ');
   const pills = teams.length === 1
     ? `<input type="hidden" name="team" value="${escape(chosen.id)}">`
-    : `<fieldset class="handoff-teams"><legend class="sr-only">Team</legend>${teams.map(team => `<label class="handoff-team" for="task-team-${escape(team.id)}" title="${escape(team.roles.length ? team.roles.join(' → ') : 'No roles')}"><input type="radio" id="task-team-${escape(team.id)}" name="team" value="${escape(team.id)}"${team.id === ploegTeam ? ' checked' : ''}${ploegBusy ? ' disabled' : ''}><span class="handoff-team-name">${escape(team.id)}</span><span class="handoff-team-load">${team.paused ? 'paused' : escape(queue(team))}</span></label>`).join('')}</fieldset>`;
+    : `<fieldset class="handoff-teams"><legend class="sr-only">Team</legend>${teams.map(team => `<label class="handoff-team" for="task-team-${escape(team.id)}" title="${escape(team.roles.length ? team.roles.join(' → ') : 'No roles')}"><input type="radio" id="task-team-${escape(team.id)}" name="team" value="${escape(team.id)}"${team.id === ploegTeam ? ' checked' : ''}${ploegBusy ? ' disabled' : ''}><span class="handoff-team-name">${escape(team.id)}</span><span class="handoff-team-load">${team.paused ? 'paused' : escape(queue(team))}</span>${capShort(team)}</label>`).join('')}</fieldset>`;
+  const cap = spendCapMarkup(chosen.spendCap, { demo: status.demo, id: 'task-handoff-cap' });
   const how = `<p class="handoff-how">Ploeg builds it on a branch and opens a pull request for your review. Assigns “${escape(chosen.assignee)}” in ${escape(providerName(state.task?.provider))}.</p>`;
-  return `<form class="handoff-bar" data-form="task-handoff">${pills}${submit}</form>${how}`;
+  return `<form class="handoff-bar" data-form="task-handoff">${pills}${submit}</form>${cap}${how}`;
 }
 
 function followActions(status) {
