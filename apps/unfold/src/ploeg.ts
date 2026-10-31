@@ -4,6 +4,8 @@ import { logPloegWarning, personUnprovenCode, unprovenAnswer, unprovenMessage, t
 import { legacyServed, type PloegCompatibility, type PloegContractGate, type PloegContractRequirement, type PloegServed, type PloegServedContract } from './ploeg-compatibility.ts';
 import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
+import { DemoPloegPort } from './ploeg-demo-port.ts';
+import type { PloegContextUpload, PloegPort } from './ploeg-port.ts';
 import { takeOverRefusal } from '../public/core/take-over.js';
 import { descriptionMarkdown } from './rich-text.ts';
 import { cardKpis, playKpis } from './card-kpis.ts';
@@ -1121,6 +1123,61 @@ export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig[
   return { url: url.href.replace(/\/+$/, ''), ...(data.tokenEnv ? { tokenEnv: data.tokenEnv as string } : {}), ...(personTokens ? { personTokens } : {}), ...(data.teams !== undefined ? { teams: parseTeams(data.teams) } : {}), ...(userTeams ? { userTeams: Object.fromEntries(Object.entries(userTeams).map(([id, value]) => [id, parseTeams(value)])) } : {}), ...(forgeLogins ? { forgeLogins: { ...forgeLogins } as Record<string, string> } : {}), ...(trackerUrl ? { trackerUrl } : {}), ...(data.demo ? { demo: true } : {}) };
 }
 
+type PloegRequestOptions = { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number }; contractProbe?: boolean };
+type PloegRequest = (path: string, fresh: boolean, options?: PloegRequestOptions) => Promise<unknown>;
+
+/** Ploeg's operator API as a Ploeg adapter (Unfold ADR 0063): each operation is one request, read against the contract. */
+class HttpPloegPort implements PloegPort {
+  readonly kind = 'live';
+  private readonly request: PloegRequest;
+  private readonly configured: boolean;
+  private factsProbe: { until: number; supported: boolean } | null = null;
+  constructor(request: PloegRequest, configured: boolean) { this.request = request; this.configured = configured; }
+  async factsSupported(fresh = false): Promise<boolean> {
+    if (!this.configured) return false;
+    if (!fresh && this.factsProbe && this.factsProbe.until > Date.now()) return this.factsProbe.supported;
+    try { await this.request('facts?limit=1', true, { added: true }); this.factsProbe = { until: Date.now() + 60_000, supported: true }; }
+    catch (error) {
+      if (!(error instanceof PloegError && error.code === 'ploeg_unsupported')) return this.factsProbe?.supported ?? false;
+      this.factsProbe = { until: Date.now() + 60_000, supported: false };
+    }
+    return this.factsProbe.supported;
+  }
+  async workItemFacts(id: string, fresh = false): Promise<WorkItemFacts> {
+    const data = await this.request(`work-items/${id}/facts`, fresh);
+    try { return parseFactsResponse(data); } catch (error) { if (error instanceof FactsError) throw new PloegError(502, 'ploeg_facts_invalid', `Ploeg returned delivery facts Unfold cannot read (${error.path}).`); throw error; }
+  }
+  async factsPage(query: FactsQuery, fresh = false): Promise<FactsPage> {
+    const params = new URLSearchParams();
+    for (const member of query.members ?? []) params.append('member', member);
+    if (query.team) params.set('team', query.team);
+    if (query.since) params.set('since', query.since);
+    if (query.before) params.set('before', query.before);
+    params.set('limit', String(Math.min(25, Math.max(1, query.limit ?? 25))));
+    const data = await this.request(`facts?${params}`, fresh);
+    try { return parseFactsPage(data); } catch (error) { if (error instanceof FactsError) throw new PloegError(502, 'ploeg_facts_invalid', `Ploeg returned delivery facts Unfold cannot read (${error.path}).`); throw error; }
+  }
+  async putPullRequestComment(id: string, key: string, body: CommentRequest): Promise<CommentResult> {
+    const data = envelope(await this.request(`work-items/${id}/pull-request-comments/${key}`, true, { actor: 'unfold-cards', body, method: 'PUT', comment: true }));
+    const comment = record(data.comment);
+    const pr = record(comment.pullRequest);
+    return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
+  }
+  async listContext(id: string, fresh: boolean): Promise<PloegContextItem[]> {
+    const context = array(envelope(await this.request(`work-items/${id}/context`, fresh, { versions: contextVersions, context: true }), contextVersions).context, parseContextItem, 500);
+    if (context.some(entry => entry.workItemId !== id)) throw invalid();
+    return context;
+  }
+  async addContext(id: string, upload: PloegContextUpload): Promise<{ context: PloegContextItem; created: boolean }> {
+    const query = `name=${encodeURIComponent(upload.name)}${upload.note ? `&note=${encodeURIComponent(upload.note)}` : ''}`;
+    const answer = { status: 0 };
+    const data = envelope(await this.request(`work-items/${id}/context?${query}`, true, { actor: upload.actor, raw: upload.bytes, versions: contextVersions, context: true, answer }), contextVersions);
+    const context = parseContextItem(data.context);
+    if (context.workItemId !== id) throw invalid();
+    return { context, created: answer.status === 201 };
+  }
+}
+
 export class PloegClient {
   private readonly config?: AppConfig['ploeg'];
   private readonly taskSources: TaskSourceConfig[];
@@ -1135,7 +1192,7 @@ export class PloegClient {
   private cardService: CardService | undefined;
   private proof: PersonProof | undefined;
   private attribution: PloegAttribution | undefined;
-  private factsProbe: { until: number; supported: boolean } | null = null;
+  private readonly port: PloegPort;
   private notesRoute: boolean | undefined;
   private cancelGuard: boolean | undefined;
   private rarityShown: (user: User) => Promise<boolean>;
@@ -1167,42 +1224,20 @@ export class PloegClient {
     return { ploeg: field(data.ploeg, 128), legacy: false, contracts: array(data.contracts, value => { const contract = record(value); return { name: field(contract.name, 128), versions: array(contract.versions, version => numeric(version, true), 20) }; }, 100) };
   }
   /** Whether the connected Ploeg serves delivery facts (Ploeg ADR-0079), probed at most once a minute. */
-  async factsSupported(fresh = false): Promise<boolean> {
-    if (this.demo || !this.config) return false;
-    if (!fresh && this.factsProbe && this.factsProbe.until > Date.now()) return this.factsProbe.supported;
-    try { await this.request('facts?limit=1', true, { added: true }); this.factsProbe = { until: Date.now() + 60_000, supported: true }; }
-    catch (error) {
-      if (!(error instanceof PloegError && error.code === 'ploeg_unsupported')) return this.factsProbe?.supported ?? false;
-      this.factsProbe = { until: Date.now() + 60_000, supported: false };
-    }
-    return this.factsProbe.supported;
-  }
+  factsSupported(fresh = false): Promise<boolean> { return this.port.factsSupported(fresh); }
   /** Reads one Work Item's delivery facts within the consumer's scope. */
-  async workItemFacts(id: string, fresh = false): Promise<WorkItemFacts> {
+  workItemFacts(id: string, fresh = false): Promise<WorkItemFacts> {
     if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'A Work Item id is a whole number, such as 42.');
-    const data = await this.request(`work-items/${id}/facts`, fresh);
-    try { return parseFactsResponse(data); } catch (error) { if (error instanceof FactsError) throw new PloegError(502, 'ploeg_facts_invalid', `Ploeg returned delivery facts Unfold cannot read (${error.path}).`); throw error; }
+    return this.port.workItemFacts(id, fresh);
   }
   /** Reads one page of Ploeg's facts list, newest activity first. */
-  async factsPage(query: FactsQuery, fresh = false): Promise<FactsPage> {
-    const params = new URLSearchParams();
-    for (const member of query.members ?? []) params.append('member', member);
-    if (query.team) params.set('team', query.team);
-    if (query.since) params.set('since', query.since);
-    if (query.before) params.set('before', query.before);
-    params.set('limit', String(Math.min(25, Math.max(1, query.limit ?? 25))));
-    const data = await this.request(`facts?${params}`, fresh);
-    try { return parseFactsPage(data); } catch (error) { if (error instanceof FactsError) throw new PloegError(502, 'ploeg_facts_invalid', `Ploeg returned delivery facts Unfold cannot read (${error.path}).`); throw error; }
-  }
+  factsPage(query: FactsQuery, fresh = false): Promise<FactsPage> { return this.port.factsPage(query, fresh); }
   /** Writes Unfold's keyed comment on one of the Work Item's pull requests through Ploeg (Ploeg ADR-0079), as the `unfold-cards` actor. */
   async putPullRequestComment(id: string, key: string, body: CommentRequest): Promise<CommentResult> {
     if (!/^[1-9][0-9]{0,18}$/.test(id) || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(key)) throw new PloegError(400, 'comment_invalid', 'Name a Work Item and a comment key.');
-    const data = envelope(await this.request(`work-items/${id}/pull-request-comments/${key}`, true, { actor: 'unfold-cards', body, method: 'PUT', comment: true }));
-    const comment = record(data.comment);
-    const pr = record(comment.pullRequest);
-    return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
+    return this.port.putPullRequestComment(id, key, body);
   }
-  constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.tenancy = new TenantScope(config); this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
+  constructor(config: AppConfig, contract?: PloegContractGate) { this.contract = contract; this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.tenancy = new TenantScope(config); this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); this.port = this.demo ? new DemoPloegPort() : new HttpPloegPort((path, fresh, options) => this.request(path, fresh, options), Boolean(this.config)); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   /**
    * Sends each operator change made for a person with that person's token when one can be had (RFC-0011, Unfold ADR
@@ -1213,7 +1248,7 @@ export class PloegClient {
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has access to no Team in Ploeg. Ask an administrator to give you access to one.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; takeOver?: boolean; actingUser?: string; admission?: boolean; claim?: boolean; note?: string; questionAnswer?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number }; contractProbe?: boolean } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: PloegRequestOptions = {}): Promise<unknown> {
     if (!options.contractProbe) this.refuseWhenIncompatible();
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
@@ -1893,10 +1928,7 @@ export class PloegClient {
   /** Lists the context files attached to Work Item `id` for a caller in its Team, in the order Ploeg added them. The demo stores none, so it lists none. */
   async listContext(user: User, id: string, fresh = false): Promise<PloegContextList> {
     await this.detail(user, id, fresh);
-    if (this.demo) return { workItemId: id, context: [], demo: true };
-    const context = array(envelope(await this.request(`work-items/${id}/context`, fresh, { versions: contextVersions, context: true }), contextVersions).context, parseContextItem, 500);
-    if (context.some(entry => entry.workItemId !== id)) throw invalid();
-    return { workItemId: id, context, demo: false };
+    return { workItemId: id, context: await this.port.listContext(id, fresh), demo: this.demo };
   }
   /**
    * Forwards one context file (`bytes`, a zip, a tar.gz or a single file) to Ploeg for Work Item `id`, as the caller.
@@ -1912,13 +1944,7 @@ export class PloegClient {
     if (!bytes.byteLength) throw new PloegError(400, 'context_empty', 'The file is empty.');
     if (bytes.byteLength > contextUploadLimit) throw new PloegError(413, 'context_too_large', 'The file is larger than the 20 MiB upload limit.');
     await this.detail(user, id, true);
-    if (this.demo) throw new PloegError(409, 'ploeg_demo', demoContextRefusal);
-    const query = `name=${encodeURIComponent(input.name)}${input.note ? `&note=${encodeURIComponent(input.note)}` : ''}`;
-    const answer = { status: 0 };
-    const data = envelope(await this.request(`work-items/${id}/context?${query}`, true, { actor: user.id, raw: bytes, versions: contextVersions, context: true, answer }), contextVersions);
-    const context = parseContextItem(data.context);
-    if (context.workItemId !== id) throw invalid();
-    return { context, created: answer.status === 201, demo: false };
+    return { ...await this.port.addContext(id, { actor: user.id, ...input, bytes }), demo: false };
   }
   /**
    * Proposes a crack (`propose`: the bug Work Item `bug` caused by `input.card`'s play) or marks the bug as a changed requirement for that card

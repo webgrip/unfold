@@ -293,6 +293,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0059](../../apps/unfold/docs/adrs/0059-the-identity-provider-provisions-and-deprovisions-people-through-scim-and-pushed-shared-signals.md) | The identity provider provisions and deprovisions people through SCIM and pushed Shared Signals | 2026-10-30 | unknown | — |
 | Unfold | [0061](../../apps/unfold/docs/adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) | Unfold signs the audit chain head with OpenBao Transit and copies it to a locked bucket daily | 2026-10-30 | unknown | — |
 | Unfold | [0062](../../apps/unfold/docs/adrs/0062-background-work-runs-through-one-durable-job-queue-in-the-workbench-database.md) | Background work runs through one durable job queue in the workbench database | 2026-10-30 | unknown | — |
+| Unfold | [0063](../../apps/unfold/docs/adrs/0063-unfold-reaches-ploeg-and-trackers-through-ports-with-interchangeable-adapters.md) | Unfold reaches Ploeg and trackers through ports with interchangeable adapters | 2026-10-31 | unknown | — |
 
 ## Other statuses
 
