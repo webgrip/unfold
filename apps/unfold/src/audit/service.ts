@@ -43,6 +43,8 @@ export type AuditTrailOptions = {
   log?: (line: string) => void;
   /** The application's job worker; with `schedule` and no worker, the trail makes its own. */
   jobs?: JobWorker;
+  /** The Tenant that owns what a request path names, read before the request runs so a removal still finds it. */
+  owner?: (path: string) => string | undefined;
 };
 
 const person = (user: User | StoredUser): AuditPerson => ({ id: user.id, name: user.name, role: user.role, ...(user.memberships ? { memberships: user.memberships } : {}) });
@@ -63,6 +65,7 @@ export class AuditTrail {
   private readonly store: Store;
   private readonly config: AuditTrailOptions['config'];
   private readonly exportEnabled: (tenant: string) => Promise<boolean>;
+  private readonly owner: (path: string) => string | undefined;
   private readonly now: () => Date;
   private readonly log: (line: string) => void;
   private readonly exporter: AuditOtlpExporter | undefined;
@@ -75,6 +78,7 @@ export class AuditTrail {
   constructor(options: AuditTrailOptions) {
     this.store = options.store;
     this.config = options.config;
+    this.owner = options.owner ?? (() => undefined);
     this.chain = new AuditChain(options.store.db);
     this.retentionDays = options.settings?.retentionDays ?? defaultRetentionDays;
     this.exportEnabled = options.exportEnabled ?? (async () => false);
@@ -193,6 +197,7 @@ export class AuditTrail {
       const before = first ? auth.user(req) : undefined;
       const firstScope = first ? auth.scope(req) : undefined;
       const firstSignIn = first ? auth.signIn(req) : undefined;
+      const owner = method === 'GET' ? undefined : this.owner(url.pathname);
       res.once('finish', () => {
         try {
           let user: User | undefined | null = null;
@@ -201,7 +206,7 @@ export class AuditTrail {
           const userOf = () => user === null ? user = auth.user(req) : user;
           const location = res.getHeader('location');
           const captured = capture({
-            method, path: url.pathname, query: url.searchParams, status: res.statusCode, ...(typeof location === 'string' ? { location } : {}), ...(before ? { before } : {}),
+            method, path: url.pathname, query: url.searchParams, status: res.statusCode, ...(typeof location === 'string' ? { location } : {}), ...(before ? { before } : {}), ...(owner ? { owner } : {}),
             get scope() { return scopeOf(); },
             user: userOf,
             inputs: () => inputs() ?? {},

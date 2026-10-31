@@ -155,7 +155,8 @@ test('a person sets a ClickUp List up by name with their linked account: pickers
   assert.equal(checked.body.ok, true);
   assert.equal(checked.body.account, 'Ada Lovelace');
   assert.deepEqual(checked.body.project.path, ['Clients', 'Webshop']);
-  assert.deepEqual(checked.body.checks.map((entry: any) => `${entry.id}:${entry.status}`), ['account:ok', 'project:ok', 'tasks:ok']);
+  assert.deepEqual(checked.body.checks.map((entry: any) => `${entry.id}:${entry.status}`), ['account:ok', 'project:ok', 'tasks:ok', 'service:warning'], 'without a connection of its own, the List can be saved but not handed off from Unfold yet');
+  assert.equal(checked.body.connection, null);
   assert.match(checked.body.checks[1].text, /^Clients › Webshop › Sprint 12, with the statuses to do, in review, complete\.$/);
   assert.deepEqual(checked.body.preview.tasks.map((entry: any) => entry.reference), ['SHOP-12', '#86c0a3']);
   assert.equal(checked.body.preview.more, true);
@@ -169,7 +170,7 @@ test('a person sets a ClickUp List up by name with their linked account: pickers
   assert.deepEqual(archived.body.checks.map((entry: any) => `${entry.id}:${entry.status}`), ['account:ok', 'project:problem']);
   const empty = await request(app.url, '/api/task-setup/clickup/projects/701', { cookie });
   assert.deepEqual(empty.body.project.path, ['Clients'], 'a hidden folder is not part of the path');
-  assert.deepEqual(empty.body.checks.map((entry: any) => `${entry.id}:${entry.status}`), ['account:ok', 'project:ok', 'tasks:warning']);
+  assert.deepEqual(empty.body.checks.map((entry: any) => `${entry.id}:${entry.status}`), ['account:ok', 'project:ok', 'tasks:warning', 'service:warning']);
   const missing = await request(app.url, '/api/task-setup/clickup/projects/404404', { cookie });
   assert.equal(missing.body.ok, false);
   assert.equal(missing.body.checks[1].code, 'task_not_found');

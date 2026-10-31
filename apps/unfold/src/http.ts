@@ -7,6 +7,7 @@ import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnable
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { setupProject, setupProviders, setupScopes, testSource } from './task-setup.ts';
+import { TrackerConnections } from './tracker-connections.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, sourceLinkProvider, TaskError, trackerName, withLinkedToken } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
@@ -244,9 +245,11 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
 
 const personProofLine = (line: PersonProofStatus | undefined) => line ? { personProof: line } : {};
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor, connections?: TrackerConnections) {
   const jobs = new JobWorker(new JobQueue(store));
-  const audit = new AuditTrail({ store, jobs, settings: config.audit, config, exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
+  const trackerConnections = connections ?? new TrackerConnections(store, config, { enforced: config.tenancy?.enforce === true });
+  if (!connections) trackerConnections.sync();
+  const audit = new AuditTrail({ store, jobs, settings: config.audit, config, owner: path => trackerConnections.ownerOf(path), exportEnabled: tenant => flags.getBooleanValue('audit.export', false, { targetingKey: `tenant:${tenant}`, tenantId: tenant, mode: config.mode }), schedule: true });
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
@@ -287,6 +290,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const insight = new InsightService(store, config, applicationVersion, undefined, { upkeep: () => upkeep.run() });
   const reports = new ReportService(store, config, applicationVersion, undefined, { jobs });
   const secrets = knownSecrets(config);
+  trackerConnections.onSecret(secret => { if (!secrets.includes(secret)) secrets.push(secret); engine.redact(secret); });
   const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
   const askAuthority: AskAuthority | undefined = config.ploeg && !askDemo ? {
     admit: (user, id, askId, question) => ploeg.admitAsk(user, id, askId, question),
@@ -766,7 +770,31 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (Boolean(kind) !== Boolean(id)) fault(400, 'setup_scope_invalid', 'Send kind and id together, or neither for the top level.');
             return json(res, 200, sanitize(await setupScopes(config, links, user.id, setupRoute[1], kind && id ? { kind, id } : undefined)));
           }
-          return json(res, 200, sanitize(await setupProject(config, links, user.id, setupRoute[1], setupRoute[3], tenants.sources(user))));
+          return json(res, 200, sanitize(await setupProject(config, links, user.id, setupRoute[1], setupRoute[3], tenants.sources(user), (provider, baseUrl) => {
+            const found = trackerConnections.forOrigin(user, provider, baseUrl);
+            return found ? { id: found.id, tenant: found.tenant, ...(found.account ? { account: found.account } : {}), ...(found.credential ? { token: found.credential } : {}) } : undefined;
+          })));
+        }
+        if (path === '/api/tracker-connections') {
+          if (method === 'GET') return json(res, 200, sanitize({ connections: trackerConnections.list(user), manageTenants: trackerConnections.managedTenants(user) }));
+          if (method === 'POST') return json(res, 201, sanitize({ connection: await trackerConnections.create(user, await body(req)) }));
+          fault(405, 'method', 'List tracker connections with GET and add one with POST.');
+        }
+        const connectionRoute = path.match(/^\/api\/tracker-connections\/(tc-[a-f0-9]{12})(?:\/(token|check|sources))?$/);
+        if (connectionRoute) {
+          const [, connectionId, part] = connectionRoute;
+          if (!part && method === 'DELETE') { trackerConnections.remove(user, connectionId); return json(res, 200, { removed: connectionId }); }
+          if (part === 'token' && method === 'PUT') return json(res, 200, sanitize({ connection: await trackerConnections.replaceToken(user, connectionId, await body(req)) }));
+          if (part === 'check' && method === 'GET') return json(res, 200, sanitize(await trackerConnections.check(user, connectionId)));
+          if (part === 'sources' && method === 'POST') return json(res, 201, sanitize({ source: trackerConnections.addSource(user, connectionId, await body(req)) }));
+          fault(405, 'method', 'This address does not take that method. The API reference at /api/openapi.yaml lists the methods it takes.');
+        }
+        const connectionSourceRoute = path.match(/^\/api\/tracker-connections\/(tc-[a-f0-9]{12})\/sources\/([a-z0-9][a-z0-9-]{0,63})$/);
+        if (connectionSourceRoute) {
+          const [, connectionId, sourceId] = connectionSourceRoute;
+          if (method === 'PATCH') return json(res, 200, sanitize({ source: trackerConnections.updateSource(user, connectionId, sourceId, await body(req)) }));
+          if (method === 'DELETE') { trackerConnections.removeSource(user, connectionId, sourceId); return json(res, 200, { removed: sourceId }); }
+          fault(405, 'method', 'Change a task source with PATCH or remove it with DELETE.');
         }
         const checkRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/check$/);
         if (method === 'GET' && checkRoute) {

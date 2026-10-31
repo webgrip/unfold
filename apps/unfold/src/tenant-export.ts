@@ -116,13 +116,15 @@ export const tableEntities: readonly TableEntity[] = [
   { entity: 'outbound-events', table: 'outbound_events', scope: byTenant('tenant'), json: ['body'], description: 'Webhook events still in the outbox, as the CloudEvents they are sent as. They are signed when sent, so no secret is stored with them.' },
   { entity: 'outbound-deliveries', table: 'outbound_deliveries', scope: { by: 'parent', parent: 'outbound-subscriptions', column: 'subscription_id' }, description: 'Each webhook delivery to a subscription still in the delivery log: its status, attempts and the receiver\'s last answer.' },
   { entity: 'notify-slack-links', table: 'notify_slack_links', scope: person('user_id'), description: 'The Slack account each person linked for notifications: workspace and member id. No token.' },
+  { entity: 'tracker-connections', table: 'tracker_connections', scope: byTenant('tenant'), json: ['body'], description: 'Tracker connections people added from the screen: the tracker, its API root, the account Unfold acts as there, and who added it and when. No token: an administrator pastes one again at the destination.' },
+  { entity: 'tracker-connection-sources', table: 'tracker_connection_sources', scope: byTenant('tenant'), json: ['body'], description: 'Task sources people added from the screen under a tracker connection: the project, repository, execution owner, Tenant and Client. Sources from the server configuration are in task-sources.' },
 ];
 
 /** Every table Unfold keeps that the bundle leaves out. Secrets are never exported. */
 export const excludedTables: readonly ExcludedTable[] = [
   { table: 'logins', reason: 'Secret: hashes of browser sign-in tokens. People sign in again at the destination.' },
   { table: 'editor_credentials', reason: 'Secret: hashes of editor credentials. Editors are signed in again at the destination.' },
-  { table: 'internal_state', reason: 'Secret: encrypted workspace credentials and the sign-in access and refresh tokens Unfold keeps to prove a person to Ploeg.' },
+  { table: 'internal_state', reason: 'Secret: encrypted workspace credentials, tracker connection tokens and the sign-in access and refresh tokens Unfold keeps to prove a person to Ploeg.' },
   { table: 'linked_session_notice_snapshots', reason: 'Cache: the last notice check of each Linked Session, rebuilt on the next check.' },
   { table: 'card_import', reason: 'Operational: progress of the one-time import of card records from Ploeg.' },
   { table: 'sqlite_sequence', reason: 'SQLite internal: the next AUTOINCREMENT value of each table.' },
@@ -144,7 +146,7 @@ export const excludedTables: readonly ExcludedTable[] = [
 export const secretsStatement = {
   exported: false,
   statement: 'This bundle contains no secrets. Password hashes, sign-in and editor token hashes, access and refresh tokens, encryption keys, the product event actor key, task source and repository credentials, gateway keys, webhook and intake signing secrets, push subscription keys and the path and query of webhook receiver URLs are left out, and every configured secret value is replaced by [redacted] wherever it appears in a record.',
-  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets', 'intake source signing secrets', 'Web Push subscription keys and ntfy topics', 'the path and query of webhook receiver URLs'],
+  omitted: ['password hashes', 'sign-in token hashes', 'editor credential hashes', 'OIDC access and refresh tokens', 'the store encryption key', 'the product event actor key', 'task source tokens', 'tracker connection tokens', 'repository access passwords', 'model gateway keys', 'webhook secrets', 'intake source signing secrets', 'Web Push subscription keys and ntfy topics', 'the path and query of webhook receiver URLs'],
 };
 
 /** A person as the bundle holds them: no password hash. */
@@ -447,7 +449,7 @@ export async function buildTenantExport(sources: ExportSources, tenant: string, 
   await finish(repositories, { name: 'repositories', schemaVersion: 1, sources: ['configuration: repositories'], scope: scopeLabel('config'), description: String(curatedSchemas.repositories.description) }, curatedSchema('repositories'));
 
   const taskSources = open('task-sources');
-  for (const entry of sources.config.taskSources ?? []) if (!scope.enforced || ownership(entry).tenant === tenant) await taskSources.write(exportedTaskSource(entry));
+  for (const entry of sources.config.taskSources ?? []) if (!entry.connection && (!scope.enforced || ownership(entry).tenant === tenant)) await taskSources.write(exportedTaskSource(entry));
   await finish(taskSources, { name: 'task-sources', schemaVersion: 1, sources: ['configuration: taskSources'], scope: scopeLabel('config'), description: String(curatedSchemas['task-sources'].description) }, curatedSchema('task-sources'));
 
   const sessions = open('sessions');
@@ -495,7 +497,7 @@ export async function buildTenantExport(sources: ExportSources, tenant: string, 
     tenant, tenancyEnforced: scope.enforced, createdAt: now.toISOString(),
     application: sources.application, requestedBy: sources.requestedBy,
     secrets: secretsStatement, entities, files, excluded: [...excludedTables],
-    notExported: [{ what: 'signing secrets of outbound webhook subscriptions and intake sources', reason: 'They are secrets. Issue new ones at the destination and configure the senders and receivers with them again.' }],
+    notExported: [{ what: 'signing secrets of outbound webhook subscriptions and intake sources', reason: 'They are secrets. Issue new ones at the destination and configure the senders and receivers with them again.' }, { what: 'tokens of tracker connections added from the screen', reason: 'They are secrets. At the destination each connection shows that its token is missing until an administrator pastes one again under Replace token.' }],
     elsewhere: { holder: 'Ploeg', what: 'Work Items as Ploeg records them, Shifts, Runs, Run transcripts, checkpoints, spend and Ploeg\'s audit log', file: ploegPointerFile },
   };
 

@@ -100,6 +100,20 @@ export const clickup: TaskProviderAdapter = {
       const user = record(record((await request('/user')).value).user);
       return [user.username, user.email].find((name): name is string => typeof name === 'string' && name.trim().length > 0)?.trim().slice(0, 255);
     },
+    serviceAccount: {
+      noun: 'ClickUp user',
+      steps: [
+        'Invite a new member to your ClickUp Workspace with an email address your agency controls, such as unfold@your-agency.example. Make it a Member rather than a guest, so it can open the Lists you connect. On a paid plan a Member takes a seat.',
+        'Accept the invitation and sign in to ClickUp as that user.',
+        'Open the avatar menu, then Settings › Apps. Under API Token choose Generate, and copy the token. It starts with pk_.',
+        'Give that user access to every List you connect here.',
+        'Paste the token below. Unfold checks it, stores it encrypted and never shows it again.',
+      ],
+      docs: 'https://developer.clickup.com/docs/authentication',
+      tokenLabel: 'API token of that ClickUp user',
+      tokenPattern: /^pk_[A-Za-z0-9_]{8,200}$/,
+      tokenShape: 'a ClickUp personal API token, which starts with pk_',
+    },
   },
   handoff: {
     commentFormat: 'text',

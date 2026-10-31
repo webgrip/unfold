@@ -43,7 +43,7 @@ test('task source validation binds registered repositories, explicit authority a
     assert.equal(configured.token, token);
     assert.equal(configured.project, 'team/orders');
     assert.equal(configured.baseUrl, 'https://forge.example/api/v1');
-    assert.deepEqual(publicTaskSource(configured), { id: 'orders', name: 'Order issues', provider: 'forgejo', repositoryId: 'order-service', executionOwner: 'interactive', handoff: false });
+    assert.deepEqual(publicTaskSource(configured), { id: 'orders', name: 'Order issues', provider: 'forgejo', repositoryId: 'order-service', executionOwner: 'interactive', handoff: false, managedBy: 'configuration' });
     for (const change of [
       { token }, { tokenEnv: 'NOT_PRESENT_UNFOLD_TASK_SECRET' }, { tokenEnv: 'token$(cat)' }, { repositoryId: 'unregistered' }, { executionOwner: undefined },
       { baseUrl: 'https://user:password@forge.example/api/v1' }, { baseUrl: 'https://forge.example/api/v1?token=secret' }, { baseUrl: 'https://forge.example/api/v1#fragment' },

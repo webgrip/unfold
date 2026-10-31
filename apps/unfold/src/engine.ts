@@ -1429,6 +1429,9 @@ export class Engine {
   private operator(user: User): void { if (!user || !user.id || !['operator', 'admin'].includes(user.role)) throw new EngineError(403, 'forbidden', 'An authenticated operator is required.'); }
   private text(value: unknown, field: string, max: number): string { if (typeof value !== 'string' || !value.trim() || value.length > max) throw new EngineError(400, 'invalid_input', `${field} must contain 1–${max} characters.`); return value.trim(); }
   private resolvePermissions(id: string): void { for (const request of this.store.permissions(id)) if (!request.resolved) { request.resolved = true; this.store.savePermission(request); } }
+  /** Adds a credential Unfold learned after start-up, such as a tracker connection's token, to what the engine replaces with `[redacted]`. */
+  redact(secret: string): void { if (secret) this.keys.add(secret); }
+
   private cleanText(value: string): string { for (const key of this.keys) if (key) value = value.split(key).join('[redacted]'); return value; }
   private clean<T>(value: T): T {
     if (typeof value === 'string') return this.cleanText(value) as T;
