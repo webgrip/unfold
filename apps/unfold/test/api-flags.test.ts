@@ -27,6 +27,7 @@ test('the bootstrap carries evaluated client flags, and a Labs choice turns the 
 
   assert.equal((await request(app.url, '/api/flags/work.live-view/choice', { method: 'PUT', cookie: viewer.cookie, body: { choice: 'maybe' } })).status, 400);
   assert.equal((await request(app.url, '/api/flags/work.nothing/choice', { method: 'PUT', cookie: viewer.cookie, body: { choice: 'on' } })).status, 404);
+  assert.equal((await request(app.url, '/api/flags/constructor/choice', { method: 'PUT', cookie: viewer.cookie, body: { choice: 'on' } })).status, 404, 'an Object.prototype name is not a flag');
   assert.equal((await request(app.url, '/api/flags/work.live-view/choice', { method: 'PUT', cookie: viewer.cookie, body: { choice: 'on' }, csrf: false })).status, 403, 'a Labs choice is a guarded mutation');
   const reset = await request(app.url, '/api/flags/work.live-view/choice', { method: 'PUT', cookie: viewer.cookie, body: { choice: 'default' } });
   assert.equal(reset.body.values['work.live-view'], false);
