@@ -602,7 +602,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const flagChoice = path.match(/^\/api\/flags\/([a-z][a-z0-9.-]{2,100})\/choice$/);
         if (flagChoice && method === 'PUT') {
           const key = flagChoice[1];
-          if (!flags.provider.registry.flags[key]?.metadata.labs) fault(404, 'flag_not_found', 'This flag is not offered in Labs.');
+          if (!Object.hasOwn(flags.provider.registry.flags, key) || !flags.provider.registry.flags[key].metadata.labs) fault(404, 'flag_not_found', 'This flag is not offered in Labs.');
           const data = await body(req);
           if (!['on', 'off', 'default'].includes(String(data.choice))) fault(400, 'flag_choice', 'Choose on, off or default.');
           const at = new Date().toISOString();

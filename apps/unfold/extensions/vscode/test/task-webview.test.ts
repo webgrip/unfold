@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { loadModuleWebview, type StubElement } from './webview-dom.ts';
 
 const view = await loadModuleWebview('task.js', { taskKey: 'unfold:1505' });
+const { setTrackers } = await import(new URL('../media/core/tracker-registry.js', import.meta.url).href);
+setTrackers([{ name: 'vikunja', label: 'Vikunja', handsOffByAssignment: true }]);
 const now = new Date().toISOString();
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 

@@ -1,4 +1,4 @@
-import { trackerOr } from './trackers.js';
+import { trackerOr } from './tracker-registry.js';
 import { money, plural } from './format.js';
 import { ciState, failureReason, runFailure, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 import { detailQuestions } from './blackboard.js';

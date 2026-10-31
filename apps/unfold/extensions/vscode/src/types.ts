@@ -39,6 +39,7 @@ export type Bootstrap = {
   placements?: Placement[];
   taskSources?: TaskSource[];
   deliveryRepositories?: string[];
+  trackers?: { name: string; label: string; idMark?: string; handsOffByAssignment?: boolean; fixture?: boolean }[];
 };
 export type Placement = { id: string; name: string; isolation: 'working-directory' | 'container' | 'pod'; default: boolean };
 export type SessionInput = { title: string; objective: string; repositoryId: string; teamId: string; runtime: string; placement?: string; approval?: Approval; budgetUsd: number; model?: string };
