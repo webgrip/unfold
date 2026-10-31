@@ -1,6 +1,6 @@
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
-import { $, escape } from '../core/dom.js';
+import { $, escape, notify } from '../core/dom.js';
 import { money, parseAmount } from '../core/format.js';
 import { budgetInput, button, demoNote, demoSessionsText, disclosure, dl, iconButton } from '../core/ui.js';
 import { singleKeyAllowed } from '../core/keys.js';
@@ -79,6 +79,7 @@ export function openNew() {
 /**
  * Opens the confirmation dialog and runs `callback` when the person confirms. Focus starts on the safe button, so a
  * second Enter never confirms; `tone: 'danger'` styles the confirm button as destructive and `details` lists consequences.
+ * A `callback` that fails shows its message in the error toast.
  * @param {string} title
  * @param {string} description
  * @param {string} label The confirm button.
@@ -89,7 +90,7 @@ export function confirmAction(title, description, label, callback, { tone = 'pri
   const dialog = prepare($('#confirm-dialog'), 'sm');
   const danger = tone === 'danger';
   dialog.innerHTML = `<form method="dialog">${header('confirm-title', title, false)}<div class="dialog-body"><p>${escape(description)}</p>${details.length ? `<ul class="session-dialog-list">${details.map(item => `<li>${escape(item)}</li>`).join('')}</ul>` : ''}</div><footer class="dialog-footer">${button({ label: dismiss, type: 'submit', value: 'cancel', autofocus: true })}${button({ label, variant: danger ? 'danger' : 'primary', type: 'submit', value: 'confirm' })}</footer></form>`;
-  dialog.addEventListener('close', () => { if (dialog.returnValue === 'confirm') void callback(); }, { once: true });
+  dialog.addEventListener('close', () => { if (dialog.returnValue === 'confirm') Promise.resolve().then(callback).catch(error => notify(error.message, true)); }, { once: true });
   dialog.returnValue = '';
   dialog.showModal();
 }

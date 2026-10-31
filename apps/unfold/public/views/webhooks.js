@@ -4,14 +4,15 @@ import { escape, renderHtml, notify } from '../core/dom.js';
 import { badge, button, callout, chip, disclosure, emptyState, skeleton, table } from '../core/ui.js';
 import { dateTime } from '../core/format.js';
 import { icon } from '../core/icons.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
 import { confirmAction } from './dialogs.js';
 
-const fresh = () => ({ data: null, error: '', secret: null, deliveries: {}, open: null });
+const fresh = () => ({ data: null, error: null, secret: null, deliveries: {}, open: null });
 const view = fresh();
 onForget(() => Object.assign(view, fresh()));
 
-const statusTone = { pending: 'attention', delivered: 'success', dead: 'danger' };
+const statusLooks = { pending: ['attention', 'Waiting'], delivered: ['success', 'Delivered'], dead: ['danger', 'Gave up'] };
 const isAdmin = () => state.bootstrap?.user?.role === 'admin';
 
 function secretCallout() {
@@ -29,7 +30,7 @@ function deliveryTable(id) {
     columns: [{ key: 'event', label: 'Event' }, { key: 'status', label: 'Status' }, { key: 'attempts', label: 'Attempts', numeric: true }, { key: 'answer', label: 'Last answer' }, { key: 'next', label: 'Next try' }, { key: 'action', label: 'Action' }],
     rows: list.map(delivery => ({
       event: `<code>${escape(delivery.eventType.replace('dev.unfold.', ''))}</code>`,
-      status: badge({ tone: statusTone[delivery.status], label: delivery.status, size: 'sm' }),
+      status: badge({ tone: (statusLooks[delivery.status] ?? ['neutral'])[0], label: (statusLooks[delivery.status] ?? [null, delivery.status])[1], size: 'sm' }),
       attempts: `<span class="num">${escape(delivery.attempts)}</span>`,
       answer: escape(delivery.lastStatus ? String(delivery.lastStatus) : delivery.lastError || '—'),
       next: delivery.nextAttemptAt ? `<time class="num" datetime="${escape(delivery.nextAttemptAt)}">${escape(dateTime(new Date(delivery.nextAttemptAt)))}</time>` : '—',
@@ -43,10 +44,10 @@ function subscriptionRow(subscription) {
   const counts = subscription.deliveries;
   const state = subscription.active ? badge({ tone: 'success', label: 'Active', size: 'sm' }) : badge({ tone: 'neutral', label: 'Paused', size: 'sm', title: subscription.disabledReason || 'Paused by an administrator' });
   const actions = [
-    button({ label: 'Send test event', size: 'sm', action: 'webhook-test', data: { id: subscription.id } }),
-    button({ label: subscription.active ? 'Pause' : 'Resume', size: 'sm', action: 'webhook-toggle', data: { id: subscription.id, active: subscription.active ? 'false' : 'true' } }),
-    button({ label: 'New secret', size: 'sm', action: 'webhook-rotate', data: { id: subscription.id } }),
-    button({ label: 'Delete', size: 'sm', variant: 'danger-ghost', action: 'webhook-delete', data: { id: subscription.id } }),
+    button({ label: 'Send test event', size: 'sm', action: 'webhook-test', data: { id: subscription.id }, ariaLabel: `Send a test event to ${subscription.url}` }),
+    button({ label: subscription.active ? 'Pause' : 'Resume', size: 'sm', action: 'webhook-toggle', data: { id: subscription.id, active: subscription.active ? 'false' : 'true' }, ariaLabel: `${subscription.active ? 'Pause' : 'Resume'} ${subscription.url}` }),
+    button({ label: 'New secret', size: 'sm', action: 'webhook-rotate', data: { id: subscription.id }, ariaLabel: `Make a new signing secret for ${subscription.url}` }),
+    button({ label: 'Delete', size: 'sm', variant: 'danger-ghost', action: 'webhook-delete', data: { id: subscription.id, url: subscription.url }, ariaLabel: `Delete the webhook ${subscription.url}` }),
   ].join('');
   const log = disclosure({ id: `webhook-log-${subscription.id}`, summary: `Deliveries: ${counts.delivered} delivered, ${counts.pending} waiting, ${counts.dead} failed`, open: view.open === subscription.id, body: `${button({ label: 'Refresh', icon: 'refresh', size: 'sm', action: 'webhook-log', data: { id: subscription.id } })}${deliveryTable(subscription.id)}` });
   const disabled = subscription.disabledReason ? `<p class="settings-item-text">${icon('alert')}<span>${escape(subscription.disabledReason)}</span></p>` : '';
@@ -55,7 +56,7 @@ function subscriptionRow(subscription) {
 
 function createForm(data) {
   const tenants = data.tenants.filter(entry => entry.enabled);
-  if (!tenants.length) return callout({ tone: 'neutral', title: 'Webhooks are off', body: '<p>Turn on the <code>events.webhooks</code> flag for your Tenant on the Feature flags page, then come back to add a receiver.</p>' });
+  if (!tenants.length) return callout({ tone: 'neutral', title: 'Webhooks are off', body: '<p>Turn on the <code>events.webhooks</code> flag for your Tenant on the <a href="#settings/labs">Labs</a> page, then come back to add a receiver.</p>' });
   const types = data.eventTypes.map((type, index) => `<label class="flag-check"><input type="checkbox" name="types" value="${escape(type.type)}"${index < 1 ? ' checked' : ''}><span><code>${escape(type.type.replace('dev.unfold.', ''))}</code> ${escape(type.summary)}</span></label>`).join('');
   const tenantField = tenants.length > 1 ? `<div class="field"><label class="field-label" for="webhook-tenant">Tenant</label><select id="webhook-tenant" name="tenant">${tenants.map(entry => `<option value="${escape(entry.tenant)}">${escape(entry.tenant)}</option>`).join('')}</select></div>` : `<input type="hidden" name="tenant" value="${escape(tenants[0].tenant)}">`;
   const body = `<form class="settings-form" data-form="webhook-create" novalidate>
@@ -70,8 +71,8 @@ ${tenantField}
 
 function content() {
   if (!isAdmin()) return callout({ tone: 'neutral', title: 'Administrators manage webhooks', body: '<p>Ask an administrator to send Unfold events to your tools.</p>' });
-  if (view.error && !view.data) return callout({ tone: 'danger', title: 'Could not read the webhooks', body: `<p>${escape(view.error)}</p>` });
-  if (!view.data) return skeleton({ rows: 3 });
+  if (view.error && !view.data) return failureCallout({ title: 'Could not read the webhooks', failure: view.error, action: 'webhook-retry' });
+  if (!view.data) return `<div aria-busy="true">${skeleton({ rows: 3 })}</div>`;
   const data = view.data;
   const demo = data.demo ? callout({ tone: 'neutral', title: 'Demo workbench', body: '<p>The demo reads no Ploeg, so it sends no events about work. A test event still goes out, marked as a test.</p>' }) : '';
   const list = data.subscriptions.length ? `<ul class="settings-items">${data.subscriptions.map(subscriptionRow).join('')}</ul>` : emptyState({ icon: 'send', title: 'No receivers yet', body: 'Add a URL to receive signed CloudEvents when work moves.', compact: true });
@@ -83,9 +84,9 @@ function render() {
 }
 
 async function load() {
-  view.error = '';
+  view.error = null;
   try { view.data = await api('/api/admin/webhooks'); }
-  catch (error) { if (error.status !== 401) view.error = error.message; }
+  catch (error) { if (error.status !== 401) view.error = failureOf(error); }
   if (state.view === 'webhooks') render();
 }
 
@@ -116,6 +117,7 @@ export default {
   render,
   actions: {
     'webhook-secret-done': () => { view.secret = null; render(); },
+    'webhook-retry': () => { view.error = null; render(); return load(); },
     'webhook-log': control => showLog(control.dataset.id),
     'webhook-test': async control => { await api(`/api/admin/webhooks/${encodeURIComponent(control.dataset.id)}/test`, { method: 'POST', body: '{}' }); notify('A test event is queued. It goes out within a few seconds.'); await showLog(control.dataset.id); },
     'webhook-toggle': async control => { await api(`/api/admin/webhooks/${encodeURIComponent(control.dataset.id)}`, { method: 'PATCH', body: JSON.stringify({ active: control.dataset.active === 'true' }) }); await load(); },
@@ -125,7 +127,7 @@ export default {
       view.secret = { secret: rotated.secret, rotated: true };
       await load();
     }),
-    'webhook-delete': control => confirmAction('Delete this webhook?', 'Unfold stops sending to it at once and forgets its deliveries and its secret.', 'Delete', async () => {
+    'webhook-delete': control => confirmAction('Delete this webhook?', `Unfold stops sending to ${control.dataset.url} at once and forgets its deliveries and its secret.`, 'Delete', async () => {
       await api(`/api/admin/webhooks/${encodeURIComponent(control.dataset.id)}`, { method: 'DELETE' });
       notify('The webhook is deleted.');
       await load();

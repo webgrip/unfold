@@ -118,7 +118,7 @@ upstream-base-url: "https://ntfy.sh"
 
 ## Personal data
 
-Preferences, the ntfy topic, Web Push subscriptions, the Slack link and Teams workflows are a person's personal data, and **Turn everything off** deletes them. The Tenant export carries the preferences and the Slack link (workspace and member id); topics, subscriptions, Slack direct-message targets and Teams workflow URLs are secrets and stay out. The VAPID keys, the ntfy token, the Slack bot token and the Slack signing secret are deployment secrets and are never exported.
+Preferences, the ntfy topic, Web Push subscriptions, the Slack link and Teams workflows are a person's personal data, and **Turn everything off** deletes them after the person confirms it. The Tenant export carries the preferences and the Slack link (workspace and member id); topics, subscriptions, Slack direct-message targets and Teams workflow URLs are secrets and stay out. The VAPID keys, the ntfy token, the Slack bot token and the Slack signing secret are deployment secrets and are never exported.
 
 ## Slack
 

@@ -5,11 +5,12 @@ import { button, callout, disclosure, dl, emptyState, skeleton } from '../core/u
 import { dateTime, namedDate, relativeWords } from '../core/format.js';
 import { agentHostConnectionAddress, agentsWindowLink, extensionViewLink, openVsxListing } from '../core/vscode.js';
 import { icon } from '../core/icons.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
 import { confirmAction } from './dialogs.js';
 
-const view = { editors: null, error: '', loading: false, agentHost: undefined, copying: false, manualAddress: '' };
-onForget(() => Object.assign(view, { editors: null, error: '', loading: false, agentHost: undefined, copying: false, manualAddress: '' }));
+const view = { editors: null, error: null, loading: false, agentHost: undefined, copying: false, manualAddress: '' };
+onForget(() => Object.assign(view, { editors: null, error: null, loading: false, agentHost: undefined, copying: false, manualAddress: '' }));
 
 function moment(value, text) {
   const at = new Date(value);
@@ -38,11 +39,11 @@ export function editorFacts(editor, now = Date.now()) {
 
 function editorCard(editor) {
   const facts = dl(editorFacts(editor), { rows: true });
-  return `<li class="editor-item"><div class="editor-item-text"><p class="settings-row-label">${icon('code')}<span>${escape(editor.label)}</span></p>${facts}</div>${button({ label: 'Sign out', icon: 'logout', variant: 'danger-ghost', size: 'sm', action: 'editor-revoke', data: { id: editor.id } })}</li>`;
+  return `<li class="editor-item"><div class="editor-item-text"><p class="settings-row-label">${icon('code')}<span>${escape(editor.label)}</span></p>${facts}</div>${button({ label: 'Sign out', icon: 'logout', variant: 'danger-ghost', size: 'sm', action: 'editor-revoke', data: { id: editor.id }, ariaLabel: `Sign out ${editor.label}` })}</li>`;
 }
 
 function body() {
-  if (view.error && !view.editors) return callout({ tone: 'danger', title: 'Could not read your signed-in editors', body: `<p>${escape(view.error)}</p>` });
+  if (view.error && !view.editors) return failureCallout({ title: 'Could not read your signed-in editors', failure: view.error, action: 'editors-retry' });
   if (!view.editors) return skeleton({ rows: 2 });
   if (!view.editors.length) return emptyState({ icon: 'code', title: 'No editors are signed in as you', body: 'When you approve a VS Code sign-in, it appears here until it expires, goes unused for two weeks, or you sign it out.', compact: true });
   return `<ul class="editor-list" aria-label="Signed-in editors">${view.editors.map(editorCard).join('')}</ul>`;
@@ -72,11 +73,11 @@ function renderEditors() {
 
 async function enterEditors() {
   disconnect(); state.session = null; state.view = 'editors';
-  view.loading = true; view.error = '';
+  view.loading = true; view.error = null;
   renderEditors();
   const [editors, agentHost] = await Promise.allSettled([api('/api/editor-credentials'), api('/api/agent-host')]);
   if (editors.status === 'fulfilled') view.editors = editors.value.editors;
-  else if (editors.reason.status !== 401) view.error = editors.reason.message;
+  else if (editors.reason.status !== 401) view.error = failureOf(editors.reason);
   view.agentHost = agentHost.status === 'fulfilled' ? agentHost.value : null;
   view.loading = false;
   if (state.view === 'editors') renderEditors();
@@ -114,5 +115,5 @@ export default {
   match: hash => hash === 'settings/editors' ? {} : null,
   enter: enterEditors,
   render: renderEditors,
-  actions: { 'editor-revoke': revoke, 'agent-host-copy': copyAddress },
+  actions: { 'editor-revoke': revoke, 'agent-host-copy': copyAddress, 'editors-retry': enterEditors },
 };

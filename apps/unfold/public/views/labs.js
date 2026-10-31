@@ -4,10 +4,12 @@ import { escape, renderHtml, notify, announce, download } from '../core/dom.js';
 import { badge, button, callout, disclosure, emptyState, segmented, skeleton, table, timeAt } from '../core/ui.js';
 import { useFlagValues } from '../core/flags.js';
 import { icon } from '../core/icons.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
+import { confirmAction } from './dialogs.js';
 
-const view = { labs: null, admin: null, error: '', adminError: '', busy: '', open: new Set() };
-onForget(() => Object.assign(view, { labs: null, admin: null, error: '', adminError: '', busy: '', open: new Set() }));
+const view = { labs: null, admin: null, error: null, adminError: null, busy: '', open: new Set() };
+onForget(() => Object.assign(view, { labs: null, admin: null, error: null, adminError: null, busy: '', open: new Set() }));
 
 const isAdmin = () => state.bootstrap?.user?.role === 'admin';
 const fullShare = 10000;
@@ -63,7 +65,7 @@ function labsRow(entry) {
 
 function labsCard() {
   let body;
-  if (view.error && !view.labs) body = callout({ tone: 'danger', title: 'Could not read Labs', body: `<p>${escape(view.error)}</p>` });
+  if (view.error && !view.labs) body = failureCallout({ title: 'Could not read Labs', failure: view.error, action: 'labs-retry' });
   else if (!view.labs) body = skeleton({ rows: 2 });
   else if (!view.labs.labs.length) body = emptyState({ icon: 'spark', title: 'Nothing in Labs right now', body: 'When a new feature is ready to try, it appears here first.', compact: true });
   else body = `<div class="settings-rows">${view.labs.labs.map(labsRow).join('')}</div>`;
@@ -162,7 +164,7 @@ function segmentsCard() {
     name: `<code>${escape(segment.name)}</code>`,
     who: escape(Object.entries(segment.audience).map(([kind, names]) => `${audienceWords[kind] ?? kind}: ${names.join(', ')}`).join(' · ')),
     description: escape(segment.description),
-    actions: view.admin.console ? button({ label: 'Delete', variant: 'danger-ghost', size: 'xs', action: 'flag-segment-delete', data: { id: segment.name } }) : '',
+    actions: view.admin.console ? button({ label: 'Delete', variant: 'danger-ghost', size: 'xs', action: 'flag-segment-delete', data: { id: segment.name }, ariaLabel: `Delete segment ${segment.name}` }) : '',
   }));
   const form = view.admin.console ? disclosure({ summary: 'Add or change a segment', body: `<form class="flag-segment" data-form="flag-segment"><div class="flag-rule-grid"><div class="field"><label class="field-label" for="segment-name">Name</label><input id="segment-name" name="name" type="text" required pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off"></div><div class="field"><label class="field-label" for="segment-description">Description</label><input id="segment-description" name="description" type="text" maxlength="300" autocomplete="off"></div><div class="field"><label class="field-label" for="segment-roles">Roles</label><input id="segment-roles" name="roles" type="text" autocomplete="off" placeholder="admin, operator"></div><div class="field"><label class="field-label" for="segment-teams">Teams</label><input id="segment-teams" name="teams" type="text" autocomplete="off"></div><div class="field"><label class="field-label" for="segment-users">People (user ids)</label><input id="segment-users" name="users" type="text" autocomplete="off"></div><div class="field"><label class="field-label" for="segment-tenants">Tenants</label><input id="segment-tenants" name="tenants" type="text" autocomplete="off"></div></div><p class="field-hint">Every list you fill in must match. Saving an existing name changes it, and every rollout that uses it follows.</p>${button({ type: 'submit', label: 'Save segment', variant: 'secondary', size: 'sm' })}</form>` }) : '';
   return `<section class="card settings-card" aria-labelledby="segments-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="segments-title">Segments</h2><p class="card-subtitle">Named groups of people that rollouts reuse. They compile into each rule, so an exported rollout needs no segment of its own.</p></div></header><div class="card-body">${table({ caption: 'Segments', columns: [{ key: 'name', label: 'Name' }, { key: 'who', label: 'Who' }, { key: 'description', label: 'Description' }, { key: 'actions', label: '' }], rows, empty: 'No segments yet.' })}${form}</div></section>`;
@@ -175,7 +177,7 @@ function auditLine(entry) {
 
 function adminCards() {
   if (!isAdmin()) return '';
-  if (view.adminError && !view.admin) return `<section class="card settings-card"><div class="card-body">${callout({ tone: 'danger', title: 'Could not read the feature flags', body: `<p>${escape(view.adminError)}</p>` })}</div></section>`;
+  if (view.adminError && !view.admin) return `<section class="card settings-card"><div class="card-body">${failureCallout({ title: 'Could not read the feature flags', failure: view.adminError, action: 'labs-retry' })}</div></section>`;
   if (!view.admin) return `<section class="card settings-card"><div class="card-body">${skeleton({ rows: 3 })}</div></section>`;
   const providers = view.admin.providers.map(provider => `<li>${escape(provider.name)}: ${provider.ready ? 'answering' : `not answering${provider.error ? ` (${escape(provider.error)})` : ''}`}</li>`).join('');
   const file = view.admin.file?.file ? `Watching <code>${escape(view.admin.file.file)}</code> every 5 seconds${view.admin.file.error ? `. The last change was rejected and the previous rules stay: ${escape(view.admin.file.error)}` : '.'}` : 'No flag file is mounted.';
@@ -193,17 +195,17 @@ function renderLabs() {
 
 async function loadAdmin() {
   if (!isAdmin()) return;
-  try { view.admin = await api('/api/admin/flags'); view.adminError = ''; }
-  catch (error) { if (error.status !== 401) view.adminError = error.message; }
+  try { view.admin = await api('/api/admin/flags'); view.adminError = null; }
+  catch (error) { if (error.status !== 401) view.adminError = failureOf(error); }
 }
 
 async function enterLabs() {
   disconnect(); state.session = null; state.view = 'labs';
-  view.error = ''; view.adminError = '';
+  view.error = null; view.adminError = null;
   renderLabs();
   const [labs] = await Promise.allSettled([api('/api/flags'), loadAdmin()]);
   if (labs.status === 'fulfilled') { view.labs = labs.value; useFlagValues(labs.value.values); }
-  else if (labs.reason.status !== 401) view.error = labs.reason.message;
+  else if (labs.reason.status !== 401) view.error = failureOf(labs.reason);
   if (state.view === 'labs') renderLabs();
 }
 
@@ -275,12 +277,14 @@ async function saveRollout(data, form) {
   }
 }
 
-async function clearRollout(element) {
+function clearRollout(element) {
   const key = element.dataset.id;
-  view.admin = await api(`/api/admin/flags/${encodeURIComponent(key)}/rollout`, { method: 'PUT', body: JSON.stringify({ rollout: null, reason: '' }) });
-  await refreshLabs();
-  renderLabs();
-  notify(`${key} follows its Git rules again.`);
+  confirmAction(`Remove the rollout of ${key}?`, 'Its rules and schedules stop applying at once, and the flag follows its Git rules again. To bring the rollout back you author it again.', 'Remove rollout', async () => {
+    view.admin = await api(`/api/admin/flags/${encodeURIComponent(key)}/rollout`, { method: 'PUT', body: JSON.stringify({ rollout: null, reason: '' }) });
+    await refreshLabs();
+    renderLabs();
+    notify(`${key} follows its Git rules again.`);
+  }, { tone: 'danger', dismiss: 'Keep the rollout' });
 }
 
 async function saveSegment(data) {
@@ -290,15 +294,19 @@ async function saveSegment(data) {
   notify(`Segment ${data.name} saved.`);
 }
 
-async function deleteSegment(element) {
-  view.admin = await api(`/api/admin/flag-segments/${encodeURIComponent(element.dataset.id)}`, { method: 'DELETE' });
-  renderLabs();
-  notify(`Segment ${element.dataset.id} deleted.`);
+function deleteSegment(element) {
+  const name = element.dataset.id;
+  confirmAction(`Delete segment ${name}?`, 'Rollouts can no longer pick it. Unfold refuses to delete a segment a rollout still uses, and names that rollout.', 'Delete segment', async () => {
+    view.admin = await api(`/api/admin/flag-segments/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    renderLabs();
+    notify(`Segment ${name} deleted.`);
+  }, { tone: 'danger', dismiss: 'Keep it' });
 }
 
 async function exportRollouts() {
   const document = await api('/api/admin/flags/export');
   download('unfold-flags.json', `${JSON.stringify({ $schema: 'https://flagd.dev/schema/v0/flags.json', ...document }, null, 2)}\n`, 'application/json');
+  notify('unfold-flags.json is downloaded: every rollout as flagd JSON.');
 }
 
 /** Labs (`#settings/labs`): the person's opt-in and opt-out choices for Labs flags and, for administrators, every feature flag with its rule, source, rollout editor (rules, segments, percentage splits, time ramps, schedules, prerequisites), experiment readout, override and audit trail, the providers asked, and an export as flagd JSON. */
@@ -307,6 +315,6 @@ export default {
   match: hash => hash === 'settings/labs' ? {} : null,
   enter: enterLabs,
   render: renderLabs,
-  actions: { 'labs-choice': choose, 'flag-rollout-clear': clearRollout, 'flag-segment-delete': deleteSegment, 'flag-export': exportRollouts },
+  actions: { 'labs-retry': enterLabs, 'labs-choice': choose, 'flag-rollout-clear': clearRollout, 'flag-segment-delete': deleteSegment, 'flag-export': exportRollouts },
   forms: { 'flag-override': saveOverride, 'flag-rollout': saveRollout, 'flag-segment': saveSegment },
 };

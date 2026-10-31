@@ -2,10 +2,12 @@ import { state, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { escape, renderHtml, notify } from '../core/dom.js';
 import { badge, button, callout, emptyState, skeleton, table, timeAt } from '../core/ui.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
+import { confirmAction } from './dialogs.js';
 
-const view = { data: null, error: '', busy: '' };
-onForget(() => Object.assign(view, { data: null, error: '', busy: '' }));
+const view = { data: null, error: null, busy: '' };
+onForget(() => Object.assign(view, { data: null, error: null, busy: '' }));
 
 const path = '/api/me/notifications';
 const stateWords = { pending: ['Waiting', 'attention'], delivered: ['Sent', 'success'], dead: ['Gave up', 'danger'], dropped: ['Dropped', 'neutral'] };
@@ -49,7 +51,7 @@ function channelBlock(channel) {
   }
   if (channel.id === 'web-push') {
     const subscriptions = channel.subscriptions ?? [];
-    const list = subscriptions.length ? `<ul class="sessions-list">${subscriptions.map(entry => `<li><span class="mono">${escape(entry.host)}</span> · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-push-remove', data: { id: entry.id } })}</li>`).join('')}</ul>` : '<p class="meta">No browser subscribed yet.</p>';
+    const list = subscriptions.length ? `<ul class="sessions-list">${subscriptions.map(entry => `<li><span class="mono">${escape(entry.host)}</span> · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-push-remove', data: { id: entry.id }, ariaLabel: `Remove the subscription on ${entry.host}` })}</li>`).join('')}</ul>` : '<p class="meta">No browser subscribed yet.</p>';
     const add = pushSupported() ? button({ label: 'Subscribe this browser', size: 'sm', icon: 'bell', action: 'notify-push-subscribe', busy: view.busy === 'subscribe' }) : '<p class="meta">This browser cannot receive Web Push.</p>';
     return `<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Web Push</p><p class="settings-row-hint">${escape(channelHelp['web-push'])}</p>${list}${add}</div></div>`;
   }
@@ -62,7 +64,7 @@ function channelBlock(channel) {
   }
   if (channel.id === 'teams') {
     const hooks = channel.webhooks ?? [];
-    const list = hooks.length ? `<ul class="sessions-list">${hooks.map(entry => `<li><span class="mono">${escape(entry.host)}</span>${entry.label ? ` · ${escape(entry.label)}` : ''} · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-teams-remove', data: { id: entry.id } })}</li>`).join('')}</ul>` : '<p class="meta">No workflow added yet.</p>';
+    const list = hooks.length ? `<ul class="sessions-list">${hooks.map(entry => `<li><span class="mono">${escape(entry.host)}</span>${entry.label ? ` · ${escape(entry.label)}` : ''} · since ${timeAt(entry.createdAt)} ${button({ label: 'Remove', size: 'sm', variant: 'danger-ghost', action: 'notify-teams-remove', data: { id: entry.id, label: entry.label || entry.host }, ariaLabel: `Remove the workflow ${entry.label || entry.host}` })}</li>`).join('')}</ul>` : '<p class="meta">No workflow added yet.</p>';
     const add = `<form data-form="notify-teams-add" class="flag-rule-grid"><div class="field"><label class="field-label" for="notify-teams-url">Workflow webhook URL</label><input id="notify-teams-url" name="url" type="url" autocomplete="off" required></div><div class="field"><label class="field-label" for="notify-teams-label">Name</label><input id="notify-teams-label" name="label" type="text" maxlength="60" autocomplete="off"></div>${button({ type: 'submit', label: 'Add workflow', size: 'sm' })}</form>`;
     return `<div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Microsoft Teams</p><p class="settings-row-hint">${escape(channelHelp.teams)}</p>${list}${add}</div></div>`;
   }
@@ -96,9 +98,9 @@ function recent(data) {
 function render() {
   const data = view.data;
   let content;
-  if (view.error && !data) content = callout({ tone: 'danger', title: 'Could not read your notifications', body: `<p>${escape(view.error)}</p>` });
-  else if (!data) content = `<section class="card settings-card">${skeleton({ rows: 3 })}</section>`;
-  else if (!data.enabled) content = `<section class="card settings-card">${emptyState({ icon: 'bell', title: 'Notifications are not on for you', body: 'An administrator turns on the notifications.push flag for the people who may use them.', compact: true })}</section>`;
+  if (view.error && !data) content = failureCallout({ title: 'Could not read your notifications', failure: view.error, action: 'notify-retry' });
+  else if (!data) content = `<section class="card settings-card" aria-busy="true">${skeleton({ rows: 3 })}</section>`;
+  else if (!data.enabled) content = `<section class="card settings-card">${emptyState({ icon: 'bell', title: 'Notifications are not on for you', body: 'An administrator turns them on for the people who may use them, with the notifications.push flag in Labs.', compact: true })}</section>`;
   else {
     const demo = data.demo ? callout({ tone: 'neutral', title: 'This is the demo', body: '<p>The demo saves your choices but sends no notifications.</p>' }) : '';
     content = `${demo}<section class="card settings-card" aria-labelledby="notify-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="notify-title">What tells you</h2><p class="card-subtitle">Nothing is sent until you choose a channel. Work you handed off tells you unless you turn it off; choose the other moments yourself.</p></div></header><div class="card-body">${form(data)}</div></section>
@@ -109,8 +111,8 @@ function render() {
 }
 
 async function load() {
-  view.error = '';
-  try { view.data = await api(path); } catch (error) { view.error = error.message; view.data = null; }
+  view.error = null;
+  try { view.data = await api(path); } catch (error) { if (error.status !== 401) view.error = failureOf(error); view.data = null; }
   if (state.view === 'notifications' && state.bootstrap) render();
 }
 
@@ -152,8 +154,9 @@ export default {
     'notify-ntfy-topic': async () => { show(await api(`${path}/channels/ntfy/topic`, { method: 'POST', body: '{}' })); notify('Subscribe to the new topic in the ntfy app.'); },
     'notify-test': async () => { const answer = await api(`${path}/test`, { method: 'POST', body: '{}' }); notify(answer.demo ? 'The demo sends no notifications.' : answer.queued ? 'A test notice is on its way.' : 'No channel to send to: choose one and save first.'); await load(); },
     'notify-slack-unlink': async () => { show(await api(`${path}/channels/slack/link`, { method: 'DELETE' })); notify('Slack is unlinked.'); },
-    'notify-teams-remove': async button => { show(await api(`${path}/channels/teams/webhooks/${encodeURIComponent(button.dataset.id)}`, { method: 'DELETE' })); notify('The workflow is removed.'); },
-    'notify-forget': async () => { show(await api(path, { method: 'DELETE' })); notify('Notifications are off and your choices are forgotten.'); },
+    'notify-retry': () => { view.error = null; render(); return load(); },
+    'notify-teams-remove': button => confirmAction(`Remove the workflow ${button.dataset.label}?`, 'Unfold stops posting to it and forgets its webhook URL. To add it back you copy the URL from Teams again.', 'Remove', async () => { show(await api(`${path}/channels/teams/webhooks/${encodeURIComponent(button.dataset.id)}`, { method: 'DELETE' })); notify('The workflow is removed.'); }, { tone: 'danger', dismiss: 'Keep it' }),
+    'notify-forget': () => confirmAction('Turn every notification off?', 'Unfold deletes your choices, your ntfy topic, the browsers you subscribed, your Slack link and your Teams workflows. Nothing is sent until you set them up again.', 'Turn everything off', async () => { show(await api(path, { method: 'DELETE' })); notify('Notifications are off and your choices are forgotten.'); }, { tone: 'danger', dismiss: 'Keep my notifications' }),
   },
   forms: {
     'notify-slack-link': async data => { show(await api(`${path}/channels/slack/link`, { method: 'POST', body: JSON.stringify({ email: data.email }) })); notify('Slack sent you a message: confirm the link there.'); },

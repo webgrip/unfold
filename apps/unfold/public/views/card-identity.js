@@ -1,12 +1,13 @@
 import { state, onForget, disconnect } from '../core/state.js';
 import { api } from '../core/api.js';
 import { escape, renderHtml, notify, announce } from '../core/dom.js';
-import { button, callout, chip, skeleton } from '../core/ui.js';
+import { button, chip, skeleton } from '../core/ui.js';
 import { icon } from '../core/icons.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
 
-const view = { identity: null, suggestions: [], error: '', loading: false };
-onForget(() => Object.assign(view, { identity: null, suggestions: [], error: '', loading: false }));
+const view = { identity: null, suggestions: [], error: null, loading: false };
+onForget(() => Object.assign(view, { identity: null, suggestions: [], error: null, loading: false }));
 
 /** Splits what a person typed into logins: commas, spaces and new lines separate them. */
 export function parseLogins(text) {
@@ -15,6 +16,7 @@ export function parseLogins(text) {
 
 function body() {
   if (view.loading && !view.identity) return skeleton({ rows: 3 });
+  if (view.error && !view.identity) return `<div class="settings-row">${failureCallout({ title: 'Could not read your card logins', failure: view.error, action: 'card-logins-retry' })}</div>`;
   const identity = view.identity ?? { logins: [], declared: [], mapped: null, source: 'none' };
   const demoMode = state.bootstrap?.mode === 'demo';
   const mapped = identity.mapped ? `<li>${chip({ label: identity.mapped, icon: 'shield', title: demoMode ? 'The demo login' : 'Mapped to you by an administrator' })}</li>` : '';
@@ -27,21 +29,20 @@ function body() {
 }
 
 function renderIdentity() {
-  const error = view.error ? callout({ tone: 'danger', title: 'Could not read your card logins', body: `<p>${escape(view.error)}</p>` }) : '';
   const privacy = `<p class="settings-footnote">${icon('lock')}<span>Your binder and packs are private: they are read with your own sign-in, and no one else, an administrator included, can open them. Team pages show Team totals only.</span></p>`;
-  const content = `<div class="settings-page">${error}<section class="card settings-card" aria-labelledby="identity-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="identity-title">Card logins</h2><p class="card-subtitle">Unfold finds your copies of Run cards by these logins on each card's roster.</p></div></header><div class="settings-rows">${body()}</div></section>${privacy}</div>`;
+  const content = `<div class="settings-page"><section class="card settings-card" aria-labelledby="identity-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="identity-title">Card logins</h2><p class="card-subtitle">Unfold finds your copies of Run cards by these logins on each card's roster.</p></div></header><div class="settings-rows">${body()}</div></section>${privacy}</div>`;
   renderHtml(shell(content, { title: 'Card logins', subtitle: 'Which forge and tracker accounts are yours, for your binder and packs.' }));
 }
 
 async function enterIdentity() {
   disconnect(); state.session = null; state.view = 'card-identity';
-  view.loading = true; view.error = '';
+  view.loading = true; view.error = null;
   renderIdentity();
   try {
     const [identity, links] = await Promise.all([api('/api/me/card-identity'), api('/api/links').catch(() => ({ links: [] }))]);
     view.identity = identity;
     view.suggestions = [...new Set((links.links ?? []).map(link => link.login).filter(login => typeof login === 'string' && login))];
-  } catch (error) { if (error.status !== 401) view.error = error.message; }
+  } catch (error) { if (error.status !== 401) view.error = failureOf(error); }
   view.loading = false;
   if (state.view === 'card-identity') renderIdentity();
 }
@@ -60,5 +61,5 @@ export default {
   enter: enterIdentity,
   render: renderIdentity,
   forms: { 'card-identity': data => save(parseLogins(data.logins)) },
-  actions: { 'card-login-add': element => save([...(view.identity?.declared ?? []), element.dataset.login]) },
+  actions: { 'card-logins-retry': enterIdentity, 'card-login-add': element => save([...(view.identity?.declared ?? []), element.dataset.login]) },
 };

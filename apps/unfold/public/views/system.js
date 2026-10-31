@@ -4,8 +4,9 @@ import { escape, safeUrl, renderHtml } from '../core/dom.js';
 import { money, plural } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { refreshCounts } from '../core/counts.js';
-import { badge, button, callout, chip, demoNote, dl, skeleton } from '../core/ui.js';
+import { badge, button, chip, demoNote, dl, skeleton } from '../core/ui.js';
 import { repoName, providerName, providerLabels } from '../core/lookup.js';
+import { failureCallout, failureOf } from '../core/failure.js';
 import { shell } from '../shell.js';
 
 const looks = {
@@ -20,7 +21,7 @@ const toDo = ['setup', 'failing', 'unknown'];
 const dashboardNames = { spend: 'Spend, budgets and savings', reliability: 'Latency and reliability', finops: 'FinOps' };
 
 let loading = false;
-let failure = '';
+let failure = null;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
 const code = text => `<code>${escape(text)}</code>`;
@@ -148,17 +149,17 @@ function teams() {
 }
 
 function renderSystem() {
-  const error = failure ? callout({ tone: 'danger', title: 'Could not read the workbench health', body: `<p>${escape(failure)}</p>`, actions: act('data-action="environment-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) }) : '';
+  const error = failure ? failureCallout({ title: 'Could not read the workbench health', failure, action: 'environment-refresh' }) : '';
   const demo = state.bootstrap.mode === 'demo' ? demoNote() : '';
   const content = `<div class="settings-page">${error}${demo}<div class="environment-layout"><section class="card settings-card" aria-labelledby="health-title"${loading ? ' aria-busy="true"' : ''}>${checklist()}</section>${facts()}</div>${repositories()}${teams()}</div>`;
   renderHtml(shell(content, { title: 'Environment', subtitle: 'What this workbench is connected to, and what to set up next.' }));
 }
 
 async function loadSystem() {
-  loading = true; failure = '';
+  loading = true; failure = null;
   if (state.view === 'system' && state.bootstrap) renderSystem();
   try { state.health = await api('/api/health'); }
-  catch (error) { failure = error.message || 'The workbench did not answer.'; if (error.status === 401) { loading = false; return; } }
+  catch (error) { failure = failureOf(error); if (error.status === 401) { loading = false; return; } }
   await Promise.allSettled([refreshCounts(), state.links ? Promise.resolve() : api('/api/links').then(result => { state.links = result.links; })]);
   loading = false;
   if (state.view === 'system' && state.bootstrap) renderSystem();

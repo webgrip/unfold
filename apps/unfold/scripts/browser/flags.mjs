@@ -55,5 +55,8 @@ export async function run({ app, page, assert, screenshot }) {
   await page.locator('.work-live figure.lv-fp').waitFor();
   await page.goto(`${origin}/#settings/labs`);
   await page.locator('.flag-card', { has: page.getByText('work.live-view', { exact: true }) }).getByRole('button', { name: 'Remove rollout' }).click();
-  await page.getByText(/follows its Git rules again/).waitFor();
+  const removal = page.getByRole('dialog', { name: 'Remove the rollout of work.live-view?' });
+  assert.equal(await removal.getByRole('button', { name: 'Keep the rollout' }).evaluate(element => element === document.activeElement), true, 'the safe choice does not have the focus');
+  await removal.getByRole('button', { name: 'Remove rollout' }).click();
+  await page.locator('#toast').getByText(/work.live-view follows its Git rules again/).waitFor();
 }
