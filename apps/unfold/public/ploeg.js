@@ -1,4 +1,5 @@
 import { escape, safeUrl } from './core/dom.js';
+import { openTaskLabel, taskChip, taskIdText, trackerName, trackerOf, trackerOr } from './core/trackers.js';
 import { linkedSessionsMarkup } from './core/linked-sessions.js';
 import { linkedWorkMarkup } from './core/linked-handoff.js';
 import { icon } from './core/icons.js';
@@ -62,7 +63,6 @@ const laneEmpty = {
   open: ['inbox', 'No open Work Items', 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', 'neutral'],
   closed: ['check-circle', 'Nothing closed yet', 'Work Items that are done or withdrawn show up here, newest first.', 'neutral'],
 };
-const trackers = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
 const cancellable = new Set(['ingested', 'queued', 'leased']);
 const stopped = new Set(['needs_human', 'stale', 'done', 'withdrawn']);
 const instructionFiles = [['AGENTS.md', /\bAGENTS\.md\b/], ['CLAUDE.md', /\bCLAUDE\.md\b/], ['.claude/', /(^|[^\w.])\.claude\//], ['.agents/', /(^|[^\w.])\.agents\//], ['.openhands/', /(^|[^\w.])\.openhands\//], ['.mcp.json', /(^|[^\w.])\.mcp\.json\b/], ['.cursorrules', /(^|[^\w.])\.cursorrules\b/]];
@@ -78,7 +78,6 @@ const amount = value => typeof value === 'number' && Number.isFinite(value);
 const seconds = (from, to) => { const start = Date.parse(from); const end = Date.parse(to); return Number.isFinite(start) && Number.isFinite(end) && end >= start ? (end - start) / 1000 : null; };
 const moneyText = value => escape(money(value));
 const repoName = target => target ? `${target.owner}/${target.repo}` : '';
-const trackerName = provider => trackers[provider] || '';
 const normalized = text => String(text ?? '').toLowerCase().replace(/^\s*illustrative[^:]*:\s*/, '').replace(/[“”"'’.,;:—–-]+/g, ' ').replace(/\s+/g, ' ').trim();
 const overlaps = (a, b) => { const x = normalized(a); const y = normalized(b); if (x.length < 12 || y.length < 12) return false; return x.includes(y.slice(0, 40)) || y.includes(x.slice(0, 40)); };
 const newTab = '<span class="sr-only"> (opens in a new tab)</span>';
@@ -98,7 +97,7 @@ export function workItemRef(item) {
   if (item?.provider === 'ploeg') { const run = /^run-(\d+)-\d+$/.exec(external); return run ? `From Run ${run[1]}` : `#${item.id}`; }
   if (!trackerReference(item)) return `#${item?.id ?? ''}`;
   const name = trackerName(item?.provider);
-  return name ? `${name} ${/^\d+$/.test(external) ? `#${external}` : external}` : external;
+  return name ? `${name} ${taskIdText(item?.provider, external)}` : external;
 }
 
 /**
@@ -585,9 +584,8 @@ function trackerTarget(item, model) {
 }
 
 function ref(item) {
-  const task = taskLink(item);
-  const text = escape(workItemRef(item));
-  return task ? `<a class="work-inline-link" href="${escape(task)}" target="_blank" rel="noopener noreferrer" data-link-out="tracker" title="${escape(`Open the task in ${trackerName(item.provider) || 'its tracker'}`)}">${text}${icon('external')}${newTab}</a>` : `<span>${text}</span>`;
+  if (!trackerReference(item)) return `<span>${escape(workItemRef(item))}</span>`;
+  return taskChip({ ...item, url: taskLink(item) });
 }
 
 /** Whether a cancel would stop something: the Work Item waits for or holds a worker, its latest Shift is still open, or a Run has not finished. */
@@ -724,11 +722,11 @@ export function decisionPlan(detail, model, reason) {
   entries.push(main);
   const trackerHtml = control('tracker');
   if (trackerHtml) requeue.actions.push(trackerHtml);
-  if (question) requeue.text = escape('Or answer in the tracker and assign the task to the Team again there.');
+  if (question) requeue.text = escape(`Or answer in ${trackerOr(item.provider, 'the tracker')} and assign the task to the Team again there.`);
   entries.push(requeue);
   if (!primary) {
     const key = trackerReference(item) ? String(item.externalId ?? '').trim() : '';
-    const where = trackerName(item.provider) || (item.provider === 'demo' ? 'the demo tracker' : 'its tracker');
+    const where = trackerOr(item.provider, trackerOf(item.provider)?.fixture ? 'the demo tracker' : 'its tracker');
     trackerEntry.actions.unshift(`<span class="work-find">Find <strong class="mono">${escape(key || `#${item.id}`)}</strong> in ${escape(where)}</span>`);
     if (key) trackerEntry.actions.splice(1, 0, ui.button({ label: `Copy ${key}`, icon: 'copy', variant: 'secondary', action: 'work-copy-ref', data: { value: key } }));
   }
@@ -946,7 +944,7 @@ function briefMarkup(detail, model) {
   const open = model.briefOpen;
   const toggle = long ? `<button type="button" class="button ghost sm work-brief-toggle" data-action="work-brief" aria-expanded="${open ? 'true' : 'false'}" aria-controls="work-brief-text">${icon(open ? 'chevron-up' : 'chevron-down')}<span class="button-label">${open ? 'Show less' : 'Show the full brief'}</span></button>` : '';
   const task = safeUrl(item.url);
-  const source = task ? `<a class="button ghost sm" href="${escape(task)}" target="_blank" rel="noopener noreferrer"><span class="button-label">Source</span>${icon('external', 'button-external')}${newTab}</a>` : '';
+  const source = task ? `<a class="button ghost sm" href="${escape(task)}" target="_blank" rel="noopener noreferrer" data-link-out="tracker"><span class="button-label">${escape(openTaskLabel(item.provider))}</span>${icon('external', 'button-external')}${newTab}</a>` : '';
   return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div data-private class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text, { baseLevel: 4 })}</div>${toggle}` });
 }
 

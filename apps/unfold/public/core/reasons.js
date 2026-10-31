@@ -1,3 +1,4 @@
+import { trackerOr } from './trackers.js';
 import { money, plural } from './format.js';
 import { ciState, failureReason, runFailure, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 import { detailQuestions } from './blackboard.js';
@@ -33,8 +34,7 @@ export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason 
  * @property {string} glyph
  */
 
-const trackers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja' };
-const trackerOf = provider => trackers[provider] ? trackers[provider] : 'its tracker';
+const trackerOf = provider => trackerOr(provider);
 
 const copy = {
   plan_exhausted: {

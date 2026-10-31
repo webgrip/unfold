@@ -74,6 +74,10 @@ export interface TaskProviderAdapter {
   readonly descriptionFormat: 'html' | 'markdown';
   /** The reference people write for a task. `ploegDefault` marks the tracker Ploeg means by an empty provider. */
   readonly reference?: ReferenceFormat;
+  /** The mark the tracker shows before a native task id that is not a number, such as `#` in `#86c0abc12`. Absent when it shows the id bare. */
+  readonly idMark?: string;
+  /** The tracker's priority words by the number it stores (index 0 unused), and whether 1 is the highest. Absent when the tracker has no named priorities. */
+  readonly priorities?: { readonly names: readonly string[]; readonly oneIsHighest: boolean };
   /** The link provider whose personal token a source without its own token reads with. */
   readonly linkedAccount?: string;
   readonly handoff?: TaskHandoff;

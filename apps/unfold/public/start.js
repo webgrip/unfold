@@ -1,7 +1,8 @@
 import { escape } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { count as formatCount, money, namedDate, plural } from './core/format.js';
-import { badge, button, callout, count, demoNote, emptyState, kbd, listRow, skeleton } from './core/ui.js';
+import { badge, button, callout, count, demoNote, emptyState, errorCodeNote, kbd, listRow, skeleton } from './core/ui.js';
+import { openTaskLabel, trackerOf, trackerOr } from './core/trackers.js';
 
 /** How many agent pull requests may wait for your review before the Start lane says to decide first. */
 export const reviewRoom = 4;
@@ -51,22 +52,21 @@ export function readiness(task) {
   return { state: 'check', label: 'Not marked ready', tone: 'neutral', facts };
 }
 
-const vikunjaPriority = ['', 'low', 'medium', 'high', 'urgent', 'do now'];
-const clickupPriority = ['', 'urgent', 'high', 'normal', 'low'];
 const capital = text => text.charAt(0).toUpperCase() + text.slice(1);
 const sentence = text => String(text ?? '').trim().replace(/[.\s]+$/, '');
 
 /**
- * A task's priority in its tracker's own word, and its rank (higher goes first). Vikunja counts 1 low to 5 do now;
- * ClickUp counts 1 urgent to 4 low. Null when the tracker set none.
+ * A task's priority in its tracker's own word, and its rank (higher goes first), from the tracker registry's priority
+ * words: where 1 is the highest it ranks first. Null when the tracker set none.
  * @param {object} task
  * @returns {{ rank: number, name: string } | null}
  */
 export function priorityOf(task) {
   const value = task?.priority;
   if (!Number.isSafeInteger(value) || value < 1) return null;
-  if (task.provider === 'clickup') return value < clickupPriority.length ? { rank: clickupPriority.length - value, name: clickupPriority[value] } : null;
-  return { rank: value, name: vikunjaPriority[value] || `level ${value}` };
+  const scale = trackerOf(task.provider)?.priorities;
+  if (scale?.oneIsHighest) return value < scale.names.length ? { rank: scale.names.length - value, name: scale.names[value] } : null;
+  return { rank: value, name: scale?.names[value] || `level ${value}` };
 }
 
 /**
@@ -217,7 +217,7 @@ function startRow(entry, sourceName, badges) {
 
 function handedRow(entry, standing) {
   const queued = standing && moving.includes(standing.state);
-  const what = queued ? `Queued for ${entry.team}` : `Handed to ${entry.team} · waiting for Ploeg to queue it`;
+  const what = queued ? `Queued for ${entry.team} · starts when a worker is free` : `Handed to ${entry.team} · waiting for Ploeg to queue it`;
   const take = button({ label: entry.busy ? 'Taking back…' : 'Take back', icon: 'back', size: 'sm', variant: 'ghost', action: 'start-take-back', data: { source: entry.sourceId, task: entry.taskId, team: entry.team }, busy: Boolean(entry.busy), disabled: Boolean(entry.busy), id: `start-take-back-${entry.sourceId}-${entry.taskId}` });
   const lead = `<span class="start-handed-mark" aria-hidden="true">${icon(queued ? 'circle-dashed' : 'arrow')}</span>`;
   const href = standing?.id ? `#work/${encodeURIComponent(standing.id)}` : '';
@@ -253,16 +253,16 @@ function toggle({ action, label, pressed }) {
  * it is there and opening the hand-off sheet, with the review room above them. Show all lists every task with a board
  * switch when there are several boards; Include adds the tasks agents cannot take, each with its reason. `board` is
  * the chosen connection id, or empty for all; it applies while every task shows.
- * @param {{ queue: object[]|null, sources: object[], error?: string, room: object|null, singleKeys?: boolean, demo?: boolean, board?: string, all?: boolean, include?: boolean }} input
+ * @param {{ queue: object[]|null, sources: object[], error?: string, errorCode?: string, room: object|null, singleKeys?: boolean, demo?: boolean, board?: string, all?: boolean, include?: boolean }} input
  * @returns {string}
  */
-export function startCard({ queue, sources, error = '', room, singleKeys = false, demo = false, board = '', all = false, include = false }) {
+export function startCard({ queue, sources, error = '', errorCode = '', room, singleKeys = false, demo = false, board = '', all = false, include = false }) {
   const names = new Map(sources.map(source => [source.id, source.name]));
   let body;
-  if (!sources.length) body = emptyState({ icon: 'tasks', compact: true, title: 'No task connection hands work to Ploeg', body: 'An administrator connects a Vikunja board with executionOwner "ploeg". Its open tasks show up here to hand off.' });
-  else if (error && !queue) body = emptyState({ icon: 'x-circle', compact: true, tone: 'danger', title: 'Could not list your tasks', body: escape(error), actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-reload', id: 'start-reload' }) });
+  if (!sources.length) body = emptyState({ icon: 'tasks', compact: true, title: 'No task connection hands work to Ploeg', body: 'An administrator connects your tracker’s list or board on Connections, with Ploeg running its work. Its open tasks show up here to hand off.' });
+  else if (error && !queue) body = emptyState({ icon: 'x-circle', compact: true, tone: 'danger', title: 'Could not list your tasks', body: `${escape(error)}${errorCodeNote(errorCode)}`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-reload', id: 'start-reload' }) });
   else if (!queue) body = skeleton({ rows: 3 });
-  else if (!queue.length) body = emptyState({ icon: 'check-circle', compact: true, title: 'Nothing left to start', body: 'Every open task is with Ploeg already. Make more work Ready in your tracker.', actions: button({ label: 'Open Tasks', size: 'sm', variant: 'ghost', href: '#tasks', id: 'start-tasks' }) });
+  else if (!queue.length) body = emptyState({ icon: 'check-circle', compact: true, title: 'Nothing left to start', body: `Every open task is with Ploeg already. Make more work Ready in ${escape(trackerNames(sources))}.`, actions: button({ label: 'Open Tasks', size: 'sm', variant: 'ghost', href: '#tasks', id: 'start-tasks' }) });
   else {
     const visible = include ? queue : queue.filter(entry => !entry.blocker);
     const chosen = all && board && visible.some(entry => entry.sourceId === board) ? board : '';
@@ -283,7 +283,12 @@ export function startCard({ queue, sources, error = '', room, singleKeys = false
   }
   const keys = singleKeys && queue?.length ? `<p class="now-keys" aria-hidden="true">${kbd('h')}<span>hand off</span></p>` : '';
   const warn = room?.full && queue?.length ? `<p class="start-decide-first">${icon('alert')}<span>Decide on what waits first. You can still hand off; the work queues behind your review.</span></p>` : '';
-  return `<section class="card flush now-card loop-start" aria-labelledby="loop-start-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-start-title">Up next</h2>${roomMarkup(room)}</div><div class="card-actions">${keys}</div></header><div class="card-body">${demo && sources.some(source => source.provider === 'demo') ? demoNote('Fixture tasks · a hand-off needs a live Vikunja board and Ploeg') : ''}${warn}${body}</div></section>`;
+  return `<section class="card flush now-card loop-start" aria-labelledby="loop-start-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-start-title">Up next</h2>${roomMarkup(room)}</div><div class="card-actions">${keys}</div></header><div class="card-body">${demo && sources.some(source => trackerOf(source.provider)?.fixture) ? demoNote('Fixture tasks · a hand-off needs a connected tracker and a live Ploeg') : ''}${warn}${body}</div></section>`;
+}
+
+function trackerNames(sources) {
+  const names = [...new Set(sources.map(source => trackerOr(source.provider, '')).filter(Boolean))];
+  return names.length ? names.join(' or ') : 'your tracker';
 }
 
 function teamFacts(team, summary) {
@@ -299,6 +304,19 @@ function teamFacts(team, summary) {
   return facts;
 }
 
+/**
+ * What Now says once a hand-off went through: the Team, the user it assigned in the tracker when known, and how to take it back.
+ * @param {string} team
+ * @param {string} [assignee] The Team's tracker user.
+ * @param {string} [provider] The task's tracker.
+ * @returns {string}
+ */
+export function handedNotice(team, assignee = '', provider = '') {
+  const where = trackerOr(provider, 'the tracker');
+  const assigned = assignee ? ` “${assignee}” is assigned in ${where}.` : '';
+  return `Handed to ${team}.${assigned} Take it back from Now until a worker starts it.`;
+}
+
 /** The Team a sheet starts on: the one the task's `team/<name>` label asks for, else the one last used for this connection, else the first, each only while it is on offer. */
 export function suggestedTeam(teams, remembered, labelled = '') {
   if (!Array.isArray(teams) || !teams.length) return '';
@@ -310,12 +328,13 @@ export function suggestedTeam(teams, remembered, labelled = '') {
  * The hand-off sheet: whether the task is ready, the Teams on offer with their roles, queue and last 7 days, what
  * handing it over does, and one button. While Ploeg's answer is loading, the Team list is a skeleton; when Ploeg
  * refuses a hand-off, its reason replaces the button.
- * @param {{ task: object, source: object, repository?: string, status: object|null, statusError?: string, summary?: object|null, team?: string, remembered?: string, busy?: boolean, error?: string, room?: object|null, singleKeys?: boolean }} input
+ * @param {{ task: object, source: object, repository?: string, status: object|null, statusError?: string, summary?: object|null, team?: string, remembered?: string, busy?: boolean, error?: string, errorCode?: string, room?: object|null, singleKeys?: boolean }} input
  * @returns {string}
  */
-export function sheetMarkup({ task, source, repository = '', status, statusError = '', summary = null, team = '', remembered = '', busy = false, error = '', room = null, singleKeys = false }) {
+export function sheetMarkup({ task, source, repository = '', status, statusError = '', summary = null, team = '', remembered = '', busy = false, error = '', errorCode = '', room = null, singleKeys = false }) {
   const state = readiness(task);
   const ref = task.identifier || `#${task.id}`;
+  const tracker = trackerOr(source.provider, 'the tracker');
   const glyph = fact => fact.ok === true ? icon('check') : fact.ok === false ? icon('x-circle') : icon('help-circle');
   const facts = `<ul class="sheet-facts">${state.facts.map(fact => `<li data-ok="${fact.ok === null ? 'unknown' : fact.ok}"><span class="sheet-fact-mark" aria-hidden="true">${glyph(fact)}</span><span>${escape(fact.text)}</span></li>`).join('')}</ul>`;
   const teams = status?.teams || [];
@@ -332,14 +351,15 @@ export function sheetMarkup({ task, source, repository = '', status, statusError
   const terms = [
     ['Where', repository ? `A branch of ${repository}, then a pull request for your review. Nothing merges without you.` : 'A branch, then a pull request for your review. Nothing merges without you.'],
     ['Budget', 'Set by the Team in Ploeg. The Work Item shows it once a Run starts.'],
-    ['Tracker', chosen ? `Assigns “${chosen.assignee}” in ${source.provider === 'vikunja' ? 'Vikunja' : 'the tracker'} and leaves a comment. You could do the same there.` : 'Assigns the Team’s tracker user and leaves a comment.'],
-    ['Take back', 'Free until a worker starts it, from Now or Tasks.'],
+    ['In ' + tracker, chosen?.assignee ? `Assigns “${chosen.assignee}” to ${ref} in ${tracker} and leaves a comment there. Assigning that user in ${tracker} yourself does the same.` : `Assigns the Team’s user in ${tracker} and leaves a comment there.`],
+    ['Next', 'Ploeg queues it for the Team. A worker starts it when one is free; you follow it on Now and on its Work Item page.'],
+    ['Take back', `Free until a worker starts it: Take back on Now or Tasks, which removes ${chosen?.assignee ? `“${chosen.assignee}”` : 'the Team’s user'} in ${tracker} again. After a worker starts it, Cancel on its Work Item page stops it.`],
   ].map(([term, value]) => `<dt>${escape(term)}</dt><dd>${escape(value)}</dd>`).join('');
   const roomWarn = room?.full ? callout({ tone: 'attention', title: `${plural(room.used, 'pull request')} already ${room.used === 1 ? 'waits' : 'wait'} for you`, body: '<p>This queues behind your review. Hand it off anyway, or decide on those first.</p>' }) : '';
-  const failure = error ? callout({ tone: 'danger', title: 'Ploeg did not take the hand-off', body: `<p>${escape(error)}</p>` }) : '';
+  const failure = error ? callout({ tone: 'danger', title: 'Ploeg did not take the hand-off', body: `<p>${escape(error)} Nothing changed in ${escape(tracker)}.</p>${errorCodeNote(errorCode)}` }) : '';
   const submit = button({ type: 'submit', variant: 'primary', icon: 'arrow', label: busy ? 'Handing over…' : chosen ? `Hand to ${chosen.id}` : 'Hand off', busy, disabled: busy || !allowed, id: 'sheet-submit', kbd: allowed && !busy ? '↵' : undefined });
-  const demo = source.provider === 'demo' ? demoNote('Fixture task · Ploeg cannot receive it, so nothing is handed over') : '';
-  return `<form data-form="start-handoff" class="sheet" novalidate aria-labelledby="sheet-title"><input type="hidden" name="source" value="${escape(source.id)}"><input type="hidden" name="task" value="${escape(task.id)}"><header class="dialog-header sheet-header"><div class="sheet-heading"><p class="sheet-eyebrow">Hand off · ${escape(ref)}${source.name ? ` · ${escape(source.name)}` : ''}</p><h2 id="sheet-title">${escape(task.title || `Task ${task.id}`)}</h2></div><button type="button" class="button ghost icon-only" data-action="close-dialog" aria-label="Close" title="Close">${icon('x')}</button></header><div class="dialog-body sheet-body">${demo}<section class="sheet-section" aria-labelledby="sheet-ready"><h3 class="sheet-label" id="sheet-ready">Ready? ${readyBadge(state)}</h3>${facts}${task.url ? `<p class="sheet-open"><a href="${escape(task.url)}" target="_blank" rel="noopener noreferrer">Edit the brief in the tracker${icon('external')}</a></p>` : ''}</section><section class="sheet-section" aria-labelledby="sheet-team"><h3 class="sheet-label" id="sheet-team">Team</h3>${teamBody}${refusal}</section><section class="sheet-section" aria-labelledby="sheet-terms"><h3 class="sheet-label" id="sheet-terms">What happens</h3><dl class="sheet-terms">${terms}</dl></section>${roomWarn}${failure}</div><footer class="dialog-footer">${button({ label: 'Cancel', action: 'close-dialog', variant: 'ghost' })}${submit}</footer></form>`;
+  const demo = trackerOf(source.provider)?.fixture ? demoNote('Fixture task · Ploeg cannot receive it, so nothing is handed over') : '';
+  return `<form data-form="start-handoff" class="sheet" novalidate aria-labelledby="sheet-title"><input type="hidden" name="source" value="${escape(source.id)}"><input type="hidden" name="task" value="${escape(task.id)}"><header class="dialog-header sheet-header"><div class="sheet-heading"><p class="sheet-eyebrow">Hand off · ${escape(ref)}${source.name ? ` · ${escape(source.name)}` : ''}</p><h2 id="sheet-title">${escape(task.title || `Task ${task.id}`)}</h2></div><button type="button" class="button ghost icon-only" data-action="close-dialog" aria-label="Close" title="Close">${icon('x')}</button></header><div class="dialog-body sheet-body">${demo}<section class="sheet-section" aria-labelledby="sheet-ready"><h3 class="sheet-label" id="sheet-ready">Ready? ${readyBadge(state)}</h3>${facts}${task.url ? `<p class="sheet-open"><a href="${escape(task.url)}" target="_blank" rel="noopener noreferrer" data-link-out="tracker">${escape(`${openTaskLabel(source.provider)} to edit the brief`)}${icon('external')}<span class="sr-only"> (opens in a new tab)</span></a></p>` : ''}</section><section class="sheet-section" aria-labelledby="sheet-team"><h3 class="sheet-label" id="sheet-team">Team</h3>${teamBody}${refusal}</section><section class="sheet-section" aria-labelledby="sheet-terms"><h3 class="sheet-label" id="sheet-terms">What happens</h3><dl class="sheet-terms">${terms}</dl></section>${roomWarn}${failure}</div><footer class="dialog-footer">${button({ label: 'Cancel', action: 'close-dialog', variant: 'ghost' })}${submit}</footer></form>`;
 }
 
 /**

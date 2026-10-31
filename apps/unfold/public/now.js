@@ -4,6 +4,8 @@ import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, runFailure, runFailureText, workItemState, tileDetail, unreportedOutcome, stoppedWorkIds } from './core/states.js';
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup, sessionDriven, sessionReason } from './core/reasons.js';
 import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
+import { taskChip, trackerName } from './core/trackers.js';
+import { trackerReference } from './core/terms.js';
 import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
 import { sortOut, snoozeKey } from './core/snoozes.js';
@@ -193,6 +195,7 @@ function repository(target) {
 }
 
 function reference(entry) {
+  if (trackerReference(entry)) return `<span class="now-ref">${taskChip(entry, { link: false })}</span>`;
   return entry.externalId || entry.provider === 'ploeg' ? `<span class="now-ref">${escape(workItemRef(entry))}</span>` : '';
 }
 
@@ -272,7 +275,6 @@ function waitingMeta(entry, context, { reason, warning, grouped }) {
   return `${verdict}${chips.join('')}${facts}${whyLine(entry, reason, warning, grouped)}`;
 }
 
-const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
 const pullRequestCodes = new Set(['checks_not_passed', 'ci_not_finished', 'ci_not_passed', 'pull_request_closed', 'merged_untracked']);
 const secondary = options => button({ variant: 'ghost', size: 'sm', ...options });
 
@@ -315,7 +317,7 @@ function waitingActions(entry, context, reason) {
   if (stopped && context.canCancel && !session && live) more.push(secondary({ id: `now-cancel-${entry.id}`, label: closing ? 'Close Work Item' : 'Cancel', icon: 'x-circle', action: 'now-cancel', data: { id: entry.id }, ariaLabel: `${closing ? 'Close' : 'Cancel'} “${title}”: withdraw it from Ploeg` }));
   const tracker = safeUrl(entry.url);
   if (tracker) {
-    const name = trackerNames[entry.provider];
+    const name = trackerName(entry.provider);
     const where = name || 'the tracker';
     more.push(stopped && closing && !live && !session
       ? secondary({ id: `now-tracker-${entry.id}`, label: name ? `Close in ${name}` : 'Close the task', icon: 'x-circle', href: tracker, external: true, ariaLabel: `Close “${title}” in ${where}: Ploeg withdraws a stopped Work Item once its task is closed (opens in a new tab)` })
@@ -505,12 +507,12 @@ export function refusalSentence(entry) {
 function refusalRow(entry, context) {
   const key = `${entry.provider}-${entry.externalId}`.replace(/[^A-Za-z0-9_-]/g, '-');
   const sentence = refusalSentence(entry);
-  const ref = entry.externalId ? `<span class="now-ref">${escape(workItemRef(entry))}</span>` : '';
+  const ref = entry.externalId ? reference(entry) : '';
   const meta = `${joinDots([escape(entry.team), ref])}<span class="now-why now-why-fix" title="${escape(sentence)}">${escape(sentence)}</span>`;
   const when = moment(entry.refusedAt);
   const row = listRow({ id: `now-row-x-${key}`, tone: 'attention', lead: icon('alert'), title: entry.title || `Task ${entry.externalId}`, meta, trail: when === null ? '' : `<span class="now-when"><span class="now-when-label">Refused </span>${format.timeHtml(when, { now: context.now })}</span>` });
   const href = safeUrl(entry.url);
-  const tracker = trackerNames[entry.provider] || '';
+  const tracker = trackerName(entry.provider);
   const label = entry.link === 'task' ? `Open in ${tracker || 'its tracker'}` : `Open ${tracker || 'the tracker'}`;
   const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, variant: 'secondary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
   const snooze = snoozeSlot(entry, 'task', entry.title || entry.externalId, context);

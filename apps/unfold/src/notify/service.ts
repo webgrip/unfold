@@ -11,7 +11,7 @@ import { NotifyError, followsHandedOff, parsePreferences, quietUntil, refuse, ty
 import { defaultBudgetThresholds, type NotificationSettings } from './settings.ts';
 import { NotifyStore, noticeJob, type OutboxEntry } from './store.ts';
 import { JobWorker, type JobOutcome } from '../jobs/worker.ts';
-import { handedOffMessage, permissionMessage, testMessage, triggers, workItemMessage, type NotificationMessage, type TriggerId } from './triggers.ts';
+import { handedOffMessage, permissionMessage, testMessage, triggers, workItemMessage, type NotificationMessage, type NoticeWorkItem, type TriggerId } from './triggers.ts';
 
 export { NotifyError };
 
@@ -226,7 +226,7 @@ export class Notifications {
     const handed = following && (parked || review);
     if (!(outcome && wanted.has('budget')) && !(parked && (wanted.has('needs_you') || wanted.has('question'))) && !(review && wanted.has('review')) && !handed) return 0;
     const facts = await this.factsFor(event.workItemId, cache);
-    const item = { id: event.workItemId, title: facts?.workItem.title ?? '' };
+    const item = noticeItem(event.workItemId, facts);
     const readers = this.readersOf(facts, event.team);
     if (outcome) {
       const crossed = this.crossedShare(facts);
@@ -310,7 +310,7 @@ export class Notifications {
       const id = String(row.work_item_id);
       const facts = await this.factsFor(id, cache);
       if (!facts) continue;
-      queued += this.queue(await this.recipients('sign_off', this.readersOf(facts, facts.workItem.team)), `sign_off:${row.id}`, workItemMessage('sign_off', { id, title: facts.workItem.title }, this.options.baseUrl));
+      queued += this.queue(await this.recipients('sign_off', this.readersOf(facts, facts.workItem.team)), `sign_off:${row.id}`, workItemMessage('sign_off', noticeItem(id, facts), this.options.baseUrl));
     }
     return queued;
   }
@@ -417,4 +417,9 @@ export class Notifications {
     };
     return channel.publicRoute({ method, rest, headers, rawBody, at: this.now() }, { allowed });
   }
+}
+
+function noticeItem(id: string, facts: WorkItemFacts | undefined): NoticeWorkItem {
+  const item = facts?.workItem;
+  return item ? { id, title: item.title, provider: item.provider, externalId: item.externalId, url: item.url } : { id, title: '' };
 }

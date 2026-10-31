@@ -59,6 +59,7 @@ export const vikunjaIssues: IssueFiling = {
 export const vikunja: TaskProviderAdapter = {
   name: 'vikunja',
   label: 'Vikunja',
+  priorities: { names: ['', 'low', 'medium', 'high', 'urgent', 'do now'], oneIsHighest: false },
   descriptionFormat: 'html',
   reference: { prefix: 'VIK', ploegDefault: true },
   taskId: numericId,

@@ -1,9 +1,9 @@
+import { trackerOf } from './trackers.js';
 import { state } from './state.js';
 import { sessionStatuses, sessionStatus } from './states.js';
 
 /** Plain-language names for each session status, from the shared state vocabulary. */
 export const labels = Object.fromEntries(['queued', 'running', 'exporting', 'waiting_input', 'paused', 'completed', 'failed', 'cancelled', 'interrupted'].map(key => [key, sessionStatuses[key].label]));
-const providers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja', jira: 'Jira', demo: 'Demo fixture' };
 /** Display names for the providers that link a personal account. */
 export const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
 
@@ -22,6 +22,6 @@ export function taskSources() { return state.bootstrap.taskSources || []; }
 /** The task connection currently selected on the Tasks page. */
 export function selectedTaskSource() { return taskSources().find(source => source.id === state.taskSourceId); }
 /** Names a tracker provider, falling back to its id. */
-export function providerName(id) { return providers[id] || id; }
+export function providerName(id) { return trackerOf(id)?.label || id; }
 /** Names a session's status, including the recorded review decision once completed. */
 export function statusLabel(session) { return sessionStatus(session).label; }

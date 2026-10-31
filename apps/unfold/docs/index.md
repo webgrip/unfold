@@ -17,6 +17,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 
 ## Operate
 
+- [Working with Unfold from ClickUp](operations/working-from-clickup.md): hand off by assigning, follow, review, accept or send back, Client Sign-off, in plain words
 - [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
 - [Configuration reference](operations/configuration.md): every configuration key and environment variable, generated from the schema Unfold checks at startup
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)

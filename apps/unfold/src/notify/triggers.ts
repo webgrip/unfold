@@ -1,4 +1,6 @@
 import { plainRedactedText } from '../redaction.ts';
+import { findTaskProvider } from '../task-providers/index.ts';
+import { taskMention } from '../tracker-display.ts';
 
 /** What can notify a person. */
 export const triggerIds = ['needs_you', 'question', 'review', 'sign_off', 'budget'] as const;
@@ -26,7 +28,13 @@ export type NoticeSubject = { kind: 'permission'; sessionId: string; requestId: 
  * notice, and optionally what it is about, for a channel that offers an action on it. `about` is `handed_off` when
  * the notice goes to the person who handed the Work Item off, under their "work I handed off" choice instead of the trigger.
  */
-export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string; subject?: NoticeSubject; about?: 'handed_off' };
+export type NotificationMessage = { trigger: TriggerId | 'test'; title: string; body: string; url: string | null; tag: string; subject?: NoticeSubject; about?: 'handed_off'; task?: NoticeTask };
+
+/** The tracker task a Work Item came from, as a notice carries it: how to name it (`ClickUp #86c0abc12`), the label of its link (`Open in ClickUp`) and its web address. */
+export type NoticeTask = { mention: string; label: string; url: string | null };
+
+/** The Work Item facts a notice may carry. */
+export type NoticeWorkItem = { id: string; title: string; provider?: string; externalId?: string; url?: string };
 
 const headlines: Record<Exclude<TriggerId, 'budget'>, string> = {
   needs_you: 'A Work Item needs you',
@@ -44,13 +52,28 @@ export function noticeTitle(title: string): string {
 const link = (baseUrl: string | undefined, hash: string) => baseUrl ? `${baseUrl.replace(/\/+$/, '')}/#${hash}` : null;
 
 /**
- * The notice for a trigger about one Work Item: a fixed headline, the Work Item's number and title, and a link to
- * its page. A budget notice names the share used, never an amount. Nothing else from the Work Item is carried.
+ * The notice for a trigger about one Work Item: a fixed headline, the Work Item's number and title, a link to its page
+ * and, for work a tracker holds, the task's name and link. A budget notice names the share used, never an amount.
+ * Nothing else from the Work Item is carried.
  */
-export function workItemMessage(trigger: TriggerId, workItem: { id: string; title: string }, baseUrl?: string, share?: number): NotificationMessage {
+export function workItemMessage(trigger: TriggerId, workItem: NoticeWorkItem, baseUrl?: string, share?: number): NotificationMessage {
   const title = trigger === 'budget' ? `A Work Item used ${Math.round((share ?? 1) * 100)} % of its budget` : headlines[trigger];
   const name = noticeTitle(workItem.title);
-  return { trigger, title, body: name ? `#${workItem.id} ${name}` : `Work Item #${workItem.id}`, url: link(baseUrl, `work/${encodeURIComponent(workItem.id)}`), tag: `${trigger}-${workItem.id}` };
+  const task = noticeTask(workItem);
+  const body = `${name ? `#${workItem.id} ${name}` : `Work Item #${workItem.id}`}${task ? ` · ${task.mention}` : ''}`;
+  return { trigger, title, body, url: link(baseUrl, `work/${encodeURIComponent(workItem.id)}`), tag: `${trigger}-${workItem.id}`, ...(task ? { task } : {}) };
+}
+
+/** The tracker task of a Work Item a tracker holds, or undefined for work no tracker the registry knows holds. Only an http(s) address without credentials is kept. */
+export function noticeTask(workItem: NoticeWorkItem): NoticeTask | undefined {
+  const provider = workItem.provider ?? '';
+  const adapter = findTaskProvider(provider);
+  if (!adapter || adapter.fixture || !workItem.externalId?.trim()) return undefined;
+  return { mention: noticeTitle(taskMention(provider, workItem.externalId)).slice(0, 80), label: `Open in ${adapter.label}`, url: webLink(workItem.url) };
+}
+
+function webLink(value: string | undefined): string | null {
+  try { const url = new URL(value ?? ''); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; }
 }
 
 const handedHeadlines: Record<'needs_you' | 'question' | 'review', string> = {
@@ -63,7 +86,7 @@ const handedHeadlines: Record<'needs_you' | 'question' | 'review', string> = {
  * The notice to the person who handed a Work Item off, when it starts needing them or its pull request becomes ready:
  * a fixed headline, the Work Item's number and clipped title, and a link to its page, where its question is answered.
  */
-export function handedOffMessage(trigger: 'needs_you' | 'question' | 'review', workItem: { id: string; title: string }, baseUrl?: string): NotificationMessage {
+export function handedOffMessage(trigger: 'needs_you' | 'question' | 'review', workItem: NoticeWorkItem, baseUrl?: string): NotificationMessage {
   return { ...workItemMessage(trigger, workItem, baseUrl), title: handedHeadlines[trigger], about: 'handed_off' };
 }
 

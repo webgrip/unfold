@@ -1,3 +1,4 @@
+import { trackerName, trackerOf } from './trackers.js';
 import { money, plural } from './format.js';
 
 /**
@@ -344,7 +345,6 @@ export function sessionNeedsYou(session) {
   return ['waiting_input', 'failed', 'interrupted'].includes(session?.status) || (session?.status === 'completed' && !session.review);
 }
 
-const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', gitea: 'Gitea', demo: 'Demo tracker' };
 const event = (label, tone = 'neutral', glyph = 'circle', detail = '') => Object.freeze({ label, tone, glyph, detail });
 const words = text => String(text ?? '').replaceAll('_', ' ').trim();
 const role = detail => (typeof detail?.role === 'string' && detail.role.trim()) ? detail.role.trim() : 'An agent';
@@ -456,7 +456,7 @@ export function auditActor(actor, { userId } = {}) {
   if (!text) return { name: 'Ploeg', kind: 'system', glyph: 'layers', title: 'Ploeg', team: '' };
   if (kind === 'team' && tail) return { name: `Agent · ${tail}`, kind: 'agent', glyph: 'bot', title: `An agent of the ${tail} Team`, team: tail };
   if (kind === 'ploegd') return { name: 'Ploeg', kind: 'system', glyph: 'layers', title: `Ploeg${tail ? ` (${words(tail).replaceAll('-', ' ')})` : ''}`, team: '' };
-  if (kind === 'webhook' && tail) { const name = trackerNames[rest[0]] || capital(rest[0]); return { name, kind: 'tracker', glyph: 'tag', title: `${name}, through its webhook`, team: '' }; }
+  if (kind === 'webhook' && tail) { const name = trackerName(rest[0]) || (trackerOf(rest[0])?.fixture ? 'Demo tracker' : capital(rest[0])); return { name, kind: 'tracker', glyph: 'tag', title: `${name}, through its webhook`, team: '' }; }
   if (kind === 'operator' && rest.length) {
     const id = rest.length > 1 ? rest.slice(1).join(':') : rest[0];
     const through = rest.length > 1 ? rest[0] : 'Unfold';

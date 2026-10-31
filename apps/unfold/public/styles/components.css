@@ -2700,3 +2700,42 @@ a.chip,
 button.chip {
   min-height: 1.5rem;
 }
+
+.task-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.5rem;
+  padding: 0 var(--space-1-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.task-chip-from {
+  font-weight: var(--weight-medium);
+  color: var(--text);
+}
+
+a.task-chip:hover .task-chip-ref {
+  text-decoration: underline;
+}
+
+.task-chip > svg.icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex: none;
+}
+
+.error-code {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

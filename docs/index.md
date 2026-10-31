@@ -42,6 +42,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Encrypt node disks, traffic and volumes on a self-hosted cluster | [Protect data at rest and in transit](how-to/protect-data-at-rest-and-in-transit.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
+| Hand ClickUp tasks to agents, follow them and accept or send back the result | [Working with Unfold from ClickUp](../apps/unfold/docs/operations/working-from-clickup.md) |
 | Follow, ask about and steer Work Items from PhpStorm, Air, Zed or Neovim | [Use Unfold from PhpStorm and other ACP editors](how-to/use-unfold-from-an-acp-editor.md) |
 | See your own Claude Code sessions on the Work Items they serve, with Agent Trace attribution and telemetry | [Link your Claude Code sessions](how-to/link-claude-code-sessions.md) |
 | Follow your hand-offs as MCP tasks in a terminal `claude`, including VS Code's integrated terminal | [Follow hand-offs as tasks in a terminal](how-to/follow-hand-offs-as-tasks-in-a-terminal.md) |

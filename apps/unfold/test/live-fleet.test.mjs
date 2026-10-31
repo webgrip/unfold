@@ -1,3 +1,4 @@
+import './trackers-support.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { clearSkies, fleetBoard, fleetHeadline, fleetModel, stageLimit } from '../public/live/fleet.js';
