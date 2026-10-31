@@ -70,6 +70,7 @@ export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: '*', path: '/api/intake/sources' }, { method: '*', path: `/api/intake/sources/${id}` }, { method: 'POST', path: `/api/intake/sources/${id}/secret` }, { method: 'GET', path: '/api/intake/requests' }, { method: 'GET', path: '/api/intake/templates' },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
+  { method: 'GET', path: '/api/task-setup' }, { method: 'GET', path: `/api/task-setup/${id}/scopes` }, { method: 'GET', path: `/api/task-setup/${id}/projects/${id}` }, { method: 'GET', path: `/api/task-sources/${id}/check` },
   { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/runs/${id}/health/judgements/${id}/wrong` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/tripwire/${id}/verdict` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/questions/${id}/answer` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },

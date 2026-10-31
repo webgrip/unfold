@@ -2,7 +2,7 @@
 
 Unfold reads tasks from **Vikunja, ClickUp, Forgejo, GitHub, GitLab and Jira Cloud** through the same operator workflow: choose a connection, browse tasks, inspect a preview, and explicitly import one into a queued session. Browser and VS Code use the same server registrations and API. Importing does not start agents, assign the task, post a comment or change its status. [Handing a Vikunja task to Ploeg](#hand-a-task-to-ploeg) is a separate, explicit action that does assign it and leaves a comment.
 
-An administrator registers each source in the server configuration. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration.
+An administrator registers each source in the server configuration. Personal GitLab and ClickUp account links are also implemented, including optional OAuth; see [account linking](live.md#linking-clickup). Those account links do not replace administrator source registration, but a tracker whose adapter offers setting up by name, ClickUp today, lets a person pick a List with their link, test it and copy the entry an administrator adds ([ClickUp](#clickup)).
 
 ## Task providers are adapters
 
@@ -14,7 +14,7 @@ Each task system is an adapter in `src/task-providers/`, one file per provider, 
 | `github` | no | no | Markdown | none | none |
 | `gitlab` | no | no | Markdown | none | `gitlab` |
 | `vikunja` | yes, and Ploeg's assignment routes | tasks | HTML, shown as Markdown | `VIK-<id>` | none |
-| `clickup` | yes | no | Markdown | none | `clickup` |
+| `clickup` | yes | no | Markdown, tidied for display | none; a custom task ID shows as the task's reference | `clickup`, and set-up by name |
 | `jira` | no | issues | Atlassian Document Format, shown as Markdown | the issue key, `<KEY>-<n>` | none |
 | `demo` | no (demo mode only) | no | Markdown | none | none |
 
@@ -138,9 +138,22 @@ The adapter sends the token in the `PRIVATE-TOKEN` header and uses project-local
 
 ### ClickUp
 
-The pilot adapter uses a **personal API token** in the raw `Authorization` header. Obtain it from ClickUp Settings → Apps and place it in the server environment. The token inherits the account's access; a read-only implementation does not make a broad personal token read-only. Use an account restricted to the intended work. ClickUp recommends OAuth for applications used by other people; its [authentication guide](https://developer.clickup.com/docs/authentication) documents the distinction. OAuth onboarding is planned, not provided by this release.
+**Set it up by name.** Configure the [ClickUp account link](live.md#linking-clickup) (`links.clickup`, with OAuth or pasted personal tokens). A person then opens **Settings › Connect a tracker** (`#settings/task-setup`, also offered on an empty Tasks page), and:
 
-The connection targets one home List. Tasks whose returned home List does not match the configured List are rejected, including tasks merely attached through ClickUp's tasks-in-multiple-lists feature. This makes the import scope explicit. See the [List tasks endpoint](https://developer.clickup.com/reference/gettasks). Comments, attachments and custom fields are not added to the imported objective.
+1. links their ClickUp account if they have not (the page says so and links to Linked accounts);
+2. picks a **Workspace**, **Space**, **Folder** and **List** by name. A Space shows its Folders and the Lists outside any Folder; archived Spaces, Folders and Lists, and ClickUp's hidden Folders, are left out. A level with one choice is picked for them. Everything is read with that person's own account, so they see only what it sees;
+3. gets a check that changes nothing: the account Unfold reads as, the List's path and statuses (an archived List is a problem), and the first page of open tasks with five previewed the way an import reads them: custom task ID or id, title, assignees, tags, due date and the start of the description. Comments, attachments and custom fields are not read;
+4. chooses the registered repository the work goes to and copies the `taskSources` entry. It has no `tokenEnv`, so everyone reads with their own linked account, and `executionOwner: "ploeg"`. An administrator adds it to the configuration and restarts Unfold. A List some source already reads says so instead.
+
+Connections stay in the server configuration ([who owns a source](#who-owns-a-source-and-a-repository)); the page never changes it. Under **Connected now** the same page has **Test connection** for every registered source (`GET /api/task-sources/{id}/check`), which reads with the source's own token or the person's link and also says whether its tasks can be handed to Ploeg.
+
+**Token.** A source without `tokenEnv` reads with each person's linked account. A source with `tokenEnv` reads with that **personal API token** (ClickUp Settings → Apps), sent in the raw `Authorization` header. ClickUp tokens are not scoped: a token carries its account's whole access, so use an account that sees only the intended Lists ([ClickUp authentication](https://developer.clickup.com/docs/authentication)). Hand-off needs a `tokenEnv` source, because the server assigns the Team's user with its own token.
+
+**What it reads.** The source is one home List: `GET /list/{id}/task` with `include_closed=false`, `include_timl=false`, `subtasks=true`, `include_markdown_description=true`, newest change first, 100 tasks a page, following ClickUp's `last_page` ([Get Tasks](https://developer.clickup.com/reference/gettasks)). A task, or subtask, whose home List is another List is left out of the page rather than failing it; opening one directly answers `task_outside_source`. ClickUp status types `open` and `custom` are open, `closed` and `done` closed, so custom statuses work. All assignees show. A custom task ID (such as `SHOP-12`) is the task's reference in the list; the task still opens by its ClickUp id. Due dates are ClickUp's UTC timestamps, shown in the reader's time zone.
+
+**Descriptions** are ClickUp's own Markdown. For display, images become links that say `Image: …` (the browser shows no remote images) and the inline underline, span and line-break tags ClickUp mixes in become plain text; the stored snapshot and its revision keep ClickUp's text. The renderer escapes everything else and keeps only `http`, `https` and `mailto` links.
+
+**Rate limits.** ClickUp lets each token ask 100 times a minute on most plans and answers 429 with `X-RateLimit-Reset` ([ClickUp rate limits](https://developer.clickup.com/docs/rate-limits)). Unfold waits out a 429 that asks for two seconds or less and asks once more. A longer one answers `task_rate_limited` with `Retry-After` and a message naming the seconds, and Unfold then asks nothing with that token until the reset; a response that reports `X-RateLimit-Remaining: 0` does the same before ClickUp has to refuse. Setup reads are cached per person for a minute, so clicking back and forth through the pickers costs little. All ClickUp reads happen while a person waits; Unfold has no background ClickUp work, so none of it goes through the job queue.
 
 ### Vikunja
 
@@ -310,6 +323,8 @@ Start at **Settings → Connections** (`#settings/connections`, also linked from
 | Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. A list shows it truncated; preview and import refuse it rather than truncate it |
 | Jira answers `task_page_expired`, `task_page_missing` or `task_moved` | Jira pages by token, so a page far past the last one read is refused: start from the first page. A moved or renamed issue has a new key: open it from the list again |
 | Jira refuses the credentials | A scoped token needs the gateway root `api.atlassian.com/ex/jira/CLOUD-ID/rest/api/3`; a classic `email:token` needs the site root `SITE.atlassian.net/rest/api/3` |
+| Not sure whether a source works | **Settings › Connect a tracker › Test connection** reads it the way the Tasks page does, says as whom, and names the code and fix of the first step that fails |
+| `task_rate_limited` | The tracker refused because this token asked too often; the message names the seconds until it may ask again. On ClickUp, several people sharing one `tokenEnv` source share its 100 requests a minute; sources read with linked accounts spend each person's own |
 | Hand-off refused with `task_write_forbidden` | The tracker token can read but not change the task. Grant it task assignee and comment permissions in Vikunja, or task edit and comment access to the List in ClickUp |
 | No team to hand off to | Your account needs Ploeg team access in `ploeg.userTeams`, and the team needs a tracker user in Ploeg's configuration. An older Ploeg does not report tracker users at all |
 

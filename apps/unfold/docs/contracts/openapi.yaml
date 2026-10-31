@@ -1374,6 +1374,116 @@ paths:
               schema: { type: array, items: { type: object } }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/task-setup:
+    get:
+      tags: [Tasks]
+      operationId: listTaskSetupProviders
+      summary: 'Trackers a person can set a task source up for by name'
+      description: 'Each tracker whose adapter offers setting up by name and whose account link is configured, with whether the person has linked it and the container levels to pick through, such as Workspace, Space, Folder and List.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{providers}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      type: object
+                      required: [provider, label, linkProvider, linked, levels]
+                      properties:
+                        provider: { type: string }
+                        label: { type: string }
+                        linkProvider: { type: string }
+                        linked: { type: boolean }
+                        login: { type: string }
+                        levels: { type: array, items: { type: object, properties: { kind: { type: string }, label: { type: string } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/task-setup/{provider}/scopes:
+    parameters:
+      - { name: provider, in: path, required: true, example: clickup, schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,63}$' } }
+    get:
+      tags: [Tasks]
+      operationId: listTaskSetupScopes
+      summary: 'Containers in the person''s own tracker account, by name'
+      description: 'Reads with the person''s linked account, so it shows only what that account sees, and leaves archived containers out. Without `kind` and `id` it lists the top level (ClickUp Workspaces); with them, what is inside that container. A repeat of the same read within a minute is answered from memory. 400 `setup_scope_invalid`; 404 `setup_unsupported`; 409 `setup_unlinked`; 503 `task_rate_limited` with `Retry-After`.'
+      x-unfold-role: viewer
+      parameters:
+        - { name: kind, in: query, required: false, schema: { type: string } }
+        - { name: id, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: '`{entries}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries: { type: array, items: { $ref: '#/components/schemas/ScopeEntry' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/task-setup/{provider}/projects/{project}:
+    parameters:
+      - { name: provider, in: path, required: true, example: clickup, schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,63}$' } }
+      - { name: project, in: path, required: true, example: '901234567890', schema: { type: string } }
+    get:
+      tags: [Tasks]
+      operationId: checkTaskSetupProject
+      summary: 'Check a picked project and draft its task source'
+      description: 'Checks a project picked by name with the person''s linked account and changes nothing: the account, the project and the path above it, and the first page of open tasks, of which the first five come back as a preview of what an import reads. A failed step is a `problem` check with its error code, not an error answer. `registered` lists the task sources that already read the project; `entry` is the `taskSources` entry an administrator adds, with `repositoryId` left for them to fill. 400 `setup_scope_invalid`; 404 `setup_unsupported`; 409 `setup_unlinked`.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The check.'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TaskSourceCheck'
+                  - type: object
+                    required: [registered]
+                    properties:
+                      registered: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } }
+                      entry: { type: object }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/task-sources/{sourceId}/check:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [Tasks]
+      operationId: checkTaskSource
+      summary: 'Test a registered task connection'
+      description: 'Test connection: reads with the connection''s own token, or the person''s link when it has none, and changes nothing. Checks the account and project where the adapter can describe them, reads the first page of open tasks and previews five, and says whether tasks can be handed to Ploeg. A failed step is a `problem` check, not an error answer. 404 `source_not_found`; 409 `source_unlinked`.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The check.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskSourceCheck' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/task-sources/{sourceId}/tasks:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -7148,6 +7258,61 @@ components:
               receiptId: { type: string }
               policySha256: { type: string }
   schemas:
+    ScopeEntry:
+      type: object
+      required: [kind, id, name, project, children]
+      properties:
+        kind: { type: string, description: 'The level, such as workspace, space, folder or list.' }
+        id: { type: string }
+        name: { type: string }
+        project: { type: boolean, description: 'A task source can read it.' }
+        children: { type: boolean, description: 'It holds more containers.' }
+    TaskSourceCheck:
+      type: object
+      required: [ok, checks, preview]
+      properties:
+        ok: { type: boolean, description: 'No check is a problem.' }
+        account: { type: string }
+        project:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            path: { type: array, items: { type: string } }
+            archived: { type: boolean }
+            statuses: { type: array, items: { type: object, properties: { name: { type: string }, closed: { type: boolean } } } }
+        checks:
+          type: array
+          items:
+            type: object
+            required: [id, status, title, text]
+            properties:
+              id: { type: string, enum: [account, project, tasks, handoff] }
+              status: { type: string, enum: [ok, warning, problem] }
+              title: { type: string }
+              text: { type: string }
+              fix: { type: string }
+              code: { type: string }
+        preview:
+          type: object
+          required: [tasks, more]
+          properties:
+            more: { type: boolean }
+            tasks:
+              type: array
+              items:
+                type: object
+                required: [id, reference, title, url, excerpt, assignees, labels]
+                properties:
+                  id: { type: string }
+                  reference: { type: string, description: 'The tracker''s own identifier, such as a ClickUp custom task ID, or #id.' }
+                  title: { type: string }
+                  url: { type: string }
+                  excerpt: { type: string }
+                  assignees: { type: array, items: { type: string } }
+                  labels: { type: array, items: { type: string } }
+                  dueAt: { type: string, format: date-time }
+                  descriptionTruncated: { type: boolean }
     Error:
       type: object
       required: [error]

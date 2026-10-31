@@ -319,6 +319,7 @@ const settings = [
   { hash: 'settings/notifications', label: 'Notifications', icon: 'bell', keywords: 'ntfy web push alerts notify phone quiet hours' },
   { hash: 'settings/environment', label: 'Environment', icon: 'globe', keywords: 'health system configuration checks gateway status' },
   { hash: 'settings/connections', label: 'Connections', icon: 'link', keywords: 'boards repositories webhooks wiring routing tracker forge ploeg connect' },
+  { hash: 'settings/task-setup', label: 'Connect a tracker', icon: 'link', keywords: 'clickup workspace space folder list board pick test connection setup add task source' },
   { hash: 'design', label: 'Style guide', icon: 'grid', keywords: 'design system components tokens colours' },
 ];
 
