@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { capDiff, confirmationFor, findSecrets, handoffBranch, parseFindings, previewCode, previewText, sendRequest } from '../extensions/claude-code/scripts/unfold-handoff.mjs';
-import { confirmationOf } from '../src/action-records.ts';
+import { createHash } from 'node:crypto';
+import { briefFor, capDiff, confirmedFacts, findSecrets, handoffBranch, parseFindings, previewCode, previewText, sendRequest } from '../extensions/claude-code/scripts/unfold-handoff.mjs';
 
 const plugin = fileURLToPath(new URL('../extensions/claude-code/', import.meta.url));
 const script = join(plugin, 'scripts/unfold-handoff.mjs');
@@ -47,7 +47,7 @@ test('the built-in secret check flags added lines only and names the rule and fi
   assert.deepEqual(findSecrets(`+++ b/a\n+${fakeAssignment}`), [{ rule: 'secret-assignment', file: 'a' }]);
 });
 
-test('the preview names the Team and the spend cap, and the confirmation binds its exact text', () => {
+test('the preview names the Team and the spend cap, and the facts Unfold binds name them too', () => {
   const context = { branch: handoffBranch('c'.repeat(40)), commit: 'c'.repeat(40), base: 'origin/main', baseCommit: 'b'.repeat(40), sessionBranch: 'feat/rounding', commits: 1, uncommitted: true, files: 2, insertions: 10, deletions: 1, untracked: 1, findings };
   const text = previewText({ target: { kind: 'requeue', workItemId: '101', team: 'delivery', title: 'Fix rounding', budgetUsd: 5 }, context, findings: parseFindings(JSON.stringify(findings)), diff: capDiff('+x\n'), untracked: ['new.ts'], scan: { scanners: ['gitleaks', 'built-in patterns'], hits: [] } });
   assert.match(text, /To: Team delivery\. Work Item 101 "Fix rounding" restarts from Round 1\./);
@@ -63,24 +63,31 @@ test('the preview names the Team and the spend cap, and the confirmation binds i
   assert.match(fresh, /Code: nothing to push/);
   const code = previewCode(text);
   assert.match(code, /^[0-9a-f]{12}$/);
-  assert.equal(confirmationOf(confirmationFor(code, text)), confirmationFor(code, text), 'the header has the shape Unfold records');
-  assert.notEqual(confirmationFor(code, text), confirmationFor(code, `${text} `));
+  const sha = (value: string) => createHash('sha256').update(value).digest('hex');
+  assert.deepEqual(confirmedFacts({ kind: 'requeue', workItemId: '101', team: 'delivery', title: 'Fix rounding', budgetUsd: 5 }, context, text), { kind: 'requeue', workItemId: '101', team: 'delivery', budgetUsd: 5, preview: sha(text), context });
+  assert.equal(confirmedFacts({ kind: 'requeue', workItemId: '101', team: 'delivery', title: 'x' }, context, text).budgetUsd, null, 'a spend line without a cap binds null');
+  assert.deepEqual(confirmedFacts({ kind: 'start', team: 'delivery', target: 'order-service', title: 'Round half up' }, context, fresh), { kind: 'start', team: 'delivery', target: 'order-service', title: 'Round half up', brief: briefFor('Round half up', findings.left), budgetUsd: null, preview: sha(fresh), context });
+  assert.notEqual(confirmedFacts({ kind: 'requeue', workItemId: '101', team: 'delivery' }, context, text).preview, confirmedFacts({ kind: 'requeue', workItemId: '101', team: 'delivery' }, context, `${text} `).preview);
 });
 
 test('a confirmed hand-off sends the branch, counts and findings, never the diff', () => {
   const context = { branch: 'unfold/handoff-cccccccccccc', commit: 'c'.repeat(40), base: 'origin/main', baseCommit: 'b'.repeat(40), sessionBranch: 'feat/x', commits: 0, uncommitted: true, files: 1, insertions: 1, deletions: 0, untracked: 0, findings: { tried: [], hypotheses: [], left: ['Finish it.'] } };
-  const pending = { code: 'abcdefabcdef', sessionId, confirmation: `unfold-handoff-abcdefabcdef:${'e'.repeat(64)}`, context };
-  assert.deepEqual(sendRequest({ ...pending, target: { kind: 'requeue', workItemId: '101' } }), { path: `/api/linked-sessions/${sessionId}/work-items/101/handoff`, body: { commandId: 'unfold-handoff-abcdefabcdef', context }, headers: { 'x-unfold-confirmation': pending.confirmation } });
-  const started = sendRequest({ ...pending, target: { kind: 'start', team: 'delivery', target: 'order-service', title: 'Round half up' } });
+  const pending = { code: 'abcdefabcdef', sessionId, confirmation: `uhc_${'a'.repeat(24)}:${'e'.repeat(64)}`, context };
+  const requeue = { kind: 'requeue', workItemId: '101', team: 'delivery', title: 'Fix rounding', budgetUsd: 5 };
+  assert.deepEqual(sendRequest({ ...pending, target: requeue, facts: confirmedFacts(requeue, context, 'preview') }), { path: `/api/linked-sessions/${sessionId}/work-items/101/handoff`, body: { commandId: 'unfold-handoff-abcdefabcdef', team: 'delivery', budgetUsd: 5, preview: createHash('sha256').update('preview').digest('hex'), context }, headers: { 'x-unfold-confirmation': pending.confirmation } });
+  const start = { kind: 'start', team: 'delivery', target: 'order-service', title: 'Round half up' };
+  const started = sendRequest({ ...pending, target: start, facts: confirmedFacts(start, context, 'preview') });
   assert.equal(started.path, `/api/linked-sessions/${sessionId}/work-items`);
-  assert.deepEqual(Object.keys(started.body), ['team', 'target', 'title', 'brief', 'requestId', 'context']);
+  assert.deepEqual(Object.keys(started.body), ['team', 'target', 'title', 'brief', 'budgetUsd', 'preview', 'context', 'requestId']);
   assert.equal(started.body.brief, 'Continue the work handed over from a Claude Code session: Round half up.\n- Finish it.');
 });
 
 type Call = { method: string; path: string; body: any; confirmation?: string; authorization?: string };
+const handedOver = (call: Call) => call.method === 'POST' && !call.path.endsWith('/handoff/confirmations');
 
 async function unfold(t: TestContext, workItems: unknown[] = [{ id: '101', title: 'Fix rounding', state: 'needs_human', team: 'delivery', baseBranch: 'main', budgetUsd: 5, available: true, reason: '' }]) {
   const calls: Call[] = [];
+  const issued: string[] = [];
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -88,6 +95,7 @@ async function unfold(t: TestContext, workItems: unknown[] = [{ id: '101', title
     calls.push({ method: req.method!, path: req.url!, body: text ? JSON.parse(text) : null, confirmation: req.headers['x-unfold-confirmation'] as string, authorization: req.headers.authorization });
     const send = (status: number, data: unknown) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (req.url === `/api/linked-sessions/${sessionId}/handoff`) return send(200, { workItems });
+    if (req.url === `/api/linked-sessions/${sessionId}/handoff/confirmations`) { issued.push(`uhc_${String(issued.length).padStart(24, '0')}:${'d'.repeat(64)}`); return send(201, { confirmation: { header: issued.at(-1) } }); }
     if (req.url === `/api/linked-sessions/${sessionId}/start-options`) return send(200, { teams: ['delivery'], targets: [{ key: 'order-service', repository: 'example/order-service', baseBranch: 'main' }], suggested: 'order-service', message: '' });
     if (req.url === `/api/linked-sessions/${sessionId}/work-items/101/handoff`) return send(200, { requeue: { workItemId: '101', fromRound: 1 }, note: '' });
     if (req.url === `/api/linked-sessions/${sessionId}/work-items`) return send(201, { workItem: { id: '120' }, linkError: '' });
@@ -96,7 +104,7 @@ async function unfold(t: TestContext, workItems: unknown[] = [{ id: '101', title
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address(); assert(address && typeof address !== 'string');
-  return { url: `http://127.0.0.1:${address.port}`, calls };
+  return { url: `http://127.0.0.1:${address.port}`, calls, issued };
 }
 
 async function repository(t: TestContext) {
@@ -139,7 +147,7 @@ test('/unfold:handoff previews without pushing or sending, then a confirmed send
   const env = environment(server.url, repo.data);
   const statusBefore = repo.git(repo.clone, 'status', '--porcelain');
   const shown = await run(process.execPath, [script, 'preview', '--findings', repo.findingsFile], { cwd: repo.clone, env });
-  assert.match(shown.stdout, /Nothing is pushed or sent until you confirm/);
+  assert.match(shown.stdout, /Nothing is pushed or handed over until you confirm\. Unfold has the facts below to bind your confirmation to them, and keeps only their hash\./);
   assert.match(shown.stdout, /To: Team delivery\. Work Item 101 "Fix rounding" restarts from Round 1\./);
   assert.match(shown.stdout, /up to US\$5\.00 like the last attempt/);
   assert.match(shown.stdout, /2 files changed, \+2 -1/);
@@ -149,7 +157,10 @@ test('/unfold:handoff previews without pushing or sending, then a confirmed send
   assert.match(shown.stdout, /built-in patterns found nothing/);
   assert.equal(repo.git(repo.clone, 'status', '--porcelain'), statusBefore, 'the preview leaves the index and working tree alone');
   assert.equal(repo.git(repo.origin, 'for-each-ref', '--format=%(refname)', 'refs/heads/unfold'), '', 'the preview pushes nothing');
-  assert.deepEqual(server.calls.map(call => `${call.method} ${call.path}`), [`GET /api/linked-sessions/${sessionId}/handoff`]);
+  assert.deepEqual(server.calls.map(call => `${call.method} ${call.path}`), [`GET /api/linked-sessions/${sessionId}/handoff`, `POST /api/linked-sessions/${sessionId}/handoff/confirmations`], 'the preview only reads and asks Unfold for a confirmation');
+  const asked = server.calls[1].body;
+  assert.deepEqual([asked.kind, asked.workItemId, asked.team, asked.budgetUsd], ['requeue', '101', 'delivery', 5]);
+  assert.equal(asked.preview, createHash('sha256').update(shown.stdout.slice(0, shown.stdout.lastIndexOf('\n\nTo send it'))).digest('hex'), 'the confirmation is asked for the exact preview text shown');
   const code = codeOf(shown.stdout);
   assert.ok(code, shown.stdout);
 
@@ -157,7 +168,7 @@ test('/unfold:handoff previews without pushing or sending, then a confirmed send
   assert.match(missing.stdout, /Name the preview to send/);
   const unknown = await run(process.execPath, [script, 'send', '0123456789ab'], { cwd: repo.clone, env }).catch(error => error);
   assert.match(unknown.stdout, /No hand-off preview 0123456789ab waits/);
-  assert.equal(server.calls.some(call => call.method === 'POST'), false, 'nothing is sent without the confirmed preview');
+  assert.equal(server.calls.some(handedOver), false, 'nothing is sent without the confirmed preview');
 
   const sent = await run(process.execPath, [script, 'send', code], { cwd: repo.clone, env });
   assert.match(sent.stdout, /Handed to Ploeg: Work Item 101 restarts from Round 1 for Team delivery from unfold\/handoff-[0-9a-f]{12}/);
@@ -167,11 +178,14 @@ test('/unfold:handoff previews without pushing or sending, then a confirmed send
   assert.match(repo.git(repo.origin, 'log', '-1', '--format=%s', pushed), /^wip: work in progress handed to Ploeg$/);
   assert.equal(repo.git(repo.clone, 'rev-parse', '--abbrev-ref', 'HEAD'), 'feat/rounding');
   assert.equal(repo.git(repo.clone, 'status', '--porcelain'), statusBefore);
-  const post = server.calls.find(call => call.method === 'POST')!;
+  const post = server.calls.find(handedOver)!;
   assert.equal(post.path, `/api/linked-sessions/${sessionId}/work-items/101/handoff`);
   assert.equal(post.authorization, 'Bearer vle_test');
-  assert.equal(post.confirmation, confirmationFor(code, shown.stdout.slice(0, shown.stdout.lastIndexOf('\n\nTo send it'))));
-  assert.deepEqual(Object.keys(post.body), ['commandId', 'context']);
+  assert.equal(post.confirmation, server.issued[0], 'the send carries the confirmation Unfold issued');
+  assert.deepEqual(Object.keys(post.body), ['commandId', 'team', 'budgetUsd', 'preview', 'context']);
+  const { commandId: _command, ...sentFacts } = post.body;
+  const { kind: _kind, workItemId: _workItem, ...askedFacts } = asked;
+  assert.deepEqual(sentFacts, askedFacts, 'the send carries the facts the confirmation was issued for');
   assert.equal(post.body.commandId, `unfold-handoff-${code}`);
   assert.deepEqual(post.body.context, { branch, commit: pushed, base: 'origin/main', baseCommit: repo.git(repo.clone, 'rev-parse', 'origin/main'), sessionBranch: 'feat/rounding', commits: 1, uncommitted: true, files: 2, insertions: 2, deletions: 1, untracked: 1, findings: { tried: findings.tried, hypotheses: findings.hypotheses, left: findings.left } });
   assert.doesNotMatch(JSON.stringify(post.body), /Math\.sign|invoice = 1/, 'the diff never travels in the request');
@@ -188,7 +202,7 @@ test('/unfold:handoff refuses to send when the checkout changed after the previe
   await writeFile(join(repo.clone, 'invoice.ts'), 'export const invoice = 2;\n');
   const changed = await run(process.execPath, [script, 'send', codeOf(shown.stdout)], { cwd: repo.clone, env }).catch(error => error);
   assert.match(changed.stdout, /The checkout changed since the preview.*Nothing was sent/);
-  assert.equal(server.calls.some(call => call.method === 'POST'), false);
+  assert.equal(server.calls.some(handedOver), false);
   assert.equal(repo.git(repo.origin, 'for-each-ref', '--format=%(refname)', 'refs/heads/unfold'), '');
 });
 
@@ -208,7 +222,7 @@ test('/unfold:handoff refuses a hand-off that would push a secret, from the buil
   await writeFile(repo.findingsFile, JSON.stringify({ ...findings, tried: [`Used ${fakeToken} to call the forge.`] }));
   const inFindings = await run(process.execPath, [script, 'preview', '--findings', repo.findingsFile], { cwd: repo.clone, env: environment(server.url, repo.data) }).catch(error => error);
   assert.match(inFindings.stdout, /github-token in \(findings\)/, 'the findings are scanned too');
-  assert.equal(server.calls.some(call => call.method === 'POST'), false);
+  assert.equal(server.calls.some(handedOver), false);
   assert.equal(repo.git(repo.origin, 'for-each-ref', '--format=%(refname)', 'refs/heads/unfold'), '');
   const waiting = await readdir(join(repo.data, 'handoffs')).catch(() => []);
   assert.deepEqual(waiting, [], 'no preview waits to be sent');
@@ -233,12 +247,13 @@ test('/unfold:handoff --team starts a new Work Item from findings on standard in
   assert.match(stdout, /Unfold does not know the cap before Ploeg admits it/);
   const sent = await run(process.execPath, [script, 'send', codeOf(stdout)], { cwd: repo.clone, env });
   assert.match(sent.stdout, /Work Item 120 is queued for Team delivery from unfold\/handoff-/);
-  const post = server.calls.find(call => call.method === 'POST')!;
+  const post = server.calls.find(handedOver)!;
   assert.equal(post.path, `/api/linked-sessions/${sessionId}/work-items`);
   assert.equal(post.body.team, 'delivery');
   assert.equal(post.body.target, 'order-service');
   assert.equal(post.body.title, 'Round half up');
-  assert.match(post.confirmation!, /^unfold-handoff-[0-9a-f]{12}:[0-9a-f]{64}$/);
+  assert.equal(post.confirmation, server.issued.at(-1));
+  assert.equal(post.body.budgetUsd, null);
 });
 
 test('the plugin ships /unfold:handoff, which previews before it sends and leaves confirmation to the person', async () => {

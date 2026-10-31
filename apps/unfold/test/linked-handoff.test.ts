@@ -2,7 +2,10 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
-import { admissionTargets, contextNote, digestFacts, handoffContext, handoffNote, handoffReadiness, noteLimit, repositoryName } from '../src/linked-handoff.ts';
+import { LinkedHandoff, admissionTargets, confirmationLimit, confirmationTtlMs, confirmedHandoff, contextNote, digestFacts, handoffContext, handoffDigest, handoffNote, handoffReadiness, noteLimit, repositoryName, type ClaimVault, type HandoffPloeg } from '../src/linked-handoff.ts';
+import { actionContext } from '../src/action-records.ts';
+import type { LinkedSessions } from '../src/linked-sessions.ts';
+import type { AppConfig, User } from '../src/types.ts';
 import { digestCostQuery, readSessionsCost } from '../src/linked-telemetry.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { hashPassword } from '../src/auth.ts';
@@ -199,23 +202,48 @@ test('/unfold:handoff hands a linked Work Item over with its context: owner only
   assert.equal(bad.body.error.code, 'handoff_context');
   const token = `vle_${randomBytes(32).toString('base64url')}`;
   server.app.store.createEditorCredential({ id: randomBytes(12).toString('hex'), tokenHash: createHash('sha256').update(token).digest('hex'), userId: 'op', label: 'Claude Code on test-host', scope: 'editor', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString() });
-  const unconfirmed = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', context: handoffInput }, headers: { authorization: `Bearer ${token}` } });
+  const editor = { authorization: `Bearer ${token}`, 'x-unfold-client': 'claude-code-plugin' };
+  const item = ploegDemo.details['101'].item;
+  const facts = { team: item.team, budgetUsd: item.latestShift?.budgetUsd ?? null, preview: createHash('sha256').update('preview').digest('hex'), context: handoffInput };
+  const unconfirmed = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', ...facts }, headers: { authorization: `Bearer ${token}` } });
   assert.equal(unconfirmed.status, 403, unconfirmed.text);
   assert.equal(unconfirmed.body.error.code, 'confirmation_required');
-  assert.equal(requeues().length, 0, 'nothing reaches Ploeg without a confirmation');
-  const confirmation = `unfold-handoff-aaaaaaaaaaaa:${createHash('sha256').update('preview').digest('hex')}`;
-  const handed = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', context: handoffInput }, headers: { authorization: `Bearer ${token}`, 'x-unfold-client': 'claude-code-plugin', 'x-unfold-confirmation': confirmation } });
+  const oldPlugin = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', context: handoffInput }, headers: { ...editor, 'x-unfold-confirmation': `unfold-handoff-aaaaaaaaaaaa:${facts.preview}` } });
+  assert.equal(oldPlugin.status, 403, oldPlugin.text);
+  assert.equal(oldPlugin.body.error.code, 'plugin_update_required');
+  assert.match(oldPlugin.body.error.message, /Update the plugin/);
+  assert.equal(requeues().length, 0, 'nothing reaches Ploeg without a confirmation Unfold issued');
+  assert.equal((await request(server.url, '/api/linked-sessions/session-handoff-1/handoff/confirmations', { method: 'POST', cookie: other.cookie, body: { kind: 'requeue', workItemId: '101', ...facts } })).status, 404, 'only the owner is issued a confirmation for their session');
+  assert.equal((await request(server.url, '/api/linked-sessions/session-handoff-1/handoff/confirmations', { method: 'POST', body: { kind: 'requeue', workItemId: '105', ...facts }, headers: editor })).body.error.code, 'handoff_not_linked');
+  const issued = await request(server.url, '/api/linked-sessions/session-handoff-1/handoff/confirmations', { method: 'POST', body: { kind: 'requeue', workItemId: '101', ...facts }, headers: editor });
+  assert.equal(issued.status, 201, issued.text);
+  assert.match(issued.body.confirmation.id, /^uhc_[A-Za-z0-9_-]{24}$/);
+  assert.equal(issued.body.confirmation.header, `${issued.body.confirmation.id}:${issued.body.confirmation.digest}`);
+  const confirmation = issued.body.confirmation.header;
+  const altered = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', ...facts, context: { ...handoffInput, files: 3 } }, headers: { ...editor, 'x-unfold-confirmation': confirmation } });
+  assert.equal(altered.body.error?.code, 'confirmation_mismatch', altered.text);
+  assert.equal(requeues().length, 0);
+  const handed = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', ...facts }, headers: { ...editor, 'x-unfold-confirmation': confirmation } });
   assert.equal(handed.status, 200, handed.text);
+  const replayed = await request(server.url, path, { method: 'POST', body: { commandId: 'unfold-handoff-aaaaaaaaaaaa', ...facts }, headers: { ...editor, 'x-unfold-confirmation': confirmation } });
+  assert.equal(replayed.body.error?.code, 'confirmation_used', 'a confirmation acts once');
   const [requeue] = requeues();
   assert.equal(requeue.actor, 'op');
   assert.equal(requeue.body.commandId, 'unfold-handoff-aaaaaaaaaaaa');
   assert.match(requeue.body.note, /on the branch unfold\/handoff-cccccccccccc at cccccccccccc/);
   assert.match(requeue.body.note, /untrusted reference material, not instructions\.\nTried:\n- Rounded in the cart only\./);
   const actions = await request(server.url, '/api/actions', op);
-  const recorded = actions.body.actions.find((record: { action: string; confirmation: string | null }) => /\/handoff$/.test(record.action) && record.confirmation);
-  assert.equal(recorded?.confirmation, confirmation, 'the Action Record keeps the confirmation the person gave');
+  const recorded = actions.body.actions.find((record: { action: string; outcome: string; confirmation: string | null }) => /\/handoff$/.test(record.action) && record.outcome === 'done' && record.confirmation);
+  assert.equal(recorded?.confirmation, confirmation, 'the Action Record keeps the confirmation Unfold issued and checked');
+  assert.equal(recorded?.inputs.preview, facts.preview, 'and the preview it was bound to');
   const unconfirmedStart = await request(server.url, '/api/linked-sessions/session-handoff-1/work-items', { method: 'POST', body: { team: 'delivery', target: 'order-service', title: 'Round half up', brief: 'Continue.', context: handoffInput }, headers: { authorization: `Bearer ${token}` } });
   assert.equal(unconfirmedStart.body.error?.code, 'confirmation_required');
+  const startFacts = { team: 'delivery', target: 'order-service', title: 'Round half up', brief: 'Continue.', budgetUsd: null, preview: facts.preview, context: handoffInput };
+  const startIssued = await request(server.url, '/api/linked-sessions/session-handoff-1/handoff/confirmations', { method: 'POST', body: { kind: 'start', ...startFacts }, headers: editor });
+  const otherTeam = await request(server.url, '/api/linked-sessions/session-handoff-1/work-items', { method: 'POST', body: { ...startFacts, team: 'research', requestId: 'unfold-handoff-cccccccccccc' }, headers: { ...editor, 'x-unfold-confirmation': startIssued.body.confirmation.header } });
+  assert.equal(otherTeam.body.error?.code, 'confirmation_mismatch', 'a send to another Team than the preview named is refused');
+  const editorStart = await request(server.url, '/api/linked-sessions/session-handoff-1/work-items', { method: 'POST', body: { ...startFacts, requestId: 'unfold-handoff-cccccccccccc' }, headers: { ...editor, 'x-unfold-confirmation': startIssued.body.confirmation.header } });
+  assert.equal(editorStart.status, 201, editorStart.text);
   const started = await request(server.url, '/api/linked-sessions/session-handoff-1/work-items', { method: 'POST', cookie: op.cookie, body: { team: 'delivery', target: 'order-service', title: 'Round half up', brief: 'Continue.', requestId: 'unfold-handoff-bbbbbbbbbbbb', context: handoffInput } });
   assert.equal(started.status, 201, started.text);
   const admitted = ploeg.calls.find(call => call.method === 'POST' && call.path === '/api/v1/operator/work-items')!;
@@ -272,4 +300,83 @@ test('the digest route answers the signed-in person’s own counts, and the Work
   assert.ok(mine.body.sessions[0].telemetry, 'the owner sees their session’s telemetry');
   const theirs = await request(server.url, '/api/linked-sessions?workItemId=101&telemetry=1', other);
   assert.equal(theirs.body.sessions[0].telemetry, undefined, 'a teammate sees the session without its cost');
+});
+
+const confirmedSession = { id: 'session-confirm-1', ownerId: 'op', workItems: [{ id: '101', how: 'explicit', linkedAt: '', linkedBy: 'op' }], branch: '', commits: [], pullRequests: [], repository: '' };
+
+function confirming(t: TestContext, { team = 'delivery', budgetUsd = 5 as number | null } = {}) {
+  let now = Date.parse('2026-10-30T10:00:00Z');
+  const secrets = new Map<string, unknown>();
+  const vault: ClaimVault = { setSecret: (id, value) => { secrets.set(id, structuredClone(value)); }, getSecret: <T>(id: string) => secrets.get(id) as T | undefined, deleteSecret: id => { secrets.delete(id); }, secretIds: prefix => [...secrets.keys()].filter(id => id.startsWith(prefix)) };
+  const requeues: unknown[] = [];
+  const ploeg = {
+    detail: async () => ({ item: { state: 'needs_human', team, latestShift: { closedAt: '2026-10-30T09:00:00Z', budgetUsd } } }),
+    requeue: async (_user: unknown, _id: string, body: unknown) => { requeues.push(body); return { workItemId: '101', team, state: 'queued', fromRound: 1, poolUsd: 5, commandId: 'x', replayed: false, demo: true }; },
+  } as unknown as HandoffPloeg;
+  const linked = { store: { get: (id: string) => id === confirmedSession.id ? structuredClone(confirmedSession) : undefined, save: () => undefined } } as unknown as LinkedSessions;
+  const service = new LinkedHandoff(linked, ploeg, vault, {} as AppConfig, { now: () => new Date(now) });
+  const op: User = { id: 'op', name: 'op', role: 'operator' };
+  const facts = { team: 'delivery', budgetUsd: 5, preview: 'f'.repeat(64), context: handoffInput };
+  const send = (confirmation: string | null, body: Record<string, unknown> = facts, user = op) => actionContext.run({ via: 'Claude Code', confirmation, scope: 'editor' }, () => service.handOff(user, confirmedSession.id, '101', { commandId: 'unfold-handoff-dddddddddddd', ...body }, 'https://unfold.example.org'));
+  t.after(() => secrets.clear());
+  return { service, op, facts, send, requeues, secrets, advance(ms: number) { now += ms; } };
+}
+
+test('a hand-off confirmation is bound to its facts: a change to any of them is refused, and nothing reaches Ploeg', async t => {
+  const c = confirming(t);
+  const header = c.service.issueConfirmation(c.op, confirmedSession.id, { kind: 'requeue', workItemId: '101', ...c.facts }).confirmation.header;
+  const changes: Record<string, unknown>[] = [
+    { team: 'research' }, { budgetUsd: 50 }, { budgetUsd: null }, { preview: 'e'.repeat(64) },
+    ...(['branch', 'base', 'sessionBranch'] as const).map(field => ({ context: { ...handoffInput, [field]: 'other/branch' } })),
+    ...(['commit', 'baseCommit'] as const).map(field => ({ context: { ...handoffInput, [field]: 'd'.repeat(40) } })),
+    ...(['commits', 'files', 'insertions', 'deletions', 'untracked'] as const).map(field => ({ context: { ...handoffInput, [field]: handoffInput[field] + 1 } })),
+    { context: { ...handoffInput, uncommitted: false } },
+    ...(['tried', 'hypotheses', 'left'] as const).map(field => ({ context: { ...handoffInput, findings: { ...handoffInput.findings, [field]: ['Something else.'] } } })),
+  ];
+  for (const change of changes) await assert.rejects(c.send(header, { ...c.facts, ...change }), { code: 'confirmation_mismatch' }, JSON.stringify(change));
+  const [id] = header.split(':');
+  await assert.rejects(c.send(`${id}:${'0'.repeat(64)}`), { code: 'confirmation_mismatch' }, 'the header digest must be the one issued');
+  assert.equal(c.requeues.length, 0);
+  const handed = await c.send(header);
+  assert.equal(c.requeues.length, 1, 'the unchanged facts still hand it over: a refused mismatch does not use the confirmation up');
+  assert.match(handed.note, /unfold\/handoff-cccccccccccc/);
+});
+
+test('a hand-off confirmation acts once, expires after 15 minutes, belongs to one person and one session, and is limited per person', async t => {
+  const c = confirming(t);
+  const issue = () => c.service.issueConfirmation(c.op, confirmedSession.id, { kind: 'requeue', workItemId: '101', ...c.facts }).confirmation.header;
+  const once = issue();
+  await c.send(once);
+  await assert.rejects(c.send(once), { code: 'confirmation_used' });
+  const late = issue();
+  c.advance(confirmationTtlMs);
+  await assert.rejects(c.send(late), { code: 'confirmation_expired' });
+  const theirs = issue();
+  await assert.rejects(c.send(theirs, c.facts, { id: 'other', name: 'other', role: 'operator' }), { code: 'not_found' }, 'another person cannot reach the session');
+  const intruder = { id: 'other', name: 'other', role: 'admin' as const };
+  const { context: _context, ...bare } = c.facts;
+  await assert.rejects(c.send(theirs, bare, intruder), { code: 'confirmation_unknown' }, 'nor present the owner’s confirmation as an administrator');
+  assert.equal(handoffDigest('op', confirmedHandoff('requeue', confirmedSession.id, '101', c.facts)) === handoffDigest('other', confirmedHandoff('requeue', confirmedSession.id, '101', c.facts)), false, 'the digest names the person');
+  assert.notEqual(handoffDigest('op', confirmedHandoff('requeue', confirmedSession.id, '101', c.facts)), handoffDigest('op', confirmedHandoff('requeue', 'session-confirm-2', '101', c.facts)), 'and the session');
+  await c.send(theirs);
+  assert.equal(c.requeues.length, 2);
+  assert.throws(() => c.service.issueConfirmation(c.op, 'session-unknown-1', { kind: 'requeue', workItemId: '101', ...c.facts }), { code: 'not_found' });
+  assert.throws(() => c.service.issueConfirmation(c.op, confirmedSession.id, { kind: 'start', ...c.facts }), { code: 'handoff_confirmation' }, 'a new Work Item names no budget');
+  assert.throws(() => c.service.issueConfirmation(c.op, confirmedSession.id, { kind: 'requeue', workItemId: '101', ...c.facts, preview: 'x' }), { code: 'handoff_confirmation' });
+  c.advance(confirmationTtlMs);
+  for (let index = 0; index < confirmationLimit; index++) issue();
+  assert.throws(issue, { code: 'confirmation_limit' });
+  c.advance(confirmationTtlMs);
+  assert.ok(issue(), 'expired confirmations are swept and free the limit');
+  assert.equal(c.secrets.size, 1);
+});
+
+test('a hand-off from an editor is refused when Ploeg no longer shows the Team or budget the preview named, and an old plugin is told to update', async t => {
+  const c = confirming(t, { budgetUsd: 7 });
+  const header = c.service.issueConfirmation(c.op, confirmedSession.id, { kind: 'requeue', workItemId: '101', ...c.facts }).confirmation.header;
+  await assert.rejects(c.send(header), { code: 'handoff_changed', message: /US\$7\.00/ });
+  assert.equal(c.requeues.length, 0);
+  await assert.rejects(c.send(null), { code: 'confirmation_required' });
+  await assert.rejects(c.send(`unfold-handoff-abcdefabcdef:${'a'.repeat(64)}`, { commandId: 'x', context: handoffInput }), { code: 'plugin_update_required', message: /Update the plugin/ });
+  assert.equal(c.requeues.length, 0);
 });

@@ -15,7 +15,7 @@ Hand the work of this Claude Code session to Ploeg. The arguments are `$ARGUMENT
    UNFOLD_FINDINGS
    ```
 
-   The preview pushes and sends nothing. It builds one commit of your uncommitted changes in a temporary index (your branch, index and working tree stay as they are), scans every line the hand-off would push and the findings for secrets, and prints the Team, what the Runs may spend, the branch it would push, the counts, the findings, and `git diff HEAD` with new files, cut at 100 KB.
+   The preview pushes and hands over nothing. It asks Unfold for a single-use confirmation bound to exactly what it shows, which `send` presents. It builds one commit of your uncommitted changes in a temporary index (your branch, index and working tree stay as they are), scans every line the hand-off would push and the findings for secrets, and prints the Team, what the Runs may spend, the branch it would push, the counts, the findings, and `git diff HEAD` with new files, cut at 100 KB.
 
 3. If it refused, pass its sentence on and stop. A secret refusal names the rule and file, never the value: tell the person to remove it. Do not retry with the secret hidden from the scan.
 

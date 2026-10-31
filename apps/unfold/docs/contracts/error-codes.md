@@ -229,6 +229,14 @@ Codes Ploeg sends that Unfold does not name here pass through with Ploeg's own m
 | `handoff_not_linked` | 409 | This session is not linked to that Work Item. | Link it first, then hand it off. |
 | `handoff_context` | 400 | The branch or commit ids sent with the hand-off are not in the form Git uses. | Send branch names and full 40-character commit ids, or leave them out. |
 | `handoff_unavailable` | 409 | This session cannot be handed off now. | Follow the reason the message names. |
+| `handoff_confirmation` | 400 | A fact sent to confirm the hand-off is missing or not in the expected form. | Run /unfold:handoff again from an up-to-date plugin. |
+| `handoff_changed` | 409 | Ploeg now names another Team or budget for this Work Item than the preview you confirmed. | Run /unfold:handoff again and confirm the new preview. |
+| `confirmation_limit` | 429 | You hold 20 unused hand-off confirmations. | Send one of the previews, or wait 15 minutes for them to expire. |
+| `plugin_update_required` | 403 | The hand-off carries a confirmation Unfold did not issue, as Claude Code plugin 0.17.0 and older send. | Update the plugin with /plugin update unfold, then run /unfold:handoff again. |
+| `confirmation_unknown` | 403 | Unfold issued no such hand-off confirmation to you. | Run /unfold:handoff again. |
+| `confirmation_used` | 403 | This hand-off confirmation was already used. | Run /unfold:handoff again to hand over again. |
+| `confirmation_expired` | 403 | This hand-off confirmation is older than 15 minutes. | Run /unfold:handoff again. |
+| `confirmation_mismatch` | 403 | What the hand-off sends is not what the preview you confirmed showed. | Run /unfold:handoff again and confirm what it shows. |
 
 ## Asks and chat
 
