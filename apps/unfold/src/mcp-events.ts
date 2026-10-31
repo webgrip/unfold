@@ -7,10 +7,11 @@ import { reaches, type TenantScope } from './tenant-scope.ts';
 import { defaultTenant, validTenancyId, type Membership, type Ownership } from './tenancy.ts';
 import { lowerRole } from './oidc.ts';
 import { eventTypePrefix, type CloudEvent } from './outbound/catalogue.ts';
-import { OutboundStore, type Delivery } from './outbound/store.ts';
+import { OutboundStore, mcpDeliveryJob, type Delivery } from './outbound/store.ts';
 import { webhookHeaders } from './outbound/signing.ts';
 import { TargetError, parseTarget, resolveTarget, targetAllowlist, type OutboundEventsSettings, type TargetAllowlist } from './outbound/address.ts';
-import { httpTransport, nextDelay, type SendResult, type Transport } from './outbound/service.ts';
+import { deliveryRetentionDays, deliveryTimeoutMs, httpTransport, nextDelay, type SendResult, type Transport } from './outbound/service.ts';
+import { JobWorker, type JobOutcome } from './jobs/worker.ts';
 
 /** The MCP Events extension identifier (SEP-3415), under `capabilities.extensions`. */
 export const mcpEventsExtension = 'io.modelcontextprotocol/events';
@@ -30,6 +31,10 @@ export const maxTtlMs = 30 * 86_400_000;
 export const verificationTtlMs = 86_400_000;
 /** How long a replaced secret keeps signing next to the new one. */
 export const secretOverlapMs = 600_000;
+/** How often expired subscriptions are deleted, in milliseconds. */
+export const expirySweepMs = 60_000;
+/** How long a delivery waits before Unfold checks again whether its person's `mcp.events` flag is on and its subscription active. */
+export const heldDeliveryMs = 60_000;
 /** How many subscriptions one person may hold. */
 export const maxSubscriptionsPerPerson = 50;
 
@@ -64,6 +69,8 @@ export type McpEventsOptions = {
   resolver?: Parameters<typeof resolveTarget>[2];
   clock?: () => number;
   random?: () => number;
+  /** The application's job worker; the service makes its own over the same store when absent. */
+  jobs?: JobWorker;
 };
 
 type Json = Record<string, any>;
@@ -170,7 +177,8 @@ export function failureCategory(result: SendResult): 'connection_refused' | 'tim
  * MCP Events (SEP-3415, webhook mode as ChatGPT ships it) on top of Unfold's outbound events. A subscription is a row in
  * the outbound outbox's subscription table with the client's own secret; an event becomes one stored `EventOccurrence`
  * and one delivery per subscription that may read it, and is signed and sent through the same SSRF-guarded transport.
- * Every delivery checks again that the person may still read the Work Item.
+ * Each delivery is an `mcp_events.delivery` job in the application's job queue. Every delivery checks again that the
+ * person may still read the Work Item.
  */
 export class McpEvents {
   readonly store: OutboundStore;
@@ -180,8 +188,8 @@ export class McpEvents {
   private readonly clock: () => number;
   private readonly random: () => number;
   private readonly challenges = new Map<string, number[]>();
+  private readonly jobs: JobWorker;
   private timers: NodeJS.Timeout[] = [];
-  private busy = false;
   private stopped = false;
 
   constructor(store: Store, options: McpEventsOptions) {
@@ -191,18 +199,28 @@ export class McpEvents {
     this.transport = options.transport ?? httpTransport;
     this.clock = options.clock ?? Date.now;
     this.random = options.random ?? Math.random;
+    this.jobs = options.jobs ?? new JobWorker(this.store.jobs, { clock: this.clock, random: this.random });
+    this.jobs.register<{ deliveryId: number }>({ kind: mcpDeliveryJob, concurrency: 8, leaseMs: 4 * deliveryTimeoutMs, retainMs: deliveryRetentionDays * 86_400_000, run: job => this.deliver(job.payload.deliveryId) });
   }
 
   private now(): string { return new Date(this.clock()).toISOString(); }
   private log(level: 'info' | 'warn', event: string, fields: Record<string, unknown>): void { (level === 'warn' ? console.error : console.log)(JSON.stringify({ level, event, ...fields })); }
 
-  /** Starts delivery and the expiry sweep every 5 seconds. */
+  /**
+   * Starts the expiry sweep every minute. Deliveries run on the application's job worker; a service that made its own
+   * worker drains it every 5 seconds.
+   */
   start(): void {
-    const run = () => { if (!this.stopped) void this.dispatch().catch(error => this.log('warn', 'mcp_events.loop_failed', { message: String(error?.message ?? error).slice(0, 200) })); };
-    this.timers.push(setInterval(run, 5_000).unref());
+    const failed = (error: any) => this.log('warn', 'mcp_events.loop_failed', { message: String(error?.message ?? error).slice(0, 200) });
+    const every = (ms: number, work: () => Promise<unknown>) => {
+      const run = () => { if (!this.stopped) void work().catch(failed); };
+      this.timers.push(setInterval(run, ms).unref());
+    };
+    every(expirySweepMs, async () => this.sweep());
+    if (!this.options.jobs) every(5_000, () => this.jobs.drain(mcpDeliveryJob, 50));
   }
-  /** Stops delivery. A delivery in flight finishes. */
-  stop(): void { this.stopped = true; for (const timer of this.timers) clearInterval(timer); this.timers = []; }
+  /** Stops the sweep. A delivery in flight finishes; one not yet recorded is sent again after the next start. */
+  stop(): void { this.stopped = true; if (!this.options.jobs) this.jobs.stop(); for (const timer of this.timers) clearInterval(timer); this.timers = []; }
 
   /** The `events/*` handler for one signed-in person, as `unfold-mcp` over HTTP serves it. */
   handler(user: User): McpEventsHandler {
@@ -417,7 +435,11 @@ export class McpEvents {
     const db = this.store.store.db;
     db.prepare('INSERT OR IGNORE INTO outbound_events(id,type,tenant,client,time,recorded_at,body) VALUES(?,?,?,?,?,?,?)').run(eventRow, `mcp.${spec.name}`, event.tenant, event.client ?? null, event.time, at, body);
     const insert = db.prepare("INSERT OR IGNORE INTO outbound_deliveries(subscription_id,event_id,event_type,status,attempts,next_attempt_at,created_at) VALUES(?,?,?,'pending',0,?,?)");
-    return wanted.reduce((count, row) => count + Number(insert.run(row.id, eventRow, `mcp.${spec.name}`, at, at).changes), 0);
+    return wanted.reduce((count, row) => {
+      const added = Number(insert.run(row.id, eventRow, `mcp.${spec.name}`, at, at).changes);
+      if (added) this.store.queueDelivery(row.id, eventRow, at);
+      return count + added;
+    }, 0);
   }
 
   /** Deletes every subscription whose lifetime ran out. Returns how many. */
@@ -427,29 +449,37 @@ export class McpEvents {
     return ids.length;
   }
 
-  private end(row: Row, reason: string): void {
+  private end(row: Row, reason: string): JobOutcome {
     this.store.deleteSubscription(row.id);
     this.log('info', 'mcp_events.ended', { subscription: row.id, actor: row.principal, reason });
+    return { done: true };
   }
 
-  private async attempt(delivery: Delivery, body: string): Promise<void> {
+  private async deliver(deliveryId: number): Promise<JobOutcome> {
+    const entry = this.store.withBody(deliveryId);
+    if (!entry || entry.delivery.status !== 'pending') return { done: true };
+    return this.attempt(entry.delivery, entry.body);
+  }
+
+  private async attempt(delivery: Delivery, body: string): Promise<JobOutcome> {
     const row = this.row(delivery.subscriptionId);
-    if (!row) return;
+    if (!row) return { done: true };
     if (this.expired(row)) return this.end(row, 'expired');
     const user = this.person(row);
     if (!user) return this.end(row, 'account_gone');
-    if (!await this.options.enabled(user).catch(() => false)) return;
+    if (!row.active || !await this.options.enabled(user).catch(() => false)) return { later: this.clock() + heldDeliveryMs };
     if (!this.stillHolds(user, row)) return this.end(row, 'access_revoked');
     const stored = this.store.store.db.prepare('SELECT tenant, client FROM outbound_events WHERE id=?').get(delivery.eventId) as { tenant: string; client: string | null } | undefined;
     const occurrence = JSON.parse(body) as Json;
     const attempts = delivery.attempts + 1;
     const now = this.now();
-    if (!stored || !this.reads(user, String(occurrence.data?.team ?? ''), { tenant: stored.tenant, ...(stored.client ? { client: stored.client } : {}) })) {
-      this.store.recordAttempt(delivery.id, { status: 'dead', attempts: delivery.attempts, nextAttemptAt: null, lastStatus: null, lastError: 'forbidden', deliveredAt: null });
-      return;
-    }
+    const give = (reason: string): JobOutcome => {
+      this.store.recordAttempt(delivery.id, { status: 'dead', attempts: delivery.attempts, nextAttemptAt: null, lastStatus: null, lastError: reason, deliveredAt: null });
+      return { dead: reason };
+    };
+    if (!stored || !this.reads(user, String(occurrence.data?.team ?? ''), { tenant: stored.tenant, ...(stored.client ? { client: stored.client } : {}) })) return give('forbidden');
     const secrets = this.store.secrets(row.id);
-    if (!secrets) return;
+    if (!secrets) return give('no_secret');
     const signing = [secrets.current, ...(secrets.previous && secrets.previousUntil && Date.parse(secrets.previousUntil) > this.clock() ? [secrets.previous] : [])];
     const headers = { 'content-type': 'application/json', 'user-agent': 'Unfold-MCP-Events/1', ...webhookHeaders(signing, String(occurrence.eventId), Math.floor(this.clock() / 1000), body), 'x-mcp-subscription-id': row.id };
     let result: SendResult;
@@ -458,27 +488,31 @@ export class McpEvents {
     const status = (lastError: string | null, delivered: boolean) => this.store.store.db.prepare('UPDATE mcp_event_subscriptions SET last_delivery_at=COALESCE(?, last_delivery_at), last_error=?, failed_since=? WHERE id=?')
       .run(delivered ? now : null, lastError, delivered ? null : row.failedSince ?? now, row.id);
     if ('status' in result && result.status >= 200 && result.status < 300) {
-      this.store.recordAttempt(delivery.id, { status: 'delivered', attempts, nextAttemptAt: null, lastStatus: result.status, lastError: null, deliveredAt: now });
-      status(null, true);
-      return;
+      const lastStatus = result.status;
+      this.store.store.transaction(() => {
+        this.store.recordAttempt(delivery.id, { status: 'delivered', attempts, nextAttemptAt: null, lastStatus, lastError: null, deliveredAt: now });
+        status(null, true);
+      });
+      return { done: true };
     }
     const category = failureCategory(result);
     const lastStatus = 'status' in result ? result.status : null;
     const final = lastStatus === 410 || lastStatus === 413;
     const wait = final ? null : nextDelay(attempts, this.random, 'status' in result ? result.retryAfterMs : undefined, mcpRetrySchedule);
-    this.store.recordAttempt(delivery.id, { status: wait === null ? 'dead' : 'pending', attempts, nextAttemptAt: wait === null ? null : new Date(this.clock() + wait).toISOString(), lastStatus, lastError: category, deliveredAt: null });
-    status(category, false);
+    this.store.store.transaction(() => {
+      this.store.recordAttempt(delivery.id, { status: wait === null ? 'dead' : 'pending', attempts, nextAttemptAt: wait === null ? null : new Date(this.clock() + wait).toISOString(), lastStatus, lastError: category, deliveredAt: null });
+      status(category, false);
+    });
+    return wait === null ? { dead: category } : { retry: category, afterMs: wait };
   }
 
-  /** Ends expired subscriptions, then sends every MCP delivery that is due, up to 50 per round and 8 at once. Returns how many it tried. */
+  /**
+   * Ends expired subscriptions, then runs the MCP delivery jobs that are due, up to 50 per round and 8 at once. Returns
+   * how many it tried; a delivery held for its person's flag or a paused subscription does not count.
+   */
   async dispatch(): Promise<number> {
-    if (this.busy) return 0;
-    this.busy = true;
-    try {
-      this.sweep();
-      const due = this.store.due(this.now(), 50, 'mcp');
-      for (let index = 0; index < due.length && !this.stopped; index += 8) await Promise.all(due.slice(index, index + 8).map(entry => this.attempt(entry.delivery, entry.body)));
-      return due.length;
-    } finally { this.busy = false; }
+    if (this.stopped) return 0;
+    this.sweep();
+    return this.jobs.drain(mcpDeliveryJob, 50);
   }
 }

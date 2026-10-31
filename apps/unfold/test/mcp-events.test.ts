@@ -11,8 +11,10 @@ import type { PloegEvent } from '../src/ploeg.ts';
 import type { WorkItemFacts } from '../src/cards/facts.ts';
 import { verify, webhookHeaders } from '../src/outbound/signing.ts';
 import { OutboundEvents, type OutboundPloeg, type SendResult, type Transport } from '../src/outbound/service.ts';
-import { McpEvents, McpEventError, failureCategory, maxEventBodyBytes, mcpEventErrors, mcpEventsExtension, mcpRetrySchedule, minTtlMs, maxTtlMs, defaultTtlMs, subscriptionId, validClientSecret } from '../src/mcp-events.ts';
+import { McpEvents, McpEventError, failureCategory, heldDeliveryMs, maxEventBodyBytes, mcpEventErrors, mcpEventsExtension, mcpRetrySchedule, minTtlMs, maxTtlMs, defaultTtlMs, subscriptionId, validClientSecret } from '../src/mcp-events.ts';
 import { createMcpServer } from '../src/mcp.ts';
+import { mcpDeliveryJob, deliveryJob } from '../src/outbound/store.ts';
+import { jobsRoute } from '../src/jobs/route.ts';
 
 type Json = Record<string, any>;
 
@@ -28,6 +30,7 @@ const tenancy = new TenantScope({ repositories, taskSources: [], tenancy: { enfo
 const pia: User = { id: 'pia', name: 'Pia', role: 'operator', memberships: [{ kind: 'tenant', tenant: 'agency', role: 'developer' }] };
 const otto: User = { id: 'otto', name: 'Otto', role: 'operator', memberships: [{ kind: 'tenant', tenant: 'other', role: 'developer' }] };
 const carla: User = { id: 'carla', name: 'Carla', role: 'operator', memberships: [{ kind: 'client', tenant: 'agency', client: 'shop' }] };
+const admin: User = { id: 'ada', name: 'Ada', role: 'admin' };
 
 function scratch(t: TestContext): string {
   const dir = mkdtempSync(join(tmpdir(), 'unfold-mcp-events-'));
@@ -304,6 +307,8 @@ test('every delivery checks the person again: lost Team access drops the deliver
   w.flagOff.clear();
   w.users.set('carla', { ...carla, memberships: [] });
   w.sent.length = 0;
+  assert.equal(await mcp.dispatch(), 0, 'a held delivery waits for its next check');
+  w.now.value += heldDeliveryMs;
   await mcp.dispatch();
   assert.equal(w.sent.length, 0, 'nothing reaches someone who lost access');
   assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM mcp_event_subscriptions WHERE id=?').get(clientSub.id as string)!.n, 0, 'their subscription ended');
@@ -329,6 +334,8 @@ test('a failing callback is retried within about fifteen minutes; 410 and 413 ar
   await mcp.dispatch();
   const deliveries = () => mcp.store.deliveries(created.id as string, 5).sort((a, b) => a.id - b.id);
   assert.deepEqual(deliveries().map(entry => [entry.status, entry.lastError]), [['dead', 'http_4xx'], ['pending', 'http_5xx']]);
+  const troubled = jobsRoute(mcp.store.jobs, admin, 'GET', new URLSearchParams({ kind: mcpDeliveryJob })).body as Json;
+  assert.deepEqual(troubled.troubled.map((job: Json) => [job.kind, job.state, job.lastError]).sort(), [[mcpDeliveryJob, 'dead', 'http_4xx'], [mcpDeliveryJob, 'pending', 'http_5xx']], 'operators see the dead and the failing MCP delivery in the job queue');
   for (const wait of mcpRetrySchedule.slice(1)) { w.now.value += 60 * 60_000; await mcp.dispatch(); void wait; }
   w.now.value += 60 * 60_000;
   await mcp.dispatch();
@@ -363,6 +370,71 @@ test('a subscription ends at its lifetime and events/unsubscribe removes only th
   assert.equal(mcp.store.secrets(kept.id as string), undefined, 'its secret goes with it');
   assert.deepEqual(mcp.unsubscribe(pia, { name: 'run.finished', arguments: {}, delivery: { mode: 'webhook', url } }), {}, 'unsubscribing twice is fine');
   await refused(() => mcp.unsubscribe(pia, { name: 'nope', delivery: { url } }), mcpEventErrors.notFound);
+});
+
+test('deliveries already pending when Unfold upgrades get exactly one job each and are sent once, keeping their retry time', async t => {
+  const path = scratch(t);
+  const w = world();
+  const before = new Store(path);
+  const old = events(before, w);
+  const created = await old.subscribe(pia, subscribeParams('work_item.needs_you', 'https://hooks.example.com/up', secret()));
+  const source = { events: [ploegEvent('500', 'work_item.needs_human', '81', 'silver'), ploegEvent('501', 'work_item.needs_human', '82', 'silver')], facts: new Map([['81', facts('81', 'agency/site', 'silver')], ['82', facts('82', 'agency/site', 'silver')]]) };
+  const outbound = harness(before, w, old, source);
+  await outbound.followPloeg();
+  await outbound.followPloeg();
+  const [first, second] = old.store.deliveries(created.id as string, 5).sort((a, b) => a.id - b.id);
+  before.db.prepare('DELETE FROM jobs WHERE kind=?').run(mcpDeliveryJob);
+  before.db.prepare('UPDATE outbound_deliveries SET attempts=2, last_error=?, next_attempt_at=? WHERE id=?').run('http_5xx', new Date(w.now.value + 300_000).toISOString(), second.id);
+  before.close();
+
+  const store = new Store(path);
+  t.after(() => store.close());
+  const restarted = harness(store, w, events(store, w), { events: [], facts: new Map() });
+  const mcp = events(store, w);
+  const jobs = () => store.db.prepare('SELECT kind, COUNT(*) AS n FROM jobs GROUP BY kind').all().map(row => [row.kind, Number(row.n)]);
+  assert.deepEqual(jobs(), [[mcpDeliveryJob, 2]], 'one job per pending delivery, however often Unfold starts, and none of the webhook kind');
+  assert.equal(mcp.store.jobs.get(mcpDeliveryJob, `${created.id}:${second.eventId}`)!.runAt, new Date(w.now.value + 300_000).toISOString(), 'a delivery waiting for a retry keeps its time');
+  w.sent.length = 0;
+  w.now.value += 1000;
+  assert.equal(await mcp.dispatch(), 1);
+  w.now.value += 300_000;
+  assert.equal(await mcp.dispatch(), 1);
+  assert.equal(await mcp.dispatch(), 0);
+  assert.equal(await restarted.dispatch(), 0, 'webhook delivery never sends an MCP delivery');
+  assert.deepEqual(w.sent.map(entry => entry.body).sort(), [first.id, second.id].map(id => mcp.store.withBody(id)!.body).sort(), 'each pending delivery is sent exactly once');
+  assert.deepEqual(mcp.store.deliveries(created.id as string, 5).sort((a, b) => a.id - b.id).map(entry => [entry.status, entry.attempts]), [['delivered', 1], ['delivered', 3]]);
+});
+
+test('a restart resumes MCP deliveries: one cut off mid-send is sent again with the same id, one already recorded is not', async t => {
+  const path = scratch(t);
+  const w = world();
+  const before = new Store(path);
+  const old = events(before, w);
+  const created = await old.subscribe(pia, subscribeParams('work_item.needs_you', 'https://hooks.example.com/crash', secret()));
+  const source = { events: [ploegEvent('600', 'work_item.needs_human', '91', 'silver'), ploegEvent('601', 'work_item.needs_human', '92', 'silver')], facts: new Map([['91', facts('91', 'agency/site', 'silver')], ['92', facts('92', 'agency/site', 'silver')]]) };
+  const outbound = harness(before, w, old, source);
+  await outbound.followPloeg();
+  await outbound.followPloeg();
+  w.now.value += 1000;
+  const leased = old.store.jobs.lease<{ deliveryId: number }>(mcpDeliveryJob, w.now.value, 2);
+  assert.equal(leased.length, 2, 'both deliveries were taken by the process that then crashed');
+  const [cut, recorded] = leased;
+  old.store.recordAttempt(recorded.payload.deliveryId, { status: 'delivered', attempts: 1, nextAttemptAt: null, lastStatus: 204, lastError: null, deliveredAt: new Date(w.now.value).toISOString() });
+  before.close();
+
+  const store = new Store(path);
+  t.after(() => store.close());
+  const mcp = events(store, w);
+  w.sent.length = 0;
+  assert.equal(await mcp.dispatch(), 2);
+  assert.equal(w.sent.length, 1, 'only the delivery whose outcome was never recorded is sent');
+  assert.equal(w.sent[0].body, mcp.store.withBody(cut.payload.deliveryId)!.body);
+  assert.equal(await mcp.dispatch(), 0);
+  assert.equal(w.sent.length, 1, 'and only once');
+  assert.deepEqual(mcp.store.counts(created.id as string), { pending: 0, delivered: 2, dead: 0 });
+  const view = jobsRoute(mcp.store.jobs, admin, 'GET', new URLSearchParams()).body as Json;
+  assert.deepEqual(view.kinds.find((entry: Json) => entry.kind === mcpDeliveryJob), { kind: mcpDeliveryJob, pending: 0, running: 0, done: 2, dead: 0, oldestDueAt: null }, 'GET /api/admin/jobs shows the MCP deliveries');
+  assert.equal(view.kinds.some((entry: Json) => entry.kind === deliveryJob), false);
 });
 
 test('unfold-mcp offers events only when the person may use them, and only over 2026-07-28', async t => {
