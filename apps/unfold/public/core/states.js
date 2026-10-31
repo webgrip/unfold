@@ -1,4 +1,4 @@
-import { trackerName, trackerOf } from './trackers.js';
+import { trackerName, trackerOf } from './tracker-registry.js';
 import { money, plural } from './format.js';
 
 /**

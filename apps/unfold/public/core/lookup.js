@@ -1,4 +1,4 @@
-import { trackerOf } from './trackers.js';
+import { trackerOf } from './tracker-registry.js';
 import { state } from './state.js';
 import { sessionStatuses, sessionStatus } from './states.js';
 

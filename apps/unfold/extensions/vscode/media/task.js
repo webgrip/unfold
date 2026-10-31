@@ -4,6 +4,7 @@ import { detailReason, failingChecks, reviewHold } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
 import { changedFiles, changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
+import { setTrackers } from './core/tracker-registry.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
@@ -955,7 +956,7 @@ document.addEventListener('submit', event => {
 window.addEventListener('message', event => {
   const message = event.data;
   if (!message || typeof message.type !== 'string') return;
-  if (message.type === 'state') { view = message.view; connected = true; busy = ''; problem = message.problem || ''; render(); }
+  if (message.type === 'state') { view = message.view; setTrackers(view?.trackers); connected = true; busy = ''; problem = message.problem || ''; render(); }
   else if (message.type === 'problem') { busy = ''; problem = message.message || ''; render(); }
   else if (message.type === 'idle') { busy = ''; render(); }
   else if (message.type === 'connection') { connected = Boolean(message.connected); render(); }

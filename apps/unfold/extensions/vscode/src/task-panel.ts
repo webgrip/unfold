@@ -31,14 +31,17 @@ export interface TaskPanelHost {
 export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean; recovery?: Recovery; publication?: PublicationOffer };
 
 /** The state a task panel posts to its webview: the tracker task, its Ploeg status and, once Ploeg has a Work Item, its detail and Run card. */
-export type TaskView = {
+/** The tracker display facts from the bootstrap, so the webview names each tracker as the browser does. */
+type TrackerFacts = { trackers?: Bootstrap['trackers'] };
+
+export type TaskView = TrackerFacts & {
   kind: 'task'; task: TaskPreview; source: { id: string; name: string; provider: string; handoff: boolean; executionOwner: string };
   repositoryName: string; status: TaskPloegStatus; session: { allowed: boolean; reason?: string }; host: string; loadedAt: string; preferredTeam?: string;
   workItemId?: string; detail?: PloegDetail; card?: RunCard; ploegProblem?: string; linked?: LinkedSession;
 };
 
 /** The state a Work Item panel posts to its webview: a Ploeg Work Item without a tracker task the workbench knows. */
-export type WorkItemView = { kind: 'work'; workItemId: string; detail: PloegDetail; card?: RunCard; host: string; loadedAt: string; linked?: LinkedSession };
+export type WorkItemView = TrackerFacts & { kind: 'work'; workItemId: string; detail: PloegDetail; card?: RunCard; host: string; loadedAt: string; linked?: LinkedSession };
 
 type PanelTarget = { kind: 'task'; source: TaskSource; taskId: string } | { kind: 'work'; workItemId: string };
 
@@ -139,7 +142,7 @@ export class TaskPanel implements vscode.Disposable {
     return {
       kind: 'task', task, status, host: new URL(client.origin).host, loadedAt: new Date().toISOString(),
       source: { id: source.id, name: source.name, provider: source.provider, handoff: Boolean(source.handoff), executionOwner: source.executionOwner },
-      repositoryName: repository?.name ?? task.repositoryId, session: sessionEligibility(bootstrap, source, task), preferredTeam: this.host.lastTeam(),
+      repositoryName: repository?.name ?? task.repositoryId, session: sessionEligibility(bootstrap, source, task), preferredTeam: this.host.lastTeam(), trackers: bootstrap.trackers ?? [],
       ...(workItemId ? { workItemId } : {}), ...(facts.detail ? { detail: facts.detail } : {}), ...(facts.card ? { card: facts.card } : {}), ...(facts.problem ? { ploegProblem: facts.problem } : {}),
       ...(workItemId ? await this.linked(client, workItemId, bootstrap) : {}),
     };
@@ -207,8 +210,9 @@ export class TaskPanel implements vscode.Disposable {
     const ploegDue = fresh || !previous || !this.ploegReadRecently();
     const [detail, card] = ploegDue ? await Promise.allSettled([client.workItem(workItemId, fresh), client.workItemCard(workItemId)]) : [{ status: 'fulfilled', value: previous.detail } as const, { status: 'fulfilled', value: previous.card } as const];
     if (detail.status === 'rejected') throw detail.reason;
-    const linked = await this.linked(client, workItemId, await this.host.bootstrap());
-    return { kind: 'work', workItemId, detail: detail.value, ...(card.status === 'fulfilled' && card.value && String(card.value.workItemId) === workItemId ? { card: card.value } : {}), host: new URL(client.origin).host, loadedAt: new Date().toISOString(), ...linked };
+    const bootstrap = await this.host.bootstrap();
+    const linked = await this.linked(client, workItemId, bootstrap);
+    return { kind: 'work', workItemId, trackers: bootstrap.trackers ?? [], detail: detail.value, ...(card.status === 'fulfilled' && card.value && String(card.value.workItemId) === workItemId ? { card: card.value } : {}), host: new URL(client.origin).host, loadedAt: new Date().toISOString(), ...linked };
   }
 
   private ploegReadAt = 0;
