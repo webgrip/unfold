@@ -137,18 +137,20 @@ test('a SCIM filter reads back the attribute and value it was written with, and 
   }));
 });
 
+const commonMarkLinkTarget = /(?<!\\)(?:\\\\)*\]\(([^)\s]*)\)/g;
+
 test('agent transcripts and tracker HTML render to inert, bounded Markdown', () => {
   fc.assert(fc.property(soup, text => {
     assertInert(markdown(text), JSON.stringify(text).slice(0, 80));
     for (const dialect of ['commonmark', 'unfold'] as const) {
       const converted = htmlToMarkdown(text, 'https://tracker.example/', dialect);
       assert(converted.length <= 65536);
-      for (const [, target] of converted.matchAll(/\]\(([^)\s]*)\)/g)) assert.match(target, /^(?:https?:|mailto:)/, `${dialect}: ${target}`);
-      if (dialect === 'unfold') assertInert(markdown(converted), `unfold dialect of ${JSON.stringify(text).slice(0, 80)}`);
+      if (dialect === 'commonmark') for (const [, target] of converted.matchAll(commonMarkLinkTarget)) assert.match(target, /^(?:https?:|mailto:)/, `${dialect}: ${target}`);
+      else assertInert(markdown(converted), `unfold dialect of ${JSON.stringify(text).slice(0, 80)}`);
     }
     const escaped = escapeMathDelimiters(text);
     assert.equal(escaped.replace(/\\\$/g, '$'), text.replace(/\\\$/g, '$'));
-  }));
+  }), { examples: [[']()'], ['[x](javascript:alert(1))'], ['\\\\[x](javascript:alert(1))']] });
   const entry = fc.record({ seq: fc.oneof(fc.nat(2000), fc.constant(-1), fc.constant('7')), at: fc.oneof(fc.constant('2026-10-30T10:00:00Z'), fc.string({ maxLength: 30 })), kind: fc.constantFrom('message', 'thought', 'tool_call', 'tool_output', 'plan', 'stage', 'truncated', 'bogus'), text: fc.oneof(soup, fc.string({ maxLength: 6000 })), title: fc.string({ maxLength: 300 }), toolKind: fc.constantFrom('read', 'edit', 'execute', 'nope'), status: fc.constantFrom('pending', 'completed', 'failed', 'nope'), paths: fc.array(fc.string({ maxLength: 300 }), { maxLength: 20 }) }, { requiredKeys: ['seq', 'kind'] });
   fc.assert(fc.property(fc.array(entry, { maxLength: 30 }), fc.nat(50), (entries, after) => {
     let page;
