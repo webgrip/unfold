@@ -76,6 +76,7 @@ jobs:
         uses: ./.forgejo/actions/verify
         with:
           only: unfold
+          setup: setup-unfold
 
   build-contexts:
     needs: [pending]
