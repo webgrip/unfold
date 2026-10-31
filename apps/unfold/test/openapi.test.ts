@@ -8,7 +8,7 @@ import { isSignIn, personLimits } from '../src/rate-limits.ts';
 import { openApiDocument } from '../src/http.ts';
 import { defaultRateLimits, rateLimitSettings } from '../src/rate-limits.ts';
 import { application, createSession, request } from './api-support.ts';
-import { exampleProblems, responseProblems } from './openapi-responses.ts';
+import { exampleProblems, parseDescription, responseProblems } from './openapi-responses.ts';
 import { testTimeout } from './timeframes.ts';
 
 type Operation = { operationId?: string; tags?: string[]; security?: Record<string, string[]>[]; parameters?: Parameter[]; responses?: Record<string, unknown>; 'x-unfold-role'?: string; 'x-unfold-requires'?: string[]; 'x-internal'?: boolean };
@@ -204,6 +204,13 @@ test('every operation the rate limiter counts lists 429, and no other does apart
     if (limited !== Boolean(operation.responses?.['429'])) problems.push(`${verb} ${path}: ${limited ? 'is rate-limited but does not list 429' : 'lists 429 but no rate limit counts it'}`);
   }
   assert.deepEqual(problems, []);
+});
+
+test('the response check reads the description it would parse, from the shared JSON copy as from the YAML', () => {
+  assert.deepEqual(parseDescription(text), spec);
+  assert.deepEqual(parseDescription(text), spec, 'the second read comes from the copy the first one left');
+  const changed = `${text}\n# changed\n`;
+  assert.deepEqual(parseDescription(changed), parse(changed), 'a changed description gets a copy of its own');
 });
 
 test('every example in the OpenAPI description matches its schema', () => {
