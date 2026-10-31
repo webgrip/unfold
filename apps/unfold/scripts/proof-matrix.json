@@ -1,0 +1,504 @@
+{
+  "rows": [
+    {
+      "group": "Trackers",
+      "integration": "ClickUp",
+      "claims": ["tracker:clickup", "account-link:clickup"],
+      "promise": "Reads a List's tasks, hands a task to a Team and takes it back, and links a person's ClickUp account",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/tasks.test.ts", "names": ["adapter reads a scoped page and native task using its documented authorization and pagination", "a ClickUp hand-off read keys assignee IDs by username and email, ignoring case"] },
+        { "file": "test/task-handoff.test.ts", "names": ["a ClickUp hand-off makes exactly these API calls, leaves one comment and is idempotent", "a ClickUp task that changed, closed or was archived since it was read is refused without writing"] },
+        { "file": "test/links.test.ts", "names": ["a ClickUp link exchanges the code with the client secret"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "tasks" }],
+      "live": [],
+      "desktop": [],
+      "gap": "Never run against a real ClickUp Workspace from Unfold's tests."
+    },
+    {
+      "group": "Trackers",
+      "integration": "Vikunja",
+      "claims": ["tracker:vikunja", "report-a-problem:vikunja"],
+      "promise": "Reads a project's tasks with labels and assignees, hands a task to a Team, and files Report a problem tasks",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/tasks.test.ts", "names": ["adapter reads a scoped page and native task using its documented authorization and pagination", "Vikunja snapshots carry labels, assignees, priority, due date and identifier"] },
+        { "file": "test/task-handoff.test.ts", "names": ["hand-off assigns the team", "lookup finds the configured source whose project holds a Vikunja task"] },
+        { "file": "test/api-reports.test.ts", "names": ["a report is filed as a Vikunja task with its files attached and its address shown"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "tasks" }],
+      "live": [],
+      "desktop": [],
+      "gap": "Never run against a real Vikunja from Unfold's tests; the homelab uses one every day, which is use, not a repeatable check."
+    },
+    {
+      "group": "Trackers",
+      "integration": "Jira Cloud",
+      "claims": ["tracker:jira", "report-a-problem:jira"],
+      "promise": "Lists open issues with JQL, reads ADF descriptions, and files Report a problem Bugs",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/jira-tracker.test.ts", "names": ["Jira lists open issues with JQL and pages by nextPageToken", "a Jira issue reads as escaped HTML from its ADF description", "Report a problem files a Jira Bug with an ADF body"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "No hand-off to a Team, and never run against a real Jira site."
+    },
+    {
+      "group": "Trackers",
+      "integration": "GitHub issues",
+      "claims": ["tracker:github"],
+      "promise": "Reads a repository's issues on GitHub.com, a GHE.com tenant or an Enterprise Server",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/tasks.test.ts", "names": ["adapter reads a scoped page and native task using its documented authorization and pagination", "GitHub sources accept a GHE.com tenant API root"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "tasks" }],
+      "live": [],
+      "desktop": [],
+      "gap": "No hand-off and no Report a problem filing, and never run against real GitHub."
+    },
+    {
+      "group": "Trackers",
+      "integration": "GitLab issues",
+      "claims": ["tracker:gitlab", "account-link:gitlab"],
+      "promise": "Reads a project's issues by numeric id or namespace path, and links a person's GitLab account",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/tasks.test.ts", "names": ["adapter reads a scoped page and native task using its documented authorization and pagination", "GitLab numeric and namespace aliases use project_id with iid as the stable identity"] },
+        { "file": "test/api-links.test.ts", "names": ["a person links GitLab through the browser, sees the account without its tokens, and can unlink"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "tasks" }],
+      "live": [],
+      "desktop": [],
+      "gap": "No hand-off and no Report a problem filing, and never run against a real GitLab."
+    },
+    {
+      "group": "Trackers",
+      "integration": "Forgejo issues",
+      "claims": ["tracker:forgejo", "report-a-problem:forgejo"],
+      "promise": "Reads a repository's issues and files Report a problem issues with attachments",
+      "doc": "docs/operations/task-connections.md",
+      "tests": [
+        { "file": "test/tasks.test.ts", "names": ["adapter reads a scoped page and native task using its documented authorization and pagination"] },
+        { "file": "test/api-reports.test.ts", "names": ["a report is filed as a Forgejo issue with three attachments"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "tasks" }],
+      "live": [],
+      "desktop": [],
+      "gap": "No hand-off, and never run against a real Forgejo from Unfold's tests."
+    },
+    {
+      "group": "Forges",
+      "integration": "Forgejo pull requests",
+      "claims": ["publisher:forgejo"],
+      "promise": "Pushes a verified commit with a lease and opens exactly one pull request, which a person merges",
+      "doc": "docs/contracts/candidate-delivery.md",
+      "tests": [
+        { "file": "test/delivery-publisher.test.ts", "names": ["happy path approves, reserves, pushes once, opens one pull request, verifies it and reports it published", "a crash after the push reconciles on startup", "an open pull request by another account on the reserved branch is never adopted"] }
+      ],
+      "runs": [],
+      "live": [{ "task": "script:scripts/qualify-delivery.ts", "note": "needs Docker and a verifier image; no model call" }],
+      "desktop": [],
+      "gap": "The live script has no mise task and no recorded run on this page. In production Ploeg's worker opens the pull requests, not this publisher."
+    },
+    {
+      "group": "Forges",
+      "integration": "GitHub pull requests",
+      "claims": ["publisher:github"],
+      "promise": "Publishes a verified commit as a GitHub pull request",
+      "doc": "docs/contracts/candidate-delivery.md",
+      "tests": [
+        { "file": "test/integration-registries.test.ts", "names": ["the GitHub publisher refuses a plain-HTTP API and a missing token before it calls the forge"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Only the configuration is checked: no test pushes or opens a pull request against a fake or real GitHub."
+    },
+    {
+      "group": "Forges",
+      "integration": "GitLab merge requests",
+      "claims": ["publisher:gitlab"],
+      "promise": "Publishes a verified commit as a GitLab merge request",
+      "doc": "docs/contracts/candidate-delivery.md",
+      "tests": [
+        { "file": "test/integration-registries.test.ts", "names": ["every registry refuses a provider no adapter registered"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Only the configuration is checked: no test pushes or opens a merge request against a fake or real GitLab."
+    },
+    {
+      "group": "Notifications",
+      "integration": "Slack",
+      "claims": ["notify:slack"],
+      "promise": "Sends a Block Kit direct message and takes signed interactions, never one that spends money",
+      "doc": "docs/operations/notifications.md",
+      "tests": [
+        { "file": "test/notify-slack-teams.test.ts", "names": ["a Slack signature verifies only with the secret, the raw body and a timestamp within five minutes", "a Slack notice is a direct message in Block Kit", "anything that spends money, or any other action, is refused from Slack"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never sent to a real Slack workspace."
+    },
+    {
+      "group": "Notifications",
+      "integration": "Microsoft Teams",
+      "claims": ["notify:teams"],
+      "promise": "Posts an Adaptive Card to a person's Power Automate workflow",
+      "doc": "docs/operations/notifications.md",
+      "tests": [
+        { "file": "test/notify-slack-teams.test.ts", "names": ["a Teams workflow URL must be HTTPS on a Power Automate host", "a Teams notice is an Adaptive Card with an Open link"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never posted to a real Teams workflow."
+    },
+    {
+      "group": "Notifications",
+      "integration": "Web Push",
+      "claims": ["notify:web-push"],
+      "promise": "Sends RFC 8291 encrypted pushes with a VAPID header to a browser's push service",
+      "doc": "docs/operations/notifications.md",
+      "tests": [
+        { "file": "test/notify-web-push.test.ts", "names": ["aes128gcm encryption reproduces the RFC 8291 section 5 message byte for byte", "the RFC 8292 section 2.4 example token verifies against its example key"] },
+        { "file": "test/notifications.test.ts", "names": ["Web Push sends an RFC 8291 message with a VAPID header"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Checked against the RFC test vectors, never delivered through a real push service to a browser."
+    },
+    {
+      "group": "Notifications",
+      "integration": "ntfy",
+      "claims": ["notify:ntfy"],
+      "promise": "Publishes JSON with a bearer token to an ntfy topic",
+      "doc": "docs/operations/notifications.md",
+      "tests": [
+        { "file": "test/notifications.test.ts", "names": ["ntfy publishes JSON with the bearer token to a real HTTP server"] },
+        { "file": "test/notify-handed-off.test.ts", "names": ["a handed-off Work Item notifies its person once per transition"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Sent to a local HTTP server that stands in for ntfy, never to a real ntfy server."
+    },
+    {
+      "group": "Identity",
+      "integration": "OIDC sign-in",
+      "claims": ["sign-in:oidc"],
+      "promise": "Signs people in through an OpenID Connect provider and maps groups to roles",
+      "doc": "docs/operations/provision-and-deprovision-people.md",
+      "tests": [
+        { "file": "test/api-oidc.test.ts", "names": ["a person signs in through the identity provider, gets the role their groups grant", "an authorization response whose iss is not exactly the discovered issuer is refused"] }
+      ],
+      "runs": [],
+      "live": [{ "task": "npm:test:mcp-e2e", "note": "real Authentik in Docker Compose; signs in on Authentik's own login page; no model call" }],
+      "desktop": [],
+      "gap": ""
+    },
+    {
+      "group": "Identity",
+      "integration": "SCIM 2.0",
+      "claims": ["identity:scim"],
+      "promise": "Creates, updates and deactivates people and groups that an identity provider pushes",
+      "doc": "docs/operations/provision-and-deprovision-people.md",
+      "tests": [
+        { "file": "test/identity-scim.test.ts", "names": ["SCIM creates, reads, filters, pages, replaces and patches a User", "deactivating a User through SCIM ends every credential at once"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never driven by a real identity provider's SCIM client."
+    },
+    {
+      "group": "Identity",
+      "integration": "Shared Signals (SSF, CAEP and RISC)",
+      "claims": ["identity:ssf"],
+      "promise": "Receives signed Security Event Tokens that end sessions or turn accounts off",
+      "doc": "docs/operations/provision-and-deprovision-people.md",
+      "tests": [
+        { "file": "test/identity-shared-signals.test.ts", "names": ["a SET is accepted only when its signature, typ, issuer, audience, jti and age check out", "RISC account-disabled turns the account off until account-enabled"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never received from a real SSF transmitter."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "unfold-mcp over HTTP",
+      "claims": ["mcp:http"],
+      "promise": "Serves unfold-mcp over HTTPS to OAuth clients, and spends only after the person confirms",
+      "doc": "../../docs/how-to/serve-unfold-mcp-over-https.md",
+      "tests": [
+        { "file": "test/mcp-http.test.ts", "names": ["a request without a token gets 401 with an RFC 6750 challenge", "unfold_ask over HTTP refuses to spend when the client cannot confirm"] }
+      ],
+      "runs": [],
+      "live": [{ "task": "npm:test:mcp-e2e", "note": "real Authentik and the official MCP client, plus the MCP conformance scenarios; no model call" }],
+      "desktop": [],
+      "gap": "No live Ask that reaches a model; see the paid list."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "unfold-mcp over stdio",
+      "claims": ["mcp:stdio"],
+      "promise": "Serves the same tools over stdio for terminal clients",
+      "doc": "../../docs/how-to/ask-from-an-ai-client.md",
+      "tests": [
+        { "file": "test/mcp.test.ts", "names": ["unfold-mcp speaks newline-delimited JSON-RPC on stdio", "unfold_ask asks a model only after the person accepts the confirmation over stdio"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Used daily from Claude Code, but no repeatable live check."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "ACP agent (PhpStorm and other ACP editors)",
+      "claims": ["extension:acp-agent"],
+      "promise": "An ACP editor follows, asks about and hands off Unfold work as a chat agent",
+      "doc": "../../docs/how-to/use-unfold-from-an-acp-editor.md",
+      "tests": [
+        { "file": "test/acp-agent.test.ts", "names": ["an ACP client follows, asks about and watches Unfold work against the demo", "without a credential the agent answers auth_required", "the ACP registry entry matches the registry schema rules and the package"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never run inside a real ACP editor: the PhpStorm probe could not run, see acp-phpstorm below."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "ACP proxy",
+      "claims": ["extension:acp-proxy"],
+      "promise": "Relays any ACP agent byte for byte and reports its session to Unfold",
+      "doc": "../../docs/how-to/use-unfold-from-an-acp-editor.md",
+      "tests": [
+        { "file": "test/acp-proxy.test.ts", "names": ["the proxy relays both directions byte for byte"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never run between a real editor and a real ACP agent."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "VS Code extension",
+      "claims": ["extension:vscode"],
+      "promise": "Signs in from VS Code, shows Now, Sessions and tasks, and contributes read-only language model tools",
+      "doc": "extensions/vscode/README.md",
+      "tests": [
+        { "file": "extensions/vscode/test/manifest.test.ts", "names": ["every contributed unfold command is registered by the extension"] },
+        { "file": "extensions/vscode/test/browser-login.test.ts", "names": [] }
+      ],
+      "runs": [{ "task": "npm:extension:verify", "note": "packages the VSIX and checks the Marketplace manifest" }],
+      "live": [],
+      "desktop": [{ "probe": "vscode-extension" }],
+      "gap": "The tests load the extension's modules with a fake vscode API, not inside VS Code."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "Agents window over AHP",
+      "claims": ["ahp"],
+      "promise": "VS Code's Agents window attaches to Unfold as a remote agent host and starts and follows sessions",
+      "doc": "docs/adrs/0012-agent-host-protocol-host.md",
+      "tests": [
+        { "file": "test/ahp-vscode.test.ts", "names": ["VS Code main (1.142) attaches", "VS Code 1.141 attaches"] },
+        { "file": "extensions/vscode/test/agent-host.test.ts", "names": ["a token probe sends the token in a header, never in the URL"] }
+      ],
+      "runs": [{ "task": "mise:ahp-e2e", "note": "Microsoft's AHP client as VS Code 1.142 and 1.141 against the demo; part of mise run verify" }],
+      "live": [],
+      "desktop": [{ "probe": "vscode-agents-window" }],
+      "gap": "No session was started from the window in the probe, and VS Code still asks for a GitHub sign-in first."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "Claude Code plugin",
+      "claims": ["extension:claude-code"],
+      "promise": "Links Claude Code sessions to Work Items and records Agent Trace for their commits",
+      "doc": "../../docs/how-to/link-claude-code-sessions.md",
+      "tests": [
+        { "file": "test/claude-code-plugin.test.ts", "names": ["the plugin manifest, hooks and marketplace entry are what Claude Code loads"] },
+        { "file": "test/agent-plugin.test.ts", "names": ["the root plugin.json is an Agent Plugins 1.0.0 manifest"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Used daily, but no repeatable check inside a real Claude Code."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "OpenCode plugin",
+      "claims": ["extension:opencode"],
+      "promise": "Reports an OpenCode session's progress and commits to Unfold",
+      "doc": "../../docs/how-to/link-opencode-and-codex-sessions.md",
+      "tests": [
+        { "file": "test/linked-harnesses.test.ts", "names": ["the OpenCode plugin reports start, working, waiting, idle, commits with Agent Trace, and end"] }
+      ],
+      "runs": [],
+      "live": [{ "task": "mise:probe-opencode", "note": "the pinned OpenCode server, no model call" }, { "task": "mise:opencode-contract", "note": "permission round trip with a local fake model" }],
+      "desktop": [],
+      "gap": "The live tasks check the OpenCode server Unfold drives, not the plugin inside a person's OpenCode."
+    },
+    {
+      "group": "Agent and editor surfaces",
+      "integration": "Codex hooks",
+      "claims": ["extension:codex"],
+      "promise": "Reports a Codex session's progress and commits to Unfold",
+      "doc": "../../docs/how-to/link-opencode-and-codex-sessions.md",
+      "tests": [
+        { "file": "test/linked-harnesses.test.ts", "names": ["the Codex hook reports start, working, waiting for approval, commits with Agent Trace, idle and end"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never run inside a real Codex."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "FOCUS cost export, CSV",
+      "claims": ["focus:csv"],
+      "promise": "Writes model cost per Run or Work Item as a FinOps FOCUS 1.4 CSV file",
+      "doc": "docs/operations/focus-cost-export.md",
+      "tests": [
+        { "file": "test/focus-export.test.ts", "names": ["the file passes the FOCUS 1.4 column rules", "the validator catches what FOCUS forbids, so a passing file means something"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Checked by Unfold's own FOCUS validator; not run through the FinOps Foundation's focus-validator or loaded into a FinOps tool."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "FOCUS cost export, Parquet",
+      "claims": ["focus:parquet"],
+      "promise": "Writes the same rows as Parquet with FOCUS 1.4 data types",
+      "doc": "docs/operations/focus-cost-export.md",
+      "tests": [
+        { "file": "test/focus-export.test.ts", "names": ["the Parquet column types are the FOCUS 1.4 data types, and a decimal keeps all its digits"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Read back with hyparquet in the tests and once by hand with pyarrow and DuckDB; no repeatable check with another reader."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "OCSF audit log",
+      "claims": ["audit:ocsf"],
+      "promise": "Records security facts as OCSF 1.9.0 in a hash chain per Tenant, exported as NDJSON or over OTLP",
+      "doc": "docs/operations/audit-siem.md",
+      "tests": [
+        { "file": "test/audit.test.ts", "names": ["each Unfold audit fact maps to its OCSF class and activity and validates against the vendored 1.9.0 schema", "records chain per Tenant and verify", "OTLP export sends each enabled Tenant"] },
+        { "file": "test/api-audit.test.ts", "names": ["sign-ins, sign-outs, flag changes and Actions reach the audit as OCSF"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Never shipped to a real SIEM or OTLP collector."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Audit checkpoints",
+      "claims": ["audit:checkpoints"],
+      "promise": "Signs each Tenant's chain head daily with OpenBao Transit and stores it under S3 Object Lock",
+      "doc": "docs/operations/audit-siem.md",
+      "tests": [
+        { "file": "test/audit-checkpoints.test.ts", "names": ["Signature Version 4 matches the AWS documentation example for S3 GET Object", "once a day each Tenant", "a chain rolled back or rewritten behind the triggers no longer matches its checkpoint"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Against fake OpenBao and S3 servers; never against a real OpenBao or an Object Lock bucket."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Outbound webhooks",
+      "claims": ["webhooks:outbound"],
+      "promise": "Sends signed Standard Webhooks CloudEvents with retries, an SSRF guard and a durable outbox",
+      "doc": "docs/operations/outbound-events.md",
+      "tests": [
+        { "file": "test/outbound-events.test.ts", "names": ["signing matches the Standard Webhooks test vectors", "the connect-time lookup refuses a host that resolves inward", "the outbox survives a restart"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Delivered to local receivers only; no third-party receiver checked."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Billing lines to Simplicate",
+      "claims": ["billing:simplicate"],
+      "promise": "Turns an accepted Work Item into one fixed-fee project service in Simplicate, sent exactly once",
+      "doc": "docs/operations/billing-simplicate.md",
+      "tests": [
+        { "file": "test/billing.test.ts", "names": ["an accepted Work Item becomes one fixed-fee project service in the mapped Simplicate project, sent exactly once", "a send whose lease runs out is never repeated"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Against a fake Simplicate; never against a real Simplicate account."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Billing lines as CSV and UBL files",
+      "claims": ["billing:file"],
+      "promise": "Writes each billing line once as UBL 2.1 JSON and CSV for any other tool",
+      "doc": "docs/operations/billing-simplicate.md",
+      "tests": [
+        { "file": "test/billing.test.ts", "names": ["the file exporter writes one UBL 2.1 JSON line and one CSV record per line, once"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "The UBL output is not checked against the UBL schema or loaded into an accounting tool."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Request intake (feedback tools and email)",
+      "claims": ["intake:marker-io", "intake:bugherd", "intake:userback", "intake:freshdesk", "intake:zendesk", "intake:form"],
+      "promise": "Turns signed webhooks from Marker.io, BugHerd, Userback, Freshdesk, Zendesk or a plain form, and inbound email, into Requests",
+      "doc": "docs/operations/request-intake.md",
+      "tests": [
+        { "file": "test/intake.test.ts", "names": ["template maps its documented payload to a Request", "the Standard Webhooks spec"] },
+        { "file": "test/api-intake.test.ts", "names": ["a signed delivery becomes a Request"] }
+      ],
+      "runs": [],
+      "live": [],
+      "desktop": [],
+      "gap": "Each template is checked against its vendor's documented payload, never against a delivery the vendor sent."
+    },
+    {
+      "group": "Exports and records",
+      "integration": "Report a problem",
+      "claims": ["report-a-problem"],
+      "promise": "A person reports from any page with a blurred screenshot; Unfold files it into the Tenant's tracker and follows it",
+      "doc": "../../docs/design/rfc-0002-report-a-problem.md",
+      "tests": [
+        { "file": "test/api-reports.test.ts", "names": ["a refusing tracker keeps the report, says it will retry"] },
+        { "file": "test/report-client.test.mjs", "names": [] },
+        { "file": "test/integration-registries.test.ts", "names": ["Report a problem files into a third registered tracker that declares issue filing"] }
+      ],
+      "runs": [{ "task": "mise:browser", "flow": "report" }, { "task": "mise:browser", "flow": "report-follow" }],
+      "live": [],
+      "desktop": [],
+      "gap": "The homelab files real reports into Forgejo, which is use, not a repeatable check."
+    }
+  ],
+  "probes": {
+    "acp-phpstorm": { "title": "PhpStorm with a throwaway config directory, Unfold's ACP agent against the local demo", "result": "not possible on this desktop. The installed PhpStorm is 2025.1.1 without the AI Assistant plugin, which is where a custom ACP agent is added, and a throwaway profile has neither a PhpStorm licence nor a JetBrains AI sign-in. Instead `unfold-acp-agent --url` was started against the demo and driven over stdio by hand: `initialize` answered protocol 1 with the terminal sign-in method, `session/new` offered the Ask and Steer modes, and `/now` listed 9 waiting Work Items under the demo label. That is the same path `acp-agent.test.ts` covers, so the editor side stays unproven", "date": "2026-10-31" },
+    "vscode-extension": { "title": "VS Code with a throwaway user-data-dir and the packaged VSIX", "result": "VS Code 1.143.1 installed `unfold-0.4.0-rc.114.vsix` from `npm run extension:package`. The extension activated on startup and registered its commands, the activity bar showed 7 waiting items from the demo, and the status bar said the Agents window was not connected. GitHub authentication and Copilot Chat were turned off for this run", "date": "2026-10-31" },
+    "vscode-agents-window": { "title": "VS Code's Agents window attached to the local demo over AHP", "result": "VS Code 1.143.1 started with `--agents` and a `chat.remoteAgentHosts` entry from `POST /api/agent-host/tokens`. It initialized in 120 ms on AHP 1.0.0, registered the `unfold` and `unfold-chat` agents, and subscribed to automations, sessions, chats and terminals; `GET /api/agent-host` listed it as `vscode-agents-window`. VS Code asked the host for `createResourceWatch`, which Unfold does not implement (-32601), and for folders outside the repositories, which Unfold refuses (-32008). With `chat.agentHost.allowSignedOutWhenUsable` set, the window still started a GitHub sign-in on its own, which went through the desktop's browser", "date": "2026-10-31" }
+  },
+  "paid": [
+    { "check": "An Ask from an ACP editor and over unfold-mcp HTTP that reaches the Ask model", "runs": 3, "model": "GLM 5.3 Flash (the Ask model)", "each": "US$ 0,0002", "total": "about US$ 0,001", "source": "../../docs/research/2026-10-11-ask-cost.md" },
+    { "check": "One Agents window session that starts a real Run on a bronze Team and opens its pull request", "runs": 1, "model": "DeepSeek V4.1 Flash builds, GLM 5.3 Flash reviews (bronze)", "each": "US$ 0,53 per Shift at the median, US$ 1,04 per merged Work Item", "total": "about US$ 0,53 to 1,04", "source": "../../docs/research/2026-10-11-cost-per-merged-work-item.md" }
+  ]
+}

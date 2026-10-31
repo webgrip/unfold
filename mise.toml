@@ -76,6 +76,11 @@ description = "Regenerate the domain pages and the combined glossary from the mo
 run = "node apps/unfold/scripts/ploeg-words.mjs"
 description = "Regenerate the Ploeg words reference page from docs/domain/ploeg-words.json"
 
+[tasks.proof-matrix]
+dir = "apps/unfold"
+run = "node scripts/proof-matrix.mjs"
+description = "Regenerate Unfold's integration proof matrix, apps/unfold/docs/operations/proof-matrix.md, from scripts/proof-matrix.json; fails when a claimed integration has no row"
+
 [tasks.error-codes]
 dir = "apps/unfold"
 run = "node scripts/error-codes.ts"
