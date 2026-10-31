@@ -1,6 +1,6 @@
 import { navigate } from './navigate.mjs';
 
-/** Settings: the Environment health checks, one content width on every Settings page, Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu, the style guide's preview that leaving restores, and Connect VS Code from the account menu with its install links and a manual address minted only on click. */
+/** Settings: the Environment health checks, one content width on every Settings page, Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu, the style guide's preview that leaving restores, Connect VS Code from the account menu with its install links and a manual address minted only on click, and the Settings pages grouped as Yours and Workbench with Administration's background work, audit trail check and Tenant export at desktop and phone width. */
 export async function run({ page, assert, screenshot }) {
   const root = name => page.evaluate(attribute => document.documentElement.getAttribute(attribute), name);
   const pageWidth = () => page.locator('.settings-page').evaluate(element => element.getBoundingClientRect().width);
@@ -83,4 +83,21 @@ export async function run({ page, assert, screenshot }) {
   const address = await page.locator('#vscode-connect-address').inputValue();
   assert.match(address, /^wss?:\/\/[^/]+\/\?tkn=[0-9A-Za-z_-]{16,128}$/, 'a refused clipboard shows the address to copy by hand');
   await screenshot('connect-vscode');
+
+  const subnav = page.getByRole('navigation', { name: 'Settings' });
+  assert.deepEqual(await subnav.locator('.app-subnav-heading').allTextContents(), ['Yours', 'Workbench'], 'Settings does not group the person’s pages apart from the workbench’s');
+  await subnav.getByRole('list', { name: 'Workbench' }).getByRole('link', { name: 'Administration', exact: true }).click();
+  await page.getByRole('heading', { level: 1, name: 'Administration', exact: true }).waitFor();
+  assert.equal(await pageWidth(), environmentWidth, 'Administration and Environment use different content widths');
+  const jobs = page.locator('section.card', { has: page.getByRole('heading', { level: 2, name: 'Background work', exact: true }) });
+  await jobs.locator('.empty-state, table').first().waitFor();
+  await page.getByText('Tenant export is off', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Check the audit trail', exact: true }).click();
+  await page.getByText('The audit trail is intact', { exact: true }).waitFor();
+  await page.getByText(/No signed checkpoints are configured/).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Administration widens the page at 390px');
+  assert.ok(await subnav.getByRole('link', { name: 'Administration', exact: true }).isVisible(), 'the current Settings page is out of sight in the sub-navigation at 390px');
+  await screenshot('administration-phone');
+  await page.setViewportSize(viewport);
 }

@@ -1200,6 +1200,20 @@
   margin-top: var(--space-4);
 }
 
+.admin-subheading {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.admin-audit-form,
+.admin-result:not(:empty) {
+  margin-bottom: var(--space-3);
+}
+
+.admin-result ul {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+
 .flag-cards {
   display: grid;
   gap: var(--space-3);

@@ -63,7 +63,7 @@ Records older than the retention are removed once an hour. Before that, an ancho
 | `UNFOLD_AUDIT_OTLP_URL`, else `audit.otlpUrl` | none | OTLP/HTTP JSON logs endpoint, such as a collector's `/v1/logs` |
 | `UNFOLD_AUDIT_OTLP_HEADERS` | none | Headers for that endpoint as `key=value` pairs separated by commas, URL-encoded, as `OTEL_EXPORTER_OTLP_HEADERS` writes them. Keep the value in a secret |
 
-Check a Tenant's chain with `GET /api/admin/audit/verify?tenant=<id>`. It answers `{tenant, ok, checked, anchor, head, break, checkpoints}`, where `break` names the first sequence whose link or fingerprint does not match, and `checkpoints` is the check against the signed copies of the next section (`null` when none are configured).
+Check a Tenant's chain on **Settings › Administration** with **Check the audit trail**, which says in sentences whether it is intact and, if not, which record broke it and why, or with `GET /api/admin/audit/verify?tenant=<id>`. It answers `{tenant, ok, checked, anchor, head, break, checkpoints}`, where `break` names the first sequence whose link or fingerprint does not match, and `checkpoints` is the check against the signed copies of the next section (`null` when none are configured).
 
 ## Sign the chain head and copy it off the box
 

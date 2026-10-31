@@ -15,10 +15,12 @@ One export is one bundle: a gzip-compressed POSIX tar archive of JSON Lines file
 ## Who can export
 
 * An administrator, signed in to the workbench in a browser. An editor credential or an MCP token cannot export: a stolen editor token never carries a whole Tenant away. Unfold has no separate step-up sign-in yet, so the browser sign-in and the typed confirmation below are the barrier.
-* Only while the `tenant.export` flag is on. It is off by default; turn it on for everyone with an override on the Flags page or `PUT /api/admin/flags/tenant.export/override` (see [Feature flags](feature-flags.md)).
+* Only while the `tenant.export` flag is on. It is off by default; turn it on for everyone with an override on the Labs page or `PUT /api/admin/flags/tenant.export/override` (see [Feature flags](feature-flags.md)).
 * While `tenancy.enforce` is off, the installation is one Tenant, `default`, and the export holds everything Unfold stores. While it is on, an administrator exports a Tenant they hold an Admin membership of, and the bundle holds only that Tenant's rows (see [What belongs to a Tenant](#what-belongs-to-a-tenant)).
 
 ## Run an export
+
+In the browser, open **Settings › Administration**, type the Tenant id under **Export all data** and once more to confirm, and choose **Start the export**. The page shows it as **Building**, then **Ready** with **Download**; **Delete** removes the bundle before it expires. The steps below do the same from a script.
 
 1. Start it. The request names the Tenant and repeats it in `confirm`:
 
