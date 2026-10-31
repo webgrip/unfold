@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseDiff, changesSource, checkSummary, summaryFacts, remediationSteps } from '../public/views/session.js';
+import { parseDiff, changesSource, checkSummary, summaryFacts, remediationSteps, retryHold } from '../public/views/session.js';
 import { sessionGroup, sessionProgress, listStatus } from '../public/views/sessions.js';
 import { deliveryGated, deliveryMarkup, deliveryStatus } from '../public/delivery.js';
 
@@ -101,6 +101,17 @@ test('a handoff summary separates its leading facts from the prose after them', 
     rest: 'No merge was performed.',
   });
   assert.deepEqual(summaryFacts('The reviewer found no issues.\nVerdict: approve'), { facts: [], rest: 'The reviewer found no issues.\nVerdict: approve' });
+});
+
+test('Try again is offered only when Unfold knows whether the first prompt reached the agent and its spend is reconciled', () => {
+  const failed = (promptAcceptance, costStatus = 'settled') => ({ status: 'failed', costStatus, failure: { category: 'runtime_failure', stage: 'execution', promptAcceptance } });
+  assert.equal(retryHold(failed('not_submitted')), null);
+  assert.equal(retryHold(failed('rejected')), null);
+  assert.equal(retryHold(failed('accepted')), null);
+  assert.equal(retryHold(failed('unknown')), 'submission');
+  assert.equal(retryHold(failed('unknown', 'unknown')), 'submission');
+  assert.equal(retryHold({ status: 'failed', costStatus: 'settled' }), 'submission');
+  assert.equal(retryHold(failed('not_submitted', 'unknown')), 'spend');
 });
 
 test('a remediation becomes numbered steps, one per instruction, with statements kept as context', () => {

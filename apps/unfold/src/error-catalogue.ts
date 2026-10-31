@@ -79,6 +79,7 @@ const rows: Record<ErrorArea, readonly Row[]> = {
     ['budget_exhausted', [409], 'The session or attempt spent all the budget it was given.', 'Add budget if an administrator allows it, or start again with a larger budget.'],
     ['authority_budget', [409], 'Ploeg holds this session\'s budget, so the workbench cannot raise it.', 'Raise the Team\'s budget in Ploeg, or start again with a larger Size.'],
     ['pause_required', [409], 'A running session keeps the budget its model key was issued with.', 'Pause the session, add budget, then resume it; the new key carries the increase.'],
+    ['submission_unconfirmed', [409], 'Unfold cannot tell whether the agent received the first prompt of the failed attempt, so trying again could do the same work and spend twice.', 'Read the session\'s Activity to see what the agent did. Start a new session if the work still needs doing.'],
     ['spend_unresolved', [409], 'Unfold does not yet know what the previous attempt spent, so its budget stays held.', 'Wait a few minutes for the spend to settle, then try again.'],
     ['broker_required', [503], 'Paid work needs a credential broker, and none is configured.', admin],
     ['authority_required', [503], 'Ploeg manages this session and cannot be reached, so Unfold will not run it alone.', 'Wait until Ploeg is reachable again, or cancel the session.'],

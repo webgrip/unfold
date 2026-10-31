@@ -2432,7 +2432,7 @@ paths:
       tags: [Sessions]
       operationId: retrySession
       summary: 'Retry a standalone session after spend is reconciled'
-      description: '409 `spend_unresolved` for open accounting, `new_authorization_required` for shared Ploeg execution.'
+      description: '409 `submission_unconfirmed` when the failed attempt''s prompt acceptance is unknown, `spend_unresolved` for open accounting, `new_authorization_required` for shared Ploeg execution.'
       x-unfold-role: operator
       security:
         - { sessionCookie: [], unfoldRequest: [] }

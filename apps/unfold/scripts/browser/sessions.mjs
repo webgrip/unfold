@@ -177,7 +177,10 @@ export async function run({ page, app, assert, screenshot }) {
   await page.locator('#evidence-panel-stream').getByText(failedSession.failure.message, { exact: true }).waitFor();
   await failure.getByText('Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.', { exact: true }).waitFor();
   await failure.getByText('No automatic retry will be started.', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: /^(Start team|Resume|Retry)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
+  assert.equal(await page.getByRole('button', { name: /^(Start team|Resume|Retry|Try again)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
+  await failure.getByText('Try again is not offered: if the first prompt did reach the agent, trying again would do the same work and spend twice. Read its Activity to see what the agent did, and start a new session only if the work still needs doing.', { exact: true }).waitFor();
+  await failure.getByRole('button', { name: 'Read its Activity', exact: true }).click();
+  assert.equal(await page.getByRole('tab', { name: /^Activity/ }).getAttribute('aria-selected'), 'true', 'Read its Activity did not open the Activity evidence');
   await screenshot('failure-guidance');
   failedSession.failure.message = '<button id="untrusted-runtime-markup">Execute again</button>';
   failedSession.failure.remediation = '<img src="/untrusted-runtime-markup" onerror="alert(1)">';

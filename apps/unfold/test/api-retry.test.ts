@@ -42,3 +42,30 @@ test('a failed session can be tried again from the beginning once its spend has 
   const again = await request(server.url, `/api/sessions/${created.body.id}/retry`, { method: 'POST', body: {}, cookie, csrf: true });
   assert.equal(again.status, 409);
 });
+
+test('a failed session whose first prompt may have reached the agent is never tried again, so the work cannot run and spend twice', async t => {
+  let executions = 0;
+  const { RuntimeFailure } = await import('../src/failures.ts');
+  const runtime: AgentRuntime = {
+    kind: 'opencode',
+    async prepare(session: Session) { return { id: `w-${session.id}`, backend: 'local', endpoint: 'http://127.0.0.1:1', directory: '/tmp/none' }; },
+    async execute() { executions += 1; throw new RuntimeFailure('prompt_acceptance_unknown', 'prompt', 'unknown'); },
+    async captureCandidate() { return { status: 'unsupported_workspace' } as any; },
+    async dispose() {},
+  } as unknown as AgentRuntime;
+  const server = await application('live', config => { config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000 }; }, new Map<RuntimeKind, AgentRuntime>([['opencode', runtime]]));
+  t.after(() => server.close());
+  const { cookie } = await login(server.url);
+  server.app.engine.broker = { mint: async (session: Session) => ({ key: 'sk-session-fixture-key', alias: 'a', reference: `unfold-${session.id}`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0 };
+  const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode' }), cookie, csrf: true });
+  await request(server.url, `/api/sessions/${created.body.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });
+  const failed = await sessionUntil(server.url, created.body.id, session => session.status === 'failed', cookie);
+  assert.equal(failed.failure?.promptAcceptance, 'unknown');
+  await sessionUntil(server.url, created.body.id, session => session.costStatus === 'settled', cookie);
+  const retried = await request(server.url, `/api/sessions/${created.body.id}/retry`, { method: 'POST', body: {}, cookie, csrf: true });
+  assert.equal(retried.status, 409, JSON.stringify(retried.body));
+  assert.equal(retried.body.error.code, 'submission_unconfirmed');
+  assert.equal(executions, 1);
+  const events = await request(server.url, `/api/sessions/${created.body.id}/history`, { cookie });
+  assert.ok(!JSON.stringify(events.body).includes('"session.retried"'));
+});
