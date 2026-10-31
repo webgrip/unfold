@@ -54,6 +54,7 @@ nav:
       - Decisions: reference/decisions.md
       - Ploeg configuration: ploeg/reference/configuration.md
       - Capability matrix: reference/capability-matrix.md
+      - Integration proof matrix: unfold/operations/proof-matrix.md
       - Sandbox runtimes: reference/sandbox-runtimes.md
       - KPIs (proposal): reference/kpis.md
       - Run Cards works council pack: reference/run-cards-works-council-pack.md

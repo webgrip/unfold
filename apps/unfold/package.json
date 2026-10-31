@@ -16,6 +16,7 @@
     "check": "node scripts/check.mjs",
     "config:build": "node scripts/config-reference.mjs",
     "config:check": "node scripts/config-reference.mjs --check",
+    "proof-matrix": "node scripts/proof-matrix.mjs",
     "user:add": "node scripts/user-add.ts",
     "mcp": "node scripts/mcp.ts",
     "smoke": "node scripts/smoke.mjs",

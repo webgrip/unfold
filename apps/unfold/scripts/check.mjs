@@ -142,6 +142,8 @@ if (existsSync(vendorDirectory)) {
 }
 const configReference = spawnSync(process.execPath, [resolve(root, 'scripts/config-reference.mjs'), '--check'], { encoding: 'utf8', timeout: 30000 });
 if (configReference.status !== 0) failures.push(configReference.stderr.trim() || 'docs/operations/configuration.md drifted from the configuration schema; run npm run config:build');
+const proofMatrix = spawnSync(process.execPath, [resolve(root, 'scripts/proof-matrix.mjs'), '--check'], { encoding: 'utf8', timeout: 30000 });
+if (proofMatrix.status !== 0) failures.push(proofMatrix.stderr.trim() || 'docs/operations/proof-matrix.md is not true to the code; run npm run proof-matrix');
 if (failures.length) {
   process.stderr.write(`${failures.join('\n')}\n`);
   process.exitCode = 1;

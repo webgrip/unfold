@@ -1,5 +1,7 @@
 # Validation evidence
 
+The [integration proof matrix](operations/proof-matrix.md) says, for every integration and surface Unfold claims, which test, deterministic run, live opt-in task or desktop probe proves it, and which have no proof beyond fakes. It is generated from the code, so it stays current; this page keeps the dated qualification records.
+
 ## Unified tracker and delivery increment — 2026-09-11
 
 The prerelease preparation passes **210 application tests**, TypeScript checking and the source/JSON check (**118 modules, 28 JSON files** at the recorded run), plus **41 editor extension tests**. The consolidated design rebuild and link check pass. The ordinary browser and Ploeg browser suites pass on Chromium **151.0.7922.34**, including desktop/mobile layout and outage recovery. New tracker browser fixtures additionally validate canonical-source preview, import, stale Start and inert tracker content. Both Dockerfiles build locally, both Helm configurations lint/render, and the VSIX packages successfully.
