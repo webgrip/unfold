@@ -5,6 +5,7 @@ import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth, signedInUser, editorCredentialDays, editorLabel, localLoginEnabled, localLoginOff, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
+import { setupProject, setupProviders, setupScopes, testSource } from './task-setup.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, sourceLinkProvider, TaskError, trackerName, withLinkedToken } from './tasks.ts';
 import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
@@ -754,6 +755,23 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           return withLinkedToken(source, linked!);
         };
         if (method === 'GET' && path === '/api/task-sources') return json(res, 200, sanitize(tenants.sources(user).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: sourceLinkProvider(source) ?? null }))));
+        if (method === 'GET' && path === '/api/task-setup') return json(res, 200, { providers: setupProviders(config, links, user.id) });
+        const setupRoute = path.match(/^\/api\/task-setup\/([a-z][a-z0-9-]{0,63})\/(scopes|projects\/([a-zA-Z0-9_./-]{1,512}))$/);
+        if (method === 'GET' && setupRoute) {
+          if (setupRoute[2] === 'scopes') {
+            const kind = url.searchParams.get('kind');
+            const id = url.searchParams.get('id');
+            if (Boolean(kind) !== Boolean(id)) fault(400, 'setup_scope_invalid', 'Send kind and id together, or neither for the top level.');
+            return json(res, 200, sanitize(await setupScopes(config, links, user.id, setupRoute[1], kind && id ? { kind, id } : undefined)));
+          }
+          return json(res, 200, sanitize(await setupProject(config, links, user.id, setupRoute[1], setupRoute[3], tenants.sources(user))));
+        }
+        const checkRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/check$/);
+        if (method === 'GET' && checkRoute) {
+          const source = tenants.source(user, checkRoute[1]);
+          if (!source) fault(404, 'source_not_found', 'There is no such task connection. Choose one from the Tasks page.');
+          return json(res, 200, sanitize(await testSource(await withUserToken(source!), config.ploeg)));
+        }
         const handoffRoute = path.match(/^\/api\/task-sources\/([a-z0-9-]+)\/tasks\/([a-zA-Z0-9_-]+)\/(ploeg|handoff)$/);
         if (handoffRoute) {
           const source = tenants.source(user, handoffRoute[1]);
@@ -1265,6 +1283,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const route = `${req.method || 'GET'} ${routeShape(new URL(req.url || '/', 'http://localhost').pathname)}`;
         errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code: String(error.code || code) }, fingerprint: ['http', route, String(error.code || code)] });
       }
+      if (error instanceof TaskError && error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter));
       json(res, status, sanitize({ error: { code, message } }));
     }
   };
