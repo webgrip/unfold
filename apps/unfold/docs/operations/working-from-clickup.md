@@ -3,7 +3,7 @@ type: how-to
 audience: [operator, owner]
 owner: unfold
 last_verified: 2026-10-31
-verified_by: "Read against public/start.js (the hand-off sheet, Take back), public/now.js and public/ploeg.js (Now rows, the Work Item page and its task chip), public/core/trackers.js, src/notify/triggers.ts, slack.ts, teams.ts and channels.ts (the task link in notices), src/task-providers/clickup.ts and src/flag-registry.json (client.sign-off); covered by test/trackers-view.test.mjs, test/start.test.mjs and test/notify-task-link.test.ts. Not checked against a real ClickUp Workspace."
+verified_by: "Read against public/views/task-setup.js and src/tracker-connections.ts (adding a connection from the screen), public/start.js (the hand-off sheet, Take back), public/now.js and public/ploeg.js (Now rows, the Work Item page and its task chip), public/core/trackers.js, src/notify/triggers.ts, slack.ts, teams.ts and channels.ts (the task link in notices), src/task-providers/clickup.ts and src/flag-registry.json (client.sign-off); covered by test/trackers-view.test.mjs, test/start.test.mjs and test/notify-task-link.test.ts. Not checked against a real ClickUp Workspace."
 ---
 
 # Working with Unfold from ClickUp
@@ -14,12 +14,13 @@ In short: you hand a ClickUp task to a **Team** by assigning the Team's ClickUp 
 
 ## Once: connect ClickUp
 
-An administrator does this part once, as [Connect a task system](task-connections.md#clickup) describes:
+An administrator does this part once, on **Settings › Connect a tracker**, as [Add a connection from the screen](task-connections.md#add-a-connection-from-the-screen) describes:
 
-1. Connects your ClickUp List to Unfold, with Ploeg running its work.
-2. Gives each Team a ClickUp user, such as `unfold-bronze`. Assigning that user is how a task reaches the Team.
+1. Creates a ClickUp user for Unfold itself, such as `unfold@your-agency.example`, and pastes its API token on that page. Unfold hands tasks to agents as that user, so a hand-off does not depend on who is signed in. The page lists the ClickUp steps. The token is stored encrypted and never shown again.
+2. Picks your ClickUp List by name, checks it, chooses the repository the work goes to, and chooses **Save**. Its tasks show in Unfold at once.
+3. Makes sure Ploeg routes that List, and gives each Team a ClickUp user, such as `unfold-bronze`. Assigning that user is how a task reaches the Team.
 
-If Unfold asks you to link your own ClickUp account, open **Settings › Linked accounts** and follow the steps. Until you do, that List shows you no tasks.
+To look around ClickUp from Unfold, link your own ClickUp account under **Settings › Linked accounts**. Unfold uses it to show you what your own account sees, for example while you set a List up.
 
 ## Hand a task to a Team
 

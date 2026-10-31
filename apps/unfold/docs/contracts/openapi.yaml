@@ -1402,6 +1402,14 @@ paths:
                         linked: { type: boolean }
                         login: { type: string }
                         levels: { type: array, items: { type: object, properties: { kind: { type: string }, label: { type: string } } } }
+                        serviceAccount:
+                          type: object
+                          description: 'How to make the tracker account Unfold acts as, when people may add a connection from the screen.'
+                          properties:
+                            noun: { type: string }
+                            steps: { type: array, items: { type: string } }
+                            docs: { type: string }
+                            tokenLabel: { type: string }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/task-setup/{provider}/scopes:
@@ -1441,7 +1449,7 @@ paths:
       tags: [Tasks]
       operationId: checkTaskSetupProject
       summary: 'Check a picked project and draft its task source'
-      description: 'Checks a project picked by name with the person''s linked account and changes nothing: the account, the project and the path above it, and the first page of open tasks, of which the first five come back as a preview of what an import reads. A failed step is a `problem` check with its error code, not an error answer. `registered` lists the task sources that already read the project; `entry` is the `taskSources` entry an administrator adds, with `repositoryId` left for them to fill. 400 `setup_scope_invalid`; 404 `setup_unsupported`; 409 `setup_unlinked`.'
+      description: 'Checks a project picked by name with the person''s linked account and changes nothing: the account, the project and the path above it, and the first page of open tasks, of which the first five come back as a preview of what an import reads. A failed step is a `problem` check with its error code, not an error answer. `registered` lists the task sources that already read the project; `entry` is the `taskSources` entry an administrator adds instead, with `repositoryId` left for them to fill. For a tracker whose adapter lets people add a connection from the screen, a `service` check says whether the account Unfold acts as can open the project too, and `connection` names that connection. 400 `setup_scope_invalid`; 404 `setup_unsupported`; 409 `setup_unlinked`.'
       x-unfold-role: viewer
       responses:
         '200':
@@ -1452,10 +1460,14 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/TaskSourceCheck'
                   - type: object
-                    required: [registered]
+                    required: [registered, connection]
                     properties:
                       registered: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string } } } }
                       entry: { type: object }
+                      connection:
+                        type: [object, 'null']
+                        description: 'The tracker connection a Save puts the project under: the one for this tracker the person reaches, or null.'
+                        properties: { id: { type: string }, tenant: { type: string }, account: { type: string } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1484,6 +1496,234 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '502': { $ref: '#/components/responses/BadGateway' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/tracker-connections:
+    get:
+      tags: [Tasks]
+      operationId: listTrackerConnections
+      summary: 'Tracker connections people added from the screen'
+      description: 'The connections of the Tenants the person reaches, each with its task sources, whether a token is stored (never the token) and whether the person may change it. `manageTenants` lists the Tenants whose connections the person may add: none for anyone but an administrator, and while `tenancy.enforce` is on only the Tenants they are an Admin of. Connections in the server configuration are not listed here; `GET /api/task-sources` shows every source with `managedBy`.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: '`{connections, manageTenants}`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connections, manageTenants]
+                properties:
+                  connections: { type: array, items: { $ref: '#/components/schemas/TrackerConnection' } }
+                  manageTenants: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Tasks]
+      operationId: createTrackerConnection
+      summary: 'Add a tracker connection with the token of the account Unfold acts as'
+      description: 'Checks that `token` has the shape the tracker issues (400 `connection_token_invalid`, before Unfold sends it anywhere), then asks the tracker whose token it is (400 `connection_token_rejected` when it refuses). Only then is the token stored, encrypted with the workbench''s store key; it is never answered, logged or exported. One connection per Tenant, tracker and API root: 409 `connection_exists`. 404 `setup_unsupported` for a tracker whose adapter does not offer it. 403 for anyone but an administrator, and while tenancy is enforced for an administrator who is not an Admin of `tenant`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, token]
+              properties:
+                provider: { type: string, example: clickup }
+                tenant: { type: string, description: 'The owning Tenant; `default` when left out.' }
+                token: { type: string, writeOnly: true }
+      responses:
+        '201':
+          description: '`{connection}`'
+          content:
+            application/json:
+              schema: { type: object, required: [connection], properties: { connection: { $ref: '#/components/schemas/TrackerConnection' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/tracker-connections/{connectionId}:
+    parameters:
+      - $ref: '#/components/parameters/ConnectionId'
+    delete:
+      tags: [Tasks]
+      operationId: removeTrackerConnection
+      summary: 'Remove a tracker connection and forget its token'
+      description: '409 `connection_in_use` while task sources still read with it; 404 `connection_not_found` for one the person does not reach.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{removed}`'
+          content:
+            application/json:
+              schema: { type: object, required: [removed], properties: { removed: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/tracker-connections/{connectionId}/token:
+    parameters:
+      - $ref: '#/components/parameters/ConnectionId'
+    put:
+      tags: [Tasks]
+      operationId: replaceTrackerConnectionToken
+      summary: 'Replace the token of a tracker connection'
+      description: 'The same checks as adding one. The old token is forgotten at once and every source of the connection reads with the new one from the next request. 400 `connection_token_invalid` or `connection_token_rejected`; 404 `connection_not_found`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [token], properties: { token: { type: string, writeOnly: true } } }
+      responses:
+        '200':
+          description: '`{connection}`'
+          content:
+            application/json:
+              schema: { type: object, required: [connection], properties: { connection: { $ref: '#/components/schemas/TrackerConnection' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/tracker-connections/{connectionId}/check:
+    parameters:
+      - $ref: '#/components/parameters/ConnectionId'
+    get:
+      tags: [Tasks]
+      operationId: checkTrackerConnection
+      summary: 'Test the token of a tracker connection'
+      description: 'Asks the tracker whose token it is and changes nothing. A refused or missing token is a `problem` check (`connection_token_missing` after a Tenant import), not an error answer. 404 `connection_not_found`.'
+      x-unfold-role: viewer
+      responses:
+        '200':
+          description: 'The check.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, checks]
+                properties:
+                  ok: { type: boolean }
+                  account: { type: string }
+                  checks: { type: array, items: { $ref: '#/components/schemas/SetupCheck' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/tracker-connections/{connectionId}/sources:
+    parameters:
+      - $ref: '#/components/parameters/ConnectionId'
+    post:
+      tags: [Tasks]
+      operationId: addConnectionSource
+      summary: 'Save a task source under a tracker connection'
+      description: 'The source reads `project` and hands its tasks off with the connection''s token, and belongs to the connection''s Tenant. Its id is made from `name`. It passes the checks a configured source passes at start-up (400 `connection_invalid`, such as a repository of another Tenant); 409 `source_exists` when any source already reads the project.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, name, repositoryId]
+              properties:
+                project: { type: string, example: '901234567890' }
+                name: { type: string, maxLength: 100 }
+                repositoryId: { type: string }
+                executionOwner: { type: string, enum: [ploeg, interactive], default: ploeg }
+                client: { type: [string, 'null'] }
+      responses:
+        '201':
+          description: '`{source}`'
+          content:
+            application/json:
+              schema: { type: object, required: [source], properties: { source: { $ref: '#/components/schemas/ConnectionSource' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/tracker-connections/{connectionId}/sources/{connectionSourceId}:
+    parameters:
+      - $ref: '#/components/parameters/ConnectionId'
+      - { name: connectionSourceId, in: path, required: true, example: sprint-12, schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{0,63}$' } }
+    patch:
+      tags: [Tasks]
+      operationId: updateConnectionSource
+      summary: 'Change a saved task source'
+      description: 'Changes `name`, `repositoryId`, `executionOwner` or `client`; the project stays. 409 `source_read_only` for a source in the server configuration; 404 `source_not_found`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 100 }
+                repositoryId: { type: string }
+                executionOwner: { type: string, enum: [ploeg, interactive] }
+                client: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: '`{source}`'
+          content:
+            application/json:
+              schema: { type: object, required: [source], properties: { source: { $ref: '#/components/schemas/ConnectionSource' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      tags: [Tasks]
+      operationId: removeConnectionSource
+      summary: 'Remove a saved task source'
+      description: 'Its tasks stop showing in Unfold; Work Items it started stay in Ploeg. 409 `source_read_only` for a source in the server configuration; 404 `source_not_found`.'
+      x-unfold-role: admin
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      responses:
+        '200':
+          description: '`{removed}`'
+          content:
+            application/json:
+              schema: { type: object, required: [removed], properties: { removed: { type: string } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/task-sources/{sourceId}/tasks:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -7161,6 +7401,12 @@ components:
       required: true
       schema: { type: string, pattern: '^[a-z0-9-]+$' }
       example: vikunja-glide
+    ConnectionId:
+      name: connectionId
+      in: path
+      required: true
+      schema: { type: string, pattern: '^tc-[a-f0-9]{12}$' }
+      example: tc-0123456789ab
     TaskId:
       name: taskId
       in: path
@@ -7258,6 +7504,54 @@ components:
               receiptId: { type: string }
               policySha256: { type: string }
   schemas:
+    TrackerConnection:
+      type: object
+      description: 'A tracker account Unfold acts as on one tracker API root for one Tenant. Never carries its token.'
+      required: [id, provider, label, noun, baseUrl, tenant, token, manage, sources, createdAt, createdBy, updatedAt, updatedBy]
+      properties:
+        id: { type: string, pattern: '^tc-[a-f0-9]{12}$' }
+        provider: { type: string }
+        label: { type: string, description: 'The tracker''s name, such as ClickUp.' }
+        noun: { type: string, description: 'What the tracker calls the account, such as ClickUp user.' }
+        baseUrl: { type: string }
+        tenant: { type: string }
+        account: { type: string, description: 'The name of the account the token belongs to.' }
+        token: { type: string, enum: [set, missing] }
+        tokenSetAt: { type: string, format: date-time }
+        manage: { type: boolean, description: 'Whether the caller may change or remove it.' }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        sources: { type: array, items: { allOf: [{ $ref: '#/components/schemas/ConnectionSource' }, { type: object, required: [state], properties: { state: { type: string, enum: [active, shadowed, repository_missing] } } }] } }
+    ConnectionSource:
+      type: object
+      description: 'A task source saved under a tracker connection.'
+      required: [id, connection, name, project, repositoryId, executionOwner, tenant, createdAt, createdBy, updatedAt, updatedBy]
+      properties:
+        id: { type: string }
+        connection: { type: string }
+        name: { type: string }
+        project: { type: string }
+        repositoryId: { type: string }
+        executionOwner: { type: string, enum: [ploeg, interactive] }
+        tenant: { type: string }
+        client: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+    SetupCheck:
+      type: object
+      description: 'One finding of a connection check, worded for a person.'
+      required: [id, status, title, text]
+      properties:
+        id: { type: string, enum: [account, project, tasks, handoff, service] }
+        status: { type: string, enum: [ok, warning, problem] }
+        title: { type: string }
+        text: { type: string }
+        fix: { type: string }
+        code: { type: string }
     ScopeEntry:
       type: object
       required: [kind, id, name, project, children]
@@ -7281,18 +7575,7 @@ components:
             path: { type: array, items: { type: string } }
             archived: { type: boolean }
             statuses: { type: array, items: { type: object, properties: { name: { type: string }, closed: { type: boolean } } } }
-        checks:
-          type: array
-          items:
-            type: object
-            required: [id, status, title, text]
-            properties:
-              id: { type: string, enum: [account, project, tasks, handoff] }
-              status: { type: string, enum: [ok, warning, problem] }
-              title: { type: string }
-              text: { type: string }
-              fix: { type: string }
-              code: { type: string }
+        checks: { type: array, items: { $ref: '#/components/schemas/SetupCheck' } }
         preview:
           type: object
           required: [tasks, more]

@@ -73,7 +73,27 @@ export interface TaskSetup {
   describe(project: string, request: TaskRequest): Promise<ScopeDescription>;
   /** The name of the account a token belongs to. */
   account(request: TaskRequest): Promise<string | undefined>;
+  /** How to make the tracker account Unfold hands tasks off with, when people may add a connection from the screen. */
+  readonly serviceAccount?: ServiceAccountGuide;
 }
+
+/** The tracker's own steps for making the account Unfold acts as, and what its token looks like. */
+export type ServiceAccountGuide = {
+  /** What people call that account in this tracker, such as `ClickUp user`. */
+  readonly noun: string;
+  /** The steps to create the account and its token, in order, as plain sentences. */
+  readonly steps: readonly string[];
+  /** Where the tracker documents its tokens. */
+  readonly docs: string;
+  /** The field label for the token. */
+  readonly tokenLabel: string;
+  /** A token this tracker issues matches it; a value that does not is refused before Unfold sends it anywhere. */
+  readonly tokenPattern: RegExp;
+  /** What a token looks like, for the message when one does not match. */
+  readonly tokenShape: string;
+  /** How the token is sent: `bearer` adds the Bearer scheme; otherwise the token is the whole Authorization header. */
+  readonly tokenType?: 'bearer';
+};
 
 /** A tracker's reference format: `prefix` and the native id, such as `ABC-12` for prefix `ABC`, or `native` when the native id is already the reference people write, such as a Jira issue key. */
 export type ReferenceFormat = { prefix: string; ploegDefault?: true } | { native: true };

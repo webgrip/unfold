@@ -12,7 +12,7 @@ export type TaskProvider = string;
 export type TaskTarget = { forge: string; owner: string; repo: string; baseBranch: string };
 export type PloegTaskSource = { workItemId: string; provider: string; externalId: string; expectedBaseUrl: string; expectedScope: string; expectedRevision: string; expectedUpdatedAt: string; expectedTarget: TaskTarget };
 /** A registered task source. `tenant` (the default Tenant when absent) and `client` name its owner (system ADR-0017). */
-export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget }; tenant?: string; client?: string };
+export type TaskSourceConfig = { id: string; name: string; provider: TaskProvider; baseUrl: string; project: string; repositoryId: string; token?: string; tokenType?: 'bearer'; executionOwner: 'interactive' | 'ploeg'; ploeg?: { target: TaskTarget }; tenant?: string; client?: string; connection?: string };
 export type TaskSnapshot = { key: string; sourceId: string; provider: TaskProvider; id: string; revision: string; title: string; description: string; url: string; status: 'open' | 'closed' | 'unknown'; updatedAt?: string; repositoryId: string; nativeRevision?: string; scope?: string; ploeg?: PloegTaskSource; bindingConfig?: string; bindingRevision?: string; ploegUnavailable?: { code: string; message: string }; labels?: TaskLabel[]; assignees?: TaskAssignee[]; priority?: number; dueAt?: string; identifier?: string; descriptionTruncated?: true };
 export type TaskLabel = { name: string; color?: string };
 export type TaskAssignee = { username: string; name?: string };
@@ -131,7 +131,7 @@ export function withLinkedToken(source: TaskSourceConfig, linked: { token: strin
 }
 
 export function publicTaskSource(source: TaskSourceConfig, ploeg?: AppConfig['ploeg']) {
-  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(source.ploeg ? { ploeg: source.ploeg } : {}), handoff: !handoffUnsupported(source, ploeg) };
+  return { id: source.id, name: source.name, provider: source.provider, repositoryId: source.repositoryId, executionOwner: source.executionOwner, ...(source.ploeg ? { ploeg: source.ploeg } : {}), handoff: !handoffUnsupported(source, ploeg), managedBy: source.connection ? 'unfold' as const : 'configuration' as const, ...(source.connection ? { connection: source.connection } : {}) };
 }
 
 function taskId(source: TaskSourceConfig, value: unknown): string { return nativeTaskId(taskProvider(source.provider).taskId, value); }

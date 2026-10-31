@@ -17,8 +17,9 @@ import { OutboundStore } from '../src/outbound/store.ts';
 import { buildTenantExport, curatedSources, databaseTables, excludedTables, tableEntities, type ExportSources, type TenantExportManifest } from '../src/tenant-export.ts';
 import { ustarHeader } from '../src/tar-writer.ts';
 import type { AppConfig, Session } from '../src/types.ts';
-import { application, login, request } from './api-support.ts';
+import { application, configuration, login, request } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
+import { TrackerConnections } from '../src/tracker-connections.ts';
 import { waitFor } from './timeframes.ts';
 
 type Bundle = { members: Map<string, Buffer>; manifest: TenantExportManifest; bytes: number; sha256: string };
@@ -355,4 +356,29 @@ test('administrators export a Tenant through the API once the flag is on, and ev
 
   assert.equal((await request(app.url, `/api/admin/tenant-exports/${id}`, { method: 'DELETE', cookie: admin.cookie })).status, 200);
   assert.equal((await fetch(`${app.url}${job.downloadUrl}`, { headers: { cookie: admin.cookie } })).status, 404);
+});
+
+test('tracker connections added from the screen go with their Tenant, without the token, and their sources are not listed twice', async t => {
+  const { dir, store } = await workspace(t);
+  const token = 'pk_9001_CONNECTION-TOKEN-DO-NOT-EXPORT';
+  const repositories: AppConfig['repositories'] = [{ id: 'shop', name: 'Shop', description: 'd', url: 'https://forge.example.test/acme/shop.git', baseBranch: 'main', verify: [], tenant: 'acme' }];
+  const runtime: AppConfig = { ...configuration(dir, 'live'), repositories, taskSources: [], tenancy: { enforce: true } };
+  const connections = new TrackerConnections(store, runtime, { enforced: true });
+  const connection = { id: 'tc-0123456789ab', provider: 'clickup', baseUrl: 'https://api.clickup.com/api/v2', tenant: 'acme', account: 'Unfold bot', tokenSetAt: '2026-10-31T00:00:00.000Z', createdAt: '2026-10-31T00:00:00.000Z', createdBy: 'olga', updatedAt: '2026-10-31T00:00:00.000Z', updatedBy: 'olga' };
+  const other = { ...connection, id: 'tc-ba9876543210', tenant: 'globex' };
+  for (const entry of [connection, other]) store.db.prepare('INSERT INTO tracker_connections(id,tenant,provider,base_url,created_at,body) VALUES(?,?,?,?,?,?)').run(entry.id, entry.tenant, entry.provider, entry.baseUrl, entry.createdAt, JSON.stringify(entry));
+  store.setSecret(`tracker-connection:${connection.id}`, { token });
+  const source = { id: 'sprint-12', connection: connection.id, name: 'Sprint 12', project: '777', repositoryId: 'shop', executionOwner: 'ploeg', tenant: 'acme', createdAt: connection.createdAt, createdBy: 'olga', updatedAt: connection.createdAt, updatedBy: 'olga' };
+  store.db.prepare('INSERT INTO tracker_connection_sources(id,connection_id,tenant,client,created_at,body) VALUES(?,?,?,?,?,?)').run(source.id, connection.id, 'acme', null, source.createdAt, JSON.stringify(source));
+  connections.sync();
+  assert.deepEqual(runtime.taskSources!.map(entry => [entry.id, entry.connection, entry.token === token]), [['sprint-12', connection.id, true]], 'the running workbench reads with the token');
+
+  const bundle = await exported(dir, { ...base(store, { repositories, taskSources: runtime.taskSources, tenancy: { enforce: true } }), secrets: [token] }, 'acme', 'acme');
+  const everything = [...bundle.members.values()].map(buffer => buffer.toString('utf8')).join('\n');
+  assert.ok(!everything.includes(token), 'the connection token is not in the bundle');
+  assert.deepEqual(rows(bundle, 'tracker-connections').map(row => [row.id, row.body.account]), [[connection.id, 'Unfold bot']], 'only the Tenant\'s own connection');
+  assert.deepEqual(rows(bundle, 'tracker-connection-sources').map(row => row.id), ['sprint-12']);
+  assert.deepEqual(rows(bundle, 'task-sources'), [], 'a saved source is exported once, under its connection');
+  assert.ok(bundle.manifest.excluded.some(entry => entry.table === 'internal_state' && /tracker connection tokens/.test(entry.reason)));
+  assert.ok(bundle.manifest.secrets.omitted.includes('tracker connection tokens'));
 });

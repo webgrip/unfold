@@ -7,16 +7,20 @@ import type { TaskRequest } from './task-providers/registry.ts';
 import { request, TaskError } from './task-providers/shared.ts';
 import { apiRoot, handoffUnsupported, listTasks, presentTask, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 
-/** A tracker a person can set a task source up for by name, with whether their account on it is linked. */
-export type SetupProvider = { provider: string; label: string; linkProvider: string; linked: boolean; login?: string; levels: { kind: string; label: string }[] };
+/** How to make the tracker account Unfold acts as, in plain steps, when people may add a connection from the screen. */
+export type SetupServiceAccount = { noun: string; steps: string[]; docs: string; tokenLabel: string };
+/** A tracker a person can set a task source up for by name, with whether their account on it is linked, and how to make Unfold's own account there. */
+export type SetupProvider = { provider: string; label: string; linkProvider: string; linked: boolean; login?: string; levels: { kind: string; label: string }[]; serviceAccount?: SetupServiceAccount };
+/** The tracker connection a checked project would be saved under: the account Unfold hands tasks off as. */
+export type SetupConnection = { id: string; tenant: string; account?: string; token?: { token: string; tokenType?: 'bearer' } };
 /** One finding of a connection check, worded for a person: `ok`, `warning` (works, but read this) or `problem` (does not work), with the fix under a problem. */
-export type SetupCheck = { id: 'account' | 'project' | 'tasks' | 'handoff'; status: 'ok' | 'warning' | 'problem'; title: string; text: string; fix?: string; code?: string };
+export type SetupCheck = { id: 'account' | 'project' | 'tasks' | 'handoff' | 'service'; status: 'ok' | 'warning' | 'problem'; title: string; text: string; fix?: string; code?: string };
 /** A task as the check previews it: what an import would read. */
 export type PreviewTask = { id: string; reference: string; title: string; url: string; excerpt: string; assignees: string[]; labels: string[]; dueAt?: string; descriptionTruncated?: true };
 /** The result of a connection check. `ok` is true when no check is a problem. */
 export type SetupResult = { ok: boolean; checks: SetupCheck[]; project?: ScopeDescription & { id: string }; preview: { tasks: PreviewTask[]; more: boolean }; account?: string };
-/** A checked project before it is registered: the check, the task sources already reading it, and a `taskSources` entry an administrator adds. */
-export type SetupProject = SetupResult & { registered: { id: string; name: string }[]; entry?: Record<string, unknown> };
+/** A checked project before it is registered: the check, the task sources already reading it, the connection it would be saved under, and a `taskSources` entry an administrator adds instead. */
+export type SetupProject = SetupResult & { registered: { id: string; name: string }[]; entry?: Record<string, unknown>; connection: { id: string; tenant: string; account?: string } | null };
 
 const cacheTtlMs = 60_000;
 const cacheSize = 500;
@@ -36,7 +40,8 @@ function cached(source: TaskSourceConfig): TaskRequest {
   };
 }
 
-function setupAdapter(config: AppConfig, provider: string): { adapter: TaskProviderAdapter; link: string; root: string } {
+/** The adapter, link provider and API root for setting `provider` up by name; 404 `setup_unsupported` when this workbench cannot. */
+export function setupTarget(config: AppConfig, provider: string): { adapter: TaskProviderAdapter; link: string; root: string } {
   const adapter = findTaskProvider(provider);
   const link = adapter?.linkedAccount ? findLinkProvider(adapter.linkedAccount) : undefined;
   if (!adapter?.setup || !link?.trackerApiRoot || !link.listed(config) || adapter.fixture) throw new TaskError(404, 'setup_unsupported', 'This tracker cannot be set up by name here. An administrator adds it to the server configuration instead.');
@@ -47,15 +52,17 @@ function setupAdapter(config: AppConfig, provider: string): { adapter: TaskProvi
 export function setupProviders(config: AppConfig, links: Links | undefined, userId: string): SetupProvider[] {
   return taskProviders().flatMap(adapter => {
     try {
-      const { link } = setupAdapter(config, adapter.name);
+      const { link } = setupTarget(config, adapter.name);
       const linked = links?.describe(userId, link);
-      return [{ provider: adapter.name, label: adapter.label, linkProvider: link, linked: Boolean(linked?.linked), ...(linked?.login ? { login: linked.login } : {}), levels: [...adapter.setup!.levels] }];
+      const guide = adapter.setup!.serviceAccount;
+      const serviceAccount = guide ? { serviceAccount: { noun: guide.noun, steps: [...guide.steps], docs: guide.docs, tokenLabel: guide.tokenLabel } } : {};
+      return [{ provider: adapter.name, label: adapter.label, linkProvider: link, linked: Boolean(linked?.linked), ...(linked?.login ? { login: linked.login } : {}), levels: [...adapter.setup!.levels], ...serviceAccount }];
     } catch { return []; }
   });
 }
 
 async function linkedSource(config: AppConfig, links: Links | undefined, userId: string, provider: string, project = ''): Promise<{ source: TaskSourceConfig; adapter: TaskProviderAdapter }> {
-  const { adapter, link, root } = setupAdapter(config, provider);
+  const { adapter, link, root } = setupTarget(config, provider);
   const token = links ? await links.token(userId, link) : undefined;
   if (!token) throw new TaskError(409, 'setup_unlinked', `Link your ${adapter.label} account under Linked accounts first. Unfold looks through ${adapter.label} with it, so you see only what your account sees.`);
   return { adapter, source: { id: 'setup', name: adapter.label, provider: adapter.name, baseUrl: root, project, repositoryId: '', executionOwner: 'interactive', token: token.token, ...(token.type === 'bearer' ? { tokenType: 'bearer' as const } : {}) } };
@@ -136,17 +143,39 @@ function slug(name: string, fallback: string, taken: Set<string>): string {
   return taken.has(base) ? `${base}-${fallback}`.slice(0, 63) : base;
 }
 
-/** Checks a project picked by name with the person's linked account, and drafts the `taskSources` entry an administrator adds for it. */
-export async function setupProject(config: AppConfig, links: Links | undefined, userId: string, provider: string, project: string, visible: TaskSourceConfig[]): Promise<SetupProject> {
-  const { adapter } = setupAdapter(config, provider);
+/** Whether the account Unfold acts as can open the project too, for an adapter that lets people add a connection from the screen. */
+async function serviceCheck(adapter: TaskProviderAdapter, source: TaskSourceConfig, connection: SetupConnection | undefined): Promise<SetupCheck> {
+  const guide = adapter.setup!.serviceAccount!;
+  const level = adapter.setup!.levels.at(-1)!.label;
+  const title = `Unfold's ${guide.noun}`;
+  if (!connection) return { id: 'service', status: 'warning', title, text: `Unfold has no ${guide.noun} of its own here yet. You can save this ${level}, but its tasks can be handed to agents only once there is one.`, fix: `An administrator adds it under Unfold's ${guide.noun} on this page.` };
+  const who = connection.account ?? `Unfold's ${guide.noun}`;
+  if (!connection.token) return { id: 'service', status: 'problem', title, text: `No token is stored for ${who}.`, fix: 'An administrator pastes the token again under Replace token.', code: 'connection_token_missing' };
+  const bot: TaskSourceConfig = { ...source, token: connection.token.token, ...(connection.token.tokenType ? { tokenType: connection.token.tokenType } : {}) };
+  try {
+    await adapter.setup!.describe(source.project, cached(bot));
+    return { id: 'service', status: 'ok', title, text: `${who} can open this ${level}, so Unfold can hand its tasks to agents.` };
+  } catch (error) {
+    return failed('service', title, error, `Give ${who} access to this ${level} in ${adapter.label}, or replace its token.`);
+  }
+}
+
+/** Checks a project picked by name with the person's linked account and the connection it would be saved under, and drafts the `taskSources` entry an administrator adds instead. */
+export async function setupProject(config: AppConfig, links: Links | undefined, userId: string, provider: string, project: string, visible: TaskSourceConfig[], connectionFor?: (provider: string, baseUrl: string) => SetupConnection | undefined): Promise<SetupProject> {
+  const { adapter } = setupTarget(config, provider);
   let normalized: string;
   try { normalized = adapter.project(project); } catch { throw new TaskError(400, 'setup_scope_invalid', `Choose a ${adapter.setup!.levels.at(-1)!.label} from the list.`); }
   const { source } = await linkedSource(config, links, userId, provider, normalized);
   const result = await check(source, adapter, config.ploeg, cached(source));
+  const connection = adapter.setup!.serviceAccount ? connectionFor?.(adapter.name, source.baseUrl) : undefined;
+  if (adapter.setup!.serviceAccount && result.ok) {
+    result.checks.push(await serviceCheck(adapter, source, connection));
+    result.ok = !result.checks.some(entry => entry.status === 'problem');
+  }
   const registered = visible.filter(entry => entry.provider === adapter.name && entry.project === normalized && entry.baseUrl === source.baseUrl).map(entry => ({ id: entry.id, name: entry.name }));
   const taken = new Set((config.taskSources ?? []).map(entry => entry.id));
   const entry = result.project ? { id: slug(result.project.name, `${adapter.name}-${normalized}`.slice(0, 63), taken), name: `${result.project.name} · ${adapter.label}`.slice(0, 100), provider: adapter.name, baseUrl: source.baseUrl, project: normalized, repositoryId: '', executionOwner: 'ploeg' } : undefined;
-  return { ...result, registered, ...(entry ? { entry } : {}) };
+  return { ...result, registered, ...(entry ? { entry } : {}), connection: connection ? { id: connection.id, tenant: connection.tenant, ...(connection.account ? { account: connection.account } : {}) } : null };
 }
 
 /** Test connection for a registered source, with the token it reads with: its own, or the person's link. */

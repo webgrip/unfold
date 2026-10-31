@@ -18,15 +18,18 @@ import { PloegClient } from './ploeg.ts';
 import { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { loadConfig, requirePloegExecution } from './config.ts';
 import { knownSecrets } from './redaction.ts';
+import { TrackerConnections } from './tracker-connections.ts';
 import { ErrorReporter } from './error-reports.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
 
 export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> | ((relay: WorkerRelay) => Map<RuntimeKind, AgentRuntime>) } = {}) {
-  const errors = new ErrorReporter(config.errorReports, knownSecrets(config));
   const databasePath = join(config.dataDir, 'unfold.sqlite');
   const adopted = adoptRenamedDatabase(databasePath);
   if (adopted) console.error(JSON.stringify({ level: 'info', event: 'store.renamed', message: `Moved the database from ${adopted} to ${databasePath}.` }));
   const store = new Store(databasePath, { key: storeKeyFromEnvironment() });
+  const connections = new TrackerConnections(store, config, { enforced: config.tenancy?.enforce === true });
+  connections.sync();
+  const errors = new ErrorReporter(config.errorReports, knownSecrets(config));
   const relay = new WorkerRelay(storedCredentials(store));
   const runtimes = typeof options.runtimes === 'function' ? options.runtimes(relay) : options.runtimes || new Map<RuntimeKind, AgentRuntime>();
   if (!options.runtimes) {
@@ -44,7 +47,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links, ploegCompatibility);
   const recoveredSessions = engine.recover();
   const agentHost = new AgentHost(config, store, engine, ploegCompatibility);
-  const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors, ploegCompatibility);
+  const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors, ploegCompatibility, connections);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];

@@ -14,6 +14,8 @@ export type TapRequest = {
   location?: string;
   /** The person signed in when the request arrived, read before the handler ran; set only for {@link readsUserFirst} routes. */
   before?: User;
+  /** The Tenant that owned what the path names before the handler ran, when the application knows one. */
+  owner?: string;
   scope?: 'browser' | 'editor' | 'mcp';
   user(): User | undefined;
   inputs(): Record<string, unknown>;
@@ -53,7 +55,7 @@ const downloads: Array<{ pattern: RegExp; resource: (match: RegExpExecArray, que
   { pattern: /^\/api\/ploeg\/cost-export$/, resource: (_match, query) => ({ type: 'FOCUS cost export', name: `FOCUS cost export (${query.get('format') ?? 'csv'})` }) },
 ];
 
-type EntityRule = { method: string; pattern: RegExp; entity: string; action: 'create' | 'update' | 'delete' | 'deactivate'; change?: string; tenant?: 'body' | 'query'; owner?: true };
+type EntityRule = { method: string; pattern: RegExp; entity: string; action: 'create' | 'update' | 'delete' | 'deactivate'; change?: string; tenant?: 'body' | 'query' | 'owner'; owner?: true; uid?: number };
 
 const entityRules: readonly EntityRule[] = [
   { method: 'POST', pattern: /^\/api\/admin\/webhooks$/, entity: 'Webhook subscription', action: 'create', tenant: 'body' },
@@ -70,6 +72,12 @@ const entityRules: readonly EntityRule[] = [
   { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/price$/, entity: 'Billing line', action: 'update', change: 'priced' },
   { method: 'POST', pattern: /^\/api\/billing\/lines\/([^/]+)\/reverse$/, entity: 'Billing line', action: 'deactivate', change: 'reversed' },
   { method: 'DELETE', pattern: /^\/api\/admin\/tenant-exports\/([^/]+)$/, entity: 'Tenant export', action: 'delete' },
+  { method: 'POST', pattern: /^\/api\/tracker-connections$/, entity: 'Tracker connection', action: 'create', tenant: 'body' },
+  { method: 'PUT', pattern: /^\/api\/tracker-connections\/([^/]+)\/token$/, entity: 'Tracker connection', action: 'update', change: 'token_replaced', tenant: 'owner' },
+  { method: 'DELETE', pattern: /^\/api\/tracker-connections\/([^/]+)$/, entity: 'Tracker connection', action: 'delete', tenant: 'owner' },
+  { method: 'POST', pattern: /^\/api\/tracker-connections\/([^/]+)\/sources$/, entity: 'Task source', action: 'create', change: 'added_from_screen', tenant: 'owner', uid: 0 },
+  { method: 'PATCH', pattern: /^\/api\/tracker-connections\/([^/]+)\/sources\/([^/]+)$/, entity: 'Task source', action: 'update', tenant: 'owner', uid: 2 },
+  { method: 'DELETE', pattern: /^\/api\/tracker-connections\/([^/]+)\/sources\/([^/]+)$/, entity: 'Task source', action: 'delete', tenant: 'owner', uid: 2 },
 ];
 
 function namedTenant(request: TapRequest, from: 'body' | 'query'): string[] | undefined {
@@ -86,9 +94,9 @@ function entityChange(request: TapRequest, user: User): Captured | undefined {
     if (!match) continue;
     const named = (field: string) => text(rule.tenant === 'body' ? request.inputs()[field] : request.query.get(field), 100);
     const owner = rule.owner ? [named('tenant') ?? defaultTenant, named('client')].filter(Boolean).join('/') : undefined;
-    const uid = match[1] ?? owner;
+    const uid = rule.uid === 0 ? undefined : match[rule.uid ?? 1] ?? owner;
     const data = rule.change ? { change: rule.change } : undefined;
-    const tenants = rule.tenant ? namedTenant(request, rule.tenant) : undefined;
+    const tenants = rule.tenant === 'owner' ? (request.owner ? [request.owner] : undefined) : rule.tenant ? namedTenant(request, rule.tenant) : undefined;
     return { actor: user, ...(tenants ? { tenants } : {}), fact: { kind: 'entity', action: rule.action, entity: { type: rule.entity, ...(uid ? { uid } : {}), ...(data ? { data } : {}) }, outcome: outcome(request.status), ...(reason(request.status) ? { reason: reason(request.status) } : {}) } };
   }
   return undefined;

@@ -305,6 +305,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0061](../../apps/unfold/docs/adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md) | Unfold signs the audit chain head with OpenBao Transit and copies it to a locked bucket daily | 2026-10-30 | unknown | — |
 | Unfold | [0062](../../apps/unfold/docs/adrs/0062-background-work-runs-through-one-durable-job-queue-in-the-workbench-database.md) | Background work runs through one durable job queue in the workbench database | 2026-10-30 | unknown | — |
 | Unfold | [0063](../../apps/unfold/docs/adrs/0063-unfold-reaches-ploeg-and-trackers-through-ports-with-interchangeable-adapters.md) | Unfold reaches Ploeg and trackers through ports with interchangeable adapters | 2026-10-31 | unknown | — |
+| Unfold | [0064](../../apps/unfold/docs/adrs/0064-people-add-tracker-connections-from-the-screen-and-unfold-keeps-them-with-an-encrypted-service-account-token.md) | People add tracker connections from the screen, and Unfold keeps them with an encrypted service account token | 2026-10-31 | unknown | — |
 
 ## Other statuses
 

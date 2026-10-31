@@ -288,6 +288,15 @@ Codes Ploeg sends that Unfold does not name here pass through with Ploeg's own m
 | `setup_unsupported` | 404 | This tracker cannot be set up by name on this workbench. | Ask an administrator of this workbench to fix its configuration. |
 | `setup_unlinked` | 409 | Setting up a tracker connection by name needs your own account on that tracker, and you have not linked one. | Link the tracker under Settings › Linked accounts, then come back. |
 | `setup_scope_invalid` | 400 | The container named is not one Unfold can look inside. | Choose it again from the list. |
+| `connection_invalid` | 400, 409 | A field of the tracker connection or task source is missing, holds a value Unfold does not accept, or goes over a limit. | Correct the value the message names and send it again. |
+| `connection_token_invalid` | 400 | The pasted value is not a token of the kind this tracker issues. | Copy the whole token again from the tracker, without spaces, and paste it. |
+| `connection_token_rejected` | 400 | The tracker refused the pasted token, so Unfold did not store it. | Generate a new token while signed in to the tracker as the account Unfold acts as, then paste it again. |
+| `connection_token_missing` | 409 | No token is stored for this tracker connection, for example after a Tenant import, so a connection check reports it and Unfold cannot hand tasks off with it. | An administrator pastes the token again under Replace token on Connect a tracker. |
+| `connection_exists` | 409 | This Tenant already has a connection to this tracker. | Replace the token of the existing connection instead of adding a second one. |
+| `connection_not_found` | 404 | There is no such tracker connection, or it is outside what your account may see. | Reload Connect a tracker to see the connections there are. |
+| `connection_in_use` | 409 | Task sources still read with this tracker connection, so it cannot be removed. | Remove the task sources the message names first, then remove the connection. |
+| `source_exists` | 409 | Another task source already reads this project. | Use the task source the message names, or remove it first. |
+| `source_read_only` | 409 | This task source is in the server configuration, so it cannot be changed or removed from the screen. | Ask an administrator to change the server configuration. |
 | `task_timeout` | 504 | The tracker did not answer in time. | Try again in a minute. |
 | `task_unreachable` | 502 | The tracker could not be reached. | Try again in a minute. If it keeps failing, an administrator must check its address. |
 | `task_redirect_refused` | 502 | The tracker redirected Unfold elsewhere, which Unfold refuses. | An administrator must update the tracker's API address. |
