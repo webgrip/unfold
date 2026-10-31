@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { AppConfig, User } from './types.ts';
 import { actionContext } from './action-records.ts';
 import { plainRedactedText } from './redaction.ts';
@@ -8,8 +8,8 @@ import { PloegError, type PloegAdmitted, type PloegClient, type PloegClientClaim
 
 /** The Ploeg calls moving work between a person's own sessions and Ploeg needs. */
 export type HandoffPloeg = Pick<PloegClient, 'detail' | 'teams' | 'connections' | 'admitWorkItem' | 'requeue' | 'claimClientRun' | 'refuseWhenIncompatible'>;
-/** Where a claimed Run's credential waits, encrypted, until the person's client records its session. */
-export type ClaimVault = { setSecret(id: string, value: unknown): void; getSecret<T>(id: string): T | undefined; deleteSecret(id: string): void };
+/** Where a claimed Run's credential and an issued hand-off confirmation wait, encrypted, until they are used. */
+export type ClaimVault = { setSecret(id: string, value: unknown): void; getSecret<T>(id: string): T | undefined; deleteSecret(id: string): void; secretIds(prefix: string): string[] };
 
 /** The windows a person's own session digest covers, in days. */
 export const digestWindows = { '7d': 7, '30d': 30 } as const;
@@ -162,11 +162,52 @@ export function contextNote(context: HandoffContext, link: string, max = noteLim
   return `${head}${frame}${body}${fits ? '' : cut}`;
 }
 
-/** Refuses a hand-off an editor credential or an agent sends without the confirmation the person gave (system ADR-0037). */
-function confirmedByPerson(): void {
-  const action = actionContext.getStore();
-  if ((action?.scope === 'editor' || action?.scope === 'mcp') && !action.confirmation) fail(403, 'confirmation_required', 'A hand-off from an editor or an agent needs the person’s confirmation.');
+/** How long a hand-off confirmation Unfold issues can be presented: the 15 minutes `/unfold:handoff` keeps a preview. */
+export const confirmationTtlMs = 15 * 60_000;
+/** The most unused, unexpired hand-off confirmations one person holds at once. */
+export const confirmationLimit = 20;
+const confirmationPrefix = 'handoff-confirmation:';
+const confirmationIdPattern = /^uhc_[A-Za-z0-9_-]{24}$/;
+const digestPattern = /^[0-9a-f]{64}$/;
+
+/**
+ * What a person confirmed in the `/unfold:handoff` preview, as Unfold binds it: the session, the Work Item to requeue
+ * or the Team, target, title and brief of a new one, the Team and budget the spend line named (null when it named no
+ * cap), the sha256 of the whole preview text and the context. The diff stays out; the commit ids stand for it.
+ */
+export type ConfirmedHandoff = { kind: 'requeue' | 'start'; sessionId: string; workItemId: string; team: string; target: string; title: string; brief: string; budgetUsd: number | null; preview: string; context: HandoffContext | null };
+
+type StoredConfirmation = { digest: string; expiresAt: string; usedAt: string | null };
+
+/** The {@link ConfirmedHandoff} a request names; 400 `handoff_confirmation` names the first field that is wrong. */
+export function confirmedHandoff(kind: ConfirmedHandoff['kind'], sessionId: string, workItemId: string, input: Record<string, unknown>): ConfirmedHandoff {
+  const text = (name: string, max: number): string => {
+    const entry = input[name] ?? '';
+    if (typeof entry !== 'string' || entry.trim().length > max) fail(400, 'handoff_confirmation', `${name} must be text of at most ${max} characters.`);
+    return (entry as string).trim();
+  };
+  const budget = input.budgetUsd ?? null;
+  if (budget !== null && (typeof budget !== 'number' || !Number.isFinite(budget) || budget < 0)) fail(400, 'handoff_confirmation', 'budgetUsd must be the budget the preview named, or null.');
+  if (kind === 'start' && budget !== null) fail(400, 'handoff_confirmation', 'A new Work Item has no budget before Ploeg admits it; send budgetUsd null.');
+  const preview = input.preview;
+  if (typeof preview !== 'string' || !digestPattern.test(preview)) fail(400, 'handoff_confirmation', 'preview must be the sha256 of the preview text, in hex.');
+  const start = kind === 'start';
+  return {
+    kind, sessionId, workItemId: start ? '' : workItemId, team: text('team', 128),
+    target: start ? text('target', 128) : '', title: start ? text('title', 200) : '', brief: start ? text('brief', briefLimit) : '',
+    budgetUsd: budget as number | null, preview: preview as string, context: input.context === undefined ? null : handoffContext(input.context),
+  };
 }
+
+/** The sha256, in hex, binding a {@link ConfirmedHandoff} to the person it was issued to: canonical JSON with its fields in a fixed order. */
+export function handoffDigest(personId: string, confirmed: ConfirmedHandoff): string {
+  const context = confirmed.context;
+  const facts = context ? [context.branch, context.commit, context.base, context.baseCommit, context.sessionBranch, context.commits, context.uncommitted, context.files, context.insertions, context.deletions, context.untracked, context.findings.tried, context.findings.hypotheses, context.findings.left] : null;
+  return createHash('sha256').update(JSON.stringify(['unfold-handoff-confirmation/1', personId, confirmed.kind, confirmed.sessionId, confirmed.workItemId, confirmed.team, confirmed.target, confirmed.title, confirmed.brief, confirmed.budgetUsd, confirmed.preview, facts])).digest('hex');
+}
+
+const confirmationKey = (personId: string, id: string) => `${confirmationPrefix}${createHash('sha256').update(personId).digest('hex').slice(0, 32)}:${id}`;
+const sameDigest = (left: string, right: string) => left.length === right.length && timingSafeEqual(Buffer.from(left), Buffer.from(right));
 
 /** The owner and name a repository address names, such as `webgrip/unfold` for `https://forgejo.example.org/webgrip/unfold.git`. */
 export function repositoryName(address: string): string {
@@ -240,7 +281,7 @@ export class LinkedHandoff {
   /** Admits a Work Item from the person's own session and links the session to it. Admission only queues: the Team's budget pays when Ploeg runs it. */
   async startWorkItem(user: User, id: string, input: Record<string, unknown>, base: string): Promise<{ workItem: PloegAdmitted; session: PresentedLinkedSession | null; linkError: string; link: string }> {
     const owned = this.owned(user, id, false);
-    confirmedByPerson();
+    this.confirmedByPerson(user, () => confirmedHandoff('start', owned.id, '', input));
     const text = (value: unknown, label: string, max: number) => {
       const entry = typeof value === 'string' ? value.trim() : '';
       if (!entry || entry.length > max) fail(400, 'start_input', `${label} must be 1 to ${max} characters.`);
@@ -279,21 +320,72 @@ export class LinkedHandoff {
    * Runs read it. With the `context` of `/unfold:handoff` only the owner may, and the note names the branch their work
    * was pushed to and the findings their session wrote.
    */
-  async handOff(user: User, id: string, workItemId: string, commandId: unknown, base: string, rawContext?: unknown): Promise<{ requeue: PloegRequeued; note: string }> {
-    const context = rawContext === undefined ? null : handoffContext(rawContext);
+  async handOff(user: User, id: string, workItemId: string, input: Record<string, unknown>, base: string): Promise<{ requeue: PloegRequeued; note: string }> {
+    const context = input.context === undefined ? null : handoffContext(input.context);
     const session = this.owned(user, id, !context);
-    confirmedByPerson();
     if (!workItemPattern.test(workItemId)) fail(400, 'work_item_id', 'Use a Work Item id.');
-    if (!session.workItems.some(entry => entry.id === workItemId)) fail(409, 'handoff_not_linked', 'This session is not linked to that Work Item. Link it first.');
-    const command = commandId === undefined ? `unfold-handoff-${randomUUID()}` : String(commandId);
+    const command = input.commandId === undefined ? `unfold-handoff-${randomUUID()}` : String(input.commandId);
     if (!commandPattern.test(command)) fail(400, 'ploeg_command', 'A hand-off needs a command id of 1 to 128 identifier characters.');
+    const confirmed = this.confirmedByPerson(user, () => confirmedHandoff('requeue', session.id, workItemId, input));
+    if (!session.workItems.some(entry => entry.id === workItemId)) fail(409, 'handoff_not_linked', 'This session is not linked to that Work Item. Link it first.');
     const { item } = await this.ploeg.detail(user, workItemId, true);
     const ready = handoffReadiness(item);
     if (!ready.available) fail(409, 'handoff_unavailable', ready.reason);
+    const budgetUsd = item.latestShift?.budgetUsd ?? null;
+    if (confirmed && (item.team !== confirmed.team || budgetUsd !== confirmed.budgetUsd)) fail(409, 'handoff_changed', `Ploeg now names Team ${item.team} and ${budgetUsd === null ? 'no budget' : `a budget of US$${budgetUsd.toFixed(2)}`}, not what the preview you confirmed showed. Run /unfold:handoff again.`);
     const note = context ? contextNote(context, LinkedSessions.page(base, session.id)) : handoffNote(session, LinkedSessions.page(base, session.id));
     const requeue = await this.ploeg.requeue(user, workItemId, { commandId: command, expectedState: item.state, note });
     if (!requeue.replayed && !requeue.demo) this.remember(this.linked.store.get(session.id) ?? session, { kind: 'handoff', workItemId, at: this.clock().toISOString() });
     return { requeue, note };
+  }
+
+  /**
+   * Issues a single-use confirmation for what the `/unfold:handoff` preview shows the person, bound to them, the
+   * session, the Work Item or the new one, and the {@link handoffDigest} of the preview's facts, valid for
+   * {@link confirmationTtlMs}. The send presents it as `X-Unfold-Confirmation: <id>:<digest>` with the same facts.
+   */
+  issueConfirmation(user: User, id: string, input: Record<string, unknown>): { confirmation: { id: string; digest: string; header: string; expiresAt: string } } {
+    const session = this.owned(user, id, false);
+    const kind = input.kind === 'requeue' || input.kind === 'start' ? input.kind : fail(400, 'handoff_confirmation', 'kind must be requeue or start.');
+    const workItemId = kind === 'requeue' ? String(input.workItemId ?? '') : '';
+    if (kind === 'requeue' && !workItemPattern.test(workItemId)) fail(400, 'work_item_id', 'Use a Work Item id.');
+    if (kind === 'requeue' && !session.workItems.some(entry => entry.id === workItemId)) fail(409, 'handoff_not_linked', 'This session is not linked to that Work Item. Link it first.');
+    const digest = handoffDigest(user.id, confirmedHandoff(kind, session.id, workItemId, input));
+    const now = this.clock().getTime();
+    const mine = confirmationKey(user.id, '');
+    let held = 0;
+    for (const key of this.vault.secretIds(confirmationPrefix)) {
+      const stored = this.vault.getSecret<StoredConfirmation>(key);
+      if (!stored || Date.parse(stored.expiresAt) <= now) this.vault.deleteSecret(key);
+      else if (key.startsWith(mine) && !stored.usedAt) held++;
+    }
+    if (held >= confirmationLimit) fail(429, 'confirmation_limit', `You hold ${confirmationLimit} unused hand-off confirmations. Send one, or wait 15 minutes for them to expire.`);
+    const confirmation = `uhc_${randomBytes(18).toString('base64url')}`;
+    const expiresAt = new Date(now + confirmationTtlMs).toISOString();
+    this.vault.setSecret(confirmationKey(user.id, confirmation), { digest, expiresAt, usedAt: null } satisfies StoredConfirmation);
+    return { confirmation: { id: confirmation, digest, header: `${confirmation}:${digest}`, expiresAt } };
+  }
+
+  /**
+   * Refuses a hand-off an editor credential or an agent sends unless its `X-Unfold-Confirmation` names a confirmation
+   * Unfold issued to this person, unused and unexpired, whose digest matches both the header and the facts this
+   * request carries, then uses it up (system ADR-0037). Answers the confirmed facts, or null for a browser.
+   */
+  private confirmedByPerson(user: User, facts: () => ConfirmedHandoff): ConfirmedHandoff | null {
+    const action = actionContext.getStore();
+    if (action?.scope !== 'editor' && action?.scope !== 'mcp') return null;
+    if (!action.confirmation) return fail(403, 'confirmation_required', 'A hand-off from an editor or an agent needs the person’s confirmation of its preview.');
+    const [id, digest] = action.confirmation.split(':');
+    if (!confirmationIdPattern.test(id)) return fail(403, 'plugin_update_required', 'This hand-off carries a confirmation Unfold did not issue, as the Unfold plugin for Claude Code 0.17.0 and older sends. Update the plugin with /plugin update unfold, then run /unfold:handoff again. Nothing was handed over.');
+    const confirmed = facts();
+    const key = confirmationKey(user.id, id);
+    const stored = this.vault.getSecret<StoredConfirmation>(key);
+    if (!stored) return fail(403, 'confirmation_unknown', 'Unfold issued no such confirmation to you. Run /unfold:handoff again. Nothing was handed over.');
+    if (stored.usedAt) return fail(403, 'confirmation_used', 'This confirmation was already used. Run /unfold:handoff again to hand over again. Nothing was handed over.');
+    if (Date.parse(stored.expiresAt) <= this.clock().getTime()) { this.vault.deleteSecret(key); return fail(403, 'confirmation_expired', 'This confirmation is older than 15 minutes. Run /unfold:handoff again. Nothing was handed over.'); }
+    if (!sameDigest(digest, stored.digest) || !sameDigest(handoffDigest(user.id, confirmed), stored.digest)) return fail(403, 'confirmation_mismatch', 'What this hand-off sends is not what the preview you confirmed showed. Run /unfold:handoff again. Nothing was handed over.');
+    this.vault.setSecret(key, { ...stored, usedAt: this.clock().toISOString() } satisfies StoredConfirmation);
+    return confirmed;
   }
 
   /**
@@ -351,6 +443,7 @@ const routes = {
   options: /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})\/start-options$/,
   start: /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})\/work-items$/,
   readiness: /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})\/handoff$/,
+  confirm: /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})\/handoff\/confirmations$/,
   handOff: /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})\/work-items\/([1-9][0-9]{0,18})\/handoff$/,
   claim: /^\/api\/ploeg\/work-items\/([1-9][0-9]{0,18})\/claim$/,
   record: /^\/api\/ploeg\/work-items\/([1-9][0-9]{0,18})\/claude-session$/,
@@ -368,7 +461,8 @@ export async function handoffRoute(service: LinkedHandoff, request: HandoffReque
   if ((match = routes.options.exec(path))) { only('GET', 'Read the start options with GET.'); return { status: 200, body: await service.startOptions(user, match[1]) }; }
   if ((match = routes.start.exec(path))) { only('POST', 'Start a Work Item with POST.'); return { status: 201, body: await service.startWorkItem(user, match[1], await request.body(), request.base) }; }
   if ((match = routes.readiness.exec(path))) { only('GET', 'Read whether the session can be handed to Ploeg with GET.'); return { status: 200, body: await service.readiness(user, match[1]) }; }
-  if ((match = routes.handOff.exec(path))) { only('POST', 'Hand the session to Ploeg with POST.'); const input = await request.body(); return { status: 200, body: await service.handOff(user, match[1], match[2], input.commandId, request.base, input.context) }; }
+  if ((match = routes.confirm.exec(path))) { only('POST', 'Ask for a hand-off confirmation with POST.'); return { status: 201, body: service.issueConfirmation(user, match[1], await request.body()) }; }
+  if ((match = routes.handOff.exec(path))) { only('POST', 'Hand the session to Ploeg with POST.'); return { status: 200, body: await service.handOff(user, match[1], match[2], await request.body(), request.base) }; }
   if ((match = routes.claim.exec(path))) { only('POST', 'Claim the Run with POST.'); return { status: 200, body: await service.claim(user, match[1], await request.body(), request.base) }; }
   if ((match = routes.record.exec(path))) { only('POST', 'Record the Claude session with POST.'); return { status: 200, body: await service.recordSession(user, match[1], await request.body()) }; }
   return fail(404, 'not_found', 'The API has no such address. The API reference at /api/openapi.yaml lists the addresses it has.');

@@ -3064,7 +3064,7 @@ paths:
       tags: [Linked Sessions]
       operationId: startWorkItemFromLinkedSession
       summary: 'Admit a Work Item through Ploeg and link the session to it'
-      description: 'Owner only. Admission only queues; the Work Item runs when Ploeg picks it.'
+      description: 'Owner only. Admission only queues; the Work Item runs when Ploeg picks it. An editor credential needs `X-Unfold-Confirmation` naming a confirmation Unfold issued for exactly these facts (else 403 `confirmation_required`, `plugin_update_required`, `confirmation_unknown`, `confirmation_used`, `confirmation_expired` or `confirmation_mismatch`).'
       x-unfold-role: viewer
       security:
         - { sessionCookie: [], unfoldRequest: [] }
@@ -3082,6 +3082,8 @@ paths:
                 title: { type: string }
                 brief: { type: string, minLength: 1, maxLength: 20000 }
                 requestId: { type: string }
+                budgetUsd: { type: 'null', description: 'With a confirmation: null, as a new Work Item has no budget before Ploeg admits it.' }
+                preview: { type: string, pattern: '^[0-9a-f]{64}$', description: 'With a confirmation: the sha256 of the preview text the person confirmed.' }
                 context: { $ref: '#/components/schemas/LinkedHandoffContext' }
       responses:
         '201':
@@ -3159,15 +3161,14 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
-  /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}/handoff:
+  /api/linked-sessions/{linkedSessionId}/handoff/confirmations:
     parameters:
       - $ref: '#/components/parameters/LinkedSessionId'
-      - $ref: '#/components/parameters/WorkItemId'
     post:
       tags: [Linked Sessions]
-      operationId: handLinkedSessionToPloeg
-      summary: 'Let Ploeg finish this'
-      description: 'Requeues the Work Item from Round 1 with a note naming the session''s branch, last commit and pull request, or, with `context` from `/unfold:handoff`, the pushed hand-off branch, counts and the session''s findings as untrusted notes. Owner or administrator, on a Work Item the session is linked to (else 409 `handoff_not_linked`); with `context`, owner only. An editor credential needs `X-Unfold-Confirmation` (else 403 `confirmation_required`).'
+      operationId: issueLinkedHandoffConfirmation
+      summary: 'Issue a single-use confirmation for a `/unfold:handoff` preview'
+      description: 'Owner only. Binds the confirmation to the person, the session, the Work Item (`requeue`, which must be linked, else 409 `handoff_not_linked`) or the new Work Item (`start`), and the sha256 of the canonical facts. Valid for 15 minutes and used once. A person holds at most 20 unused ones (else 429 `confirmation_limit`). A wrong field answers 400 `handoff_confirmation` naming it.'
       x-unfold-role: viewer
       security:
         - { sessionCookie: [], unfoldRequest: [] }
@@ -3176,7 +3177,67 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, properties: { commandId: { type: string }, context: { $ref: '#/components/schemas/LinkedHandoffContext' } } }
+            schema:
+              type: object
+              required: [kind, team, preview]
+              properties:
+                kind: { type: string, enum: [requeue, start] }
+                workItemId: { type: string, description: 'With `requeue`: the Work Item to hand over.' }
+                team: { type: string, description: 'The Team the preview named.' }
+                target: { type: string, description: 'With `start`: the Work Target.' }
+                title: { type: string, description: 'With `start`: the new Work Item''s title.' }
+                brief: { type: string, description: 'With `start`: the new Work Item''s brief.' }
+                budgetUsd: { type: [number, 'null'], description: 'The budget the spend line named; null when it named no cap, and always with `start`.' }
+                preview: { type: string, pattern: '^[0-9a-f]{64}$', description: 'The sha256 of the preview text the person reads.' }
+                context: { $ref: '#/components/schemas/LinkedHandoffContext' }
+      responses:
+        '201':
+          description: '`{confirmation: {id, digest, header, expiresAt}}`; the send carries `header` as `X-Unfold-Confirmation`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [confirmation]
+                properties:
+                  confirmation:
+                    type: object
+                    required: [id, digest, header, expiresAt]
+                    properties:
+                      id: { type: string, pattern: '^uhc_[A-Za-z0-9_-]{24}$' }
+                      digest: { type: string, pattern: '^[0-9a-f]{64}$' }
+                      header: { type: string }
+                      expiresAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/linked-sessions/{linkedSessionId}/work-items/{workItemId}/handoff:
+    parameters:
+      - $ref: '#/components/parameters/LinkedSessionId'
+      - $ref: '#/components/parameters/WorkItemId'
+    post:
+      tags: [Linked Sessions]
+      operationId: handLinkedSessionToPloeg
+      summary: 'Let Ploeg finish this'
+      description: 'Requeues the Work Item from Round 1 with a note naming the session''s branch, last commit and pull request, or, with `context` from `/unfold:handoff`, the pushed hand-off branch, counts and the session''s findings as untrusted notes. Owner or administrator, on a Work Item the session is linked to (else 409 `handoff_not_linked`); with `context`, owner only. An editor credential needs `X-Unfold-Confirmation` naming a confirmation Unfold issued for exactly these facts (else 403 `confirmation_required`, `plugin_update_required`, `confirmation_unknown`, `confirmation_used`, `confirmation_expired` or `confirmation_mismatch`), and Ploeg must still name the confirmed Team and budget (else 409 `handoff_changed`).'
+      x-unfold-role: viewer
+      security:
+        - { sessionCookie: [], unfoldRequest: [] }
+        - { editorBearer: [], unfoldRequest: [] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commandId: { type: string }
+                team: { type: string, description: 'With a confirmation: the Team the preview named.' }
+                budgetUsd: { type: [number, 'null'], description: 'With a confirmation: the budget the spend line named, or null.' }
+                preview: { type: string, pattern: '^[0-9a-f]{64}$', description: 'With a confirmation: the sha256 of the preview text the person confirmed.' }
+                context: { $ref: '#/components/schemas/LinkedHandoffContext' }
       responses:
         '200':
           description: '`{requeue, note}`'

@@ -106,11 +106,22 @@ export function scanForSecrets(diff, root, options = {}) {
 /** The branch a hand-off pushes to: one per snapshot, so pushing it again never moves someone else's work. */
 export function handoffBranch(commit) { return `unfold/handoff-${String(commit).slice(0, 12)}`; }
 
-/** The `X-Unfold-Confirmation` a send carries: `<id>:<sha256 of the preview the person confirmed>` (system ADR-0037). */
-export function confirmationFor(code, preview) { return `unfold-handoff-${code}:${createHash('sha256').update(preview).digest('hex')}`; }
-
 /** The id of a preview: the first 12 hex characters of the sha256 of its text. */
 export function previewCode(preview) { return createHash('sha256').update(preview).digest('hex').slice(0, 12); }
+
+/** The brief of a new Work Item started from a hand-off: its title and what the findings left to do. */
+export function briefFor(title, left) { return [`Continue the work handed over from a Claude Code session: ${title}.`, ...left.map(item => `- ${item}`)].join('\n'); }
+
+/**
+ * The facts of a preview that Unfold binds its confirmation to: the Work Item, or the Team, target, title and brief
+ * of a new one, the budget the spend line named (null when it named no cap), the sha256 of the preview text and the
+ * context. The confirmation request and the send carry the same facts.
+ */
+export function confirmedFacts(target, context, preview) {
+  const digest = createHash('sha256').update(preview).digest('hex');
+  if (target.kind === 'requeue') return { kind: 'requeue', workItemId: target.workItemId, team: target.team ?? '', budgetUsd: typeof target.budgetUsd === 'number' ? target.budgetUsd : null, preview: digest, context };
+  return { kind: 'start', team: target.team, target: target.target, title: target.title, brief: briefFor(target.title, context.findings.left), budgetUsd: null, preview: digest, context };
+}
 
 const usd = value => `US$${Number(value).toFixed(2)}`;
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -118,7 +129,7 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 /** What the person reads before they confirm: where it goes, what it may spend, what leaves their machine, and the diff. */
 export function previewText(plan) {
   const { target, context, findings, diff, untracked, scan } = plan;
-  const lines = ['Hand-off preview. Nothing is pushed or sent until you confirm.', ''];
+  const lines = ['Hand-off preview. Nothing is pushed or handed over until you confirm. Unfold has the facts below to bind your confirmation to them, and keeps only their hash.', ''];
   if (target.kind === 'requeue') {
     lines.push(`To: Team ${target.team || '(unknown)'}. Work Item ${target.workItemId} "${plain(target.title, 120)}" restarts from Round 1.`);
     lines.push(`Spend: its Runs spend from ${target.team ? `Team ${target.team}'s` : 'its Team\'s'} budget${typeof target.budgetUsd === 'number' ? `, up to ${usd(target.budgetUsd)} like the last attempt` : '; Unfold does not know the cap before Ploeg opens the attempt'}.`);
@@ -278,7 +289,12 @@ async function preview(argv) {
   const diff = capDiff(snap.uncommitted ? git(['diff', '--no-color', '--no-ext-diff', snap.head, snap.commit], root) : '');
   const text = previewText({ target, context, findings, diff, untracked, scan });
   const code = previewCode(text);
-  const pending = { version: 1, code, createdAt: Date.now(), sessionId, root, head: snap.head, tree: snap.tree, target, context, confirmation: confirmationFor(code, text) };
+  const facts = confirmedFacts(target, context, text);
+  let issued;
+  try { issued = (await call(`/api/linked-sessions/${sessionId}/handoff/confirmations`, { method: 'POST', body: JSON.stringify(facts) })).confirmation; }
+  catch (error) { say(`Unfold did not issue a confirmation for this preview: ${error.message} Nothing was sent.`); return 1; }
+  if (typeof issued?.header !== 'string') { say('Unfold did not issue a confirmation for this preview. Nothing was sent.'); return 1; }
+  const pending = { version: 2, code, createdAt: Date.now(), sessionId, root, head: snap.head, tree: snap.tree, target, context, facts, confirmation: issued.header };
   writeFileSync(join(pendingDir(), `${code}.json`), JSON.stringify(pending), { mode: 0o600 });
   say(text);
   say('');
@@ -286,12 +302,12 @@ async function preview(argv) {
   return 0;
 }
 
-/** The request a confirmed hand-off makes: the route, its body and the confirmation header. Never the diff. */
+/** The request a confirmed hand-off makes: the route, the facts Unfold confirmed in its body, and the confirmation it issued as the header. Never the diff. */
 export function sendRequest(pending) {
   const headers = { 'x-unfold-confirmation': pending.confirmation };
-  if (pending.target.kind === 'requeue') return { path: `/api/linked-sessions/${pending.sessionId}/work-items/${pending.target.workItemId}/handoff`, body: { commandId: `unfold-handoff-${pending.code}`, context: pending.context }, headers };
-  const brief = [`Continue the work handed over from a Claude Code session: ${pending.target.title}.`, ...pending.context.findings.left.map(item => `- ${item}`)].join('\n');
-  return { path: `/api/linked-sessions/${pending.sessionId}/work-items`, body: { team: pending.target.team, target: pending.target.target, title: pending.target.title, brief, requestId: `unfold-handoff-${pending.code}`, context: pending.context }, headers };
+  const { kind, workItemId, ...facts } = pending.facts;
+  if (kind === 'requeue') return { path: `/api/linked-sessions/${pending.sessionId}/work-items/${workItemId}/handoff`, body: { commandId: `unfold-handoff-${pending.code}`, ...facts }, headers };
+  return { path: `/api/linked-sessions/${pending.sessionId}/work-items`, body: { ...facts, requestId: `unfold-handoff-${pending.code}` }, headers };
 }
 
 async function confirmOnTerminal(code) {
@@ -305,6 +321,7 @@ async function send(code) {
   const file = join(pendingDir(), `${code}.json`);
   if (!existsSync(file)) { say(`No hand-off preview ${code} waits. Run /unfold:handoff again. Nothing was sent.`); return 1; }
   const pending = JSON.parse(readFileSync(file, 'utf8'));
+  if (pending.version !== 2 || !pending.facts) { rmSync(file, { force: true }); say('That preview was made by an older version of the plugin. Run /unfold:handoff again. Nothing was sent.'); return 1; }
   if (Date.now() - pending.createdAt > handoffLimits.pendingMs) { rmSync(file, { force: true }); say('That preview is older than 15 minutes. Run /unfold:handoff again. Nothing was sent.'); return 1; }
   const root = gitOk(['rev-parse', '--show-toplevel'], process.cwd());
   if (root !== pending.root) { say(`Send it from ${pending.root}, where the preview was made. Nothing was sent.`); return 1; }

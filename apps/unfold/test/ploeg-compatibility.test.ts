@@ -193,7 +193,7 @@ test('execution authority, delivery, task binding and the linked hand-off refuse
   await assert.rejects(lookupTaskBinding(config, { id: '7', sourceId: 'vikunja' } as unknown as TaskSnapshot, incompatible), namesBothVersions);
   const claim = { userId: 'admin', workItemId: '7', runToken: 'run-token', controlToken: null, workerId: null, environmentId: 'env', baseBranch: 'main', title: 'Fix', reference: 'ref', deadline: '2026-10-24T09:00:00Z' };
   let handoffFetches = 0;
-  const handoff = new LinkedHandoff({} as LinkedSessions, new PloegClient(config, incompatible), { getSecret: <T>() => claim as T, setSecret: () => undefined, deleteSecret: () => undefined }, config, { fetch: async () => { handoffFetches++; return new Response(null, { status: 204 }); } });
+  const handoff = new LinkedHandoff({} as LinkedSessions, new PloegClient(config, incompatible), { getSecret: <T>() => claim as T, setSecret: () => undefined, deleteSecret: () => undefined, secretIds: () => [] }, config, { fetch: async () => { handoffFetches++; return new Response(null, { status: 204 }); } });
   await assert.rejects(handoff.recordSession({ id: 'admin', name: 'admin', role: 'admin' }, '7', { runId: '12', sessionId: 'session_abcdef' }), namesBothVersions);
   assert.equal(handoffFetches, 0);
   assert.equal(ploeg.paths.length, 0, 'nothing reached Ploeg');
