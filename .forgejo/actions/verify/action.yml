@@ -37,6 +37,21 @@ runs:
     - name: Prepare the output capture
       shell: bash
       run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
+    - name: Keep test scratch files in memory
+      id: scratch
+      shell: bash
+      env:
+        MEMORY_MOUNT: /mnt/ci-shared
+      run: |
+        set -euo pipefail
+        if [ -d "$MEMORY_MOUNT" ] && [ -w "$MEMORY_MOUNT" ]; then
+          scratch="$(mktemp -d "$MEMORY_MOUNT/unfold-verify.XXXXXX")"
+          echo "TMPDIR=$scratch" >> "$GITHUB_ENV"
+          echo "directory=$scratch" >> "$GITHUB_OUTPUT"
+          echo "Scratch files go to $scratch on $(df --output=fstype "$MEMORY_MOUNT" | tail -1)."
+        else
+          echo "$MEMORY_MOUNT is not writable here; scratch files stay on disk."
+        fi
     - run: set -o pipefail; mise -C apps/unfold install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
     - if: inputs.setup == 'setup'
@@ -116,6 +131,12 @@ runs:
         UNFOLD_VERIFY_GROUPS: '2'
         UNFOLD_VERIFY_ONLY: ${{ inputs.only }}
         UNFOLD_VERIFY_EXCEPT: ${{ inputs.except }}
+    - name: Remove the test scratch files
+      if: always() && steps.scratch.outputs.directory != ''
+      shell: bash
+      env:
+        SCRATCH: ${{ steps.scratch.outputs.directory }}
+      run: rm -rf -- "$SCRATCH"
     - name: Save Go module and build caches
       if: steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
