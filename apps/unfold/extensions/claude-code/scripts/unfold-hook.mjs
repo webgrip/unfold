@@ -13,6 +13,8 @@ import { recordEvidence } from './evidence.mjs';
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
 const timeoutMs = Number(process.env.UNFOLD_HOOK_TIMEOUT_MS) || 3000;
+const gitTimeoutMs = Number(process.env.UNFOLD_HOOK_GIT_TIMEOUT_MS) || 2000;
+const commitAttempts = 3;
 const waitingKinds = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'agent_needs_input']);
 const editingTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const shareTranscript = process.env.UNFOLD_SHARE_TRANSCRIPT === '1';
@@ -39,8 +41,16 @@ function saveState(sessionId, state) {
   renameSync(`${file}.tmp`, file);
 }
 
+function gitAnswer(cwd, args, input) {
+  try { return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: gitTimeoutMs, maxBuffer: 16 * 1024 * 1024, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'], ...(input === undefined ? {} : { input }) }).trim(); } catch { return null; }
+}
+
 function git(cwd, args, input) {
-  try { return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 2000, maxBuffer: 16 * 1024 * 1024, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'], ...(input === undefined ? {} : { input }) }).trim(); } catch { return ''; }
+  return gitAnswer(cwd, args, input) ?? '';
+}
+
+function debug(message) {
+  if (process.env.UNFOLD_HOOK_DEBUG) process.stderr.write(`unfold: ${message}\n`);
 }
 
 function transcriptFacts(transcriptPath) {
@@ -111,6 +121,12 @@ function tracked(state, top) {
   return state.repos[top];
 }
 
+function shownCommit(top, sha) {
+  const message = gitAnswer(top, ['show', '-s', '--format=%B', sha]);
+  const diff = gitAnswer(top, ['show', '--format=', '--unified=0', '--no-color', '--no-renames', '--no-ext-diff', sha]);
+  return message === null || diff === null ? null : { message, diff };
+}
+
 async function commits(input, state) {
   learn(input, state);
   const here = repository(input.cwd ?? process.cwd());
@@ -119,19 +135,35 @@ async function commits(input, state) {
     const repo = state.repos[top];
     const head = git(top, ['rev-parse', 'HEAD']);
     if (!head || head === repo.head) continue;
-    const fresh = repo.head ? git(top, ['rev-list', '--max-count=10', `${repo.head}..${head}`]).split('\n').filter(Boolean).reverse() : [head];
-    repo.head = head;
-    for (const sha of fresh) {
-      const message = git(top, ['show', '-s', '--format=%B', sha]);
-      const named = mentionsIn(message, state.prefixes, unfoldUrl);
-      await report(input, state, 'commit', { commit: { sha, subject: message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(message) }, ...(named ? { mentions: named } : {}) });
-      const files = attribute(addedLines(git(top, ['show', '--format=', '--unified=0', '--no-color', '--no-renames', '--no-ext-diff', sha])), repo.written);
-      const record = traceRecord({ revision: sha, timestamp: git(top, ['show', '-s', '--format=%cI', sha]) || new Date().toISOString(), files, sessionId: input.session_id, sessionUrl: state.link || `${unfoldUrl}/#linked-session/${encodeURIComponent(input.session_id)}`, remoteUrl: remoteUrl(), model: state.model, harnessVersion: state.harnessVersion, workItems: state.workItems });
-      if (!record) continue;
-      git(top, ['notes', '--ref=agent-trace', 'add', '-f', '-F', '-', sha], `${JSON.stringify(record)}\n`);
-      await post(`/api/linked-sessions/${encodeURIComponent(input.session_id)}/traces`, record);
-    }
+    const listed = repo.head ? gitAnswer(top, ['rev-list', '--max-count=10', `${repo.head}..${head}`]) : head;
+    if (listed === null) { repo.head = head; continue; }
+    const handled = await commitsOf(input, state, top, repo, listed.split('\n').filter(Boolean).reverse());
+    if (handled) repo.head = head;
   }
+}
+
+async function commitsOf(input, state, top, repo, fresh) {
+  for (const sha of fresh) {
+    const commit = shownCommit(top, sha);
+    if (!commit) {
+      const attempts = (repo.stalled?.sha === sha ? repo.stalled.attempts : 0) + 1;
+      if (attempts < commitAttempts) { repo.stalled = { sha, attempts }; debug(`git could not show ${sha} within ${gitTimeoutMs} ms; the next hook tries again`); return false; }
+      debug(`git could not show ${sha} ${attempts} times; it stays unreported`);
+      delete repo.stalled;
+      repo.head = sha;
+      continue;
+    }
+    delete repo.stalled;
+    const named = mentionsIn(commit.message, state.prefixes, unfoldUrl);
+    await report(input, state, 'commit', { commit: { sha, subject: commit.message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(commit.message) }, ...(named ? { mentions: named } : {}) });
+    const files = attribute(addedLines(commit.diff), repo.written);
+    const record = traceRecord({ revision: sha, timestamp: git(top, ['show', '-s', '--format=%cI', sha]) || new Date().toISOString(), files, sessionId: input.session_id, sessionUrl: state.link || `${unfoldUrl}/#linked-session/${encodeURIComponent(input.session_id)}`, remoteUrl: remoteUrl(), model: state.model, harnessVersion: state.harnessVersion, workItems: state.workItems });
+    repo.head = sha;
+    if (!record) continue;
+    git(top, ['notes', '--ref=agent-trace', 'add', '-f', '-F', '-', sha], `${JSON.stringify(record)}\n`);
+    await post(`/api/linked-sessions/${encodeURIComponent(input.session_id)}/traces`, record);
+  }
+  return true;
 }
 
 function pullRequests(input) {
@@ -212,7 +244,7 @@ async function main() {
     const output = input.hook_event_name === 'PermissionRequest' ? await permission(input) : await handle(input);
     if (Object.keys(output).length) process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
-    if (process.env.UNFOLD_HOOK_DEBUG) process.stderr.write(`unfold: ${error.message}\n`);
+    debug(error.message);
   }
 }
 
