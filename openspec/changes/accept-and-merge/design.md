@@ -44,10 +44,16 @@ Ploeg takes a merge only for a Work Item that awaits review, which under Ploeg A
 Unfold shows **Merging** with **Cancel merge**. Failed checks end the merge
 request with a reason; the Work Item stays in review. (Owner 2A.)
 
-### D3. The merge identity merges, and the commit names the person
+### D3. The merge identity merges, and git holds no name
 
-The forge shows the merge identity as merger. The merge commit carries a
-`Merge-Requested-By` trailer with Ploeg's pseudonymous person id and the consumer's name; Unfold maps the id to the person it shows. A name in git history can never be erased. (Owner 3A.)
+The forge shows the merge identity as merger. The merge commit carries Ploeg's
+trailers: `Merge-Requested-By` with Ploeg's pseudonymous person id and the
+consumer's name, `Merge-Request` with Ploeg's merge request id, and
+`Merge-Request-Ref` with a link to the Acceptance in Unfold
+(`/#acceptance/<id>`, no query string). Unfold passes the person's display
+name as `displayName`, which Ploeg puts only in its pull request comment. A
+commit can never be erased; a comment and an Acceptance record can. (Owner 3A,
+then "fix it the best way you know how".)
 
 ### D4. "Unfold never merges" is amended
 
@@ -90,6 +96,28 @@ reads the store, so a Delivery Fee is charged once.
 Until Access Roles exist, the permission is the one that approves and rejects
 Work Items today. When they exist, it is the Developer's "accepts" permission
 per project ([glossary](../../../docs/reference/glossary.md#access-role)).
+
+### D10. Security controls
+
+The owner put security first on 2026-11-01. Unfold's controls:
+
+- **Fresh sign-in.** Accept and merge needs a sign-in at most 15 minutes old
+  (the OIDC `auth_time`); otherwise Unfold asks the person to sign in again
+  before it shows the confirmation. Ploeg checks the same age on its side.
+- **Scoped permission.** Unfold's Operator Consumer gets Ploeg's `merge`
+  permission only for the Teams the installation names.
+- **Confirmation every time.** The dialog names the repository, pull request,
+  base branch, short head, merge method and whether the forge still waits.
+  The MCP tool acts only after the person confirms in the client; a client
+  that cannot show it gets a link to Unfold, never a merge.
+- **No agent path.** The action is never offered to an Ask, a Run or an
+  agent session; it needs a person's session or a person-confirmed MCP call.
+- **Everyone sees it.** Each merge request, merge and refusal notifies the
+  Work Item's people and the installation owner on their channels, and is an
+  audit event.
+- **Off by default.** The flag `work.accept-merge` stays off until the
+  homelab merge identity exists with merging restricted to it on
+  `development`; Ploeg refuses `protection_unsafe` otherwise.
 
 ## States the person sees
 

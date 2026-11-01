@@ -25,6 +25,13 @@ not the current head in Ploeg's delivery facts.
 - **THEN** Unfold answers 409 "new commits since you looked", records no
   Acceptance and calls no Ploeg
 
+#### Scenario: An old sign-in
+
+- **WHEN** a person whose sign-in is more than 15 minutes old chooses Accept
+  and merge
+- **THEN** Unfold asks them to sign in again before it shows the confirmation,
+  and calls no Ploeg until they have
+
 #### Scenario: No permission
 
 - **WHEN** a person who may not accept the Work Item submits Accept and merge
@@ -84,3 +91,28 @@ it SHALL only call Ploeg's merge contract.
 
 - **WHEN** Ploeg reports that the Work Item's forge has no merge capability
 - **THEN** Unfold hides Accept and merge and links the pull request instead
+
+### Requirement: Git history names no person
+
+Unfold SHALL pass Ploeg a `Merge-Request-Ref` link to its Acceptance record and
+the person's display name only as `displayName`, and MUST NOT ask Ploeg to
+write a person's name into a commit.
+
+#### Scenario: The merge commit
+
+- **WHEN** Ploeg merges an accepted pull request
+- **THEN** the merge commit holds Ploeg's pseudonymous person id, the merge
+  request id and the link to the Acceptance, and the person's name appears
+  only in the pull request comment and in Unfold
+
+### Requirement: Only a person accepts
+
+Unfold MUST NOT offer Accept and merge to an Ask, a Run or an agent session,
+and the MCP tool MUST act only after the person confirms in the client.
+
+#### Scenario: A client without confirmation support
+
+- **WHEN** an MCP client that cannot show a confirmation calls
+  `unfold_accept_work`
+- **THEN** Unfold answers with a link to the Work Item in Unfold and calls no
+  Ploeg
