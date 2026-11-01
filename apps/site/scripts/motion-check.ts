@@ -29,6 +29,18 @@ const viewports = [
   { name: 'small phone', width: 360, height: 740, phone: true },
   { name: 'smallest phone', width: 320, height: 568, phone: true },
 ];
+const PATHS = [
+  '/',
+  '/nl',
+  ...[
+    '/features',
+    '/integrations',
+    '/for/agencies',
+    '/for/teams',
+    '/for/developers',
+    '/for/platform',
+  ].flatMap((path) => [path, `/nl${path}`]),
+];
 const targets = [
   { name: 'header lockup', selector: 'header a.brand' },
   { name: 'hero mark', selector: '.brief-mark' },
@@ -72,7 +84,7 @@ try {
     process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {},
   );
   for (const viewport of viewports) {
-    for (const path of ['/', '/nl']) {
+    for (const path of PATHS) {
       const label = `${viewport.name} ${viewport.width}×${viewport.height} ${path}`;
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },

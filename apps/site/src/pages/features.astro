@@ -1,0 +1,16 @@
+---
+import FeaturesPage from '../components/FeaturesPage.astro';
+import { dictionary } from '../i18n/index.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="features"
+  title={t.meta.featuresTitle}
+  description={t.meta.featuresDescription}
+>
+  <FeaturesPage locale="en" />
+</BaseLayout>

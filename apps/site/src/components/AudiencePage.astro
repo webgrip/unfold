@@ -1,0 +1,393 @@
+---
+import {
+  DEMO_GUIDE_URL,
+  PLOEG_AT_A_GLANCE_URL,
+  PLOEG_QUICKSTART_URL,
+  PLOEG_SUPPORT_MATRIX_URL,
+  PLOEG_VERIFY_RELEASE_URL,
+  SELF_HOST_GUIDE_URL,
+  UNFOLD_AT_A_GLANCE_URL,
+} from '../config/site.ts';
+import {
+  AUDIENCES,
+  AUDIENCE_KEY,
+  featureById,
+  featuresFor,
+  type Audience,
+} from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { AUDIENCE_ROUTES, routePath } from '../i18n/routes.ts';
+import ComingNext from './ComingNext.astro';
+import FeatureList from './FeatureList.astro';
+import AudienceSection from './AudienceSection.astro';
+import SignupForm from './SignupForm.astro';
+
+interface Props {
+  locale: Locale;
+  audience: Audience;
+}
+
+const { locale, audience } = Astro.props;
+const t = dictionary(locale);
+const copy = t[audience];
+const a = t.audience;
+const features = AUDIENCE_KEY[audience].map(featureById);
+const next = featuresFor({ audience, category: 'next' });
+const others = AUDIENCES.filter((candidate) => candidate !== audience);
+const ctaHref: Record<Exclude<Audience, 'agencies'>, string> = {
+  teams: SELF_HOST_GUIDE_URL,
+  developers: DEMO_GUIDE_URL,
+  platform: SELF_HOST_GUIDE_URL,
+};
+---
+
+<section class="aud-hero" aria-labelledby="aud-title">
+  <div class="container">
+    <p class="eyebrow aud-eyebrow">
+      <span class="registration" aria-hidden="true"></span>{copy.eyebrow}
+    </p>
+  </div>
+  <div class={`aud-sheet aud-sheet--${audience}`}>
+    <div class="container aud-sheet-inner">
+      <div class="aud-masthead">
+        <h1 id="aud-title">{copy.hookLine}<br /><span>{copy.hookAccent}</span></h1>
+        <p class="aud-category">{copy.category}</p>
+      </div>
+      <div class="aud-object">
+        <slot name="object" />
+      </div>
+    </div>
+  </div>
+  <div class="container aud-under">
+    <p class="aud-today">{a.today}</p>
+    <a class="button button--primary" href="#start"
+      >{'cta' in copy ? copy.cta : t.nav.signup}<span aria-hidden="true">↓</span></a
+    >
+  </div>
+</section>
+
+<section class="section aud-decision" aria-labelledby="aud-decision-title">
+  <div class="container">
+    <p class="eyebrow">{a.decisionKicker}</p>
+    <h2 id="aud-decision-title" class="aud-question">{copy.decision}</h2>
+    <p class="aud-answer">{copy.decisionText}</p>
+  </div>
+</section>
+
+<AudienceSection locale={locale} audience={audience} />
+
+<section class="section aud-features" aria-labelledby="aud-features-title">
+  <div class="container">
+    <p class="eyebrow">{a.featuresKicker}</p>
+    <div class="section-heading">
+      <h2 id="aud-features-title" class="section-title">{a.featuresTitle}</h2>
+      <p>{a.featuresIntro}</p>
+    </div>
+    <FeatureList locale={locale} features={features} idPrefix={`${audience}-features`} />
+    <p class="aud-more">
+      <a href={`${routePath('features', locale)}?for=${audience}`}>{a.allFeatures}</a>
+      <span aria-hidden="true">·</span>
+      <span>{a.sources}:</span>
+      <a href={UNFOLD_AT_A_GLANCE_URL}>{t.featuresPage.sourceUnfold}</a>
+      <a href={PLOEG_AT_A_GLANCE_URL}>{t.featuresPage.sourcePloeg}</a>
+    </p>
+  </div>
+</section>
+
+<section class="section aud-next" aria-labelledby="aud-next-title">
+  <div class="container">
+    <p class="eyebrow">{a.nextKicker}</p>
+    <div class="section-heading">
+      <h2 id="aud-next-title" class="section-title">{a.nextTitle}</h2>
+      <p>{a.nextIntro}</p>
+    </div>
+    <ComingNext locale={locale} features={next} />
+  </div>
+</section>
+
+<div id="start">
+  {audience === 'agencies' ? (
+    <SignupForm locale={locale} interest="agency" title={copy.ctaTitle} lead={copy.ctaText} />
+  ) : (
+    <section class="section aud-cta" aria-labelledby="aud-cta-title">
+      <div class="container aud-cta-layout">
+        <h2 id="aud-cta-title">{copy.ctaTitle}</h2>
+        <div>
+          <p>{copy.ctaText}</p>
+          <a class="button aud-cta-button" href={ctaHref[audience]}>
+            {'cta' in copy ? copy.cta : ''}
+            <span aria-hidden="true">↗</span>
+          </a>
+          {audience === 'platform' && 'matrix' in copy && <ul class="aud-cta-links" role="list">
+            <li><a href={PLOEG_SUPPORT_MATRIX_URL}>{copy.matrix}</a></li>
+            <li><a href={PLOEG_QUICKSTART_URL}>{copy.quickstart}</a></li>
+            <li><a href={PLOEG_VERIFY_RELEASE_URL}>{copy.verify}</a></li>
+          </ul>}
+        </div>
+      </div>
+    </section>
+  )}
+</div>
+
+<nav class="aud-others" aria-labelledby="aud-others-title">
+  <div class="container aud-others-inner">
+    <h2 id="aud-others-title" class="micro">{a.others}</h2>
+    <ul role="list">
+      {others.map((other) => <li>
+        <a href={routePath(AUDIENCE_ROUTES[other], locale)}>{t.audienceNav[other]}</a>
+      </li>)}
+      <li><a href={routePath('features', locale)}>{t.nav.features}</a></li>
+      <li><a href={routePath('integrations', locale)}>{t.nav.integrations}</a></li>
+    </ul>
+  </div>
+</nav>
+
+<style>
+  .aud-hero {
+    padding-top: 2rem;
+    overflow-x: clip;
+  }
+  .aud-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding-bottom: 2.25rem;
+  }
+  .registration {
+    width: 11px;
+    height: 11px;
+    background: var(--accent-decor);
+    flex: none;
+  }
+  .aud-sheet {
+    --bg: var(--brand-surface);
+    --fg: var(--brand-ink);
+    --fg-muted: var(--brand-muted);
+    --border: color-mix(in oklab, var(--brand-ink) 16%, var(--brand-surface));
+    --border-strong: color-mix(in oklab, var(--brand-ink) 32%, var(--brand-surface));
+    --accent: var(--brand-accent-deep);
+    --accent-decor: var(--brand-accent);
+    --link: var(--brand-accent-deep);
+    --focus-ring: var(--brand-accent-deep);
+    position: relative;
+    color: var(--fg);
+    background: var(--bg);
+    border-block: 1px solid var(--brand-ink);
+    margin-inline: -3vw;
+    padding: clamp(2.5rem, 5vw, 4.5rem) 3vw clamp(2rem, 4vw, 3.5rem);
+    transform: rotate(-1.2deg);
+    box-shadow: 0 36px 44px -36px color-mix(in oklab, var(--brand-ink) 70%, transparent);
+    container-type: inline-size;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .aud-sheet {
+      --bg: var(--brand-ground-dark);
+      --fg: var(--brand-paper);
+      --fg-muted: var(--brand-muted-light);
+      --border: color-mix(in oklab, var(--brand-paper) 18%, var(--brand-ground-dark));
+      --border-strong: color-mix(in oklab, var(--brand-paper) 36%, var(--brand-ground-dark));
+      --accent: var(--brand-accent-night);
+      --accent-decor: var(--brand-accent-night);
+      --link: var(--brand-accent-night);
+      --focus-ring: var(--brand-accent-night);
+      border-color: var(--border-strong);
+    }
+  }
+  :global(:root[data-theme='dark']) .aud-sheet {
+    --bg: var(--brand-ground-dark);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --border: color-mix(in oklab, var(--brand-paper) 18%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 36%, var(--brand-ground-dark));
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --link: var(--brand-accent-night);
+    --focus-ring: var(--brand-accent-night);
+    border-color: var(--border-strong);
+  }
+  .aud-sheet::before {
+    content: '';
+    position: absolute;
+    inset: 0.7rem 0 auto;
+    border-top: 2px dashed var(--border-strong);
+  }
+  .aud-sheet-inner {
+    transform: rotate(1.2deg);
+  }
+  .aud-masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.8fr);
+    gap: 1.5rem 3rem;
+    align-items: end;
+    margin-bottom: clamp(2.5rem, 5vw, 4rem);
+  }
+  .aud-masthead h1 {
+    font-size: clamp(2.1rem, 1.3rem + 5vw, 7rem);
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+    text-wrap: initial;
+  }
+  .aud-masthead h1 span {
+    color: var(--accent);
+  }
+  .aud-category {
+    color: var(--fg);
+    font-size: 1rem;
+    line-height: 1.6;
+    max-width: 44ch;
+  }
+  .aud-object :global(.object-caption) {
+    grid-column: 1 / -1;
+    margin-top: 1.5rem;
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    max-width: 90ch;
+  }
+  .aud-under {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    padding-block: clamp(2.5rem, 5vw, 3.5rem) clamp(3rem, 6vw, 5rem);
+  }
+  .aud-today {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .aud-under .button {
+    gap: 1.25rem;
+  }
+  .aud-decision {
+    color-scheme: dark;
+    --bg: var(--brand-ground-dark);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --border: color-mix(in oklab, var(--brand-paper) 18%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 36%, var(--brand-ground-dark));
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --link: var(--brand-accent-night);
+    --link-hover: var(--brand-paper);
+    --focus-ring: var(--brand-accent-night);
+    color: var(--fg);
+    background: var(--bg);
+  }
+  .aud-question {
+    margin-top: 1.3rem;
+    max-width: 22ch;
+    font-size: clamp(2.1rem, 1.4rem + 3.2vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.05em;
+  }
+  .aud-answer {
+    margin-top: 2rem;
+    max-width: 60ch;
+    color: var(--fg-muted);
+    font-size: 1.05rem;
+  }
+  .aud-features {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding-top: clamp(2.5rem, 5vw, 4rem);
+  }
+  .aud-more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: 2.5rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    max-width: none;
+  }
+  .aud-next {
+    background: var(--bg-raised);
+    border-block: 1px solid var(--border);
+  }
+  .aud-cta {
+    --fg: var(--brand-on-accent);
+    --fg-muted: var(--brand-on-accent);
+    --link: var(--brand-on-accent);
+    --link-hover: var(--brand-on-accent);
+    --focus-ring: var(--brand-on-accent);
+    color: var(--fg);
+    background: var(--brand-accent-deep);
+  }
+  .aud-cta-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 2rem 4rem;
+    align-items: end;
+  }
+  .aud-cta h2 {
+    font-size: clamp(2.4rem, 1.5rem + 4vw, 5.5rem);
+    line-height: 1;
+    letter-spacing: -0.06em;
+  }
+  .aud-cta p {
+    margin-bottom: 1.5rem;
+  }
+  .aud-cta-button {
+    background: var(--brand-ground-dark);
+    color: var(--brand-paper);
+    gap: 1.25rem;
+  }
+  .aud-cta-button:hover {
+    background: var(--brand-ink);
+    color: var(--brand-paper);
+  }
+  .aud-cta-links {
+    list-style: none;
+    padding: 0;
+    margin-top: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+  }
+  .aud-others {
+    border-top: 1px solid var(--border);
+    padding-block: 1.5rem;
+  }
+  .aud-others-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 2rem;
+  }
+  .aud-others h2 {
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.075em;
+    color: var(--fg-muted);
+  }
+  .aud-others ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
+  }
+  .aud-others a {
+    display: inline-block;
+    padding-block: 0.6rem;
+    font-weight: 600;
+  }
+  @container (max-width: 60rem) {
+    .aud-masthead,
+    .aud-cta-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 40rem) {
+    .aud-sheet,
+    .aud-sheet-inner {
+      transform: none;
+    }
+    .aud-sheet {
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+</style>

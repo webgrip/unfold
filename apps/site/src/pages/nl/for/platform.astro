@@ -1,0 +1,19 @@
+---
+import AudiencePage from '../../../components/AudiencePage.astro';
+import RunEnvelope from '../../../components/objects/RunEnvelope.astro';
+import { dictionary } from '../../../i18n/index.ts';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const t = dictionary('nl');
+---
+
+<BaseLayout
+  locale="nl"
+  routeKey="forPlatform"
+  title={t.meta.platformTitle}
+  description={t.meta.platformDescription}
+>
+  <AudiencePage locale="nl" audience="platform">
+    <RunEnvelope slot="object" locale="nl" />
+  </AudiencePage>
+</BaseLayout>

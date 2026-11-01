@@ -1,12 +1,5 @@
 ---
-import {
-  CAPABILITY_MATRIX_URL,
-  DEMO_GUIDE_URL,
-  DEMO_REPLAY_PATH,
-  DOCS_URL,
-  LICENSE_URL,
-  SOURCE_URL,
-} from '../config/site.ts';
+import { CAPABILITY_MATRIX_URL, DEMO_GUIDE_URL, DEMO_REPLAY_PATH } from '../config/site.ts';
 import type { Locale } from '../i18n/config.ts';
 import { dictionary } from '../i18n/index.ts';
 import DemoVideo from './DemoVideo.astro';
@@ -16,6 +9,8 @@ import SignupForm from './SignupForm.astro';
 import ShiftExplorer from './ShiftExplorer.astro';
 import Walkthrough from './Walkthrough.astro';
 import Mark from './Mark.astro';
+import AudienceChooser from './AudienceChooser.astro';
+import TenLines from './TenLines.astro';
 interface Props {
   locale: Locale;
 }
@@ -50,6 +45,7 @@ const r = t.redesign;
     <span class="control-sign" aria-hidden="true">↗</span>
   </div>
 </section>
+<AudienceChooser locale={locale} />
 <section id="guardrails" class="section guards-section" aria-labelledby="guards-title">
   <div class="container guards-layout">
     <div class="guard-intro">
@@ -72,6 +68,7 @@ const r = t.redesign;
     </dl>
   </div>
 </section>
+<TenLines locale={locale} />
 <section id="parts" class="section architecture" aria-labelledby="parts-title">
   <div class="container">
     <p class="eyebrow">{r.archKicker}</p>
@@ -112,30 +109,6 @@ const r = t.redesign;
         <h3>{part.name}{' '}<span>{part.role}</span></h3>
         <p>{part.text}</p>
       </article>)}
-    </div>
-  </div>
-</section>
-<section id="status" class="section open-section" aria-labelledby="open-title">
-  <div class="container open-layout">
-    <div>
-      <p class="eyebrow">{r.openKicker}</p>
-      <h2 id="open-title" class="section-title">{r.openTitle}</h2>
-      <p class="open-intro">{r.openIntro}</p>
-      <div class="button-row">
-        <a class="button button--primary" href={DOCS_URL}>{t.open.docs}</a
-        ><a class="button button--secondary" href={SOURCE_URL}>{r.source}</a>
-      </div>
-      <a class="license-link" href={LICENSE_URL}>{t.open.license}</a>
-    </div>
-    <div>
-      <h3 class="status-title">{r.statusTitle}</h3>
-      <dl class="status">
-        {t.status.items.map((item, index) => <div>
-          <dt><span class={`status-marker marker-${index}`} aria-hidden="true" />{item.label}</dt>
-          <dd>{item.text}</dd>
-        </div>)}
-      </dl>
-      <p class="planned-note">{t.loop.planned}</p>
     </div>
   </div>
 </section>
@@ -453,68 +426,6 @@ const r = t.redesign;
     color: var(--fg-muted);
     font-size: 0.95rem;
   }
-  .open-section {
-    background: var(--bg);
-    border-block: 1px solid var(--border);
-  }
-  .open-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6rem;
-  }
-  .open-layout .section-title {
-    margin: 1.3rem 0 1.5rem;
-  }
-  .open-intro {
-    color: var(--fg-muted);
-    margin-bottom: 2rem;
-  }
-  .license-link {
-    display: inline-block;
-    margin-top: 1.25rem;
-    font-size: 0.8rem;
-  }
-  .status-title {
-    font-size: 1.45rem;
-    margin-bottom: 1.5rem;
-    letter-spacing: -0.035em;
-  }
-  .status > div {
-    display: grid;
-    grid-template-columns: 8rem minmax(0, 1fr);
-    gap: 1.25rem;
-    padding: 1.5rem 0;
-    border-top: 1px solid var(--border-strong);
-    font-size: 0.875rem;
-  }
-  .status dt {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    font-weight: 600;
-  }
-  .status dd {
-    color: var(--fg-muted);
-  }
-  .status-marker {
-    width: 7px;
-    height: 7px;
-    border: 1px solid var(--fg-muted);
-    flex: none;
-  }
-  .marker-0 {
-    border-color: var(--accent-decor);
-    background: var(--accent-decor);
-  }
-  .marker-1 {
-    background: var(--fg-muted);
-  }
-  .planned-note {
-    font-size: 0.8rem;
-    color: var(--fg-muted);
-    border-top: 1px solid var(--border);
-    padding-top: 1rem;
-  }
   @container (max-width: 60rem) {
     .control-layout {
       grid-template-columns: minmax(0, 1fr);
@@ -528,9 +439,6 @@ const r = t.redesign;
       max-width: 36ch;
     }
     .guards-layout,
-    .open-layout {
-      gap: 3rem;
-    }
     .map-node {
       text-align: center;
       min-height: 0;
@@ -562,10 +470,6 @@ const r = t.redesign;
     }
     .cluster-label {
       padding-bottom: 2rem;
-    }
-    .status > div {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 0.5rem;
     }
     .map-services > div {
       align-items: start;

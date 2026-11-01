@@ -1,0 +1,295 @@
+---
+import { PLOEG_SUPPORT_MATRIX_URL } from '../config/site.ts';
+import {
+  AGENCY_COST_FLOW,
+  DEVELOPER_SURFACES,
+  featureById,
+  type Audience,
+} from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+  audience: Audience;
+}
+
+const { locale, audience } = Astro.props;
+const t = dictionary(locale);
+const items = t.catalogue.items;
+const flow = t.agencies.flow;
+const record = t.teams.record;
+const surfaces = t.developers.surfaces;
+const scope = t.platform.scope;
+const scopeColumns = [
+  { status: 'available', copy: scope.supported },
+  { status: 'experimental', copy: scope.experimental },
+  { status: 'planned', copy: scope.planned },
+] as const;
+const heading = {
+  agencies: flow,
+  teams: record,
+  developers: surfaces,
+  platform: scope,
+}[audience];
+---
+
+<section class={`section aud-extra aud-extra--${audience}`} aria-labelledby="aud-extra-title">
+  <div class="container">
+    <p class="eyebrow">{heading.kicker}</p>
+    <div class="section-heading">
+      <h2 id="aud-extra-title" class="section-title">{heading.title}</h2>
+      <p>{heading.intro}</p>
+    </div>
+
+    {audience === 'agencies' && <ol class="flow" role="list">
+      {flow.steps.map((step, index) => {
+        const feature = featureById(AGENCY_COST_FLOW[index] ?? 'ctlBudget');
+        return <li>
+          <span class="flow-mark" aria-hidden="true" />
+          <span class="flow-title">{step.title}</span>
+          <p>{step.text}</p>
+          {feature.status !== 'available' && <StatusTag locale={locale} status={feature.status} />}
+        </li>;
+      })}
+    </ol>}
+
+    {audience === 'teams' && <div class="record">
+      <div class="record-sheet">
+        <h3 class="micro">{record.auditTitle}</h3>
+        <ul role="list">
+          {record.audit.map((line) => <li>{line}</li>)}
+        </ul>
+      </div>
+      <div class="record-sheet">
+        <h3 class="micro">{record.changeTitle}</h3>
+        <ul role="list">
+          {record.change.map((line) => <li>{line}</li>)}
+        </ul>
+      </div>
+    </div>}
+
+    {audience === 'developers' && <ul class="panes" role="list">
+      {DEVELOPER_SURFACES.map((id) => {
+        const feature = featureById(id);
+        return <li class="pane">
+          <span class="pane-bar" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span class="pane-title">{items[id].title}</span>
+          <p>{items[id].text}</p>
+          {feature.status !== 'available' && <StatusTag locale={locale} status={feature.status} />}
+        </li>;
+      })}
+    </ul>}
+
+    {audience === 'platform' && (
+      <>
+        <div class="scope">
+          {scopeColumns.map((column) => <div class={`scope-column scope-column--${column.status}`}>
+            <h3>
+              {column.copy.title}
+              {column.status !== 'available' && (
+                <StatusTag locale={locale} status={column.status} />
+              )}
+            </h3>
+            <ul role="list">
+              {column.copy.items.map((line) => <li>{line}</li>)}
+            </ul>
+          </div>)}
+        </div>
+        <p class="scope-link">
+          <a href={PLOEG_SUPPORT_MATRIX_URL}>{t.platform.matrix}</a>
+        </p>
+      </>
+    )}
+  </div>
+</section>
+
+<style>
+  .aud-extra {
+    padding-bottom: clamp(2.5rem, 5vw, 4rem);
+  }
+  .flow {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    counter-reset: flow;
+  }
+  .flow li {
+    position: relative;
+    display: grid;
+    align-content: start;
+    justify-items: start;
+    gap: 0.6rem;
+    max-width: none;
+    padding: 0 1.5rem 0 0;
+  }
+  .flow-mark {
+    width: 100%;
+    height: 1rem;
+    border-top: 3px solid var(--fg);
+    position: relative;
+  }
+  .flow-mark::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: -0.55rem;
+    width: 0.8rem;
+    height: 0.8rem;
+    background: var(--bg);
+    border: 3px solid var(--fg);
+    border-radius: 50%;
+  }
+  .flow li:last-child .flow-mark {
+    border-top-color: var(--accent);
+  }
+  .flow li:last-child .flow-mark::before {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .flow-title {
+    font-size: clamp(1.15rem, 1rem + 0.6vw, 1.5rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+  .flow p,
+  .pane p {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  .record {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .record-sheet {
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--fg);
+    border-top-width: 6px;
+  }
+  .record-sheet + .record-sheet {
+    border-top-color: var(--accent);
+  }
+  .record-sheet h3 {
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    margin-bottom: 0.5rem;
+  }
+  .record-sheet ul,
+  .scope ul {
+    list-style: none;
+    padding: 0;
+  }
+  .record-sheet li {
+    max-width: none;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .panes {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .pane {
+    flex: 1 1 12rem;
+    display: grid;
+    align-content: start;
+    justify-items: start;
+    gap: 0.6rem;
+    max-width: none;
+    min-width: 0;
+    padding: 0 1rem 1rem;
+    border: 1px solid var(--fg);
+  }
+  .pane-bar {
+    display: flex;
+    gap: 0.3rem;
+    width: calc(100% + 2rem);
+    margin-inline: -1rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--fg);
+  }
+  .pane-bar span {
+    width: 0.5rem;
+    height: 0.5rem;
+    border: 1px solid var(--fg);
+    border-radius: 50%;
+  }
+  .pane-title {
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.035em;
+  }
+  .scope {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 2.5rem;
+  }
+  .scope-column h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    font-size: 1.2rem;
+    letter-spacing: -0.03em;
+    padding-bottom: 0.6rem;
+    border-bottom: 3px solid var(--fg);
+  }
+  .scope-column--experimental h3 {
+    border-bottom-style: dotted;
+  }
+  .scope-column--planned h3 {
+    border-bottom-style: dashed;
+  }
+  .scope li {
+    max-width: none;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .scope-column--planned li {
+    color: var(--fg-muted);
+  }
+  .scope-link {
+    margin-top: 1.5rem;
+    font-size: 0.875rem;
+  }
+  @container (max-width: 52rem) {
+    .flow,
+    .scope,
+    .record {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.5rem;
+    }
+    .flow li {
+      grid-template-columns: auto minmax(0, 1fr);
+      padding: 0 0 0 0;
+    }
+    .flow-mark {
+      grid-row: span 3;
+      width: 0.8rem;
+      height: 100%;
+      border-top: 0;
+      border-left: 3px solid var(--fg);
+      margin-left: 0.35rem;
+    }
+    .flow-mark::before {
+      left: -0.55rem;
+      top: 0;
+    }
+    .flow li:last-child .flow-mark {
+      border-left-color: var(--accent);
+    }
+  }
+</style>

@@ -1,0 +1,19 @@
+---
+import AudiencePage from '../../components/AudiencePage.astro';
+import BranchTimeline from '../../components/objects/BranchTimeline.astro';
+import { dictionary } from '../../i18n/index.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="forDevelopers"
+  title={t.meta.developersTitle}
+  description={t.meta.developersDescription}
+>
+  <AudiencePage locale="en" audience="developers">
+    <BranchTimeline slot="object" locale="en" />
+  </AudiencePage>
+</BaseLayout>

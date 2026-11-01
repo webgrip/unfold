@@ -1,0 +1,187 @@
+---
+import type { Locale } from '../../i18n/config.ts';
+import { dictionary } from '../../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const o = dictionary(Astro.props.locale).platform.object;
+---
+
+<figure class="envelope" aria-labelledby="envelope-caption">
+  <ul class="env-layers" role="list">
+    <li class="env-namespace">
+      <span class="env-name">{o.namespace}</span>
+      <span class="env-note">{o.namespaceNote}</span>
+      <ul class="env-inner" role="list">
+        <li class="env-pod">
+          <span class="env-name">{o.pod}</span>
+          <span class="env-note">{o.podNote}</span>
+          <span class="env-vm micro">{o.vm}</span>
+          <ul class="env-parts" role="list">
+            <li class="env-part env-agent">
+              <span class="env-name">{o.agent}</span>
+              <span class="env-note">{o.agentNote}</span>
+            </li>
+            <li class="env-part env-proxy">
+              <span class="env-name">{o.modelProxy}</span>
+              <span class="env-note">{o.modelProxyNote}</span>
+            </li>
+            <li class="env-part env-proxy">
+              <span class="env-name">{o.pushProxy}</span>
+              <span class="env-note">{o.pushProxyNote}</span>
+            </li>
+            <li class="env-part env-canary">
+              <span class="env-name">{o.canary}</span>
+              <span class="env-note">{o.canaryNote}</span>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ul>
+  <ul class="env-outside" role="list">
+    <li class="env-ext env-ext--gateway"><span class="env-name">{o.gateway}</span></li>
+    <li class="env-ext env-ext--forge"><span class="env-name">{o.forge}</span></li>
+  </ul>
+  <figcaption id="envelope-caption" class="object-caption">
+    <span class="sr-only">{o.label}. </span>{o.caption}
+  </figcaption>
+</figure>
+
+<style>
+  .envelope {
+    margin: 0;
+  }
+  .envelope ul {
+    list-style: none;
+    padding: 0;
+  }
+  .envelope li {
+    max-width: none;
+  }
+  .env-name {
+    display: block;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .env-note {
+    display: block;
+    color: var(--fg-muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin-top: 0.25rem;
+  }
+  .env-namespace {
+    padding: 1rem;
+    border: 2px dashed var(--fg);
+  }
+  .env-namespace > .env-name {
+    font-size: 1.05rem;
+  }
+  .env-inner {
+    margin-top: 1rem;
+  }
+  .env-pod {
+    position: relative;
+    padding: 1rem;
+    border: 2px solid var(--fg);
+    outline: 1px dotted var(--fg-muted);
+    outline-offset: 5px;
+  }
+  .env-pod > .env-name {
+    font-size: 1.2rem;
+  }
+  .env-vm {
+    position: absolute;
+    right: 0.75rem;
+    top: -1.35rem;
+    padding: 0 0.4rem;
+    background: var(--bg);
+    color: var(--fg-muted);
+    font-size: 0.6rem;
+  }
+  .env-parts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+  .env-part {
+    padding: 0.9rem;
+    border: 1px solid var(--fg);
+    min-width: 0;
+  }
+  .env-agent {
+    background: color-mix(in oklab, var(--fg) 6%, var(--bg));
+  }
+  .env-agent .env-name {
+    font-size: clamp(1.1rem, 0.9rem + 1vw, 1.6rem);
+  }
+  .env-proxy {
+    border-width: 2px;
+    border-color: var(--accent);
+  }
+  .env-proxy .env-name,
+  .env-canary .env-name {
+    color: var(--accent);
+  }
+  .env-canary {
+    border-style: dashed;
+  }
+  .env-outside {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+    padding: 0 calc(2rem + 4px);
+    margin-top: 2.25rem;
+  }
+  .env-ext {
+    position: relative;
+    padding: 0.8rem 0.9rem;
+    border: 2px solid var(--fg);
+    background: var(--bg);
+  }
+  .env-ext::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    height: calc(2.25rem + 1rem + 4px);
+    border-left: 2px dashed var(--accent);
+  }
+  .env-ext--gateway {
+    grid-column: 2;
+  }
+  .env-ext--forge {
+    grid-column: 3;
+  }
+  @container (max-width: 56rem) {
+    .env-parts,
+    .env-outside {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .env-outside {
+      padding: 0;
+      margin-top: 1rem;
+    }
+    .env-ext--gateway,
+    .env-ext--forge {
+      grid-column: auto;
+    }
+    .env-ext::before {
+      display: none;
+    }
+  }
+  @container (max-width: 26rem) {
+    .env-parts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .env-namespace,
+    .env-pod {
+      padding: 0.75rem;
+    }
+  }
+</style>

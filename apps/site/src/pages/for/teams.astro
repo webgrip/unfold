@@ -1,0 +1,19 @@
+---
+import AudiencePage from '../../components/AudiencePage.astro';
+import ReasonBoard from '../../components/objects/ReasonBoard.astro';
+import { dictionary } from '../../i18n/index.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="forTeams"
+  title={t.meta.teamsTitle}
+  description={t.meta.teamsDescription}
+>
+  <AudiencePage locale="en" audience="teams">
+    <ReasonBoard slot="object" locale="en" />
+  </AudiencePage>
+</BaseLayout>

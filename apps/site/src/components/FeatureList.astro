@@ -1,0 +1,132 @@
+---
+import { CATEGORIES, type Category, type Feature } from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+  features: readonly Feature[];
+  /** Prefix for the group heading ids, unique per page. */
+  idPrefix: string;
+  /** Groups the rows under category headings at this level; omit for one flat list. */
+  level?: 2 | 3;
+  /** Marks each item with its audiences and category, for the features page filter. */
+  filterable?: boolean;
+}
+
+const { locale, features, idPrefix, level, filterable = false } = Astro.props;
+const t = dictionary(locale).catalogue;
+const Heading = level === 2 ? 'h2' : 'h3';
+const groups: { category: Category | null; items: readonly Feature[] }[] = level
+  ? CATEGORIES.map((category) => ({
+      category,
+      items: features.filter((feature) => feature.category === category),
+    })).filter((group) => group.items.length > 0)
+  : [{ category: null, items: features }];
+const copy = (feature: Feature) => t.items[feature.id as keyof typeof t.items];
+---
+
+<div class="feature-groups">
+  {groups.map((group) => <section
+    class={`feature-group ${group.category ? '' : 'feature-group--flat'}`}
+    aria-labelledby={group.category ? `${idPrefix}-${group.category}` : undefined}
+    data-feature-group={filterable && group.category ? group.category : undefined}
+  >
+    {group.category && <Heading id={`${idPrefix}-${group.category}`} class="feature-group-title">
+      {t.categories[group.category]}
+    </Heading>}
+    <ul class="feature-rows" role="list">
+      {group.items.map((feature) => <li
+        class={`feature-row feature-row--${feature.status}`}
+        data-feature={filterable ? feature.id : undefined}
+        data-audiences={filterable ? feature.audiences.join(' ') : undefined}
+        data-category={filterable ? feature.category : undefined}
+      >
+        <span class="feature-name">{copy(feature).title}</span>
+        <span class="feature-what">{copy(feature).text}</span>
+        <span class="feature-status">
+          {feature.status === 'available' ? (
+            <span class="sr-only">{t.status.available}</span>
+          ) : (
+            <StatusTag locale={locale} status={feature.status} />
+          )}
+        </span>
+        <span class="feature-from micro"
+          ><span class="sr-only">{t.fromLabel} </span>{t.from[feature.from]}</span
+        >
+      </li>)}
+    </ul>
+  </section>)}
+</div>
+
+<style>
+  .feature-groups {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+  }
+  .feature-group-title {
+    font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--fg);
+  }
+  .feature-rows {
+    list-style: none;
+    padding: 0;
+  }
+  .feature-group--flat .feature-rows {
+    border-top: 2px solid var(--fg);
+  }
+  .feature-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr) 8.5rem 3.5rem;
+    gap: 0.25rem 1.5rem;
+    align-items: baseline;
+    max-width: none;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .feature-name {
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+  }
+  .feature-what {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .feature-status {
+    justify-self: start;
+  }
+  .feature-from {
+    color: var(--fg-muted);
+    font-size: 0.62rem;
+    justify-self: end;
+  }
+  .feature-row--planned {
+    border-bottom-style: dashed;
+  }
+  @container (max-width: 52rem) {
+    .feature-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'name status' 'what what' 'from from';
+    }
+    .feature-name {
+      grid-area: name;
+    }
+    .feature-what {
+      grid-area: what;
+    }
+    .feature-status {
+      grid-area: status;
+      justify-self: end;
+    }
+    .feature-from {
+      grid-area: from;
+      justify-self: start;
+    }
+  }
+</style>

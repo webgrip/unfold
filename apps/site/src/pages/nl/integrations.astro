@@ -1,0 +1,16 @@
+---
+import IntegrationsPage from '../../components/IntegrationsPage.astro';
+import { dictionary } from '../../i18n/index.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const t = dictionary('nl');
+---
+
+<BaseLayout
+  locale="nl"
+  routeKey="integrations"
+  title={t.meta.integrationsTitle}
+  description={t.meta.integrationsDescription}
+>
+  <IntegrationsPage locale="nl" />
+</BaseLayout>
