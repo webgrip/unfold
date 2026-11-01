@@ -26,7 +26,7 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 
 ## The board
 
-The board is the Board view of each List in the Unfold Space. Every List has the same five columns, and a task moves left to right:
+The board is the Board view of each List in the Unfold Space. Every List has the same six columns, and a task moves left to right:
 
 | Column | A task is here when | Who moves it in |
 | --- | --- | --- |
@@ -34,11 +34,14 @@ The board is the Board view of each List in the Unfold Space. Every List has the
 | **Ready** | it meets the ready rule in [the flow](#the-flow), step 1 | the owner, after refining it |
 | **In progress** | someone, a person or a Team, works on it | Ploeg when a Shift opens; a person moves their own |
 | **In review** | its pull request waits for review | Ploeg when the pull request opens; a person moves their own |
+| **Needs you** | the agents stopped and wait for a person | Ploeg, with its question or reason as a comment on the task |
 | **Done** | its pull request merged | Ploeg when the Work Item finishes; a person moves their own |
 
 Work is pulled, not pushed. Take the top task of **Ready**, never one from Backlog: a Team gets nothing but the task's title and description, so a task that is not ready wastes a Run. Keep **In review** to three tasks at most. Review time is the scarce resource, so a full In review column means review first and start nothing new.
 
-To give a task to agents, assign the ClickUp member `unfold-agent`, or choose **Hand to** on Unfold's Now page, which does the same. Ploeg's Team bronze picks it up, works on branch `agent/CU-<id>`, and moves the card. Unassigning `unfold-agent` before a worker starts takes it back. Only that member starts work: assigning yourself or a colleague starts nothing. [Working with Unfold from ClickUp](../../apps/unfold/docs/operations/working-from-clickup.md) covers following, reviewing and stopping the work. A task stops at **In progress** when the agents need a person; Unfold's Now page lists it under **Needs you** with the reason.
+To give a task to agents, assign the ClickUp member **Unfold** (`ryan+unfold-agent@webgrip.nl`), or choose **Hand to** on Unfold's Now page, which does the same. Ploeg's Team silver picks it up, works on branch `agent/CU-<id>`, and moves the card. Unassigning **Unfold** before a worker starts takes it back. Only that member starts work: assigning yourself or a colleague starts nothing. [Working with Unfold from ClickUp](../../apps/unfold/docs/operations/working-from-clickup.md) covers following, reviewing and stopping the work.
+
+When the agents need a person, Ploeg moves the card to **Needs you** and comments the question or reason; Unfold's Now page lists it under **Needs you** too. A premise question is answered by editing the description. Then unassign **Unfold** and assign it again: a new assignment starts the task over.
 
 A task tagged `repo/homelab-cluster` is worked in `webgrip/homelab-cluster` instead of this repository. Tasks in the Ploeg Space are not picked up by agents, because its repository is on GitHub; change Ploeg by hand in `ploeg-hq/ploeg`.
 
