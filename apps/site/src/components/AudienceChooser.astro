@@ -1,0 +1,208 @@
+---
+import { AUDIENCES } from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { AUDIENCE_ROUTES, routePath } from '../i18n/routes.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale);
+const c = t.chooser;
+---
+
+<section id="audiences" class="section chooser" aria-labelledby="chooser-title">
+  <div class="container">
+    <div class="chooser-head">
+      <div>
+        <p class="eyebrow">{c.kicker}</p>
+        <h2 id="chooser-title">{c.title}</h2>
+      </div>
+      <p>{c.intro}</p>
+    </div>
+    <ul class="doors" role="list">
+      {AUDIENCES.map((audience) => <li class={`door door--${audience}`}>
+        <a href={routePath(AUDIENCE_ROUTES[audience], locale)}>
+          <span class="door-glyph" aria-hidden="true"><span /><span /><span /></span>
+          <span class="door-role">{c.doors[audience].role}</span>
+          <span class="door-job">{c.doors[audience].job}</span>
+          <span class="door-go micro"
+            >{t.audienceNav[audience]} <span aria-hidden="true">→</span></span
+          >
+        </a>
+      </li>)}
+    </ul>
+    <p class="chooser-more">
+      <a href={routePath('features', locale)}>{c.features}</a>
+      <a href={routePath('integrations', locale)}>{c.integrations}</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .chooser {
+    border-top: 1px solid var(--border);
+    padding-bottom: clamp(2.5rem, 5vw, 4rem);
+  }
+  .chooser-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 1.5rem 4rem;
+    align-items: end;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+  .chooser-head h2 {
+    margin-top: 1.1rem;
+    font-size: clamp(3rem, 1.8rem + 6vw, 8rem);
+    line-height: 0.92;
+    letter-spacing: -0.07em;
+  }
+  .chooser-head p:last-child {
+    color: var(--fg-muted);
+  }
+  .doors {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    border-block: 2px solid var(--fg);
+  }
+  .door {
+    max-width: none;
+    min-width: 0;
+  }
+  .door + .door {
+    border-left: 1px solid var(--border-strong);
+  }
+  .door a {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 0.9rem;
+    height: 100%;
+    padding: 1.5rem 1.4rem 1.4rem;
+    color: var(--fg);
+    text-decoration: none;
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+  .door a:hover {
+    background: var(--bg-band);
+    color: var(--fg);
+  }
+  .door-role {
+    font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 1.02;
+  }
+  .door-job {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+  .door-go {
+    color: var(--accent);
+    font-size: 0.68rem;
+  }
+  .door-glyph {
+    position: relative;
+    display: block;
+    height: 2.75rem;
+    width: 4.5rem;
+  }
+  .door-glyph > span {
+    position: absolute;
+    display: block;
+  }
+  .door--agencies .door-glyph > span:nth-child(1) {
+    inset: 0.4rem 0 auto;
+    border-top: 2px dashed var(--fg-muted);
+  }
+  .door--agencies .door-glyph > span:nth-child(2) {
+    inset: 1.2rem 0 auto;
+    border-top: 2px solid var(--fg);
+  }
+  .door--agencies .door-glyph > span:nth-child(3) {
+    right: 0;
+    top: 1.6rem;
+    width: 1.8rem;
+    height: 1rem;
+    border: 2px solid var(--accent-decor);
+    transform: rotate(8deg);
+  }
+  .door--teams .door-glyph > span {
+    top: 0.3rem;
+    width: 1.2rem;
+    height: 2.2rem;
+    border: 2px solid var(--fg);
+    border-top-width: 5px;
+  }
+  .door--teams .door-glyph > span:nth-child(2) {
+    left: 1.55rem;
+  }
+  .door--teams .door-glyph > span:nth-child(3) {
+    left: 3.1rem;
+    border-color: var(--accent-decor);
+  }
+  .door--developers .door-glyph > span:nth-child(1) {
+    inset: 0.6rem 0 auto;
+    border-top: 3px solid var(--fg);
+  }
+  .door--developers .door-glyph > span:nth-child(2) {
+    left: 1rem;
+    right: 1rem;
+    top: 2.1rem;
+    border-top: 3px solid var(--accent-decor);
+  }
+  .door--developers .door-glyph > span:nth-child(3) {
+    left: 0.7rem;
+    right: 0.7rem;
+    top: 0.6rem;
+    height: 1.5rem;
+    border-inline: 3px solid var(--accent-decor);
+  }
+  .door--platform .door-glyph > span:nth-child(1) {
+    inset: 0;
+    border: 2px dashed var(--fg);
+  }
+  .door--platform .door-glyph > span:nth-child(2) {
+    inset: 0.45rem 0.6rem;
+    border: 2px solid var(--fg);
+  }
+  .door--platform .door-glyph > span:nth-child(3) {
+    inset: 0.9rem 1.2rem 0.9rem 2.5rem;
+    border: 2px solid var(--accent-decor);
+  }
+  .chooser-more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 2rem;
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    max-width: none;
+  }
+  @container (max-width: 60rem) {
+    .chooser-head {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .doors {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .door:nth-child(3) {
+      border-left: 0;
+    }
+    .door:nth-child(n + 3) {
+      border-top: 1px solid var(--border-strong);
+    }
+  }
+  @container (max-width: 30rem) {
+    .doors {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .door + .door {
+      border-left: 0;
+      border-top: 1px solid var(--border-strong);
+    }
+  }
+</style>

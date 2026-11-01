@@ -30,6 +30,17 @@ export const DEMO_GUIDE_URL = `${SOURCE_URL}/src/branch/development/docs/workflo
 export const CAPABILITY_MATRIX_URL = `${SOURCE_URL}/src/branch/development/docs/reference/capability-matrix.md`;
 export const LICENSE_URL = `${SOURCE_URL}/src/branch/development/LICENSE`;
 export const DOCS_URL = 'https://docs.webgrip.dev/glide/';
+export const SELF_HOST_GUIDE_URL = `${SOURCE_URL}/src/branch/development/docs/how-to/self-host-the-whole-stack.md`;
+export const UNFOLD_AT_A_GLANCE_URL = `${SOURCE_URL}/src/branch/development/apps/unfold/docs/product/at-a-glance.md`;
+export const UNFOLD_FEATURES_URL = `${SOURCE_URL}/src/branch/development/apps/unfold/docs/features.md`;
+export const INTEGRATION_RULES_URL = `${SOURCE_URL}/src/branch/development/docs/adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md`;
+export const PORTS_DECISION_URL = `${SOURCE_URL}/src/branch/development/apps/unfold/docs/adrs/0063-unfold-reaches-ploeg-and-trackers-through-ports-with-interchangeable-adapters.md`;
+export const PLOEG_SOURCE_URL = 'https://github.com/ploeg-hq/ploeg';
+const PLOEG_DOCS = `${PLOEG_SOURCE_URL}/blob/development/docs`;
+export const PLOEG_AT_A_GLANCE_URL = `${PLOEG_DOCS}/at-a-glance.md`;
+export const PLOEG_SUPPORT_MATRIX_URL = `${PLOEG_DOCS}/reference/support-matrix.md`;
+export const PLOEG_QUICKSTART_URL = `${PLOEG_DOCS}/quickstart.md`;
+export const PLOEG_VERIFY_RELEASE_URL = `${PLOEG_DOCS}/ops/verify-a-release.md`;
 export const LICENSE_ID = 'Apache-2.0';
 
 export const PRIVACY_VERSION = '2026-10-02';

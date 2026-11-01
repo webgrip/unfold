@@ -8,9 +8,13 @@ import { SIGNUP_PATH } from '../worker/app.ts';
 
 interface Props {
   locale: Locale;
+  /** Preselects an interest, for a page whose visitor has already said who they are. */
+  interest?: Interest;
+  title?: string;
+  lead?: string;
 }
 
-const { locale } = Astro.props;
+const { locale, interest: preselected, title, lead } = Astro.props;
 const t = dictionary(locale).signup;
 const r = dictionary(locale).redesign;
 const labels: Record<Interest, string> = {
@@ -26,8 +30,8 @@ const mail = `mailto:${CONTROLLER.email}`;
   <div class="container signup-grid">
     <div class="signup-copy reveal">
       <p class="eyebrow">{r.signupKicker}</p>
-      <h2 id="signup-title" class="section-title">{r.signupTitle}</h2>
-      <p class="lede">{t.lead}</p>
+      <h2 id="signup-title" class="section-title">{title ?? r.signupTitle}</h2>
+      <p class="lede">{lead ?? t.lead}</p>
       <p class="signup-note">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
           <path d="M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z"></path>
@@ -68,7 +72,13 @@ const mail = `mailto:${CONTROLLER.email}`;
         <fieldset class="field choices">
           <legend>{t.interest}</legend>
           {INTERESTS.map((interest, index) => <label class="choice">
-            <input type="radio" name="interest" value={interest} required={index === 0} />
+            <input
+              type="radio"
+              name="interest"
+              value={interest}
+              required={index === 0}
+              checked={interest === preselected}
+            />
             <span>{labels[interest]}</span>
           </label>)}
         </fieldset>

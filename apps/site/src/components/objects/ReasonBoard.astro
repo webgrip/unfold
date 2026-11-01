@@ -1,0 +1,99 @@
+---
+import type { Locale } from '../../i18n/config.ts';
+import { dictionary } from '../../i18n/index.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const o = dictionary(Astro.props.locale).teams.object;
+---
+
+<figure class="reason-board" aria-labelledby="reason-board-caption">
+  <div class="board-head">
+    <span class="board-title" lang="en">{o.title}</span>
+    <span class="board-rule" aria-hidden="true"></span>
+  </div>
+  <ul class="reasons" role="list">
+    {o.reasons.map((reason, index) => <li
+      class={`reason ${index === o.reasons.length - 1 ? 'reason--ready' : ''}`}
+    >
+      <span class="reason-chip" lang="en">{reason.chip}</span>
+      <span class="sr-only">{o.fixLabel}: </span>
+      <p>{reason.fix}</p>
+    </li>)}
+  </ul>
+  <figcaption id="reason-board-caption" class="object-caption">
+    <span class="sr-only">{o.label}. </span>{o.caption}
+  </figcaption>
+</figure>
+
+<style>
+  .reason-board {
+    margin: 0;
+  }
+  .board-head {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .board-title {
+    font: 700 0.75rem/1 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .board-rule {
+    flex: 1;
+    border-top: 2px solid var(--fg);
+  }
+  .reasons {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .reason {
+    display: grid;
+    align-content: start;
+    gap: 0.9rem;
+    max-width: none;
+    min-width: 0;
+    min-height: 11rem;
+    padding: 1rem;
+    border: 1px solid var(--fg);
+    border-top-width: 6px;
+    background: var(--bg);
+  }
+  .reason--ready {
+    border-color: var(--accent);
+  }
+  .reason-chip {
+    font-weight: 800;
+    font-size: clamp(1.05rem, 0.9rem + 0.6vw, 1.4rem);
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+  .reason--ready .reason-chip {
+    color: var(--accent);
+  }
+  .reason p {
+    font-size: 0.8rem;
+    color: var(--fg-muted);
+    line-height: 1.5;
+  }
+  @container (max-width: 64rem) {
+    .reasons {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .reason {
+      min-height: 0;
+    }
+  }
+  @container (max-width: 30rem) {
+    .reasons {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

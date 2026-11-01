@@ -307,10 +307,10 @@ How people sign in.
 | `auth.oidc.displayName` | string | `Authentik` | Provider name on the sign-in button. |
 | `auth.oidc.roleClaim` | string | `unfold_role` | Claim that names a person's role directly. |
 | `auth.oidc.groupsClaim` | string | `groups` | Claim that lists a person's groups. |
-| `auth.oidc.roles` | object |  | Groups that grant each role. |
-| `auth.oidc.roles.admin` | list of string (at most 20 entries) | `["unfold-admins"]` | Groups whose members are administrators. |
-| `auth.oidc.roles.operator` | list of string (at most 20 entries) | `["unfold-operators"]` | Groups whose members are operators. |
-| `auth.oidc.roles.viewer` | list of string (at most 20 entries) | `["unfold-viewers"]` | Groups whose members are viewers. |
+| `auth.oidc.roles` | object |  | What grants each role: group names from the groups claim, email:<address> for a verified email address, or hd:<domain> for a Google Workspace hosted domain. |
+| `auth.oidc.roles.admin` | list of string (at most 20 entries) | `["unfold-admins"]` | Entries that make a person an administrator. |
+| `auth.oidc.roles.operator` | list of string (at most 20 entries) | `["unfold-operators"]` | Entries that make a person an operator. |
+| `auth.oidc.roles.viewer` | list of string (at most 20 entries) | `["unfold-viewers"]` | Entries that make a person a viewer. |
 
 ### `ploeg`
 

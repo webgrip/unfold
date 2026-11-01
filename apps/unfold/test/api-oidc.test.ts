@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { application, request } from './api-support.ts';
-import { Oidc } from '../src/oidc.ts';
+import { entitledRole, Oidc } from '../src/oidc.ts';
 import type { AppConfig } from '../src/types.ts';
 import { provider, signIn, workbench } from './oidc-support.ts';
 
@@ -99,6 +99,16 @@ test('a person whose email another account already holds still signs in, under a
   assert.equal(again.body.user.name, 'person@example.com (2)');
 });
 
+
+test('an identity provider without groups admits a verified email address or a Workspace domain named in the roles', () => {
+  const settings = { roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['email:Owner@Example.org'], operator: ['hd:example.org'], viewer: [] } };
+  assert.equal(entitledRole(settings, { sub: '1', email: 'owner@example.org', email_verified: true, hd: 'example.org' }), 'admin');
+  assert.equal(entitledRole(settings, { sub: '2', email: 'colleague@example.org', email_verified: true, hd: 'example.org' }), 'operator');
+  assert.equal(entitledRole(settings, { sub: '3', email: 'owner@example.org', email_verified: false }), undefined);
+  assert.equal(entitledRole(settings, { sub: '4', email: 'owner@example.org' }), undefined);
+  assert.equal(entitledRole(settings, { sub: '5', email: 'someone@example.org', email_verified: true }), undefined);
+  assert.equal(entitledRole(settings, { sub: '6', groups: ['email:owner@example.org', 'hd:example.org'] }), undefined);
+});
 
 test('a renamed issuer keeps every account id when the subject namespace names the issuer they were created under', () => {
   const identify = (issuer: string, subjectNamespace?: string) => new Oidc({ auth: { oidc: { issuer, ...(subjectNamespace ? { subjectNamespace } : {}), clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: [], operator: ['unfold-operators'], viewer: [] } } } } as unknown as AppConfig)

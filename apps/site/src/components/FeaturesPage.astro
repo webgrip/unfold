@@ -1,0 +1,262 @@
+---
+import {
+  PLOEG_AT_A_GLANCE_URL,
+  UNFOLD_AT_A_GLANCE_URL,
+  UNFOLD_FEATURES_URL,
+} from '../config/site.ts';
+import { AUDIENCES, CATEGORIES, FEATURES, STATUSES } from '../data/catalogue.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { AUDIENCE_PARAM, CATEGORY_PARAM, fillCount } from '../lib/feature-filter.ts';
+import FeatureList from './FeatureList.astro';
+import StatusTag from './StatusTag.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale);
+const p = t.featuresPage;
+const c = t.catalogue;
+const idPrefix = 'features';
+---
+
+<section class="fp-hero" aria-labelledby="fp-title">
+  <div class="container fp-hero-layout">
+    <div>
+      <p class="eyebrow fp-eyebrow">
+        <span class="registration" aria-hidden="true"></span>{p.kicker}
+      </p>
+      <h1 id="fp-title">{p.hookLine}<br /><span>{p.hookAccent}</span></h1>
+    </div>
+    <div class="fp-intro">
+      <p class="fp-category">{p.category}</p>
+      <h2 class="micro fp-legend-title">{p.legend}</h2>
+      <p class="fp-legend-lead">{p.legendAvailable}</p>
+      <dl class="fp-legend">
+        {STATUSES.filter((status) => status !== 'available').map((status) => <div>
+          <dt><StatusTag locale={locale} status={status} /></dt>
+          <dd>{c.statusHelp[status]}</dd>
+        </div>)}
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section class="section fp-list" aria-label={p.filters} data-feature-filter>
+  <div class="container">
+    <div class="fp-filters" data-filter-bar>
+      <div class="fp-filter" role="group" aria-labelledby="fp-filter-audience">
+        <span id="fp-filter-audience" class="micro fp-filter-label">{p.audience}</span>
+        <ul role="list">
+          <li><a href="?" data-filter-audience="" aria-current="true">{p.everyone}</a></li>
+          {AUDIENCES.map((audience) => <li>
+            <a href={`?${AUDIENCE_PARAM}=${audience}`} data-filter-audience={audience}
+              >{c.audiences[audience]}</a
+            >
+          </li>)}
+        </ul>
+      </div>
+      <div class="fp-filter" role="group" aria-labelledby="fp-filter-category">
+        <span id="fp-filter-category" class="micro fp-filter-label">{p.categoryFilter}</span>
+        <ul role="list">
+          <li><a href="?" data-filter-category="" aria-current="true">{p.allCategories}</a></li>
+          {CATEGORIES.map((category) => <li>
+            <a href={`?${CATEGORY_PARAM}=${category}`} data-filter-category={category}
+              >{c.categories[category]}</a
+            >
+          </li>)}
+        </ul>
+      </div>
+      <p class="fp-count" data-filter-status data-template={p.shown} aria-live="polite">
+        {fillCount(p.shown, FEATURES.length, FEATURES.length)}
+      </p>
+    </div>
+    <nav class="fp-jump" aria-labelledby="fp-jump-title">
+      <h2 id="fp-jump-title" class="micro fp-filter-label">{p.jump}</h2>
+      <ul role="list">
+        {CATEGORIES.map((category) => <li>
+          <a href={`#${idPrefix}-${category}`}>{c.categories[category]}</a>
+        </li>)}
+      </ul>
+      <p class="fp-noscript">{p.noscript}</p>
+    </nav>
+    <FeatureList locale={locale} features={FEATURES} idPrefix={idPrefix} level={2} filterable />
+    <p class="fp-empty" data-filter-empty hidden>
+      {p.empty} <a href="?" data-filter-reset>{p.reset}</a>
+    </p>
+    <p class="fp-sources">
+      {p.sources}
+      <a href={UNFOLD_AT_A_GLANCE_URL}>{p.sourceUnfold}</a>,
+      <a href={PLOEG_AT_A_GLANCE_URL}>{p.sourcePloeg}</a>,
+      <a href={UNFOLD_FEATURES_URL}>{p.sourceEngineering}</a>.
+    </p>
+  </div>
+</section>
+
+<script>
+  import { initFeatureFilter } from '../lib/feature-filter-client.ts';
+
+  initFeatureFilter(document);
+</script>
+
+<style>
+  .fp-hero {
+    padding-block: 2rem clamp(3rem, 6vw, 5rem);
+    border-bottom: 1px solid var(--border);
+  }
+  .fp-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding-bottom: 2rem;
+  }
+  .registration {
+    width: 11px;
+    height: 11px;
+    background: var(--accent-decor);
+    flex: none;
+  }
+  .fp-hero-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 2rem 4rem;
+    align-items: end;
+  }
+  .fp-hero h1 {
+    font-size: clamp(2.6rem, 1.5rem + 5vw, 6.8rem);
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+    text-wrap: initial;
+  }
+  .fp-hero h1 span {
+    color: var(--accent);
+  }
+  .fp-category {
+    margin-bottom: 2rem;
+  }
+  .fp-legend-title {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--fg-muted);
+    margin-bottom: 0.5rem;
+  }
+  .fp-legend-lead {
+    font-weight: 700;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--border);
+  }
+  .fp-legend > div {
+    display: grid;
+    grid-template-columns: 9.5rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .fp-list {
+    padding-top: clamp(2rem, 4vw, 3rem);
+  }
+  .fp-filters {
+    display: none;
+    gap: 1rem;
+    padding: 1.25rem 0 1.5rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .fp-jump {
+    margin-bottom: 2.5rem;
+  }
+  @media (scripting: enabled) {
+    .fp-filters {
+      display: grid;
+    }
+    .fp-jump {
+      display: none;
+    }
+  }
+  .fp-filter {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    gap: 0.5rem 1rem;
+    align-items: baseline;
+  }
+  .fp-filter-label {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--fg-muted);
+  }
+  .fp-filters ul,
+  .fp-jump ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .fp-filters a,
+  .fp-jump a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--border-strong);
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .fp-filters a:hover,
+  .fp-jump a:hover {
+    border-color: var(--fg);
+  }
+  .fp-filters a[aria-current='true'] {
+    background: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg);
+  }
+  .fp-count {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .fp-noscript {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .fp-empty {
+    padding: 2rem 0;
+    font-size: 1.1rem;
+  }
+  .fp-sources {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  @container (max-width: 40rem) {
+    .fp-filter {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 52rem) {
+    .fp-hero-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 26rem) {
+    .fp-legend-lead {
+      font-weight: 700;
+      padding: 0.6rem 0;
+      border-top: 1px solid var(--border);
+    }
+    .fp-legend > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.4rem;
+    }
+  }
+</style>
