@@ -61,6 +61,8 @@ Proposed, for the owner to decide. They follow the order the owner chose on 2026
 
 Unfold already does OIDC with discovery, PKCE and a JWKS check (`apps/unfold/src/oidc.ts`). Every installation signs people in through it, and `auth.localLogin: false` removes the password form, the `POST /api/login` route and the bootstrap administrator. The chart already refuses `false` without `config.auth.oidc`. Cloudflare Access stays in front of staging as a second wall, with the same identity provider, so a person signs in once and both layers see the same session.
 
+On staging the owner chose Google Workspace directly until the broker exists (decided 2026-11-01). Access moves to it in [unfold-cluster#173](https://forgejo.webgrip.dev/webgrip/unfold-cluster/pulls/173) once a person has made the Google OAuth client. Unfold itself cannot follow yet: it takes a person's role from a role claim or a groups claim (`entitledRole` in `apps/unfold/src/oidc.ts`), and a Google ID token carries neither. Turning local login off on staging therefore waits for either the broker, which emits the groups, or a small Unfold change that maps a verified email address or Workspace domain to a role.
+
 ### 2. One customer identity broker, with an organisation per Tenant
 
 A broker is the one sign-in service Unfold trusts. Each Agency's own Google Workspace or Microsoft Entra ID is linked to it as that Agency's identity provider, and small Agencies and their clients sign in with a passkey or email instead. The broker puts the Tenant and the role in the token as the groups Unfold already reads, so step 3 needs no change.
@@ -77,17 +79,28 @@ A broker is the one sign-in service Unfold trusts. Each Agency's own Google Work
 
 Sources: [Zitadel domain discovery](https://zitadel.com/docs/guides/solution-scenarios/domain-discovery), [Zitadel licence FAQ](https://zitadel.com/license-faq), [Keycloak organisations](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/server_administration_guide/managing_organizations), [Keycloak sizing](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/high_availability_guide/concepts-memory-and-cpu-sizing-), [Authentik pricing](https://goauthentik.io/pricing).
 
+For Webgrip the choice is between Zitadel and moving Authentik to the production cluster:
+
+| | Zitadel | Authentik on the production cluster |
+|---|---|---|
+| What we already have | nothing: a new system to run and learn | the access plane in OpenTofu, the Google source, the passkey flow, every Unfold client, and unfold-mcp's end-to-end suite runs against a real Authentik |
+| A customer's own Google or Entra ID | an identity provider on that customer's organisation, picked by email domain | a source per customer on one shared login page; routing by domain is a flow we write |
+| A customer admin manages their own people and SSO | yes: organisation owners manage their own users and identity providers | not without real tenancy, which is alpha and licensed per tenant |
+| Groups `unfold/<tenant>/<role>` | an Action turns organisation roles into the claim | a property mapping over global groups; every customer's groups live in one namespace |
+| What a mistake can reach | one organisation's settings | applications, sources and policies are global, so one bad policy reaches every customer |
+| Cost | none for the open source build | open source core; tenancy needs Enterprise |
+
 The proposal is **Zitadel on the production cluster**, not on the homelab, because customer sign-in must not depend on the homelab ([ADR-0040](../adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)). Webgrip staff reach it through federation: the Webgrip organisation in Zitadel links Google Workspace (or the homelab Authentik, once it is published), so staff keep one Google sign-in and the security-key check of homelab ADR-0077.
 
-### 3. A Tenant is a record with an owner screen
+### 3. A Tenant is an object in Git with an owner screen
 
-Unfold gets a `tenants` table and a **Platform → Customers** area for Unfold operators: a list of customers with their provisioning state, and a *New customer* form that asks for the name, the slug, the first admin's email, the model routing (EU only, or EU and US under the Data Privacy Framework, as ADR-0009 lets each Agency choose), and the monthly budget.
+A Tenant is a `Tenant` custom resource, one file per customer in the production cluster repository, reconciled by Flux like everything else there (decided 2026-11-01: "ook dit GitOps"). Unfold gets a **Platform → Customers** area for Unfold operators: a list of customers with their provisioning state, read from the `Tenant` objects' status, and a *New customer* form that asks for the name, the slug, the first admin's email, the model routing (EU only, or EU and US under the Data Privacy Framework, as ADR-0009 lets each Agency choose), and the monthly budget.
 
 ADR-0017 says Unfold staff never see Tenant content. The Customers area therefore shows only what provisioning made and whether it is healthy: never Work Items, people's activity or code. A new platform role, separate from the Tenant roles, gates it.
 
 ### 4. One reconciler turns a Tenant record into everything it needs
 
-The *New customer* button writes the record and nothing else. A reconciler then makes each piece, idempotently, and reports each as a line with a state, like the Connections checks:
+The *New customer* form opens a pull request that adds the customer's `Tenant` file, and one of the Webgrip operators reviews and merges it: every customer starts with one of us, for now (decided 2026-11-01). After the merge Flux applies the object, and a reconciler makes each piece, idempotently, and reports each as a line with a state, like the Connections checks:
 
 | Piece | Made through | ADR |
 |---|---|---|
@@ -97,15 +110,11 @@ The *New customer* button writes the record and nothing else. A reconciler then 
 | An OpenBao path and a write-only role for the Tenant's connections | OpenBao, through a role that may create Tenant paths and nothing else | homelab ADR-0055, Connections direction 6 |
 | The Tenant in Ploeg, and an operator consumer bound to it | Ploeg's API | Ploeg ADR-0178 |
 
-Where the reconciler runs is the main design choice:
+The reconciler is a small Kubernetes operator for the `Tenant` resource (decided 2026-11-01). It holds the rights to make namespaces, call the broker and LiteLLM, and write OpenBao; Unfold's web process, which faces the internet, holds none of them. It may only open a pull request on the cluster repository and read `Tenant` status. Kubernetes gives the operator retries, status conditions and events; Git gives every customer a reviewed history.
 
-- **A `Tenant` custom resource and a small operator.** Unfold's web process may only create `Tenant` objects; the operator holds the rights to make namespaces, call LiteLLM and write OpenBao. Kubernetes gives it retries, status conditions and an audit trail for free. The web process, which faces the internet, never holds cluster-admin-like rights.
-- **A job inside Unfold.** Fewer moving parts, but the internet-facing process holds every right above.
-- **A pull request per customer** on the cluster repository, as Connections direction 5 does for configuration. Every customer is in Git, but a person merges each one, which is the click the owner wants gone.
+A `Tenant` file holds no secret: the slug, the display name, the first admin's email, the model routing, the budget and the plan. Everything secret is made by the operator and kept in OpenBao.
 
-The proposal is the custom resource. The platform stays GitOps: the operator, its RBAC and the Tenant defaults are in Git and reconciled by Flux; the Tenant records are application data, like Work Items.
-
-Deleting a Tenant runs the same pieces in reverse after the export, and deletes code, prompts and logs as ADR-0009 requires.
+Deleting a customer is a pull request that removes the file. A finalizer on the `Tenant` keeps the object until the export is done, then runs the pieces in reverse and deletes code, prompts and logs as ADR-0009 requires.
 
 ### 5. The Agency onboards itself
 
@@ -120,19 +129,20 @@ The preview controller of Ploeg ADR-0181 creates each preview in the Tenant's pr
 
 ## Order
 
-1. Staff sign-in on staging (direction 1) with the staff identity provider the owner picks below, and `auth.localLogin: false`.
+1. Staff sign-in on staging (direction 1): Access through Google Workspace, then Unfold through the same identity provider and `auth.localLogin: false`.
 2. The broker on the production cluster, with the Webgrip organisation only, and staging switched to it.
-3. The `tenants` table, the Platform → Customers area and the `Tenant` operator for the broker organisation and the namespaces.
+3. The `Tenant` resource and its operator for the broker organisation and the namespaces, then the Platform → Customers area that opens the pull request.
 4. LiteLLM, OpenBao and Ploeg pieces, as Ploeg ADR-0178 lands; then `tenancy.enforce: true` on staging.
 5. Agency self-onboarding and the Tenant switcher.
 6. Previews, once Ploeg ADR-0181 is built.
 
 ## Open questions
 
-Each is the owner's to decide.
+Each is the owner's to decide. The owner answered 1, 3, 4 and 5 on 2026-11-01.
 
-1. Staff sign-in on staging before the broker exists: publish the homelab Authentik's sign-in endpoints through the tunnel (a homelab record, ADR-0056), use Google Workspace directly as Unfold's and Access's identity provider ([unfold-cluster ADR 0014](https://forgejo.webgrip.dev/webgrip/unfold-cluster/src/branch/main/docs/adr/0014-operators-sign-in-to-production-through-google-directly.md), one OAuth client made by hand in Google's console), or wait for the broker.
-2. The broker: Zitadel, Keycloak, or Authentik moved to the production cluster.
-3. Self-hosted broker on the production cluster, or the managed Zitadel Cloud in the EU or Swiss region.
-4. Where the reconciler runs: a `Tenant` custom resource and operator, a job inside Unfold, or a pull request per customer.
-5. Whether a customer can sign up without an Unfold operator, or every customer starts with an operator pressing *New customer*.
+1. ~~Staff sign-in on staging before the broker exists.~~ Google Workspace directly, for Access and Unfold ([unfold-cluster ADR 0014](https://forgejo.webgrip.dev/webgrip/unfold-cluster/src/branch/main/docs/adr/0014-operators-sign-in-to-production-through-google-directly.md)); one OAuth client made by hand in Google's console. Publishing the homelab Authentik was not chosen.
+2. The broker: Zitadel or Authentik moved to the production cluster. The owner asked for a closer comparison of the two first.
+3. ~~Self-hosted or managed.~~ Self-hosted on the production cluster.
+4. ~~Where the reconciler runs.~~ A `Tenant` custom resource and operator, with the `Tenant` files in Git.
+5. ~~Self sign-up.~~ Every customer starts with one of the Webgrip operators, for now.
+6. Until the broker exists: does Unfold on staging learn to map a verified Google email or Workspace domain to a role, so local login can go off now, or does local login stay on until the broker emits groups?
