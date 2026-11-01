@@ -257,7 +257,7 @@ test('GET /api/admin/audit/verify checks the newest stored checkpoint, or every 
   assert.equal(bucket.objects.size, 1, 'the start-up run checkpoints the default Tenant');
   const verified = await request(app.url, '/api/admin/audit/verify?checkpoints=all', { cookie: admin.cookie });
   assert.deepEqual([verified.status, verified.body.ok, verified.body.checkpoints.source, verified.body.checkpoints.checked, verified.body.checkpoints.problems], [200, true, 'object_storage', 1, []]);
-  bucket.objects.set([...bucket.objects.keys()][0], { body: '{"type":"unfold.audit.checkpoint","sequence":1,"head_hash":"00","time":"2026-10-30T00:00:00Z","tenant":"default","chain_uid":"unfold-audit:default","signature":"vault:v1:AAAA"}', headers: {} });
+  bucket.objects.set([...bucket.objects.keys()][0], { body: JSON.stringify({ type: 'unfold.audit.checkpoint', sequence: 1, head_hash: '00', time: new Date().toISOString(), tenant: 'default', chain_uid: 'unfold-audit:default', signature: 'vault:v1:AAAA' }), headers: {} });
   const broken = await request(app.url, '/api/admin/audit/verify', { cookie: admin.cookie });
   assert.deepEqual([broken.body.ok, broken.body.checkpoints.problems.map((problem: { reason: string }) => problem.reason)], [false, ['bad_signature', 'hash_mismatch']]);
 });
