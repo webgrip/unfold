@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>webgrip/renovate-config:unattended#v1.19.2",
-    "local>webgrip/renovate-config:platform-automerge#v1.19.2"
+    "local>webgrip/renovate-config:unattended#v1.19.3",
+    "local>webgrip/renovate-config:platform-automerge#v1.19.3"
   ],
   "ignorePaths": [
     "**/node_modules/**",
