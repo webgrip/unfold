@@ -12,12 +12,12 @@ concurrency:
 jobs:
   merge-pin:
     if: github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
-    runs-on: docker
+    runs-on: unfold-ci
     timeout-minutes: 5
     outputs:
       merged: ${{ steps.merge.outputs.merged }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://forgejo.webgrip.dev/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref }}
       - name: Merge the newest green Ploeg pin pull request and close the ones it supersedes

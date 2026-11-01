@@ -782,7 +782,9 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
       } else {
         assert.ok(['docker', 'unfold-ci'].includes(job['runs-on']), `${file}: ${name} runs on the homelab or the unfold-ci pool`);
         if (job['runs-on'] === 'unfold-ci') {
-          assert.doesNotMatch(JSON.stringify(job), /secrets\./, `${file}: ${name} runs on the untrusted unfold-ci pool and holds no secret`);
+          const secrets = [...JSON.stringify(job).matchAll(/secrets\.([A-Z_]+)/g)].map(match => match[1]);
+          const allowed = file === 'on_release_train.yml' && name === 'merge-pin' ? ['PLOEG_RELEASE_TOKEN'] : [];
+          assert.deepEqual(secrets, allowed, `${file}: ${name} runs on the untrusted unfold-ci pool and holds no secret but the pin merge token`);
           assert.equal(job.container, undefined, `${file}: ${name} runs in the unfold-ci runner's own image`);
         }
         checkSteps(job.steps, `${file}: ${name}`);
