@@ -21,13 +21,13 @@ Copyright 2017-2025 W.Y., licensed under the MIT License. Its licence text is
 public/vendor/html-to-image/LICENSE and travels with the copy.
 scripts/vendor-html-to-image.mjs copies it from the pinned npm package.
 
-The container image includes ws 8.22.0 (node_modules/ws/), Copyright 2011 Einar
+The container image includes ws 8.22.1 (node_modules/ws/), Copyright 2011 Einar
 Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
 contributors, licensed under the MIT License. Its licence text is
 node_modules/ws/LICENSE and travels with the package.
 
-The container image includes hyparquet-writer 0.17.0 (node_modules/hyparquet-writer/)
-and its dependency hyparquet 1.31.5 (node_modules/hyparquet/), by Hyperparam,
+The container image includes hyparquet-writer 0.18.0 (node_modules/hyparquet-writer/)
+and its dependency hyparquet 1.32.0 (node_modules/hyparquet/), by Hyperparam,
 both licensed under the MIT License. Their licence texts are
 node_modules/hyparquet-writer/LICENSE and node_modules/hyparquet/LICENSE and
 travel with the packages.
