@@ -129,7 +129,9 @@ test('a teammate who may read a linked Work Item sees the session without its te
   assert.equal(seen.mine, false);
   assert.equal(seen.telemetry, undefined);
   assert.equal(requests.length, 0);
-  assert.equal((await linked.forWorkItem(teammate, '184', base)).length, 1);
+  const listed = await linked.forWorkItem(teammate, '184', base);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].linkedAt, listed[0].workItems.find(entry => entry.id === '184')?.linkedAt, 'each session says when it was linked to this Work Item');
   await assert.rejects(linked.view(outsider, id, base), { status: 404 });
   await assert.rejects(linked.forWorkItem(outsider, '184', base), { status: 404 });
   assert.ok((await linked.view(owner, id, base, true)).telemetry);

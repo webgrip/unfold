@@ -1668,7 +1668,7 @@ export function onePageMarkup(detail, model, { primary = '', decision, account }
   const runDetail = id => { const run = runs.get(id); return run ? runBody(run, context) : ''; };
   const cancel = model.canCancel && canStop(detail) ? { busy: Boolean(model.cancelBusy) } : null;
   const takeControl = takeOverMarkup(detail, { viewer: model.userId ? { id: model.userId, role: model.userRole } : null, busy: Boolean(model.takeOverBusy), result: model.takeOverResult ?? null });
-  const extras = { primary, runDetail, runTone: runResult, cancel, ...(takeControl ? { takeControl } : {}), ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
+  const extras = { primary, runDetail, runTone: runResult, cancel, ...(takeControl ? { takeControl } : {}), ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}), ...(model.tracksRange ? { tracksRange: model.tracksRange } : {}) };
   return workPage(view, extras, text => markdown(text, { baseLevel: 3 }));
 }
 

@@ -72,6 +72,7 @@ export const workTabs = Object.freeze(['log', 'brief', 'trace', 'evidence']);
  * @param {(runId: string) => string} [extras.runDetail] The body of one Run: what it did, its transcript and its pod
  *   logs. Without it a Run in the log is a closed ticket.
  * @param {(run: object) => { tone: string, label: string }} [extras.runTone] How a Run bar on the two tracks reads.
+ * @param {{ from: number, to: number }} [extras.tracksRange] The span the two tracks are zoomed to, dragged across them.
  * @param {string} [extras.takeControl] The Take control panel: drawn in the two tracks when they show, else above the
  *   app's decision box.
  * @param {{ decision?: string, actions?: string, evidence?: string, evidenceLabel?: string, side?: string }} [extras.session]
@@ -103,7 +104,7 @@ export function workItemPage(view, extras = {}, render = text => `<p>${escape(te
     session?.side ? `<div class="lv-unified-session">${session.side}</div>` : '',
   ].join('');
   const control = extras.takeControl ?? '';
-  const tracks = view.tracks ? workTracksMarkup(view.tracks.model, { detail: view.tracks.detail, sessions: view.tracks.sessions, now: live.now, runTone: extras.runTone, control }) : '';
+  const tracks = view.tracks ? workTracksMarkup(view.tracks.model, { detail: view.tracks.detail, sessions: view.tracks.sessions, now: live.now, runTone: extras.runTone, control, range: extras.tracksRange ?? null }) : '';
   return `<article class="lv lv-page lv-desk lv-unified" data-live="work-item" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras, tracks ? '' : control)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main">${tracks}<section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}`, mode: extras.intent })}</div><aside class="lv-page-side" aria-label="At a glance">${side}</aside></div></article>`;
 }
 

@@ -43,13 +43,15 @@ export function roundWindows(detail, now) {
 }
 
 /**
- * When a Linked Session was open: from its start to its end, to `now` while it still works, waits or sits idle, or to
- * when it was last heard from once stale. Null without a start.
+ * When a Linked Session took part in the Work Item: from when it was linked to it (`linkedAt`), or its start when it
+ * was linked before it started or the link time is unknown, to its end, to `now` while it still works, waits or sits
+ * idle, or to when it was last heard from once stale. Null without a start.
  * @returns {{ from: number, to: number, open: boolean } | null}
  */
 export function sessionWindow(session, now) {
-  const from = toMs(session?.startedAt);
-  if (from === null) return null;
+  const started = toMs(session?.startedAt);
+  if (started === null) return null;
+  const from = Math.max(started, toMs(session.linkedAt) ?? started);
   const open = openStates.has(session.state) && !session.endedAt;
   const to = open ? now : toMs(session.endedAt) ?? toMs(session.lastSeenAt) ?? from;
   return { from, to: Math.max(from, to), open };
@@ -126,12 +128,12 @@ export function handoverMarks(detail, sessions, now) {
         marks.push({ kind: 'claim', at, sessionId: String(session.id), runId: String(handover.runId ?? ''), role: roleOf(handover.runId), from: 'people', to: 'ploeg', label: `${who} started the ${roleOf(handover.runId)} Run with /unfold:start` });
       }
     }
-    const start = toMs(session.startedAt);
+    const start = sessionWindow(session, now)?.from ?? null;
     if (start === null) continue;
     const working = runs.filter(run => toMs(run.startedAt) <= start && (run.state === 'running' ? now : toMs(run.finishedAt) ?? 0) > start);
     const foreign = working.filter(run => !startedBy(session, { id: String(run.id), workItemId: id, startedAt: run.startedAt, shiftOpenedAt: (detail.shifts ?? []).find(shift => String(shift.id) === String(run.shiftId))?.openedAt ?? null }));
     if (foreign.length) {
-      marks.push({ kind: 'overlap', at: start, sessionId: String(session.id), runId: String(foreign[0].id), role: foreign[0].role || 'agent', from: 'ploeg', to: 'people', label: `${who} started a ${harnessName(session.harness)} session while the ${foreign[0].role || 'agent'} Run worked` });
+      marks.push({ kind: 'overlap', at: start, sessionId: String(session.id), runId: String(foreign[0].id), role: foreign[0].role || 'agent', from: 'ploeg', to: 'people', label: `${who} ${start > toMs(session.startedAt) ? 'linked' : 'started'} a ${harnessName(session.harness)} session while the ${foreign[0].role || 'agent'} Run worked` });
       continue;
     }
     const onBranch = session.branch && shifts.some(shift => shift.branch === session.branch && shift.from <= start);

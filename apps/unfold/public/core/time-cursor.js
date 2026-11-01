@@ -41,6 +41,27 @@ export function flightSpot(spans, at) {
 }
 
 const clamp = value => Math.min(1, Math.max(0, value));
+const dragThreshold = 4;
+
+/** The event a drag across the two tracks dispatches from the chart: `detail` is the `{ from, to }` it spans, or null to show the whole time line again. */
+export const tracksRangeEvent = 'unfold:tracks-range';
+
+/**
+ * The span a drag from `start` to `end` (shares from 0 to 100) covers on the piecewise scale `pieces`, earliest first;
+ * null when it covers less than a minute or falls outside the scale.
+ * @param {number[][]} pieces
+ * @param {number} start
+ * @param {number} end
+ * @returns {{ from: number, to: number }|null}
+ */
+export function dragRange(pieces, start, end) {
+  if (!pieces.length) return null;
+  const low = Math.max(pieces[0][2], Math.min(start, end));
+  const high = Math.min(pieces.at(-1)[3], Math.max(start, end));
+  const from = momentAt(pieces, low);
+  const to = momentAt(pieces, high);
+  return from === null || to === null || to - from < 60_000 ? null : { from: Math.round(from), to: Math.round(to) };
+}
 
 function scaleOf(chart) {
   try {
@@ -123,14 +144,77 @@ function draw(page, at) {
   for (const figure of page.querySelectorAll('.lv-fp')) drawOnFlight(figure, at);
 }
 
+function drawBrush(drag) {
+  const rect = drag.chart.querySelector('.time-brush');
+  if (!rect) return;
+  const low = Math.min(drag.start, drag.end);
+  rect.setAttribute('x', `${low.toFixed(3)}%`);
+  rect.setAttribute('width', `${Math.abs(drag.end - drag.start).toFixed(3)}%`);
+  rect.setAttribute('visibility', drag.moved ? 'visible' : 'hidden');
+}
+
+function gridShare(chart, clientX) {
+  const box = chart.querySelector('.stream-grid')?.getBoundingClientRect();
+  if (!box?.width) return null;
+  return Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100));
+}
+
+function followDrag(root) {
+  let drag = null;
+  const end = () => {
+    if (!drag) return;
+    drag.moved = false;
+    drawBrush(drag);
+    delete drag.chart.dataset.brushing;
+    drag = null;
+  };
+  root.addEventListener('pointerdown', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const chart = event.button === 0 && event.pointerType !== 'touch' ? target?.closest('.tracks-chart') : null;
+    const box = chart?.querySelector('.stream-grid')?.getBoundingClientRect();
+    if (!chart || !box?.width || event.clientX < box.left || event.clientX > box.right) return;
+    const share = gridShare(chart, event.clientX);
+    drag = { chart, start: share, end: share, startX: event.clientX, moved: false };
+  });
+  root.addEventListener('pointermove', event => {
+    if (!drag) return;
+    drag.end = gridShare(drag.chart, event.clientX) ?? drag.end;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) >= dragThreshold) {
+      drag.moved = true;
+      drag.chart.dataset.brushing = '';
+      root.getSelection?.()?.removeAllRanges();
+    }
+    drawBrush(drag);
+  }, { passive: true });
+  root.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const { chart, moved, start, end: stop } = drag;
+    end();
+    if (!moved) return;
+    root.addEventListener('click', swallow => { swallow.preventDefault(); swallow.stopPropagation(); }, { capture: true, once: true });
+    const range = dragRange(scaleOf(chart), start, stop);
+    if (range) chart.dispatchEvent(new CustomEvent(tracksRangeEvent, { bubbles: true, detail: range }));
+  });
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('keydown', event => { if (event.key === 'Escape') end(); });
+  root.addEventListener('dblclick', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    const chart = target?.closest('.tracks-chart');
+    if (chart && !target.closest('a, button')) chart.dispatchEvent(new CustomEvent(tracksRangeEvent, { bubbles: true, detail: null }));
+  });
+}
+
 /**
  * Links the flight path and the two tracks of the Work Item page by time: pointing at a moment in either draws a
  * cursor at the same moment in both, with its day and clock time over the tracks. The flight path is not drawn to a
  * time scale, so its cursor moves across the hop, wait or stop whose `data-from` and `data-to` hold that moment. The
- * cursor is only a pointer aid: it is hidden from screen readers, which read every bar's times instead.
+ * cursor is only a pointer aid: it is hidden from screen readers, which read every bar's times instead. Dragging
+ * across the tracks with the primary button zooms them to that span through {@link tracksRangeEvent}, as Grafana's
+ * panels do; a double click shows the whole time line again.
  * @param {Document} root
  */
 export function followTimeCursor(root) {
+  followDrag(root);
   let pending = null;
   let shown = null;
   const apply = () => {
