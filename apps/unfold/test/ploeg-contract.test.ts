@@ -114,6 +114,8 @@ test('Unfold accepts every value Ploeg publishes and no value Ploeg does not', (
     [ploegAccepted.refusalCodes, 'operator-api.v1.schema.json', '/$defs/routeRefusal/properties/code', 'apps/unfold/src/ploeg.ts `refusalCodes`'],
   ];
   for (const [list, file, pointer, source] of accepts) assert.deepEqual([...list].sort(), enumAt(file, pointer).sort(), `${source} must accept exactly the values of Ploeg's ${file} ${pointer}`);
+  const publishedRefusalCodes = enumAt('operator-api.v1.schema.json', '/$defs/routeRefusal/properties/code');
+  for (const code of ploegAccepted.refusalCodesAhead) assert(!publishedRefusalCodes.includes(code), `Ploeg's operator-api.v1.schema.json now publishes the route refusal code "${code}". Move it from apps/unfold/src/ploeg.ts \`refusalCodesAhead\` to \`refusalCodes\`.`);
   const execution = sets['execution-state'];
   for (const value of ploegExecutionStates) {
     assert(executionStates.includes(value), `Ploeg's Operator Execution lifecycle (apps/ploeg/docs/domain/model.yaml) has the state "${value}", which apps/unfold/src/execution-authority.ts \`executionStates\` rejects. Add it there.`);
