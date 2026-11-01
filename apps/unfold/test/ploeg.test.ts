@@ -1009,6 +1009,23 @@ test('Now treats an older Ploeg without the refusal list as having none, and a f
   assert.equal((await client(upstreamApi.config).now(admin)).refused[0].code, 'unclassified', 'an unknown code is shown with Ploeg’s reason');
 });
 
+test('Now keeps the intake gate’s refusal codes ahead of the Ploeg release that publishes them, and shows a refusal without a Team to an administrator only', async (t) => {
+  const upstreamApi = await upstream(t);
+  refusalsUpstream(upstreamApi, res => reply(res, 200, { generatedAt: '2026-11-01T10:00:00Z', windowDays: 14, refusals: [
+    routeRefusal('1', { code: 'team_unknown', reason: 'The Team field reads "gold"; the Teams are bronze, silver.' }),
+    routeRefusal('2', { code: 'team_cannot_write', reason: 'Team delivery has no Role that writes code.' }),
+    routeRefusal('3', { code: 'budget_exhausted' }),
+    routeRefusal('4', { code: 'harness_refuses_repository' }),
+    routeRefusal('5', { code: 'team_missing', team: '', reason: 'Which Team should take this card? Set the Team field.' }),
+  ] }));
+  const ploeg = new PloegClient({ ...configuration('/unused', 'live'), ploeg: { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }, taskSources: [unfoldBoard] });
+  const forAdmin = await ploeg.now({ id: 'admin', name: 'admin', role: 'admin' as const });
+  assert.deepEqual(forAdmin.refused.map(entry => entry.code), ['team_unknown', 'team_cannot_write', 'budget_exhausted', 'harness_refuses_repository', 'team_missing'], 'each code survives as Ploeg sent it');
+  assert.equal(forAdmin.refused[4].team, '', 'a team_missing refusal names no Team');
+  const forReader = await ploeg.now({ id: 'reader', name: 'reader', role: 'operator' as const });
+  assert.deepEqual(forReader.refused.map(entry => entry.code), ['team_unknown', 'team_cannot_write', 'budget_exhausted', 'harness_refuses_repository'], 'a refusal of no Team is for whoever reads every Team');
+});
+
 test('the demo shows exactly one refusal, marked as illustrative, without calling Ploeg or a tracker', async () => {
   const demo = new PloegClient(configuration('/unused', 'demo'));
   const now = await demo.now(admin);

@@ -492,6 +492,8 @@ export function refusalSentence(entry) {
   const allowed = Array.isArray(entry?.allowedLabels) ? entry.allowedLabels.filter(label => typeof label === 'string' && label).join(', ') : '';
   const hints = Array.isArray(entry?.labels) ? entry.labels.filter(label => typeof label === 'string' && label.startsWith('repo/')) : [];
   const label = hints[0] || 'Its repo/ label';
+  const reason = sentenceEnd(entry?.reason);
+  const team = entry?.team ? `Team ${entry.team}` : '';
   switch (entry?.code) {
     case 'label_missing': return `${Board} needs a repo/ label on this task.${allowed ? ` Allowed: ${allowed}.` : ''}`;
     case 'label_not_allowed': return `${label} is not allowed on ${board}.${allowed ? ` Use one of ${allowed}.` : ''}`;
@@ -500,6 +502,11 @@ export function refusalSentence(entry) {
     case 'labels_unread': return `Ploeg could not read this task’s labels, and ${board} routes by label. Assign the task again.`;
     case 'no_board_rule': return `${label} selects a repository, but Ploeg takes no work from this task’s board. Ask an operator to add the board, or remove the label.`;
     case 'target_not_ready': return `The repository this task selects is not ready for agents: ${sentenceEnd(entry.reason) || 'Ploeg gave no reason'}. Fix the repository, then assign the task again.`;
+    case 'team_unknown': return `${reason || 'The Team field on this task names a Team Ploeg does not know'}. Pick one of the known Teams in the field, then assign the task again.`;
+    case 'team_missing': return `${reason || 'Nothing on this task names a Team: the field is empty, the board pins none and the assignee maps to none'}. Set the Team field, then assign the task again.`;
+    case 'team_cannot_write': return `${reason || `${team || 'The Team'} has no Role that writes code`}. Give the Team a writing Role, or pick another Team.`;
+    case 'budget_exhausted': return `${reason || `${team || 'The Team'} has spent its budget for this period`}. Wait for the next period, raise the cap, or pick another Team.`;
+    case 'harness_refuses_repository': return `${reason || `A Role of ${team || 'the Team'} runs a harness that refuses this repository`}. Pick a Team on another harness, or remove the file the harness refuses.`;
     default: return `Ploeg did not queue this task: ${sentenceEnd(entry?.reason) || 'it gave no reason'}.`;
   }
 }

@@ -95,8 +95,8 @@ export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | '
 export type PloegNowQuestion = { id: string; text: string; typed: boolean; role: string; round: number | null; runId: string };
 /** The latest Round of a waiting row where a shadow reviewer's verdict differs from the acting reviewers', from the Runs Now already lists (no detail read), so an older disagreement is not shown. Run rows carry no Shift, so Rounds of different Shifts count as one. */
 export type PloegNowDisagreement = { round: number; acting: string; shadow: string };
-/** Why Ploeg's routing refused a tracker task (Ploeg ADR-0038). `unclassified` is a refusal Ploeg recorded before it named codes, or a code this Unfold does not know; its `reason` explains it. */
-export type PloegRefusalCode = 'label_missing' | 'label_not_allowed' | 'label_unregistered' | 'multiple_labels' | 'labels_unread' | 'no_board_rule' | 'target_not_ready' | 'unclassified';
+/** Why Ploeg's routing refused a tracker task (Ploeg ADR-0038), or why its intake gate did not start it (Ploeg ADR-0187: `team_unknown`, `team_missing`, `team_cannot_write`, `budget_exhausted`, `harness_refuses_repository`). `unclassified` is a refusal Ploeg recorded before it named codes, or a code this Unfold does not know; its `reason` explains it. */
+export type PloegRefusalCode = 'label_missing' | 'label_not_allowed' | 'label_unregistered' | 'multiple_labels' | 'labels_unread' | 'no_board_rule' | 'target_not_ready' | 'team_unknown' | 'team_missing' | 'team_cannot_write' | 'budget_exhausted' | 'harness_refuses_repository' | 'unclassified';
 /** A tracker task Ploeg could not start because routing refused it. It is not a Work Item: none exists. `board` names the task source whose provider and project match the task, or is empty; `link` says whether `url` is the task itself, the tracker's root or absent. */
 export type PloegRefusal = { provider: string; externalId: string; externalScope: string; team: string; title: string; labels: string[]; code: PloegRefusalCode; reason: string; allowedLabels: string[]; refusedAt: string; board: string; url: string; link: 'task' | 'tracker' | 'none' };
 /** A repository Ploeg can route work to (Ploeg ADR-0129): a registered target keyed by its target key, or one a board names directly, keyed `owner/name@branch`. `lastForgeEventAt` is when its forge last sent Ploeg an event in the last `eventWindowDays`. */
@@ -300,10 +300,11 @@ function link(value: unknown): string {
 }
 function envelope(value: unknown, versions: unknown[] = ['1.0']): Record<string, unknown> { const data = record(value); if (!versions.includes(data.schemaVersion)) throw invalid(); return data; }
 const refusalCodes: PloegRefusalCode[] = ['label_missing', 'label_not_allowed', 'label_unregistered', 'multiple_labels', 'labels_unread', 'no_board_rule', 'target_not_ready', 'unclassified'];
+const refusalCodesAhead: PloegRefusalCode[] = ['team_unknown', 'team_missing', 'team_cannot_write', 'budget_exhausted', 'harness_refuses_repository'];
 function routeRefusal(value: unknown): Omit<PloegRefusal, 'board' | 'url' | 'link'> {
   const data = record(value);
   const code = field(data.code, 64);
-  return { provider: field(data.provider, 128), externalId: field(data.externalId, 256), externalScope: field(data.externalScope, 512), team: field(data.team, 128), title: field(data.title, 4096), labels: array(data.labels, entry => field(entry, 512), 200), code: (refusalCodes as string[]).includes(code) ? code as PloegRefusalCode : 'unclassified', reason: field(data.reason, 4096), allowedLabels: array(data.allowedLabels, entry => field(entry, 512), 200), refusedAt: timestamp(data.refusedAt) };
+  return { provider: field(data.provider, 128), externalId: field(data.externalId, 256), externalScope: field(data.externalScope, 512), team: field(data.team, 128), title: field(data.title, 4096), labels: array(data.labels, entry => field(entry, 512), 200), code: (refusalCodes as string[]).includes(code) || (refusalCodesAhead as string[]).includes(code) ? code as PloegRefusalCode : 'unclassified', reason: field(data.reason, 4096), allowedLabels: array(data.allowedLabels, entry => field(entry, 512), 200), refusedAt: timestamp(data.refusedAt) };
 }
 const readinessValues: PloegConnectionRepository['readiness'][] = ['ready', 'not_ready', 'unknown'];
 const webhookValues: PloegConnectionBoard['webhook'][] = ['present', 'missing', 'unreadable', 'unresolved', 'unchecked'];
@@ -343,7 +344,7 @@ function clientWait(value: unknown): PloegClientWait {
 const mergeStates: PloegMergeState[] = ['clean', 'conflicted', 'unknown'];
 /** The values of each enum in Ploeg's operator contract that this client accepts; `test/ploeg-contract.test.ts` checks them against Ploeg's published schema. */
 const findingAnswerStatuses = ['fixed', 'disagree', 'out_of_scope', 'deferred'] as const;
-export const ploegAccepted = Object.freeze({ findingAnswerStatuses, workItemStates: [...states, ...Object.keys(ploegStateAliases)], runStates, runCostStatuses, askStates, askCostStatuses, mergeStates, refusalCodes });
+export const ploegAccepted = Object.freeze({ findingAnswerStatuses, workItemStates: [...states, ...Object.keys(ploegStateAliases)], runStates, runCostStatuses, askStates, askCostStatuses, mergeStates, refusalCodes, refusalCodesAhead });
 function pullRequest(value: unknown): PloegPullRequest {
   const data = record(value);
   const number = data.number === undefined || data.number === null ? null : numeric(data.number, true);
@@ -1658,7 +1659,7 @@ export class PloegClient {
     let data: Record<string, unknown>;
     try { data = envelope(await this.request('route-refusals', fresh, { added: true })); }
     catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return []; throw error; }
-    return array(data.refusals, routeRefusal, 200).filter(entry => this.allowed(user, entry.team)).map(entry => {
+    return array(data.refusals, routeRefusal, 200).filter(entry => entry.team ? this.allowed(user, entry.team) : user.role === 'admin').map(entry => {
       const source = this.taskSources.find(candidate => candidate.provider === entry.provider && candidate.project === entry.externalScope);
       const task = source ? sourceTaskUrl(source, entry.externalId) : '';
       const root = this.config?.trackerUrl ?? '';
