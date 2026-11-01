@@ -25,10 +25,11 @@ All tasks are open. Markers: **[owner]** waits on an owner decision,
 - [ ] 3.6 A forge merge completes or creates the Acceptance (design.md D8); billing reads the store
 - [ ] 3.7 Flag `work.accept-merge`, off by default
 - [ ] 3.8 Tests for every scenario in `specs/accept-and-merge/spec.md`
+- [ ] 3.9 Security controls of design.md D10: sign-in age, notifications on every merge request, merge and refusal, no action for an Ask, a Run or an agent session; tests for each
 
 ## 4. S3 — homelab
 
-- [ ] 4.1 **[homelab]** A Forgejo merge identity for `webgrip/unfold`, its token in OpenBao, ploegd's merge credential from an ExternalSecret, the identity on `development`'s merge allow-list
+- [ ] 4.1 **[homelab]** A Forgejo merge identity for `webgrip/unfold` with write and no admin rights, its token in OpenBao, ploegd's merge credential from an ExternalSecret, and `development`'s branch protection allowing merges only to that identity and people, so the agents' identity cannot merge
 - [ ] 4.2 **[homelab]** Unfold's Operator Consumer gets the merge permission for its Teams; turn the flag on for the owner
 
 ## 5. S4 — other channels
