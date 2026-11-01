@@ -22,7 +22,7 @@ runs:
       run: git fetch origin '+refs/notes/*:refs/notes/*'
     - name: Restore mise tool installs
       id: mise-cache
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
         key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/site/mise.toml') }}
@@ -59,7 +59,7 @@ runs:
       shell: bash
     - name: Save mise tool installs
       if: steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup' && github.event_name != 'pull_request'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
         key: ${{ steps.mise-cache.outputs.cache-primary-key }}
@@ -82,7 +82,7 @@ runs:
     - name: Restore Go module and build caches
       id: go-cache
       if: inputs.setup == 'setup'
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ steps.caches.outputs.gomod }}
@@ -94,7 +94,7 @@ runs:
           unfold-go-${{ runner.os }}-
     - name: Restore npm download cache
       id: npm-cache
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.npm }}
         key: unfold-npm-${{ runner.os }}-${{ inputs.setup }}-${{ hashFiles('apps/unfold/package-lock.json', 'apps/unfold/extensions/vscode/package-lock.json') }}
@@ -104,13 +104,13 @@ runs:
     - name: Restore pnpm store
       id: pnpm-cache
       if: inputs.setup == 'setup'
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.pnpm }}
         key: unfold-pnpm-${{ runner.os }}-${{ hashFiles('apps/site/pnpm-lock.yaml') }}
         restore-keys: unfold-pnpm-${{ runner.os }}-
     - name: Restore verified gate results
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/unfold-verify
         key: unfold-verify-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -139,7 +139,7 @@ runs:
       run: rm -rf -- "$SCRATCH"
     - name: Save Go module and build caches
       if: steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ steps.caches.outputs.gomod }}
@@ -147,13 +147,13 @@ runs:
         key: ${{ steps.go-cache.outputs.cache-primary-key }}
     - name: Save npm download cache
       if: steps.npm-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.npm }}
         key: ${{ steps.npm-cache.outputs.cache-primary-key }}
     - name: Save pnpm store
       if: steps.pnpm-cache.outcome == 'success' && steps.pnpm-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: https://forgejo.webgrip.dev/actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.pnpm }}
         key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
