@@ -173,6 +173,7 @@ function followDrag(root) {
     const chart = event.button === 0 && event.pointerType !== 'touch' ? target?.closest('.tracks-chart') : null;
     const box = chart?.querySelector('.stream-grid')?.getBoundingClientRect();
     if (!chart || !box?.width || event.clientX < box.left || event.clientX > box.right) return;
+    event.preventDefault();
     const share = gridShare(chart, event.clientX);
     drag = { chart, start: share, end: share, startX: event.clientX, moved: false };
   });
@@ -182,7 +183,7 @@ function followDrag(root) {
     if (!drag.moved && Math.abs(event.clientX - drag.startX) >= dragThreshold) {
       drag.moved = true;
       drag.chart.dataset.brushing = '';
-      root.getSelection?.()?.removeAllRanges();
+      try { drag.chart.setPointerCapture(event.pointerId); } catch {}
     }
     drawBrush(drag);
   }, { passive: true });
@@ -191,7 +192,9 @@ function followDrag(root) {
     const { chart, moved, start, end: stop } = drag;
     end();
     if (!moved) return;
-    root.addEventListener('click', swallow => { swallow.preventDefault(); swallow.stopPropagation(); }, { capture: true, once: true });
+    const swallow = click => { click.preventDefault(); click.stopPropagation(); };
+    root.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => root.removeEventListener('click', swallow, { capture: true }), 0);
     const range = dragRange(scaleOf(chart), start, stop);
     if (range) chart.dispatchEvent(new CustomEvent(tracksRangeEvent, { bubbles: true, detail: range }));
   });
