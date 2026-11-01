@@ -29,7 +29,7 @@ All of it is proposed; nothing is built.
   Acceptance.
 - **Ploeg merges** at that head with its own merge identity, through the
   forge's branch protection, using the forge's "merge when checks succeed"
-  while checks run. Unfold shows **Merging** and **Cancel merge** meanwhile,
+  for what Ploeg's own CI gate does not count, such as a required review. Unfold shows **Merging** and **Cancel merge** meanwhile,
   and the refusal reason when the forge refuses.
 - **Homelab**: a merge identity for `webgrip/unfold` on Forgejo, in its
   `development` branch protection's merge allow-list, held only by ploegd.

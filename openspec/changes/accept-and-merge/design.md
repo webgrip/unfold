@@ -40,14 +40,14 @@ holds no forge write credential. (Owner 1A.)
 
 ### D2. Running checks use the forge's auto-merge
 
-While required checks run, Ploeg asks the forge to merge when they succeed.
+Ploeg takes a merge only for a Work Item that awaits review, which under Ploeg ADR-0119 means its CI passed. Checks Ploeg's gate does not count, such as a required review or a late status, use the forge's "merge when checks succeed" (`whenChecksPass`).
 Unfold shows **Merging** with **Cancel merge**. Failed checks end the merge
 request with a reason; the Work Item stays in review. (Owner 2A.)
 
 ### D3. The merge identity merges, and the commit names the person
 
 The forge shows the merge identity as merger. The merge commit carries a
-trailer naming the person and the consumer, in Ploeg's format. (Owner 3A.)
+`Merge-Requested-By` trailer with Ploeg's pseudonymous person id and the consumer's name; Unfold maps the id to the person it shows. A name in git history can never be erased. (Owner 3A.)
 
 ### D4. "Unfold never merges" is amended
 
@@ -96,10 +96,10 @@ per project ([glossary](../../../docs/reference/glossary.md#access-role)).
 | State | Shown as | Actions |
 | --- | --- | --- |
 | Pull request awaiting review, checks green | In review | Accept and merge, Reject |
-| Checks running | In review, checks running | Accept and merge (merges when checks pass), Reject |
-| Merge requested, waiting for checks | Merging | Cancel merge |
+| Checks running | Running checks, not yet in review | none until Ploeg moves it to review |
+| Merge requested, waiting for a forge rule such as a required review | Merging | Cancel merge |
 | Merged | Done | — |
-| Refused: head moved | In review: "New commits since you accepted" | Accept and merge again after looking |
+| Refused: `head_changed` | In review: "New commits since you accepted" | Accept and merge again after looking |
 | Refused: checks failed | In review: "Checks failed" | Reject, or let Ploeg's repair follow-up run |
 | Refused: conflict | In review: "Conflicts with the base branch" | wait for Ploeg's base sync, then accept again |
 | Refused: protection or permission | In review: the forge's rule, named | merge on the forge, or fix the rule |

@@ -30,15 +30,16 @@ not the current head in Ploeg's delivery facts.
 - **WHEN** a person who may not accept the Work Item submits Accept and merge
 - **THEN** Unfold answers 403 and calls no Ploeg
 
-### Requirement: Running checks merge when they pass
+### Requirement: Remaining forge conditions merge when they are met
 
-When the pull request's checks are still running, Unfold SHALL ask Ploeg to
-merge when they succeed, show the Work Item as **Merging**, and offer
+When the forge still waits on a condition Ploeg's gate does not count, such
+as a required review, Unfold SHALL ask Ploeg to merge when it is met, show the Work Item as **Merging**, and offer
 **Cancel merge** until the forge merges or refuses.
 
 #### Scenario: Checks pass later
 
-- **WHEN** a person accepts while checks run, and the checks pass
+- **WHEN** a person accepts while the forge waits on a required review, and
+  the review is given
 - **THEN** the forge merges, Ploeg reports the merge, the Work Item is done and
   its tracker card moves to its done status
 
@@ -51,12 +52,13 @@ merge when they succeed, show the Work Item as **Merging**, and offer
 ### Requirement: A refusal keeps the Work Item in review with its reason
 
 When Ploeg or the forge refuses the merge, Unfold SHALL keep the Work Item in
-review and show the reason: the head moved, checks failed, a conflict, a
+review and show the reason: the head changed (`head_changed`), checks failed, a conflict, a
 protection rule or no permission.
 
 #### Scenario: Checks fail after acceptance
 
-- **WHEN** a person accepts while checks run and a required check fails
+- **WHEN** a person accepts and a required check on the forge fails before
+  the merge
 - **THEN** the Work Item shows "Checks failed" in review, and the Acceptance is
   marked not merged
 
