@@ -7,7 +7,16 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        docker build --progress=plain --file apps/unfold/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold &
+        build() {
+          local output
+          output=$(mktemp)
+          for attempt in 1 2; do
+            if docker build --progress=plain --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly "$@" 2>&1 | tee "$output"; then return 0; fi
+            if [ "$attempt" = 2 ] || ! grep -q 'frontend grpc server closed unexpectedly' "$output"; then return 1; fi
+            echo "The shared Docker daemon dropped the Dockerfile frontend; building $* once more."
+          done
+        }
+        build --file apps/unfold/Dockerfile --target app apps/unfold &
         app=$!
-        docker build --progress=plain --file apps/unfold/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold/ops/agent
+        build --file apps/unfold/ops/agent/Dockerfile apps/unfold/ops/agent
         wait "$app"

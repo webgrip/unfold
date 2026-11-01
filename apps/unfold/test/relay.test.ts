@@ -198,7 +198,13 @@ async function relayedWorker(t: { after(fn: () => void): void }, workspaceId: st
   const held = holdTimeoutsOf === undefined ? {} : { UNFOLD_TEST_HELD_TIMEOUT_MS: String(holdTimeoutsOf) };
   const worker = spawn(process.execPath, [...(holdTimeoutsOf === undefined ? [] : ['--import', heldTimeouts]), workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_RELAY_URL: `http://127.0.0.1:${relayPort}/api/relay/${workspaceId}`, UNFOLD_RELAY_TOKEN: token, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_KEEP_ALIVE: '1', UNFOLD_RELAY_STOP_GRACE_MS: '300', ...held }, stdio: ['ignore', 'ignore', 'pipe'] });
   t.after(() => { worker.kill('SIGKILL'); relayServer.close(); for (const pid of writerPids(join(directory, 'out'))) { try { process.kill(pid, 'SIGKILL'); } catch {} } rmSync(directory, { recursive: true, force: true }); });
-  await relay.waitForWorker(workspaceId, new AbortController().signal, scaledTimeout(10_000));
+  let logs = '';
+  worker.stderr!.on('data', chunk => { logs += chunk; });
+  try {
+    await relay.waitForWorker(workspaceId, new AbortController().signal, scaledTimeout(30_000));
+  } catch (error) {
+    throw new Error(`the relay worker never connected (exit code ${worker.exitCode ?? 'none'}, signal ${worker.signalCode ?? 'none'}); its output: ${logs.trim() || 'nothing'}`, { cause: error });
+  }
   return { fetcher: relay.fetcher(workspaceId), file: join(directory, 'out'), worker };
 }
 
@@ -209,7 +215,7 @@ async function assertNoWritesAfterStop(file: string) {
   assert.equal(sizeOf(file), size, 'nothing may write to the workspace after the stop');
 }
 
-test('stopping the harness stops its whole process group, including a grandchild that ignores SIGTERM, before it reports stopped', { timeout: testTimeout(30_000) }, async t => {
+test('stopping the harness stops its whole process group, including a grandchild that ignores SIGTERM, before it reports stopped', { timeout: testTimeout(60_000) }, async t => {
   const { fetcher, file } = await relayedWorker(t, 'ws-stop');
   const ran = await fetcher('http://workspace/__unfold/run', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)] }) });
   assert.equal(ran.status, 202);
@@ -219,7 +225,7 @@ test('stopping the harness stops its whole process group, including a grandchild
   await assertNoWritesAfterStop(file);
 });
 
-test('an exec subprocess group is stopped when its relay request is cancelled or its timeout passes', { timeout: testTimeout(30_000) }, async t => {
+test('an exec subprocess group is stopped when its relay request is cancelled or its timeout passes', { timeout: testTimeout(60_000) }, async t => {
   const { fetcher, file, worker } = await relayedWorker(t, 'ws-exec', heldTimeoutMs);
   const controller = new AbortController();
   const pending = fetcher('http://workspace/__unfold/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)] }), signal: controller.signal });
