@@ -74,8 +74,8 @@ const copy = {
   },
   ci_not_passed: {
     chip: 'CI did not pass',
-    sentence: 'CI on the pull request did not pass, but every failing check was cancelled or also fails on the base branch, so Ploeg re-ran it once and sent nothing back to the writer. The pull request stays open.',
-    fix: 'Open the failing checks the reason names. Fix the base branch or the CI runner, then re-run CI on the pull request.',
+    sentence: 'CI on the pull request did not pass, but every failing check was cancelled or also fails on the base branch, so Ploeg sent nothing back to the writer. The pull request stays open.',
+    fix: 'Open the failing checks Ploeg names. Re-run a cancelled check on the forge; fix a check that also fails on the base branch there first.',
   },
   review_failed: {
     chip: 'Reviewer kept failing',
@@ -448,6 +448,18 @@ function noPullRequestSentence(writer) {
   return 'Every planned Round ran, but no writer reported a pull request.';
 }
 
+const cancelledCheck = /not sent to the writer because the forge reports it cancelled/;
+const baseCheck = /not sent to the writer because it also fails on the base commit/;
+
+function ciCancelled(headline) {
+  if (!headline || !cancelledCheck.test(headline) || baseCheck.test(headline)) return null;
+  const sentence = /the forge cannot re-run CI/.test(headline)
+    ? 'Every failing check on the pull request was cancelled, not failed, and this forge cannot re-run CI for Ploeg, so Ploeg stopped and sent nothing back to the writer. The pull request stays open.'
+    : 'Every failing check on the pull request was cancelled, not failed, and still did not pass after one re-run, so Ploeg sent nothing back to the writer. The pull request stays open.';
+  const fix = 'Re-run the cancelled CI run on the forge. When it passes, the pull request is ready: review and merge it yourself, or hand it back to the Team.';
+  return { sentence, fix };
+}
+
 const budgetCodes = new Set(['budget_exhausted', 'budget_exhausted_before_fix_round', 'budget_held']);
 
 function heldDetail(detail, shift, reason) {
@@ -472,7 +484,8 @@ function heldDetail(detail, shift, reason) {
  * summary, and its failure reason meta). For `plan_exhausted` it tells the two causes apart with `variant`
  * (`no_pull_request`: no writer reported one; `changes_unresolved`: the last reviewer asked for changes), which
  * changes the sentence and the fix but not the chip. For `budget_held` it names the failure that came first and
- * whether Ploeg has released the hold since, and points the fix at that failure instead of the budget. Returns null
+ * whether Ploeg has released the hold since, and points the fix at that failure instead of the budget. For `ci_not_passed`
+ * whose every named check was cancelled it sets `variant` `ci_cancelled` and points the fix at re-running CI. Returns null
  * unless the item is `needs_human` or `stale`.
  */
 export function detailReason(detail) {
@@ -507,6 +520,11 @@ export function detailReason(detail) {
   }
   if (reason.code === 'budget_held') reason = { ...reason, ...heldDetail(detail, shift, reason) };
   let variant = null;
+  const cancelled = reason.code === 'ci_not_passed' ? ciCancelled(headline) : null;
+  if (cancelled) {
+    variant = 'ci_cancelled';
+    reason = { ...reason, ...cancelled, action: `${cancelled.fix} ${reason.requeue}` };
+  }
   if (reason.code === 'plan_exhausted') {
     headline = null;
     const found = planVariant(detail, shift);

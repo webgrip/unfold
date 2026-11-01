@@ -175,6 +175,25 @@ test('checks that did not pass say the pull request stays open, how to find the 
   assert.equal(detail.headline, 'the configured checks did not pass on the pushed commit and no fix round can run');
 });
 
+test('ci_not_passed never claims a re-run, and tells cancelled CI apart from a red base', () => {
+  const listed = listReason(item('ci_not_passed'));
+  assert.doesNotMatch(listed.sentence, /re-ran/);
+  const check = (name, why) => `"[Workflow] On Pull Request / ${name} (pull_request)" failure (Has been cancelled) /webgrip/unfold/actions/runs/3297/jobs/0, not sent to the writer because ${why}`;
+  const headline = checks => `the forge's CI on the pull request's head did not pass and no failing check is the writer's to fix, so no fix round runs; the forge cannot re-run CI. ${checks.join('; ')}. The pull request stays open and a person is asked to take over`;
+  const detail = reason => detailReason({
+    item: item('ci_not_passed'), shifts: [],
+    runs: [{ id: '7', role: 'builder', round: 1, writes: true, outcome: 'pr_opened', summary: 'Opened #794' }],
+    events: [{ id: '9', action: 'work_item.needs_human', detail: { reason } }],
+  });
+  const cancelled = detail(headline([check('checks', 'the forge reports it cancelled'), check('gate', 'the forge reports it cancelled')]));
+  assert.deepEqual([cancelled.variant, cancelled.chip, cancelled.run.id], ['ci_cancelled', 'CI did not pass', '7']);
+  assert.match(cancelled.sentence, /cancelled, not failed, and this forge cannot re-run CI for Ploeg/);
+  assert.match(cancelled.action, /^Re-run the cancelled CI run on the forge\..* Then assign the task to the Team again in /);
+  const red = detail(headline([check('checks', 'the forge reports it cancelled'), check('gate', 'it also fails on the base commit')]));
+  assert.equal(red.variant, null, 'a check that also fails on the base needs the base fixed, not a re-run');
+  assert.equal(red.sentence, listed.sentence);
+});
+
 test('a reviewer that kept failing names the failed reviewer Run, never the writer', () => {
   const detail = detailReason({
     item: item('review_failed'), shifts: [],
