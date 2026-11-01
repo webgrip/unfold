@@ -36,7 +36,8 @@ import billing from './billing.js';
 import admin from './admin.js';
 import linkedSessions from './linked-sessions.js';
 import linkedPermissions from './linked-permissions.js';
+import teams from './teams.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, webhooks, connections, taskSetup, intake, billing, admin, status, preferences, cardIdentity, editors, labs, notifications, linkedSessions, linkedPermissions, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, webhooks, connections, taskSetup, intake, billing, admin, status, preferences, cardIdentity, editors, labs, teams, notifications, linkedSessions, linkedPermissions, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

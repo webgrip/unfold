@@ -20,6 +20,7 @@ const groups = [
     { id: 'work', href: '#work', glyph: 'work', label: 'Work' },
     { id: 'proposed', href: '#proposed', glyph: 'proposed', label: 'Proposed', count: 'proposed', describe: n => `${n} proposed`, tone: 'neutral' },
     { id: 'tasks', href: '#tasks', glyph: 'tasks', label: 'Tasks' },
+    { id: 'teams', href: '#teams', glyph: 'layers', label: 'Teams', when: () => enabled('teams.builder') },
   ] },
   { id: 'follow', items: [
     { id: 'runs', href: '#runs', glyph: 'runs', label: 'Runs' },

@@ -28,6 +28,7 @@
 @import url('styles/loop.css') layer(views);
 @import url('styles/live-work.css') layer(views);
 @import url('styles/tracks.css') layer(views);
+@import url('styles/teams.css') layer(views);
 @font-face {
   font-family:Archivo;
   font-style:normal;

@@ -117,6 +117,22 @@
         "labs": true
       }
     },
+    "teams.builder": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "$ref": "labs-choice" },
+      "metadata": {
+        "kind": "release",
+        "owner": "Ryan Grippeling",
+        "created": "2026-11-01",
+        "expires": "2027-02-01",
+        "title": "Team builder",
+        "description": "Adds Teams to the sidebar: build an agent (harness, model, skills, permissions, budget per Run) and see where it can work and what it costs before anything runs; put agents into the positions of a Team with a charter, a weekly budget and the repositories it may enter, where every save is a new version with its own record per repository (merged, cost per merged pull request, review rounds, reverts, review minutes); and rehearse what the assignment gate answers on a tracker card. A demo: the roster lives in the browser, nothing starts a Run and no amount is a charge.",
+        "client": true,
+        "labs": true
+      }
+    },
     "cards.rarity": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
