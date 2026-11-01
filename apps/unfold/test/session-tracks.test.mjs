@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attachSession, attachmentWords, commitSpine, handoverMarks, roundWindows, sessionWindow, shiftWindows, workTracks } from '../public/core/session-tracks.js';
 import { clashesWithRun, collisions, collisionsOf, runningRunsOf, startedBy } from '../public/core/collisions.js';
-import { foldedWindow, workTracksMarkup } from '../public/core/work-tracks.js';
-import { flightSpot, momentAt, shareAt } from '../public/core/time-cursor.js';
+import { foldedWindow, rangeWindow, workTracksMarkup } from '../public/core/work-tracks.js';
+import { dragRange, flightSpot, momentAt, shareAt } from '../public/core/time-cursor.js';
 import { streamLanes } from '../public/core/value-stream.js';
 import { workView } from '../public/live/work-view.js';
 import { workPage } from '../public/live/pages.js';
@@ -173,6 +173,38 @@ test('the time cursor turns a pointer position into a moment and back, and finds
   assert.deepEqual(flightSpot(spans, 30), { index: 1, fraction: 0.5 });
   assert.deepEqual(flightSpot(spans, 45), { index: 2, fraction: 0 }, 'between two Runs the cursor waits at the next one');
   assert.equal(flightSpot(spans, 61), null);
+});
+
+test('a session takes part from when it was linked to the Work Item, not from its start', () => {
+  const long = session('long', { state: 'idle', startedAt: at(-1440), linkedAt: at(210) });
+  assert.equal(sessionWindow(long, now).from, Date.parse(at(210)), 'a day-old session joins the Work Item when it was linked');
+  assert.equal(sessionWindow(session('early', { startedAt: at(10), linkedAt: at(0), endedAt: at(20) }), now).from, Date.parse(at(10)), 'linked before it started, it starts at its start');
+  assert.equal(sessionWindow(session('unknown', { startedAt: at(10), endedAt: at(20) }), now).from, Date.parse(at(10)));
+  const lane = streamLanes({ stream: null, runTone: () => ({ tone: 'neutral', label: 'x' }), sessions: [long] }).find(each => each.group === 'people');
+  assert.equal(lane.bars[0].start, at(210));
+  assert.equal(attachSession(long, detail, now).attempt, 2, 'it sits in the attempt it was linked during');
+  assert.match(handoverMarks(detail, [long], now).find(mark => mark.kind === 'overlap').label, /You linked a Claude Code session while the builder Run worked/);
+  const html = workTracksMarkup(workTracks({ detail, sessions: [long], now }), { detail, sessions: [long], now });
+  const scale = JSON.parse(html.match(/data-time-scale="([^"]+)"/)[1].replaceAll('&quot;', '"'));
+  assert.ok(scale[0][0] > Date.parse(at(-1440)) + 60 * 60_000, 'the axis does not reach back to the session’s start');
+});
+
+test('dragging across the two tracks zooms them to that span, with a way back to the whole time line', () => {
+  const pieces = [[0, 100_000, 0, 40], [100_000, 1_000_000, 40, 45], [1_000_000, 1_100_000, 45, 100]];
+  assert.deepEqual(dragRange(pieces, 72.5, 20), { from: 50_000, to: 1_050_000 }, 'either direction, earliest first');
+  assert.equal(dragRange(pieces, 20, 20.1), null, 'less than a minute is a click, not a zoom');
+  const window = rangeWindow({ from: Date.parse(at(0)), to: Date.parse(at(60)) }, shiftWindows(detail, now));
+  assert.equal(window.folds.length, 0);
+  assert.equal(window.place(Date.parse(at(30))), 50);
+  assert.equal(window.stretches[0].name, 'Attempt 1');
+  const sessions = [session('a', { startedAt: at(10), endedAt: at(150) })];
+  const html = workTracksMarkup(workTracks({ detail, sessions, now }), { detail, sessions, now, range: { from: Date.parse(at(0)), to: Date.parse(at(60)) } });
+  assert.match(html, /data-action="work-tracks-whole"/);
+  assert.match(html, /<rect class="time-brush"/);
+  assert.deepEqual(JSON.parse(html.match(/data-time-scale="([^"]+)"/)[1].replaceAll('&quot;', '"')), [[Date.parse(at(0)), Date.parse(at(60)), 0, 100]]);
+  assert.doesNotMatch(html, /tracks-fold"/);
+  assert.doesNotMatch(workTracksMarkup(workTracks({ detail, sessions, now }), { detail, sessions, now }), /work-tracks-whole/);
+  assert.doesNotMatch(html, /style=/, 'the CSP forbids inline styles');
 });
 
 test('the one-page Work Item shows the two tracks above its views when a session is linked, and says where each session sat', () => {

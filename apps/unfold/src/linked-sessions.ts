@@ -246,7 +246,7 @@ export class LinkedSessionStore {
 }
 
 /** A Linked Session as the API presents it: its stored facts, its shown state, its Unfold page and how to resume it. */
-export type PresentedLinkedSession = Omit<LinkedSession, 'dismissed' | 'resolvedBranch'> & { state: LinkedStatus | 'stale'; displayTitle: string; link: string; resume: string; mine: boolean; aiLines: number; telemetry?: SessionTelemetry };
+export type PresentedLinkedSession = Omit<LinkedSession, 'dismissed' | 'resolvedBranch'> & { state: LinkedStatus | 'stale'; displayTitle: string; link: string; resume: string; mine: boolean; aiLines: number; telemetry?: SessionTelemetry; linkedAt?: string };
 
 /**
  * Records what people's own agent sessions report, links them to Work Items the person may read, and keeps the
@@ -409,14 +409,15 @@ export class LinkedSessions {
   }
 
   /**
-   * The Linked Sessions of one Work Item, after Ploeg confirms the person may read it. With `withTelemetry`, each
+   * The Linked Sessions of one Work Item, after Ploeg confirms the person may read it, each with `linkedAt`: when it
+   * was linked to this Work Item, where its part in the Work Item begins. With `withTelemetry`, each
    * session whose telemetry the person may see (their own, or every one for an administrator) carries it, read at most
    * {@link linkedTelemetryConcurrency} at a time.
    */
   async forWorkItem(user: User, workItemId: string, base: string, withTelemetry = false): Promise<PresentedLinkedSession[]> {
     if (!workItemPattern.test(workItemId)) fail(400, 'work_item_id', 'Use a Work Item id.');
     await this.ploeg.detail(user, workItemId);
-    const sessions = this.store.forWorkItem(workItemId, linkedLimits.listed).map(session => ({ session, shown: this.present(session, user, base) }));
+    const sessions = this.store.forWorkItem(workItemId, linkedLimits.listed).map(session => ({ session, shown: { ...this.present(session, user, base), linkedAt: session.workItems.find(entry => entry.id === workItemId)?.linkedAt } }));
     if (withTelemetry) {
       const visible = sessions.filter(entry => entry.session.ownerId === user.id || user.role === 'admin');
       for (let start = 0; start < visible.length; start += linkedTelemetryConcurrency) {

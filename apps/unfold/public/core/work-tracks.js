@@ -1,4 +1,5 @@
 import { escape } from './dom.js';
+import * as ui from './ui.js';
 import { dateTime, duration, time } from './format.js';
 import { dayAndTime, laneMarkup, placeIn, sessionLanes, streamExtent, streamLanes, streamTicks } from './value-stream.js';
 import { attachmentWords } from './session-tracks.js';
@@ -114,6 +115,17 @@ export function foldedWindow(lanes, shifts, now) {
   };
 }
 
+/**
+ * The time axis of the two tracks zoomed to `range`, a span a person dragged across the chart: one straight stretch
+ * from `range.from` to `range.to`, nothing folded, in the same shape as `foldedWindow`.
+ * @param {{ from: number, to: number }} range
+ * @param {{ attempt: number, from: number, to: number }[]} shifts
+ */
+export function rangeWindow(range, shifts) {
+  const piece = { from: range.from, to: Math.max(range.to, range.from + minute), start: 0, end: 100, fold: false };
+  return { from: piece.from, to: piece.to, place: at => ((at - piece.from) / (piece.to - piece.from)) * 100, pieces: [piece], stretches: [{ ...piece, name: stretchName(piece, shifts) }], folds: [] };
+}
+
 function stretchName({ from, to }, shifts) {
   if (!shifts.length) return '';
   const inside = shifts.filter(shift => shift.from <= to && shift.to >= from);
@@ -172,7 +184,7 @@ function chart(lanes, tracks, window, now, label) {
   const axis = `<svg class="stream-axis" width="100%" height="100%" overflow="visible" aria-hidden="true">${ticks.map(tick => `<text x="${pct(tick.share)}" y="70%" text-anchor="${tick.first || tick.share < 5 ? 'start' : 'middle'}">${escape(tick.label)}</text>`).join('')}${foldLabels}</svg>`;
   const folds = window.folds.map(fold => `<rect class="tracks-fold" x="${pct(fold.start)}" width="${pct(fold.end - fold.start)}" y="0" height="100%"/>`).join('');
   const connectors = tracks.handovers.filter(mark => mark.at >= window.from && mark.at <= window.to).map(mark => `<line class="tracks-handover" data-kind="${escape(mark.kind)}" x1="${share(mark.at)}" x2="${share(mark.at)}" y1="0" y2="100%"/>`).join('');
-  const grid = `<svg class="stream-grid" width="100%" height="100%" overflow="visible" aria-hidden="true">${folds}${ticks.map(tick => `<line class="stream-gridline" x1="${pct(tick.share)}" x2="${pct(tick.share)}" y1="0" y2="100%"/>`).join('')}${connectors}${live ? `<line class="stream-now" x1="${share(now)}" x2="${share(now)}" y1="0" y2="100%"/>` : ''}<line class="time-cursor" x1="0" x2="0" y1="0" y2="100%" visibility="hidden"/><text class="time-cursor-label" x="0" y="-4" text-anchor="middle" visibility="hidden"></text></svg>`;
+  const grid = `<svg class="stream-grid" width="100%" height="100%" overflow="visible" aria-hidden="true">${folds}${ticks.map(tick => `<line class="stream-gridline" x1="${pct(tick.share)}" x2="${pct(tick.share)}" y1="0" y2="100%"/>`).join('')}${connectors}${live ? `<line class="stream-now" x1="${share(now)}" x2="${share(now)}" y1="0" y2="100%"/>` : ''}<rect class="time-brush" x="0" width="0" y="0" height="100%" visibility="hidden"/><line class="time-cursor" x1="0" x2="0" y1="0" y2="100%" visibility="hidden"/><text class="time-cursor-label" x="0" y="-4" text-anchor="middle" visibility="hidden"></text></svg>`;
   const group = (track, title, list) => list.length ? `<div class="tracks-group" data-track="${track}"><p class="tracks-title">${escape(title)}</p><ol class="stream-lanes">${list.map(lane => laneMarkup(lane, window, now)).join('')}</ol></div>` : '';
   const empty = !lanes.ploeg.length ? '<div class="tracks-group" data-track="ploeg"><p class="tracks-title">Ploeg</p><p class="meta tracks-none">Ploeg has not started an attempt.</p></div>' : '';
   const scale = JSON.stringify(window.pieces.map(({ from, to, start, end }) => [from, to, Number(start.toFixed(3)), Number(end.toFixed(3))]));
@@ -208,20 +220,22 @@ function list(tracks, detail, now) {
  * The two tracks of a Work Item as one picture: Ploeg's attempts and Runs above, each person's Linked Sessions below,
  * on one time axis whose quiet hours fold away (`foldedWindow`), with a dashed connector wherever control moved between
  * them and the commit spine at the bottom, each commit coloured by who wrote its lines. A key names every colour. The
- * chart carries its scale in `data-time-scale` for the shared time cursor. Below 40 rem the tracks stack into one
- * vertical list in time order.
+ * chart carries its scale in `data-time-scale` for the shared time cursor, which also zooms to a span dragged across
+ * it; given that span as `range`, the axis runs straight across it (`rangeWindow`) with a button back to the whole
+ * time line. Below 40 rem the tracks stack into one vertical list in time order.
  * Empty when no Linked Session is on the Work Item, where the value stream already tells Ploeg's side alone. `control`
  * is the Take control panel, drawn under the intro so control moves from the view that shows it.
  * @param {ReturnType<import('./session-tracks.js').workTracks>} tracks
- * @param {{ detail: object, sessions: object[], now: number, runTone?: (run: object) => { tone: string, label: string }, label?: string, control?: string }} input
+ * @param {{ detail: object, sessions: object[], now: number, runTone?: (run: object) => { tone: string, label: string }, label?: string, control?: string, range?: { from: number, to: number }|null }} input
  * @returns {string}
  */
-export function workTracksMarkup(tracks, { detail, sessions, now, runTone, label = 'Ploeg and people on one time axis', control = '' }) {
+export function workTracksMarkup(tracks, { detail, sessions, now, runTone, label = 'Ploeg and people on one time axis', control = '', range = null }) {
   if (!tracks?.people.length) return '';
   const lanes = trackLanes(tracks, { detail, sessions, runTone });
-  const window = foldedWindow([...lanes.ploeg, ...lanes.people, ...lanes.spine], tracks.shifts, now);
+  const window = range ? rangeWindow(range, tracks.shifts) : foldedWindow([...lanes.ploeg, ...lanes.people, ...lanes.spine], tracks.shifts, now);
   if (!window) return '';
   const folded = window.folds.length > 0;
-  const intro = `What Ploeg’s agents did and what people did in their own sessions, on one time line that ends in one pull request.${folded ? ' Quiet hours are folded away.' : ''} Point at a moment here or in the flight above to see it in both.`;
-  return `<section class="lv-panel tracks" aria-label="Two tracks"><h2 class="lv-overline">Ploeg and people</h2><p class="meta tracks-intro">${escape(intro)}</p>${control}${legend(tracks, lanes, folded)}${chart(lanes, tracks, window, now, label)}${list(tracks, detail, now)}</section>`;
+  const intro = `What Ploeg’s agents did and what people did in their own sessions, on one time line that ends in one pull request.${folded ? ' Quiet hours are folded away.' : ''} Point at a moment here or in the flight above to see it in both; drag across the tracks to zoom in.`;
+  const zoomed = range ? `<p class="tracks-zoom meta">Showing ${escape(dayAndTime(window.from))} to ${escape(dayAndTime(window.to))} ${ui.button({ label: 'Show the whole time line', variant: 'ghost', size: 'sm', action: 'work-tracks-whole' })}</p>` : '';
+  return `<section class="lv-panel tracks" aria-label="Two tracks"><h2 class="lv-overline">Ploeg and people</h2><p class="meta tracks-intro">${escape(intro)}</p>${control}${legend(tracks, lanes, folded)}${zoomed}${chart(lanes, tracks, window, now, label)}${list(tracks, detail, now)}</section>`;
 }

@@ -15,21 +15,25 @@ const sessionStates = new Set(['working', 'waiting', 'idle']);
 const sessionHarness = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex', acp: 'ACP agent' };
 
 /**
- * One lane per person and harness for the Linked Sessions people ran on a Work Item, each session a bar from its start
- * to its end (open while it still works, waits or sits idle) that links to its page. Sessions without a start are left out.
+ * One lane per person and harness for the Linked Sessions people ran on a Work Item, each session a bar from when it was
+ * linked to the Work Item (`linkedAt`, or its start when that is later or unknown) to its end (open while it still
+ * works, waits or sits idle) that links to its page. Sessions without a start are left out.
  * @returns {{ key: string, group: 'people', label: string, sublabel: string, url: null, bars: object[], marks: object[] }[]}
  */
 export function sessionLanes(sessions = []) {
   const lanes = new Map();
   for (const session of sessions ?? []) {
-    if (toMs(session.startedAt) === null) continue;
+    const started = toMs(session.startedAt);
+    if (started === null) continue;
     const person = session.mine ? 'You' : session.ownerName || 'Someone';
     const harness = sessionHarness[session.harness] ?? String(session.harness || 'Agent');
     const key = `people:${person}#${harness}`;
     const lane = lanes.get(key) ?? { key, group: 'people', label: person, sublabel: harness, url: null, bars: [], marks: [] };
     const open = sessionStates.has(session.state) && !session.endedAt;
     const commits = Array.isArray(session.commits) ? session.commits.length : 0;
-    lane.bars.push({ start: session.startedAt, end: open ? null : session.endedAt ?? session.lastSeenAt ?? session.startedAt, label: session.displayTitle || session.title || `${harness} session`, detail: `${harness} session · ${commits} ${commits === 1 ? 'commit' : 'commits'}`, tone: session.state === 'waiting' ? 'attention' : open ? 'review' : 'neutral', waiting: session.state === 'idle', href: `#linked-session/${encodeURIComponent(session.id)}` });
+    const start = new Date(Math.max(started, toMs(session.linkedAt) ?? started)).toISOString();
+    const end = open ? null : new Date(Math.max(toMs(start), toMs(session.endedAt ?? session.lastSeenAt) ?? started)).toISOString();
+    lane.bars.push({ start, end, label: session.displayTitle || session.title || `${harness} session`, detail: `${harness} session · ${commits} ${commits === 1 ? 'commit' : 'commits'}`, tone: session.state === 'waiting' ? 'attention' : open ? 'review' : 'neutral', waiting: session.state === 'idle', href: `#linked-session/${encodeURIComponent(session.id)}` });
     lanes.set(key, lane);
   }
   return [...lanes.values()];

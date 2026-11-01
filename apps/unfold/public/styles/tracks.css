@@ -220,3 +220,26 @@ a.stream-bar:hover {
   stroke: var(--bg-surface);
   stroke-width: 4px;
 }
+
+.tracks-chart .stream-lanes {
+  cursor: crosshair;
+}
+
+.tracks-chart[data-brushing] {
+  user-select: none;
+}
+
+.time-brush {
+  fill: var(--accent-graphic);
+  fill-opacity: 0.08;
+  stroke: var(--accent-graphic);
+  stroke-width: 1;
+}
+
+.tracks-zoom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}

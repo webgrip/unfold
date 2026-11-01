@@ -23,6 +23,7 @@ import { detailReason } from '../core/reasons.js';
 import { attachSession, sessionParts } from './session.js';
 import { announcesTripwire, tripwireCheckLabel } from '../core/tripwire.js';
 import { takeControlDialogMarkup, takeControlOffer } from '../core/take-over.js';
+import { tracksRangeEvent } from '../core/time-cursor.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -36,9 +37,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', tracksRange: null, trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', tracksRange: null, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null, takeOverBusy: false, takeOverResult: null }));
 
 const laneOfState = { needs_human: 'needs_human', stale: 'stale', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -100,6 +101,7 @@ function model() {
     flags: flagValues(),
     publisher: Boolean(state.bootstrap?.deliveryPublisher),
     streamZoom: work.streamZoom,
+    tracksRange: work.tracksRange?.id === work.detailId ? work.tracksRange.range : null,
     trace: work.trace?.id === work.detailId ? work.trace.data : null,
     traceBusy: work.traceBusy,
     traceResult: work.traceResult?.id === work.detailId ? work.traceResult : null,
@@ -358,6 +360,14 @@ async function loadStream(id, { fresh = false } = {}) {
   work.stream = { id, data: stream, signature: next };
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
+
+function zoomTracks(range) {
+  if (!work.detailId) return;
+  work.tracksRange = range ? { id: work.detailId, range } : null;
+  renderWork();
+}
+
+if (globalThis.window) window.addEventListener(tracksRangeEvent, event => { if (visible()) zoomTracks(event.detail); });
 
 function zoomStream(button) {
   const zoom = button.dataset.id === 'agents' ? 'agents' : 'all';
@@ -1483,6 +1493,7 @@ export default {
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-stream-zoom': zoomStream,
+    'work-tracks-whole': () => zoomTracks(null),
     'work-run-logs-retry': retryRunLogs,
     'work-run-log-level': setLogLevel,
     'work-run-log-toggle': toggleLogDisplay,
