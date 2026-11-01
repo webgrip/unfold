@@ -283,6 +283,17 @@
         "fileFilters": ["**/pnpm-lock.yaml"],
         "executionMode": "update"
       }
+    },
+    {
+      "description": "Lock-file maintenance regenerates a pnpm lockfile with the same global pnpm, which drops the lockfile's first document and with it the packageManagerDependencies record a frozen install needs (#784). The same corepack command restores it. The rule names each pnpm project, because in an npm project the command would write a stray pnpm-lock.yaml.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "matchFileNames": ["apps/site/package.json"],
+      "postUpgradeTasks": {
+        "commands": ["corepack pnpm install --lockfile-only --ignore-scripts --ignore-pnpmfile"],
+        "workingDirTemplate": "{{{packageFileDir}}}",
+        "fileFilters": ["**/pnpm-lock.yaml"],
+        "executionMode": "update"
+      }
     }
   ],
   "helm-values": {
