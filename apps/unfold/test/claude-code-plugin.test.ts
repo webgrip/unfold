@@ -3,17 +3,19 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addedLines, attribute, limits, modelId, remember, traceRecord, writtenText } from '../extensions/claude-code/scripts/agent-trace.mjs';
 import { parseAgentTrace, traceLines } from '../src/agent-trace.ts';
 import { permissionBounds } from '../extensions/claude-code/scripts/permission.mjs';
+import { scaledTimeout } from './timeframes.ts';
 
 const plugin = fileURLToPath(new URL('../extensions/claude-code/', import.meta.url));
 const hook = join(plugin, 'scripts/unfold-hook.mjs');
 const sha = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+const patience = { UNFOLD_HOOK_TIMEOUT_MS: String(scaledTimeout(10_000)), UNFOLD_HOOK_GIT_TIMEOUT_MS: String(scaledTimeout(10_000)) };
 
 test('the plugin manifest, hooks and marketplace entry are what Claude Code loads', async () => {
   const manifest = JSON.parse(await readFile(join(plugin, '.claude-plugin/plugin.json'), 'utf8'));
@@ -120,7 +122,7 @@ test('the hook reports a session, names it after its Work Item, and sends an Age
   execFileSync('git', ['init', '-q', '-b', 'feat/vik-2051-login', repo]);
   gitIn('config', 'user.email', 'test@example.org'); gitIn('config', 'user.name', 'Test');
   gitIn('commit', '-q', '--allow-empty', '-m', 'root');
-  const env = { HOME: dir, UNFOLD_URL: `${unfold.url}/`, UNFOLD_TOKEN: 'vle_test', CLAUDE_PLUGIN_DATA: join(dir, 'data') };
+  const env = { ...patience, HOME: dir, UNFOLD_URL: `${unfold.url}/`, UNFOLD_TOKEN: 'vle_test', CLAUDE_PLUGIN_DATA: join(dir, 'data') };
   const base = { session_id: 'plugin-session-1', cwd: repo, transcript_path: join(dir, 'missing.jsonl') };
 
   const started = await runHook({ ...base, hook_event_name: 'SessionStart', source: 'startup', model: 'claude-opus-5-5' }, env);
@@ -179,6 +181,53 @@ test('the hook reports a session, names it after its Work Item, and sends an Age
   assert.ok(subTrace, 'a commit in a worktree the session edited gets its Agent Trace record');
   assert.deepEqual(subTrace!.files.map(file => [file.path, file.conversations.map(conversation => conversation.url)]), [['src/review.ts', ['http://unfold.test/#linked-session/plugin-session-1?agent=code-reviewer']]]);
   assert.equal(JSON.parse(execFileSync('git', ['-C', worktree, 'notes', '--ref=agent-trace', 'show', worktreeHead], { encoding: 'utf8' })).id, subTrace!.id);
+});
+
+test('a commit git cannot show in time is left for the next hook, which reports it with its record, and after three failed attempts it is skipped', async t => {
+  const unfold = await fakeUnfold();
+  const dir = await mkdtemp(join(tmpdir(), 'unfold-plugin-'));
+  t.after(async () => { await unfold.close(); await rm(dir, { recursive: true, force: true }); });
+  const repo = join(dir, 'repo');
+  const gitIn = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
+  execFileSync('git', ['init', '-q', '-b', 'main', repo]);
+  gitIn('config', 'user.email', 'test@example.org'); gitIn('config', 'user.name', 'Test');
+  gitIn('commit', '-q', '--allow-empty', '-m', 'root');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const slow = join(dir, 'slow');
+  await mkdir(join(dir, 'bin'));
+  await writeFile(join(dir, 'bin/git'), `#!/bin/sh\nif [ -e '${slow}' ]; then for argument in "$@"; do [ "$argument" = '--unified=0' ] && exit 128; done; fi\nexec '${realGit}' "$@"\n`);
+  await chmod(join(dir, 'bin/git'), 0o755);
+  const env = { ...patience, HOME: dir, PATH: `${join(dir, 'bin')}:${process.env.PATH ?? ''}`, UNFOLD_URL: unfold.url, UNFOLD_TOKEN: 'vle_test', CLAUDE_PLUGIN_DATA: join(dir, 'data') };
+  const base = { session_id: 'plugin-session-3', cwd: repo, transcript_path: join(dir, 'none.jsonl') };
+  const commitWritten = async (name: string) => {
+    const content = `export const ${name} = ${JSON.stringify(name)};\n`;
+    await runHook({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: join(repo, `${name}.ts`), content } }, env);
+    await writeFile(join(repo, `${name}.ts`), content);
+    gitIn('add', `${name}.ts`);
+    gitIn('commit', '-q', '-m', `feat: ${name}`);
+    return gitIn('rev-parse', 'HEAD');
+  };
+  const bash = () => runHook({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } }, env);
+  const reported = () => unfold.received.filter(entry => entry.body.event === 'commit').map(entry => entry.body.commit.sha);
+  const traced = () => unfold.received.filter(entry => entry.path === '/api/linked-sessions/plugin-session-3/traces').map(entry => parseAgentTrace(entry.body).vcs?.revision);
+
+  await runHook({ ...base, hook_event_name: 'SessionStart', source: 'startup' }, env);
+  const first = await commitWritten('first');
+  await writeFile(slow, '');
+  await bash();
+  assert.deepEqual([reported(), traced()], [[], []], 'a commit git could not show is not reported half');
+  await unlink(slow);
+  await bash();
+  assert.deepEqual([reported(), traced()], [[first], [first]], 'the next hook reports it with its Agent Trace record');
+
+  const second = await commitWritten('second');
+  await writeFile(slow, '');
+  for (let attempt = 0; attempt < 3; attempt++) await bash();
+  await unlink(slow);
+  const third = await commitWritten('third');
+  await bash();
+  assert.deepEqual([reported(), traced()], [[first, third], [first, third]], 'after three failed attempts the commit is skipped and later commits are reported');
+  assert.throws(() => gitIn('notes', '--ref=agent-trace', 'show', second), 'the skipped commit has no note');
 });
 
 test('without UNFOLD_URL and UNFOLD_TOKEN, or with Unfold down, the hook prints nothing and exits 0', async t => {

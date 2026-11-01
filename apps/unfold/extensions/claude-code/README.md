@@ -91,7 +91,7 @@ The preview waits in `${CLAUDE_PLUGIN_DATA}/handoffs/<code>.json`, readable by y
 ## Behaviour
 
 * Every hook exits 0 and prints nothing when `UNFOLD_URL` or `UNFOLD_TOKEN` is unset, or when Unfold cannot be reached. A session is never blocked. Set `UNFOLD_HOOK_DEBUG=1` to see errors on stderr.
-* A request gives up after `UNFOLD_HOOK_TIMEOUT_MS` (default 3000).
+* A request gives up after `UNFOLD_HOOK_TIMEOUT_MS` (default 3000), and each git command after `UNFOLD_HOOK_GIT_TIMEOUT_MS` (default 2000). A commit git could not show in time is left for the next hook, which tries again; after three failed attempts the commit stays unreported, which `UNFOLD_HOOK_DEBUG=1` shows.
 * Set `UNFOLD_WORK_ITEM=<id>` to link every session started from that shell to one Work Item.
 * Set `UNFOLD_REMOTE_APPROVAL=1` to answer tool prompts from Unfold. Only the session's owner can, never an administrator, and never with the credential the plugin reports with.
 * The evidence ledger is recorded with or without `UNFOLD_URL`; set `UNFOLD_EVIDENCE=0` to turn it off.
