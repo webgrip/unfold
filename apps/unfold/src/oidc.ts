@@ -24,15 +24,26 @@ export function subjectUserId(namespace: string, subject: string): string {
 }
 
 /**
- * The role a set of identity-provider claims entitles: the role claim, or the highest role whose groups the claims
- * list. Undefined when they entitle none. Browser sign-in and `unfold-mcp` over HTTP both decide with it.
+ * Whether one `auth.oidc.roles` entry matches the claims: a group name the groups claim lists, `email:<address>` for a
+ * verified email address, or `hd:<domain>` for a Google Workspace hosted domain. Identity providers such as Google put
+ * no groups in their tokens, so the last two let an installation admit named people or one Workspace without a broker.
+ */
+function roleEntryMatches(entry: string, groups: readonly string[], claims: Record<string, unknown>): boolean {
+  if (entry.startsWith('email:')) return claims.email_verified === true && typeof claims.email === 'string' && claims.email.toLowerCase() === entry.slice('email:'.length).toLowerCase();
+  if (entry.startsWith('hd:')) return typeof claims.hd === 'string' && claims.hd.toLowerCase() === entry.slice('hd:'.length).toLowerCase();
+  return groups.includes(entry);
+}
+
+/**
+ * The role a set of identity-provider claims entitles: the role claim, or the highest role one of whose entries the
+ * claims match. Undefined when they entitle none. Browser sign-in and `unfold-mcp` over HTTP both decide with it.
  */
 export function entitledRole(settings: Pick<OidcSettings, 'roleClaim' | 'groupsClaim' | 'roles'>, claims: Record<string, unknown>): UserRole | undefined {
   const claimed = claims[settings.roleClaim];
   const groups = Array.isArray(claims[settings.groupsClaim]) ? (claims[settings.groupsClaim] as unknown[]).filter((group): group is string => typeof group === 'string') : [];
   for (const candidate of ['admin', 'operator', 'viewer'] as const) {
     if (claimed === candidate) return candidate;
-    if (settings.roles[candidate].some(group => groups.includes(group))) return candidate;
+    if (settings.roles[candidate].some(entry => roleEntryMatches(entry, groups, claims))) return candidate;
   }
   return undefined;
 }

@@ -269,11 +269,11 @@
             "roles": {
               "type": "object",
               "additionalProperties": false,
-              "description": "Groups that grant each role.",
+              "description": "What grants each role: group names from the groups claim, email:<address> for a verified email address, or hd:<domain> for a Google Workspace hosted domain.",
               "properties": {
-                "admin": { "$ref": "#/$defs/groupList", "default": ["unfold-admins"], "description": "Groups whose members are administrators." },
-                "operator": { "$ref": "#/$defs/groupList", "default": ["unfold-operators"], "description": "Groups whose members are operators." },
-                "viewer": { "$ref": "#/$defs/groupList", "default": ["unfold-viewers"], "description": "Groups whose members are viewers." }
+                "admin": { "$ref": "#/$defs/groupList", "default": ["unfold-admins"], "description": "Entries that make a person an administrator." },
+                "operator": { "$ref": "#/$defs/groupList", "default": ["unfold-operators"], "description": "Entries that make a person an operator." },
+                "viewer": { "$ref": "#/$defs/groupList", "default": ["unfold-viewers"], "description": "Entries that make a person a viewer." }
               }
             }
           }
