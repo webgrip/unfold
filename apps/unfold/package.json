@@ -61,7 +61,7 @@
     "yaml": "2.9.1"
   },
   "dependencies": {
-    "hyparquet-writer": "0.17.0",
-    "ws": "8.22.0"
+    "hyparquet-writer": "0.18.0",
+    "ws": "8.22.1"
   }
 }
