@@ -889,6 +889,18 @@ test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, 
   assert.match(rule.postUpgradeTasks.commands[0], homelabAllowedLockfileRefresh, 'the self-hosted Renovate runs only commands its allowedCommands list');
 });
 
+test('Renovate refreshes the pnpm record after lock-file maintenance in every pnpm project and in no npm project', () => {
+  const rules = renovateConfig().packageRules.filter(rule => rule.postUpgradeTasks && (rule.matchUpdateTypes ?? []).includes('lockFileMaintenance'));
+  assert.equal(rules.length, 1);
+  const [rule] = rules;
+  assert.deepEqual(rule.matchFileNames, pnpmProjects().map(directory => `${directory}/package.json`), 'the rule names exactly the projects that keep a pnpm-lock.yaml');
+  assert.equal(rule.postUpgradeTasks.workingDirTemplate, '{{{packageFileDir}}}');
+  assert.equal(rule.postUpgradeTasks.executionMode, 'update');
+  assert.deepEqual(rule.postUpgradeTasks.fileFilters, ['**/pnpm-lock.yaml']);
+  assert.equal(rule.postUpgradeTasks.commands.length, 1);
+  assert.match(rule.postUpgradeTasks.commands[0], homelabAllowedLockfileRefresh, 'the self-hosted Renovate runs only commands its allowedCommands list');
+});
+
 test('Renovate reads every image of the local MCP compose file under the nightly job\'s name for it, so one update moves both pins', () => {
   const composeFile = 'apps/unfold/test/e2e/authentik.compose.yaml';
   const compose = fs.readFileSync(path.join(root, composeFile), 'utf8');
