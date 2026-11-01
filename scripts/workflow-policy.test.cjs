@@ -391,13 +391,13 @@ test('a pull request restores the dependency caches and leaves saving them to de
     const uses = String(step.uses);
     if (!uses.includes('actions/cache')) continue;
     if (step.name === 'Restore verified gate results') {
-      assert.match(uses, /^actions\/cache@/, 'a pull request records its passed gates for its next push');
+      assert.match(uses, /^https:\/\/forgejo\.webgrip\.dev\/actions\/cache@/, 'a pull request records its passed gates for its next push');
       continue;
     }
-    assert.doesNotMatch(uses, /^actions\/cache@/, `${step.name}: restore and save are separate steps`);
-    if (uses.startsWith('actions/cache/save@')) assert.match(step.if, /github\.event_name != 'pull_request'/, `${step.name}: a pull request never saves`);
+    assert.doesNotMatch(uses, /^https:\/\/forgejo\.webgrip\.dev\/actions\/cache@/, `${step.name}: restore and save are separate steps`);
+    if (uses.startsWith('https://forgejo.webgrip.dev/actions/cache/save@')) assert.match(step.if, /github\.event_name != 'pull_request'/, `${step.name}: a pull request never saves`);
   }
-  const saves = steps.filter(step => String(step.uses).startsWith('actions/cache/save@')).map(step => step.name);
+  const saves = steps.filter(step => String(step.uses).startsWith('https://forgejo.webgrip.dev/actions/cache/save@')).map(step => step.name);
   assert.deepEqual(saves, ['Save mise tool installs', 'Save Go module and build caches', 'Save npm download cache', 'Save pnpm store']);
   const verify = steps.findIndex(verifyStep);
   for (const name of saves.slice(1)) assert.ok(steps.findIndex(step => step.name === name) > verify, `${name} runs after a passing verification`);
@@ -758,7 +758,7 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
   const checkSteps = (steps, label, composite = false) => {
     let checkedOut = false;
     for (const step of steps) {
-      if (step.uses?.startsWith('actions/checkout@')) checkedOut = true;
+      if (/^(?:https:\/\/forgejo\.webgrip\.dev\/)?actions\/checkout@/.test(step.uses ?? '')) checkedOut = true;
       if (step.uses?.startsWith('./')) {
         assert.ok(checkedOut, `${label}: checkout must precede a local action`);
         const action = read(`${step.uses}/action.yml`);
@@ -780,7 +780,11 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
         assert.match(job.uses, /^webgrip\/workflows\/\.forgejo\/workflows\/[a-z-]+\.yml@(?:v\d+\.\d+\.\d+|[a-f0-9]{40})$/);
         assert.equal(typeof job.with.enabled, 'string');
       } else {
-        assert.equal(job['runs-on'], 'docker');
+        assert.ok(['docker', 'unfold-ci'].includes(job['runs-on']), `${file}: ${name} runs on the homelab or the unfold-ci pool`);
+        if (job['runs-on'] === 'unfold-ci') {
+          assert.doesNotMatch(JSON.stringify(job), /secrets\./, `${file}: ${name} runs on the untrusted unfold-ci pool and holds no secret`);
+          assert.equal(job.container, undefined, `${file}: ${name} runs in the unfold-ci runner's own image`);
+        }
         checkSteps(job.steps, `${file}: ${name}`);
       }
       const visit = (id, ancestors = []) => {
@@ -829,7 +833,7 @@ test('live verification follows publication and only runs for an authorized publ
 
 test('the tutorial smoke job runs weekly, only runs the deterministic demo and never gates a release', () => {
   const job = workflows['on_schedule.yml'].jobs['tutorial-smoke'];
-  assert.deepEqual(job.steps.map(step => step.uses), [source.jobs.checks.steps[0].uses, './.forgejo/actions/tutorial-smoke']);
+  assert.deepEqual(job.steps.map(step => step.uses), [source.jobs.checks.steps[0].uses.replace(/^https:\/\/forgejo\.webgrip\.dev\//, ''), './.forgejo/actions/tutorial-smoke']);
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
   assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/unfold/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");

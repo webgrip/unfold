@@ -33,13 +33,13 @@ jobs:
   pending:
     needs: [merge-pin]
     if: always() && needs.merge-pin.result != 'cancelled' && github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
-    runs-on: docker
+    runs-on: unfold-ci
     timeout-minutes: 5
     outputs:
       sha: ${{ steps.pending.outputs.sha }}
       unreleased: ${{ steps.pending.outputs.unreleased }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://forgejo.webgrip.dev/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
@@ -50,10 +50,10 @@ jobs:
   checks:
     needs: [pending]
     if: needs.pending.outputs.unreleased == 'true'
-    runs-on: docker
+    runs-on: unfold-ci
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://forgejo.webgrip.dev/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.pending.outputs.sha }}
           fetch-depth: 0
@@ -65,10 +65,10 @@ jobs:
   checks-unfold:
     needs: [pending]
     if: needs.pending.outputs.unreleased == 'true'
-    runs-on: docker
+    runs-on: unfold-ci
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://forgejo.webgrip.dev/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.pending.outputs.sha }}
           fetch-depth: 0
@@ -92,10 +92,10 @@ jobs:
   ploeg-pin:
     needs: [pending]
     if: needs.pending.outputs.unreleased == 'true'
-    runs-on: docker
+    runs-on: unfold-ci
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://forgejo.webgrip.dev/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.pending.outputs.sha }}
       - uses: https://github.com/jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
