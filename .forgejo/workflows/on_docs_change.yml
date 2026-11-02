@@ -72,7 +72,7 @@ jobs:
     if: ${{ needs.authorize-publication.outputs.enabled == 'true' }}
     runs-on: docker
     timeout-minutes: 5
-    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.8.1@sha256:8ab2ba19e83325cbf8bc44fabc42cd07ebb77f3fbfd5c1749fb7133625e13e64
+    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.8.2@sha256:2a5f94c84b26a4bc9d490964de6fbf82c8fe90b427fcd7d01c34d23459e282d4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 scripts/ploeg-contract.py fetch
