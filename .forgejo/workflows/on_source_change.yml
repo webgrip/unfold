@@ -96,8 +96,6 @@ jobs:
           fetch-depth: 0
       - name: Semantic Release
         id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v4.0.0
-        with:
-          package-path: apps/site
-          package-name: unfold-site
-          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        env:
+          RELEASE_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: webgrip-release --no-align --layout trains --trains apps/site

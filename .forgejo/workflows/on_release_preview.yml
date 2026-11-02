@@ -40,9 +40,6 @@ jobs:
       - name: Record candidate revision
         run: git rev-parse HEAD
       - name: Preview version and release notes
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v4.0.0
-        with:
-          package-path: apps
-          package-name: unfold
-          token: ${{ secrets.WEBGRIP_CI_TOKEN }}
-          dry-run: 'true'
+        env:
+          RELEASE_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+        run: webgrip-release --no-align --dry-run --layout trains --trains apps

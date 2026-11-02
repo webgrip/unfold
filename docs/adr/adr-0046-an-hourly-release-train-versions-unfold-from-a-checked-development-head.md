@@ -137,3 +137,4 @@ From 2026-10-28 the train failed at `merge-pin` whenever a pin was waiting: Forg
 * 2026-10-24: proposed.
 * 2026-10-24: amended. The train merges the newest green Ploeg pin pull request first, after the owner's decision D14 that Ploeg's pins stop merging themselves.
 * 2026-10-25: amended. Releases are tags only, so `pending` and `current` are computed from tags, not release commits.
+* 2026-11-02: amended. The release jobs run `webgrip-release --no-align --layout trains` from `harbor.webgrip.dev/webgrip/semantic-release` 2.5.1 instead of the `semantic-release-monorepo` composite of `webgrip/workflows`, which [homelab ADR-0089](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0089-tooling-repositories-release-in-layers.md) retires. Point 3 of the outcome holds with that command in place of the composite.
