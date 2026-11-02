@@ -17,7 +17,7 @@ Ploeg-free operation does not promise offline inference, repository-free chat, o
 
 ## Prove the runner boundary first
 
-Compare the [Unfold engine](../apps/unfold/src/engine.ts) and [runtime adapters](../apps/unfold/src/runtime) with [Ploeg's worker](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/worker/worker.go) and [harness contract](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/harness/contract.go). Use a small fixture with no paid model calls initially.
+Compare the [Unfold engine](../apps/unfold/src/engine.ts) and [runtime adapters](../apps/unfold/src/runtime) with [Ploeg's worker](https://github.com/ploeg-hq/ploeg/blob/development/pkg/worker/worker.go) and [harness contract](https://github.com/ploeg-hq/ploeg/blob/development/pkg/harness/contract.go). Use a small fixture with no paid model calls initially.
 
 Run the same task in two ways: standalone Unfold with no Ploeg configuration or service, and an explicitly Ploeg-admitted execution. Compare start identity, workspace preparation, harness input, interruption and returned evidence. Unfold's sequential role runs and Ploeg's operator Run are different objects; preserve that mapping.
 
