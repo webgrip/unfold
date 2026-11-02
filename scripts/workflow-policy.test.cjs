@@ -19,6 +19,9 @@ const withoutRef = job => ({ ...job, steps: job.steps.map(({ with: inputs, ...st
   return inputs && Object.keys(rest).length ? { ...step, with: rest } : step;
 }) });
 const publisher = workflows['on_release_published.yml'];
+const runsWebgripRelease = step => /^webgrip-release /.test(step.run ?? '');
+const releasedTrain = step => (runsWebgripRelease(step) ? step.run.match(/ --trains (\S+)$/)?.[1] : undefined);
+const releasesUnfold = workflow => Object.values(workflow.jobs ?? {}).some(job => (job.steps ?? []).some(step => releasedTrain(step) === 'apps'));
 const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test(step.run ?? '');
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
@@ -36,7 +39,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(pr.jobs['release-policy'].container, train.jobs.release.container);
   assert.deepEqual(pr.jobs['release-policy'].steps, withoutRef(train.jobs.release).steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
-    assert.doesNotMatch(JSON.stringify(workflows[name]), /UNFOLD_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
+    assert.doesNotMatch(JSON.stringify(workflows[name]), /UNFOLD_RELEASES_ENABLED|contents":"write|webgrip-release|semantic-release-monorepo@/);
   }
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(verifyStep));
@@ -165,7 +168,7 @@ test('a push checks the head it lands on, supersedes an older development run an
   for (const ref of ['refs/heads/development', 'refs/heads/topic']) assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref } }), true, ref);
   assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref: 'refs/heads/main' } }), false, 'a main push releases the site, so a newer main push queues behind it');
   assert.deepEqual(Object.keys(source.jobs).sort(), ['build-contexts', 'checks', 'checks-unfold', 'ploeg-pin', 'site-release', 'warnings']);
-  assert.doesNotMatch(JSON.stringify(source), /"package-name":"unfold"/);
+  assert.ok(!releasesUnfold(source));
 });
 
 test('the release train owns Unfold versioning: hourly or on command, in its own queue, on the development head after the checks and the release policy', () => {
@@ -208,10 +211,9 @@ test('the release train owns Unfold versioning: hourly or on command, in its own
   assert.equal(job.steps[head].run, 'sh scripts/release-train.sh current "$CHECKED"');
   assert.equal(job.steps[head].env.CHECKED, '${{ needs.pending.outputs.sha }}');
   assert.equal(job.steps[release].if, "steps.head.outputs.current == 'true'");
-  assert.equal(job.steps[release].with['package-path'], 'apps');
-  assert.equal(job.steps[release].with['package-name'], 'unfold');
+  assert.equal(releasedTrain(job.steps[release]), 'apps');
   for (const [file, workflow] of Object.entries(workflows)) {
-    if (file !== 'on_release_train.yml' && file !== 'on_release_preview.yml') assert.doesNotMatch(JSON.stringify(workflow), /"package-name":"unfold"/, `${file} must not version Unfold`);
+    if (file !== 'on_release_train.yml' && file !== 'on_release_preview.yml') assert.ok(!releasesUnfold(workflow), `${file} must not version Unfold`);
   }
 });
 
@@ -334,19 +336,34 @@ test('warnings from setup and verification turn their own job red without gating
 });
 
 const releaseJobs = () => Object.entries(workflows).flatMap(([file, workflow]) => Object.entries(workflow.jobs)
-  .filter(([, job]) => job.steps?.some(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@')))
+  .filter(([, job]) => job.steps?.some(runsWebgripRelease))
   .map(([name, job]) => ({ file, name, job })));
+const trainOfReleaseJob = {
+  'on_release_preview.yml preview': 'apps',
+  'on_release_train.yml release': 'apps',
+  'on_release_train.yml site-release': 'apps/site',
+  'on_source_change.yml site-release': 'apps/site',
+};
 
-test('every release job runs the tags-only toolchain: one 2.x image pinned by digest and the composite major that accepts it', () => {
+test('every release job runs webgrip-release from one 2.x image pinned by digest, on the commit it checked out, for one train', () => {
   const jobs = releaseJobs();
-  assert.deepEqual(jobs.map(({ file, name }) => `${file} ${name}`).sort(), ['on_release_preview.yml preview', 'on_release_train.yml release', 'on_release_train.yml site-release', 'on_source_change.yml site-release']);
+  assert.deepEqual(jobs.map(({ file, name }) => `${file} ${name}`).sort(), Object.keys(trainOfReleaseJob).sort());
   const image = train.jobs.release.container.image;
-  assert.match(image, /^harbor\.webgrip\.dev\/webgrip\/semantic-release:2\.\d+\.\d+@sha256:[a-f0-9]{64}$/);
-  const composite = train.jobs.release.steps.find(step => step.id === 'release').uses;
-  assert.match(composite, /\/composite-actions\/semantic-release-monorepo@v3\.\d+\.\d+$/);
+  const [, minor] = image.match(/^harbor\.webgrip\.dev\/webgrip\/semantic-release:2\.(\d+)\.\d+@sha256:[a-f0-9]{64}$/) ?? [];
+  assert.ok(Number(minor) >= 5, `${image}: 2.5 or newer names a train after the tagFormat of its own config`);
+  const { parseOptions } = require('@webgrip/semantic-release-config/lib/release-job.cjs');
   for (const { file, name, job } of jobs) {
-    assert.equal(job.container.image, image, `${file} ${name}`);
-    assert.equal(job.steps.find(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@')).uses, composite, `${file} ${name}`);
+    const key = `${file} ${name}`;
+    assert.equal(job.container.image, image, key);
+    const step = job.steps.find(runsWebgripRelease);
+    assert.deepEqual(step.env, { RELEASE_TOKEN: '${{ secrets.WEBGRIP_CI_TOKEN }}' }, key);
+    const options = parseOptions(step.run.split(' ').slice(1), {});
+    assert.equal(options.layout, 'trains', key);
+    assert.equal(options.trainGlobs, trainOfReleaseJob[key], key);
+    assert.equal(options.align, false, `${key}: releases the commit it checked out`);
+    assert.equal(options.dryRun, file === 'on_release_preview.yml', key);
+    assert.equal(options.installDependencies, 'false', key);
+    assert.doesNotMatch(JSON.stringify(job), /composite-actions\/semantic-release/, key);
   }
   assert.equal(workflows['on_pull_request.yml'].jobs['release-policy'].container.image, image, 'a pull request tests the release policy in the image that releases');
   const tag = image.slice(0, image.indexOf('@'));
@@ -355,7 +372,7 @@ test('every release job runs the tags-only toolchain: one 2.x image pinned by di
 
 test('a release job publishes through the semantic-release step alone, which adopts a release Forgejo already filed for the tag', () => {
   for (const { file, name, job } of releaseJobs()) {
-    const release = job.steps.findIndex(step => String(step.uses).includes('/composite-actions/semantic-release-monorepo@'));
+    const release = job.steps.findIndex(runsWebgripRelease);
     assert.equal(release, job.steps.length - 1, `${file} ${name}: nothing runs after semantic release`);
   }
   assert.doesNotMatch(JSON.stringify(workflows), /release-repair|release-prepare/);
@@ -591,11 +608,8 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   const job = preview.jobs.preview;
   assert.deepEqual(job.container, train.jobs.release.container);
   assert.equal(job.strategy, undefined);
-  const step = job.steps.find(step => step.with?.['dry-run']);
-  assert.equal(step.with['dry-run'], 'true');
-  assert.equal(step.with['package-path'], 'apps');
-  assert.equal(step.with['package-name'], 'unfold');
-  assert.equal(step.uses, train.jobs.release.steps.find(step => step.id === 'release').uses);
+  const step = job.steps.find(runsWebgripRelease);
+  assert.equal(step.run, 'webgrip-release --no-align --dry-run --layout trains --trains apps');
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/development' } }), true);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
@@ -641,9 +655,7 @@ test('the site versions on its own train: candidates after Unfold on the release
   for (const job of [stable, candidate]) {
     assert.deepEqual(job.container, train.jobs.release.container);
     const release = job.steps.find(step => step.id === 'release');
-    assert.equal(release.uses, train.jobs.release.steps.find(step => step.id === 'release').uses);
-    assert.equal(release.with['package-path'], 'apps/site');
-    assert.equal(release.with['package-name'], 'unfold-site');
+    assert.equal(releasedTrain(release), 'apps/site');
   }
   assert.ok(head >= 0 && head < candidate.steps.findIndex(step => step.id === 'release'));
   assert.equal(candidate.steps.find(step => step.id === 'release').if, "steps.head.outputs.current == 'true'");
