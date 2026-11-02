@@ -357,6 +357,13 @@
           "mcp": "review_approved"
         },
         {
+          "value": "pull_request_closed",
+          "ploegSource": "pkg/store/review.go",
+          "label": "The pull request was closed without merging",
+          "chip": "Pull request closed",
+          "mcp": "pull_request_closed"
+        },
+        {
           "value": "plan_exhausted",
           "ploegSource": "pkg/shiftengine/reviewloop.go",
           "label": "Every planned Round ran",

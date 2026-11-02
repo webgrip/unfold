@@ -239,7 +239,7 @@ function classify(closeReason) {
   }
   if (lower.startsWith('run stuck:')) return { code: 'run_stuck', text };
   if (lower === 'plan removed from configuration') return { code: 'plan_removed', text };
-  if (text === 'review_approved') return { code: 'pull_request_closed', text };
+  if (text === 'review_approved' || text === 'pull_request_closed') return { code: 'pull_request_closed', text };
   if (reasonCode.test(text)) return { code: 'unrecognised', text };
   return { code: 'unknown', text };
 }
@@ -259,6 +259,7 @@ function sentenceFor(code, text, item, demo) {
     if (role) return `The ${role} reported that it cannot finish${round ? ` in Round ${round}` : ''} without a person.`;
   }
   if (code === 'writing_run_killed_repeatedly' && number(item.infraFailures) && item.infraFailures > 0) return `Not the Work Item’s fault: the cluster stopped the writer ${item.infraFailures} ${item.infraFailures === 1 ? 'time' : 'times'} before it could finish, so the work was never really tried.`;
+  if (code === 'pull_request_closed' && text === 'pull_request_closed') return 'CI stopped this Work Item, and then someone closed its pull request without merging it.';
   if (code === 'unrecognised') return `Ploeg recorded the reason code “${text}”, which this version of Unfold does not recognise.`;
   if (code === 'unknown' && text) return /[.!?]$/.test(text) ? `Ploeg recorded: “${text}”` : `Ploeg recorded: “${text}”.`;
   return copy[code].sentence;

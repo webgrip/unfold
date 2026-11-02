@@ -379,6 +379,7 @@ export function parseStuckReason(text) {
 
 const closeLabels = {
   review_approved: ['An agent reviewer approved', 'success'],
+  pull_request_closed: ['The pull request was closed without merging', 'neutral'],
   plan_exhausted: ['Every planned Round ran', 'neutral'],
   question_for_person: ['An agent asked a person a question', 'attention'],
   taken_over: ['A person took it over', 'attention'],

@@ -126,6 +126,7 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 | Value | Screen label | Needs-you chip | MCP | Note |
 |---|---|---|---|---|
 | `review_approved` | An agent reviewer approved | Pull request closed | same |  |
+| `pull_request_closed` | The pull request was closed without merging | Pull request closed | same |  |
 | `plan_exhausted` | Every planned Round ran | Every Round ran, no result | same |  |
 | `review_failed` | No agent reviewed it: the reviewer kept failing | Reviewer kept failing | same |  |
 | `fix_round_cap_reached` | The fix Rounds ran out | Reviewer still wants changes | same |  |
