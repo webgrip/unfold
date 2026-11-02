@@ -2,8 +2,8 @@
 type: reference
 audience: [contributor, agent]
 owner: unfold
-last_verified: 2026-09-23
-verified_by: "mise run docs-check"
+last_verified: 2026-11-01
+verified_by: "The 2026-11-01 decision to delete the nine Unfold stubs, the linked path mapping and the published-site route; mise run docs-check had not run when the page was edited"
 ---
 
 # Documentation policy
@@ -58,6 +58,12 @@ verified_by: "the command, test or source read that confirmed it"
 Ploeg's pages, model and decision ledger come from the commit Unfold pins at `apps/ploeg`. Change them in [Ploeg's repository](https://github.com/ploeg-hq/ploeg), whose own `mise run docs-check` validates them, then move the pin. Unfold's site renders the pinned pages and links Ploeg's source files on GitHub at that commit. A pin that brings new Ploeg pages adds them to `mkdocs.yml`.
 
 Qualify cross-project rule references as "Product R8" or "Ploeg R18". If a shared wire contract changes, edit the publishing source and verify its consumers.
+
+## Moved pages and redirects
+
+When a page moves, update every link to its new path. `mise run docs-check` fails a current page that links through a moved path, using the [12 September path mapping](research/2026-09-12-glide-document-paths.json). The published site redirects an old URL to its new page, so the repository keeps no compatibility stub at the old path.
+
+On 2026-11-01 the owner deleted the last nine "Documentation moved" stubs under `apps/unfold/docs/`: the policy, migration, five landscape and two operations pages. The published site's route in `webgrip/homelab-cluster` already sends every old path to its current page with a 302, and that route is unchanged. Do not add a stub back; a repository-relative link to an old path belongs in the file that needs it, pointing at the current page.
 
 ## Decisions
 

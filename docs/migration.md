@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, contributor]
 owner: unfold
-last_verified: 2026-09-23
-verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag formats in apps/*/.releaserc.cjs, package paths in on_release_train.yml, scripts/verify-import.py and the linked records; Forgejo runs, remote refs and homelab-cluster manifests were not re-checked"
+last_verified: 2026-11-01
+verified_by: "The 2026-11-01 removal of the old-path stubs, the linked path mapping and the published-site route; the remaining claims were checked on 2026-09-23 against Helm pins in apps/*/mise.toml, tag formats in apps/*/.releaserc.cjs, package paths in on_release_train.yml, scripts/verify-import.py and the linked records, without re-checking Forgejo runs, remote refs or homelab-cluster manifests"
 ---
 
 # Unfold migration
@@ -21,7 +21,7 @@ Unfold brought its front end and Ploeg into one repository on `development`. Sin
 | Cross-application demo and managed setup | [docs/workflows](workflows/local-demo.md) |
 | Documentation maintenance | [One shared policy](documentation.md) |
 
-Service API schemas, application architecture, operating details and existing ADRs stay with the producing application. Old shared-document paths contain short redirects or a symbolic link to the one structured source. The [complete path mapping](research/2026-09-12-glide-document-paths.json) records these moves.
+Service API schemas, application architecture, operating details and existing ADRs stay with the producing application. The published site redirects each old shared-document path to the one structured source, and the repository keeps a symbolic link for the landscape explorer. The [complete path mapping](research/2026-09-12-glide-document-paths.json) records these moves.
 
 The import preserves 396 front-end files and 392 Ploeg files, including the audited working trees. Original commit objects are retained. Separate snapshot and directory-move commits make file history traceable with `git log --follow`. Tags gain an application prefix, such as `ploeg-v…`; non-version tags keep the same prefix. Release-channel notes use the same namespace. The [import manifest](research/2026-09-12-glide-import.json) records source revisions, tag objects, file modes and SHA-256 digests. Run `mise exec -- python3 scripts/verify-import.py` to verify the immutable import against that manifest.
 
