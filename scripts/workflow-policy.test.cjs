@@ -936,6 +936,24 @@ test('Renovate reads every image of the local MCP compose file under the nightly
   assert.ok(readers.every(manager => manager.datasourceTemplate === 'docker' && manager.versioningTemplate === 'docker'), 'the workflow manager looks images up as docker with docker versioning');
 });
 
+test('Renovate moves the local-check toolchain pins on the branch that moves their workflow pins, without cutting a release', () => {
+  const config = renovateConfig();
+  const reader = config.customManagers.find(manager => manager.managerFilePatterns.includes('/^mise\\.toml$/'));
+  const pinned = new Set();
+  for (const file of ['mise.toml', 'scripts/docs-site.sh']) {
+    assert.ok(reader.managerFilePatterns.some(pattern => new RegExp(pattern.slice(1, -1)).test(file)), file);
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    for (const match of text.matchAll(new RegExp(reader.matchStrings[0], 'g'))) pinned.add(match.groups.depName);
+  }
+  assert.deepEqual([...pinned].sort(), ['harbor.webgrip.dev/webgrip/semantic-release', 'harbor.webgrip.dev/webgrip/techdocs-builder']);
+  const rule = config.packageRules.find(candidate => candidate.groupSlug === 'webgrip-ci');
+  assert.deepEqual(rule.matchManagers, ['custom.regex']);
+  assert.deepEqual(rule.matchFileNames, ['mise.toml', 'scripts/docs-site.sh']);
+  assert.deepEqual(rule.matchPackageNames.sort(), [...pinned].sort());
+  assert.equal(rule.groupName, 'webgrip CI dependencies', 'the preset names the branch that moves Webgrip pins under .forgejo/**');
+  assert.equal(rule.semanticCommitType, 'ci');
+});
+
 test('Renovate moves the committed unfold-agent references to the newest Unfold candidate on Harbor without cutting a release', () => {
   const config = renovateConfig();
   const files = ['apps/unfold/ops/cluster/agent-sandbox/warm-pool.yaml', 'apps/unfold/ops/local/config.live.example.json'];
