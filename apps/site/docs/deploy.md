@@ -42,6 +42,8 @@ The `dns-reconciler` CronJob in `webgrip/homelab-cluster` applies the config eve
 
 The config declares `staging`, a 301 from `www` to the apex, and that the domain handles no mail: a null MX (RFC 7505), SPF `-all` and DMARC `p=reject`. The apex and `www` carry the same placeholder as `staging`; production's route depends on the apex one, and `www` only needs a proxied record for the redirect. Any other record that Cloudflare holds and the config does not declare appears in the first preview as a deletion. Copy it into the config, or delete it with the trailer.
 
+Two kinds of record belong to someone else, so the config ignores them and neither the reconciler nor the daily check touches them: `staging-app`, the proxied CNAME to the Cloudflare Tunnel that `webgrip/unfold-cluster` creates for Unfold staging, and the `_acme-challenge` TXT records that cert-manager writes and removes for DNS-01 certificates. Add an `IGNORE` for any other record a different repository owns, rather than declaring it twice.
+
 ## No indexing outside production
 
 `SITE_INDEXABLE` in `src/config/site.ts` is false while `SITE_URL` ends in `.workers.dev` or `.pages.dev`, starts with `staging.`, or is a local host. Then every page carries `noindex, nofollow` and `robots.txt` answers `Disallow: /`; the sitemap still builds. `src/config/site.test.ts` holds the rule. Only the production build, with `https://unfoldhq.dev`, is indexable.

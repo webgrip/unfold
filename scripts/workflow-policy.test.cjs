@@ -745,6 +745,7 @@ test('the unfoldhq.dev zone is previewed from development and checked daily for 
   const commands = job.steps.map(step => step.run ?? '').join('\n');
   assert.match(commands, /dnscontrol preview --creds creds\.json/);
   assert.match(commands, /--expect-no-changes/);
+  assert.match(commands, /dnscontrol preview [^\n]*\|\| rc=\$\?/, 'bash -e must not end the step before the preview output is printed');
   assert.doesNotMatch(commands, /dnscontrol push/);
   for (const step of job.steps.filter(step => step.run && /dnscontrol (check|preview)/.test(step.run))) {
     assert.equal(step['working-directory'], 'apps/site/ops/dns');

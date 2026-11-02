@@ -14,6 +14,9 @@ D(
   TXT('@', 'v=spf1 -all'),
   TXT('_dmarc', 'v=DMARC1; p=reject'),
 
+  IGNORE('staging-app', 'CNAME'),
+  IGNORE('_acme-challenge.**', 'TXT'),
+
   CF_SINGLE_REDIRECT(
     'www-to-apex',
     301,

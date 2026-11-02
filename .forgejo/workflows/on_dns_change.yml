@@ -74,8 +74,8 @@ jobs:
           if [ "${EVENT}" = schedule ]; then
             expect="--expect-no-changes"
           fi
-          dnscontrol preview --creds creds.json ${expect} > preview.raw 2>&1
-          rc=$?
+          rc=0
+          dnscontrol preview --creds creds.json ${expect} > preview.raw 2>&1 || rc=$?
           sed 's/\x1b\[[0-9;]*m//g' preview.raw > preview.txt
           cat preview.txt
           { echo '```'; cat preview.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
