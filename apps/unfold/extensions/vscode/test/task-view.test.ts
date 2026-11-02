@@ -48,7 +48,7 @@ test('a supervised session follows the server import rules: viewers, closed task
   assert.equal(sessionEligibility(bootstrap('viewer'), interactiveSource, task()).allowed, false);
   assert.equal(sessionEligibility(bootstrap('operator'), interactiveSource, task({ status: 'closed' })).allowed, false);
   assert.match(sessionEligibility(bootstrap('operator'), ploegSource, task()).reason!, /Ploeg owns execution/);
-  assert.equal(sessionEligibility(bootstrap('operator', true), ploegSource, task({ ploeg: { workItemId: '7', expectedTarget: { owner: 'webgrip', repo: 'glide', baseBranch: 'development' } } })).allowed, true);
+  assert.equal(sessionEligibility(bootstrap('operator', true), ploegSource, task({ ploeg: { workItemId: '7', expectedTarget: { owner: 'webgrip', repo: 'unfold', baseBranch: 'development' } } })).allowed, true);
   assert.match(sessionEligibility(bootstrap('operator', true), ploegSource, task({ ploegUnavailable: { code: 'task_binding_missing', message: 'Check the tracker assignment.' } })).reason!, /assignment/);
 });
 

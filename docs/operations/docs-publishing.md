@@ -2,13 +2,15 @@
 type: how-to
 audience: [operator, contributor]
 owner: unfold
-last_verified: 2026-09-23
-verified_by: "Checked against on_docs_change.yml, scripts/docs.py, scripts/docs-rules.py, scripts/docs-site.sh and mise.toml; the Zensical version inside the pinned builder image was not re-inspected"
+last_verified: 2026-11-02
+verified_by: "Checked against on_docs_change.yml, scripts/docs.py, scripts/docs-rules.py, scripts/docs-site.sh and mise.toml; the Zensical version inside the pinned builder image was not re-inspected; storage and route names checked against homelab-cluster httproute.yaml and on_docs_change.yml on 2026-11-02"
 ---
 
 # Publish and recover Unfold documentation
 
 Maintain documentation in Unfold and publish it at [the Unfold site](https://docs.webgrip.dev/glide/). Shared guides live in [root docs](../index.md); implementation guidance stays with [the Unfold application](../../apps/unfold/docs/index.md) and [Ploeg](../../apps/ploeg/docs/index.md). Ploeg's pages come from the commit Unfold pins in the `apps/ploeg` submodule: the documentation jobs initialise it before staging, and moving the pin republishes the site. Change Ploeg's pages in [its repository](https://github.com/ploeg-hq/ploeg).
+
+The site path `/glide/`, the Garage buckets `docs-glide` and `docs-glide-trash`, and the publisher's `glide` prefix still carry the product's former name. They are live infrastructure names in `webgrip/homelab-cluster` and are being migrated; until that lands, keep them as they are.
 
 ## What the pipeline publishes
 
@@ -31,20 +33,20 @@ Every staged Markdown page is available at its `.md` path. Structured YAML and J
 1. Edit the maintained sources and regenerate affected models as described in the [documentation policy](../documentation.md).
 2. Run `mise run docs-check`. Besides generated-view drift, it fails on a missing link target or heading anchor, on a current page that links through a [moved path](../research/2026-09-12-glide-document-paths.json), on a current page that is neither in the `mkdocs.yml` nav nor linked from a nav page, on an inconsistent ADR ledger (system, Ploeg or application), and on a stale [decision register](../reference/decisions.md). Regenerate that register with `mise run docs-decisions`. Run `mise run docs-site-check` to exercise Zensical, both machine-readable outputs, Pagefind and the secret scan in the same pinned image as CI. Docker must be running and the image available locally. Output is under `.build/` and is not committed.
 3. Run `mise run verify` before delivery. Changes to workflow gates also require `mise run release-check`.
-4. Push the validated change to `development` and inspect [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions). `UNFOLD_DOCS_PUBLISH_ENABLED=true` enables the documentation publisher on this branch. A normal authorization job resolves the gate and passes its output to the called workflow, which checks it at every step. This avoids Forgejo losing variable context when it expands reusable jobs.
+4. Push the validated change to `development` and inspect [Unfold Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions). `UNFOLD_DOCS_PUBLISH_ENABLED=true` enables the documentation publisher on this branch. A normal authorization job resolves the gate and passes its output to the called workflow, which checks it at every step. This avoids Forgejo losing variable context when it expands reusable jobs.
 5. The final workflow job checks every human page and Markdown export, both search indexes and the source manifest against the publishing checkout. Run `mise run docs-live-check` locally for the same check; the checkout must match the published revision. Check the live pages and machine endpoints above. Their source manifest must name the intended commit. Rerun `on_docs_change.yml` manually for a retry at the same revision.
 
 `UNFOLD_RELEASES_ENABLED` is independent and remains disabled during documentation migration. Publishing these pages does not create an application release, push a container image or deploy Unfold or Ploeg.
 
 ## Storage and credentials
 
-The [Garage bootstrap](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/garage/bootstrap/techdocs.job.yaml) provisions `docs-glide` and `docs-glide-trash`. Its scoped key is mirrored through OpenBao to the [Forgejo bridge](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml), which maintains Unfold's two `TECHDOCS_S3_*` secrets. The publisher writes under `docs-glide/unfold`; the [HTTP route](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/docs-site/app/httproute.yaml) preserves `/unfold` when serving it. Garage therefore retains the public prefix when it redirects a directory URL to its trailing-slash form. The first root-level upload remains in the bucket as a migration recovery copy.
+The [Garage bootstrap](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/garage/bootstrap/techdocs.job.yaml) provisions `docs-glide` and `docs-glide-trash`. Its scoped key is mirrored through OpenBao to the [Forgejo bridge](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml), which maintains Unfold's two `TECHDOCS_S3_*` secrets. The publisher writes under the `glide` prefix in `docs-glide`; the [HTTP route](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/docs-site/app/httproute.yaml) preserves `/glide` when serving it. Garage therefore retains the public prefix when it redirects a directory URL to its trailing-slash form. The first root-level upload remains in the bucket as a migration recovery copy.
 
 The key can write only Unfold's site and trash buckets. Credential values stay in the existing vault and bridge. Neither source control nor the documentation output contains them. The [one-time seed job](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/glide-docs-secrets.job.yaml) establishes the initial repo secrets; the hourly bridge maintains them thereafter.
 
 ## Legacy URLs and recovery
 
-The front end's old upload is retained and is available as the [pre-Unfold snapshot](https://docs.webgrip.dev/glide-legacy/de-vloer/). Unfold's live checks passed before the old repository's docs publisher was retired (commit `52afa4a` in the deleted front-end repository). Its URLs now redirect through the [GitOps route](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/docs-site/app/vloer-legacy.httproute.yaml). Shared pages need explicit redirects to their new root locations; application pages retain their relative paths under `/unfold/unfold/`. Ploeg had no docs deployment workflow or reachable `/ploeg/` site to retire.
+The front end's old upload is retained and is available as the [pre-Unfold snapshot](https://docs.webgrip.dev/glide-legacy/de-vloer/). Unfold's live checks passed before the old repository's docs publisher was retired (commit `52afa4a` in the deleted front-end repository). Its URLs now redirect through the [GitOps route](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/garage/docs-site/app/vloer-legacy.httproute.yaml). Shared pages need explicit redirects to their new root locations; application pages retain their relative paths under `/glide/unfold/`. Ploeg had no docs deployment workflow or reachable `/ploeg/` site to retire.
 
 Before switching, preserve the old sitemap and all referenced local assets, with SHA-256 hashes. Verify every old sitemap URL against the new site. Use reversible HTTP 302 redirects during the cutover; the old bucket contents provide the recovery snapshot. The [cutover evidence](../research/2026-09-12-docs-cutover.json) records the URL mapping and archive checksum.
 

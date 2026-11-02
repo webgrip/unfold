@@ -23,7 +23,7 @@ const item = (state: string, extra: Record<string, unknown> = {}) => ({ id: '42'
 const shift = (extra: Record<string, unknown> = {}) => ({ id: '7', branch: 'unfold/42-explain', round: 2, budgetUsd: 5, spentUsd: 0.4, reservedUsd: 0, openedAt: ago(30), closedAt: null, closeReason: '', ...extra });
 const run = (id: string, extra: Record<string, unknown> = {}) => ({ id, shiftId: '7', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: ago(20), finishedAt: ago(15), outcome: 'pr_opened', summary: '', stuckReason: '', links: [], findings: '', verdict: '', problem: '', solution: '', failureReason: null, authorizedUsd: 1, usage: { inputTokens: 1200, outputTokens: 300, costUsd: 0.12 }, costStatus: 'observed', ...extra });
 const detail = (state: string, extra: Record<string, unknown> = {}) => ({
-  item: { id: '42', title: 'Explain the flow', provider: 'vikunja', externalId: '1505', team: 'silver', state, description: '', descriptionMarkdown: 'Brief from Ploeg', attempts: 1, target: { owner: 'webgrip', repo: 'glide' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(60), updatedAt: ago(1), latestShift: null },
+  item: { id: '42', title: 'Explain the flow', provider: 'vikunja', externalId: '1505', team: 'silver', state, description: '', descriptionMarkdown: 'Brief from Ploeg', attempts: 1, target: { owner: 'webgrip', repo: 'unfold' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(60), updatedAt: ago(1), latestShift: null },
   shifts: [shift()], runs: [run('100')], checkpoints: [], events: [], ...extra,
 });
 const card = (extra: Record<string, unknown> = {}) => ({ workItemId: '42', state: 'in_review', roles: [{ role: 'builder', writes: true, runs: 2, costUsd: 0.32, inputTokens: 12000, outputTokens: 3400 }, { role: '', writes: false, runs: 1 }, { role: 'reviewer', writes: false, runs: 1 }], plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.4231, authorizedUsd: 5, runs: 3, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
@@ -77,13 +77,13 @@ test('each Ploeg state reads as what is happening, takes its label from the shar
 });
 
 test('the primary action follows the state: review the pull request, else open the Work Item in the browser', () => {
-  const review = current({ workItems: [item('awaiting_review', { prUrl: 'https://forgejo.example/webgrip/glide/pulls/9' })], assignedTeams: ['silver'] });
+  const review = current({ workItems: [item('awaiting_review', { prUrl: 'https://forgejo.example/webgrip/unfold/pulls/9' })], assignedTeams: ['silver'] });
   const primary: StubElement = view.primaryAction(review);
   assert.equal(primary.textContent, 'Review pull request ↗ #9');
-  assert.equal(primary.dataset.openUrl, 'https://forgejo.example/webgrip/glide/pulls/9');
+  assert.equal(primary.dataset.openUrl, 'https://forgejo.example/webgrip/unfold/pulls/9');
   assert.equal(primary.className, 'primary');
-  const fromCard = current({ workItems: [item('awaiting_review')], assignedTeams: ['silver'] }, {}, { detail: detail('awaiting_review'), card: card({ plays: [{ number: 12, url: 'https://forgejo.example/webgrip/glide/pulls/12', state: 'open', branch: 'b', mergedAt: null, ci: null, reviews: [] }] }) });
-  assert.equal(view.primaryAction(fromCard).dataset.openUrl, 'https://forgejo.example/webgrip/glide/pulls/12', 'the Run card supplies the pull request when the status has none');
+  const fromCard = current({ workItems: [item('awaiting_review')], assignedTeams: ['silver'] }, {}, { detail: detail('awaiting_review'), card: card({ plays: [{ number: 12, url: 'https://forgejo.example/webgrip/unfold/pulls/12', state: 'open', branch: 'b', mergedAt: null, ci: null, reviews: [] }] }) });
+  assert.equal(view.primaryAction(fromCard).dataset.openUrl, 'https://forgejo.example/webgrip/unfold/pulls/12', 'the Run card supplies the pull request when the status has none');
   const running: StubElement = view.primaryAction(current({ workItems: [item('leased')], assignedTeams: ['silver'] }));
   assert.equal(running.textContent, 'Open in browser ↗');
   assert.equal(running.dataset.action, 'open-ploeg');
@@ -203,12 +203,12 @@ test('Runs are grouped by Round with outcome, agent verdict, failure cause, cost
 });
 
 test('pull requests show their state, CI and human reviews apart from agent verdicts', () => {
-  const plays = [{ number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'unfold/42', mergedAt: null, additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }, { context: 'test', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved' }] }];
+  const plays = [{ number: 77, url: 'https://forgejo.example/webgrip/unfold/pulls/77', state: 'open', branch: 'unfold/42', mergedAt: null, additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }, { context: 'test', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved' }] }];
   const section: StubElement = view.pullRequestsSection(current({ workItems: [item('awaiting_review')] }, {}, { card: card({ plays }) }));
   assert.match(section.textContent, /Pull request #77 ↗OpenCI failed\+120−84 files/);
   assert.match(section.textContent, /Failing checks: lint/);
   assert.match(section.textContent, /Human reviews: Approved by ryan/);
-  assert.equal(button(section, 'Pull request #77 ↗')?.dataset.openUrl, 'https://forgejo.example/webgrip/glide/pulls/77');
+  assert.equal(button(section, 'Pull request #77 ↗')?.dataset.openUrl, 'https://forgejo.example/webgrip/unfold/pulls/77');
 });
 
 test('a Work Item without a tracker task shows Ploeg’s header, state, Runs and brief, without the hand-off', () => {
@@ -217,7 +217,7 @@ test('a Work Item without a tracker task shows Ploeg’s header, state, Runs and
   assert.match(view.ploegSituation(work).headline, /Queued for team silver/);
   const parts: StubElement[] = view.sections(work);
   const all = parts.map(part => part.textContent).join('\n');
-  assert.match(all, /PLOEG · WORK ITEM 42 · TEAM SILVER → WEBGRIP\/GLIDE/);
+  assert.match(all, /PLOEG · WORK ITEM 42 · TEAM SILVER → WEBGRIP\/UNFOLD/);
   assert.match(all, /Brief from Ploeg/);
   assert.match(all, /No Run has started yet/);
   assert.doesNotMatch(all, /Hand to|Take back|supervised session/);
@@ -238,7 +238,7 @@ test('the problem and solution come from the newest writer of the latest Shift, 
   const account = view.writerAccount(detail('awaiting_review', { runs: [run('100', { problem: 'Old', solution: 'Old fix', shiftId: '6' }), run('105', { problem: 'The total was missing', solution: 'Show one total' })] }));
   assert.equal(account.runId, '105');
   assert.equal(account.problem, 'The total was missing');
-  const parts: StubElement[] = view.sections(current({ workItems: [item('awaiting_review', { prUrl: 'https://forgejo.example/webgrip/glide/pulls/9' })] }, {}, { detail: detail('awaiting_review', { runs: [run('105', { problem: 'The total was missing', solution: 'Show one total' })] }) }));
+  const parts: StubElement[] = view.sections(current({ workItems: [item('awaiting_review', { prUrl: 'https://forgejo.example/webgrip/unfold/pulls/9' })] }, {}, { detail: detail('awaiting_review', { runs: [run('105', { problem: 'The total was missing', solution: 'Show one total' })] }) }));
   assert.match(parts.map(part => part.textContent).join(''), /The agent’s own account: verify it against pull request #9\./);
 });
 
@@ -293,7 +293,7 @@ test('a Work Item with a branch and a target repository offers to check it out; 
   const offered = button(view.headCard(work()), 'Check out branch');
   assert.ok(offered, 'the branch of the latest Shift is offered');
   assert.equal(offered.dataset.action, 'checkout');
-  assert.match(offered.getAttribute('title') ?? '', /unfold\/42-explain from webgrip\/glide/);
+  assert.match(offered.getAttribute('title') ?? '', /unfold\/42-explain from webgrip\/unfold/);
   assert.ok(!button(view.headCard(work({}, true)), 'Check out branch'), 'demo branches exist only in the demo');
   assert.ok(!button(view.headCard(work({ shifts: [] })), 'Check out branch'), 'no Shift, no branch');
   const unrouted = work();

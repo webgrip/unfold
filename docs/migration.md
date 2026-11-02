@@ -39,7 +39,7 @@ Run `mise run setup` and `mise run verify` from the root. CI checks both applica
 
 The [release train](../.forgejo/workflows/on_release_train.yml) uses separate semantic-release package paths and tag formats. The [release publication workflow](../.forgejo/workflows/on_release_published.yml) routes each application tag to its own jobs. Ploeg kept its zero-major release-candidate guard, and application images, charts, the extension ID and `github.com/webgrip/ploeg` stayed unchanged until [Ploeg moved out](#ploeg-moves-out). Each application pins its own Helm version in its `mise.toml`. The [CI guide](operations/ci.md) covers all event entry points, shared checks and manual recovery.
 
-The first [actual release preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/5) exposed a missing remote `main` baseline (`ERELEASEBRANCHES`). The shared preset needs a normal release branch alongside `development` prereleases. `main` is reserved at the initial Unfold boundary commit; source work and automatic prereleases remain on `development`. CI checks this prerequisite and the release-isolation suite exercises semantic-release's branch resolver.
+The first [actual release preview](https://forgejo.webgrip.dev/webgrip/unfold/actions/runs/5) exposed a missing remote `main` baseline (`ERELEASEBRANCHES`). The shared preset needs a normal release branch alongside `development` prereleases. `main` is reserved at the initial Unfold boundary commit; source work and automatic prereleases remain on `development`. CI checks this prerequisite and the release-isolation suite exercises semantic-release's branch resolver.
 
 The combined [documentation build](../scripts/docs.py) assembles the maintained Markdown files for TechDocs and Zensical. The [publishing guide](operations/docs-publishing.md) covers the human site, machine-readable output and legacy URLs. It checks structured-source generation and repository links, then excludes dated research and design/decision history from its local search index. These exclusions do not configure an external crawler or Backstage search ingestion.
 
@@ -47,9 +47,9 @@ The [local qualification record](research/evidence/glide-2026-09-12/verification
 
 ## Source publication
 
-[Unfold is published on Forgejo](https://forgejo.webgrip.dev/webgrip/glide), with `development` as the default branch. The owner created the repository with public visibility. The complete source history, 70 namespaced tags and 67 release-channel notes were pushed together over SSH; all 138 remote refs match their local objects. A fresh clone from Forgejo passes the immutable import verifier.
+[Unfold is published on Forgejo](https://forgejo.webgrip.dev/webgrip/unfold), with `development` as the default branch. The owner created the repository with public visibility. The complete source history, 70 namespaced tags and 67 release-channel notes were pushed together over SSH; all 138 remote refs match their local objects. A fresh clone from Forgejo passes the immutable import verifier.
 
-The [first CI run](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `2e03f18268794cface5acbc044f29592973461e2`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
+The [first CI run](https://forgejo.webgrip.dev/webgrip/unfold/actions/runs/1) passed application verification, documentation checks, container builds and release-policy tests at commit `2e03f18268794cface5acbc044f29592973461e2`. Both release jobs were explicitly skipped. The [publication record](research/evidence/glide-2026-09-12/publication.json) records the exact commit, run, job outcomes and ref verification separately from local qualification.
 
 The earlier repository-creation blocker is resolved by the owner's creation of the repository. No new token or permission was created by the agent. Artifact releases still require the distribution work below.
 
