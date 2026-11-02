@@ -134,7 +134,7 @@ Prepare and review the desired-state change in [homelab-cluster](https://forgejo
 
 | Application | Values that must agree |
 | --- | --- |
-| Ploeg | [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml) chart tag and digest; [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) daemon image tag and digest. |
+| Ploeg | Runs inside the Unfold release: the `ploeg` values of the Unfold HelmRelease below, at the version the Unfold chart carries. |
 | Unfold | [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/unfold/app/ocirepository.yaml) chart tag and digest; [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/unfold/app/helmrelease.yaml) workbench image tag/digest and workspace image tag/digest. |
 
 Use the [published artifact paths](artifacts.md#published-identities). Harbor and GHCR identities are retained; Forgejo charts move under `charts/` to avoid colliding with image tags. Run that repository's render/validation gate and inspect the rendered deployment before committing. Let Flux reconcile; do not use an imperative Helm upgrade or overwrite the deployment with `kubectl`.

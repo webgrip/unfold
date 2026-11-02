@@ -166,7 +166,7 @@ It has no route to the internet, the LAN or a container registry. A toolchain th
 
 ## What production runs today
 
-Checked on 2026-09-29 against [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) `main` and the live `ploeg` namespace. Unfold `0.4.0-rc.11` is deployed.
+Checked on 2026-09-29 against [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d66fca9aac464e56b642a235d5be17facdddbd4a/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) `main` and the live `ploeg` namespace. Unfold `0.4.0-rc.11` is deployed.
 
 | Team | Executor | Harness | Model | State on 2026-09-29 |
 | --- | --- | --- | --- | --- |
