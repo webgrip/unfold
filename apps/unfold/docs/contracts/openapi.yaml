@@ -7461,7 +7461,7 @@ components:
       in: path
       required: true
       schema: { type: string, pattern: '^[a-z0-9-]+$' }
-      example: vikunja-glide
+      example: vikunja-unfold
     ConnectionId:
       name: connectionId
       in: path

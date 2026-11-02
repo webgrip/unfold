@@ -7,7 +7,7 @@ import { waitingGroup } from '../public/core/reasons.js';
 
 const space = ' ';
 const shift = closeReason => ({ id: '9', round: 2, branch: 'agent/x', budgetUsd: 3, spentUsd: 2.97, reservedUsd: 0.1, openedAt: '2026-09-30T09:00:00Z', closedAt: '2026-09-30T10:00:00Z', closeReason });
-const item = (closeReason, extra = {}) => ({ id: '28', provider: 'vikunja', externalId: '624', state: 'needs_human', title: 'Fix the README', url: 'https://tracker.test/tasks/624', attempts: 1, infraFailures: 0, target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide', baseBranch: 'main' }, latestShift: shift(closeReason), ...extra });
+const item = (closeReason, extra = {}) => ({ id: '28', provider: 'vikunja', externalId: '624', state: 'needs_human', title: 'Fix the README', url: 'https://tracker.test/tasks/624', attempts: 1, infraFailures: 0, target: { forge: 'forgejo', owner: 'webgrip', repo: 'unfold', baseBranch: 'main' }, latestShift: shift(closeReason), ...extra });
 const chip = (closeReason, extra) => listReason(item(closeReason, extra))?.chip;
 
 test('every needs-human close reason code gets a chip, a sentence and an action that ends with re-assigning in the tracker', () => {

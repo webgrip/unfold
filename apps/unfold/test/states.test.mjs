@@ -234,7 +234,7 @@ test('requeues, routing, epics, pull request, comment, deploy and Ask events rea
   assert.deepEqual(read('pull_request_comment.upserted', { number: 7, created: true }), ['Comment posted on the pull request', 'Pull request #7']);
   assert.deepEqual(read('pull_request_comment.upserted', { number: 7, created: false }), ['Comment posted on the pull request', 'Replaced its earlier version']);
   assert.deepEqual(read('pull_request_comment.deleted', { number: 7 }), ['Comment removed from the pull request', 'Pull request #7']);
-  assert.deepEqual(read('deploy.recorded', { environment: 'production', repo: 'webgrip/glide' }), ['Deployed to production', 'webgrip/glide']);
+  assert.deepEqual(read('deploy.recorded', { environment: 'production', repo: 'webgrip/unfold' }), ['Deployed to production', 'webgrip/unfold']);
   assert.deepEqual(read('ask.admitted', { budgetUsd: 0.02 }), ['Asked a model about this work', 'Up to US$\u00a00,02 from the Ask Allowance']);
   assert.deepEqual(read('ask.finished'), ['Ask finished', '']);
 });

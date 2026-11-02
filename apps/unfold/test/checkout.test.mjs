@@ -15,7 +15,7 @@ test('a Work Item’s branch is the latest Shift’s, then the newest checkpoint
 });
 
 test('only branch names that need no quoting and cannot read as an option are offered', () => {
-  for (const name of ['agent/vik-50', 'glide/42-explain', 'release_1.2', 'a']) assert.equal(checkoutableBranch(name), true, name);
+  for (const name of ['agent/vik-50', 'unfold/42-explain', 'release_1.2', 'a']) assert.equal(checkoutableBranch(name), true, name);
   for (const name of ['', ' ', '-x', '--upload-pack=evil', 'a b', 'a;rm -rf ~', '$(id)', 'a`b`', 'a..b', 'a//b', '/a', 'a/', 'a.', 'a.lock', 'a/.hidden', 'HEAD', 'ä', 'x'.repeat(256), 42, null]) assert.equal(checkoutableBranch(name), false, String(name));
   assert.equal(workItemBranch({ item: item({ latestShift: { branch: 'a;rm -rf ~' } }), shifts: [], checkpoints: [{ id: '1', branch: 'agent/safe' }] }), 'agent/safe', 'an unsafe branch is skipped, not quoted');
 });
@@ -30,7 +30,7 @@ test('the git command fetches, adds a worktree beside the clone and fast-forward
 });
 
 test('a worktree folder is the clone’s name and the branch with slashes as dashes, and needs no quoting', () => {
-  assert.equal(worktreeFolder('glide', 'agent/vik-1993'), 'glide-agent-vik-1993');
+  assert.equal(worktreeFolder('unfold', 'agent/vik-1993'), 'unfold-agent-vik-1993');
   assert.equal(worktreeFolder(' shop ', 'main'), 'shop-main');
   for (const [clone, branch] of [['', 'main'], ['-x', 'main'], ['.git', 'main'], ['a b', 'main'], ['../up', 'main'], ['shop', '$(id)'], ['shop', '']]) assert.equal(worktreeFolder(clone, branch), '', `${clone} ${branch}`);
 });

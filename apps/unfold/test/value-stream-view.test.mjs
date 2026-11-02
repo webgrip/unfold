@@ -8,7 +8,7 @@ const stream = {
   lanes: [
     { key: 'ticket', group: 'ticket', label: 'Ticket', sublabel: 'VIK-1990', url: 'https://tracker.example/1990', bars: [{ start: '2026-09-30T08:00:00Z', end: '2026-10-01T09:00:00Z', label: 'Before Ploeg', detail: '', tone: 'neutral', waiting: true }], marks: [{ at: '2026-09-30T08:00:00Z', label: 'Created in the tracker', tone: 'neutral' }] },
     { key: 'ci:7', group: 'ci', label: 'CI · #42', sublabel: '1 run', url: null, bars: [{ start: '2026-10-02T11:00:00Z', end: '2026-10-02T11:10:00Z', label: 'success', detail: 'verify', tone: 'success', waiting: false }], marks: [] },
-    { key: 'pull:7', group: 'pullRequest', label: 'Pull request #42', sublabel: 'webgrip/glide', url: null, bars: [{ start: '2026-10-02T12:00:00Z', end: null, label: 'In review', detail: '', tone: 'review', waiting: true }], marks: [] },
+    { key: 'pull:7', group: 'pullRequest', label: 'Pull request #42', sublabel: 'webgrip/unfold', url: null, bars: [{ start: '2026-10-02T12:00:00Z', end: null, label: 'In review', detail: '', tone: 'review', waiting: true }], marks: [] },
   ],
 };
 const shifts = [{ id: '3', round: 2, openedAt: '2026-10-02T09:30:00Z', closedAt: null }];

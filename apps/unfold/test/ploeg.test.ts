@@ -808,11 +808,11 @@ test('the demo Now projection names its limitation and never invents model calls
 function liveCard(id: string, team = 'delivery') {
   return {
     workItemId: id, title: 'Retry sandbox claims', externalRef: 'VIK-1612', url: 'https://tracker.example.test/tasks/1612', team,
-    target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
+    target: { forge: 'forgejo', owner: 'webgrip', repo: 'unfold' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
     rarity: 'legendary', finish: 'holo', grade: 9, condition: 'cracked',
     steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
     roles: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }],
-    plays: [{ number: 57, url: 'https://forge.example.test/webgrip/glide/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
+    plays: [{ number: 57, url: 'https://forge.example.test/webgrip/unfold/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, usageComplete: false, runs: 3, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
     events: [{ at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:delivery', detail: { secret: 'private', number: 57 } }],
     demo: false,
@@ -863,10 +863,10 @@ test('the browser card parser passes a contract grade and condition through vali
 
 test('the browser card parser passes a contract rarity through, drops fields it does not know, and nulls a rarity it cannot read', async () => {
   const upstreamApi = cardInput();
-  const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
+  const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity };
   const view = await parsedCard(upstreamApi, '101');
-  assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
+  assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
   assert.equal(JSON.stringify(view).includes(upstreamApi.token), false, 'an unknown input is not passed on');
   for (const [bad, why] of [[{ ...rarity, tier: 'mythic' }, 'an unknown tier'], [{ ...rarity, score: 140 }, 'a score above 100'], [{ ...rarity, percentile: 0 }, 'a percentile of zero'], [{ ...rarity, cohort: { ...rarity.cohort, quarter: '2026-Q4' } }, 'a quarter in another form'], [{ ...rarity, revealedAt: 'at release' }, 'a time that is not a time'], [{ ...rarity, inputs: { ...rarity.inputs, novelty: { share: 1.5, files: 6, novel: 3 } } }, 'a share above one'], ['legendary', 'a bare word']] as const) {
     upstreamApi.cards['101'] = { ...liveCard('101'), rarity: bad };

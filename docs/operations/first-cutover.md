@@ -32,7 +32,7 @@ mise run verify
 mise run release-check
 ```
 
-Record the matching successful run in [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions). Local verification includes deterministic standalone and managed execution; it does not exercise a paid model or qualify ARM64 publication.
+Record the matching successful run in [Unfold Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions). Local verification includes deterministic standalone and managed execution; it does not exercise a paid model or qualify ARM64 publication.
 
 From an up-to-date [homelab-cluster checkout](https://forgejo.webgrip.dev/webgrip/homelab-cluster), confirm the intended context before these read-only checks:
 
@@ -69,11 +69,11 @@ Credential values remain in OpenBao and the existing bridges. The [secrets model
 
 ## 3. Preview the versions while publishing is disabled
 
-Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `UNFOLD_RELEASES_ENABLED`.
+Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `UNFOLD_RELEASES_ENABLED`.
 
 Record the source SHA, last recognized Unfold tag, predicted next version, channel and release notes. The first preview must recognize the `glide-v0.3.0` baseline and predict `0.4.0-rc.1` (or `0.3.1-rc.1` if only fixes follow the baseline); anything lower means the baseline tag is missing from Forgejo. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
 
-The [first successful preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7), under the earlier per-application versions, recognized Unfold `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
+The [first successful preview](https://forgejo.webgrip.dev/webgrip/unfold/actions/runs/7), under the earlier per-application versions, recognized Unfold `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
 
 The preview can legitimately report no release. Documentation, test and maintenance commits do not promise a version bump. Do not invent a feature or hand-edit versions merely to get a tag. If a first release is still required, land the actual reviewed release-related fix in an application, then preview again. A change outside `apps/`, such as a workflow or root documentation, is not selected by the commit filter.
 
@@ -89,13 +89,13 @@ The 12 September audit saw completed Ploeg backups but an unhealthy `cnpg-disast
 
 ## 5. Publish the first Unfold release
 
-With preparation evidence complete and the old release authorities frozen, set the repository variable `UNFOLD_RELEASES_ENABLED=true` in [Unfold repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
+With preparation evidence complete and the old release authorities frozen, set the repository variable `UNFOLD_RELEASES_ENABLED=true` in [Unfold repository settings](https://forgejo.webgrip.dev/webgrip/unfold/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
 
 The [release jobs](../../.forgejo/workflows/on_release_train.yml) run in the hourly release train on `development` ([ADR-0046](../adr/adr-0046-an-hourly-release-train-versions-unfold-from-a-checked-development-head.md)), and only when an application has commits since its last tag. Enabling the variable does not start them; a push or a manual source-change run does not either. Merge the reviewed release-worthy change, then wait for the next train or dispatch **[Workflow] On Release Train** on `development`. The train releases only the tip its checks passed, so keep `development` quiet until its `release` job ends. Retain the train's run link.
 
 One release job versions both applications under a `unfold-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Unfold's and Ploeg's artifacts; Ploeg's final distribution waits for Unfold's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
 
-Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit. A release commits nothing, so the tag resolves to the tip the train's checks passed. The version must be a zero-major release candidate, and prereleases must not move `latest`.
+Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/unfold/releases). Record the full tag and its resolved commit. A release commits nothing, so the tag resolves to the tip the train's checks passed. The version must be a zero-major release candidate, and prereleases must not move `latest`.
 
 Do not open the gate if the preparation table remains incomplete. Publishing into real registries is the first irreversible distribution step; the procedure below recovers partial publication without deleting or recycling a version.
 
@@ -185,7 +185,7 @@ Give each paid session its own approved limit and record the total allowance bef
 | Pilot rollout or work fails | Stop new admission, explicitly stop active work and settle or retain uncertain authorizations. Revert the scoped GitOps rollout to the recorded chart/image/configuration pins and let Flux reconcile. Verify observed digests and health. |
 | Old binaries cannot read migrated state | Use the tested coordinated database/volume restore procedure with admission closed, or fix forward. A Git revert is not a database rollback. Do not restore one service's state while leaving inconsistent peer state active. |
 
-Setting `UNFOLD_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/glide/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after an Unfold publication without reconciling versions, source and channel history first.
+Setting `UNFOLD_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after an Unfold publication without reconciling versions, source and channel history first.
 
 ## 10. Close the test
 

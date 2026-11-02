@@ -76,7 +76,7 @@ Before you change behavior that crosses Ploeg and Unfold, read [managed executio
 
 ## Documentation
 
-- Published: [docs.webgrip.dev/glide](https://docs.webgrip.dev/glide/)
+- Published: [Unfold documentation](https://docs.webgrip.dev/glide/) (the `/glide/` path is the docs site's former name and is being migrated)
 - In the repo: start at [docs/index.md](docs/index.md)
 - Product direction: [Who Unfold is for](docs/concepts/who-unfold-is-for.md)
 

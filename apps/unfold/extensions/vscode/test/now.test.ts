@@ -59,9 +59,9 @@ test('a waiting group is truncated only when the server names its state, and an 
 });
 
 test('a pull request number is read only from a pull request path', () => {
-  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/glide/pulls/88'), '88');
+  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/unfold/pulls/88'), '88');
   assert.equal(pullRequestNumber('https://gitlab.example/g/p/-/merge_requests/12'), '12');
-  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/glide/issues/88'), undefined);
+  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/unfold/issues/88'), undefined);
   assert.equal(pullRequestNumber(undefined), undefined);
 });
 
@@ -75,7 +75,7 @@ test('a Needs you row leads with its reason, and settled spend is named settled'
 });
 
 test('a review row names its pull request, and unknown spend is never zero', () => {
-  const text = describeItem(core, item('awaiting_review', { pullRequestUrl: 'https://forgejo.example/webgrip/glide/pulls/88', spentUsd: null }), false);
+  const text = describeItem(core, item('awaiting_review', { pullRequestUrl: 'https://forgejo.example/webgrip/unfold/pulls/88', spentUsd: null }), false);
   assert.match(text.description, /PR #88 · bronze/);
   assert.ok(text.lines.some(line => line.includes('settled Not reported')));
 });

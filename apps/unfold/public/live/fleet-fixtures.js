@@ -48,7 +48,7 @@ function today() {
         item(192, 'unfold', 'needs_human', 'Say how to run the unit tests in the README', { minutes: 14 * 60 }),
       ],
       recent,
-      refused: [{ provider: 'vikunja', externalId: '2025', externalScope: '10', team: 'unfold', title: 'ploeg: tell each Run which skills bear on its Work Item', labels: ['repo/ploeg'], code: 'label_unregistered', reason: '', allowedLabels: [], refusedAt: ago(4 * 1440), board: 'Glide', url: '', link: 'none' }],
+      refused: [{ provider: 'vikunja', externalId: '2025', externalScope: '10', team: 'unfold', title: 'ploeg: tell each Run which skills bear on its Work Item', labels: ['repo/ploeg'], code: 'label_unregistered', reason: '', allowedLabels: [], refusedAt: ago(4 * 1440), board: 'Unfold', url: '', link: 'none' }],
     }),
     summary: summaryOf([
       team('bronze', { finished: 19, failed: 14, stuck: 1, settledUsd: 1.38, last: 61 }),

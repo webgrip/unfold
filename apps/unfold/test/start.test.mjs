@@ -7,7 +7,7 @@ import { loopCounts, loopMarkup } from '../public/now.js';
 import { countsFromNow } from '../public/core/counts.js';
 
 const task = (id, extra = {}) => ({ provider: 'vikunja', id: String(id), revision: `r${id}`, title: `Task ${id}`, description: 'Make the totals round half up.\n\nAcceptance criteria:\n- the order page shows 2 decimals', url: `https://tracker.test/tasks/${id}`, status: 'open', updatedAt: `2026-10-18T0${id % 9}:00:00Z`, labels: [], ...extra });
-const source = { id: 'glide', name: 'Glide board', provider: 'vikunja', repositoryId: 'unfold', executionOwner: 'ploeg', handoff: true };
+const source = { id: 'unfold', name: 'Unfold board', provider: 'vikunja', repositoryId: 'unfold', executionOwner: 'ploeg', handoff: true };
 const teams = [{ id: 'bronze', assignee: 'bronze', queueDepth: 2, paused: null, roles: ['writer', 'reviewer'] }, { id: 'pewter', assignee: 'pewter', queueDepth: 0, paused: null, roles: ['writer'] }];
 const status = (extra = {}) => ({ available: true, demo: false, handoff: { allowed: true }, teams, assignedTeams: [], workItems: [], fetchedAt: '2026-10-18T12:00:00Z', ...extra });
 const week = { teams: [{ team: 'bronze', runs: { finished: 33, failed: 21, stuck: 4 }, spend: { settledUsd: 1.48, reservedUsd: 0 } }] };
@@ -32,14 +32,14 @@ test('readiness reads the task alone: a label, a brief and acceptance conditions
 const connections = {
   supported: true,
   repositories: [{ key: 'unfold', label: 'unfold', repo: 'unfold', readiness: 'ready', reason: '' }, { key: 'ploeg', label: 'ploeg', repo: 'ploeg', readiness: 'ready', reason: '' }, { key: 'homelab', label: 'homelab-cluster', repo: 'homelab-cluster', readiness: 'not_ready', reason: 'webgrip/homelab-cluster has no AGENTS.md on branch "main".' }, { key: 'site', label: 'site', repo: 'site', readiness: 'ready', reason: '' }],
-  boards: [{ name: 'Glide', repository: null, default: 'unfold', allow: ['ploeg', 'homelab'], teams: [{ team: 'bronze', assignees: [] }], sources: [{ id: 'glide', name: 'Glide board', target: '', routed: true }] }],
+  boards: [{ name: 'Unfold', repository: null, default: 'unfold', allow: ['ploeg', 'homelab'], teams: [{ team: 'bronze', assignees: [] }], sources: [{ id: 'unfold', name: 'Unfold board', target: '', routed: true }] }],
 };
-const entryOf = (value, sourceId = 'glide', position = 0) => ({ task: value, sourceId, position, readiness: readiness(value), blocker: '' });
+const entryOf = (value, sourceId = 'unfold', position = 0) => ({ task: value, sourceId, position, readiness: readiness(value), blocker: '' });
 
 test('the Start queue leaves out closed tasks and tasks Ploeg holds, and keeps the tracker order: priority, then due date, then list place', () => {
   const standings = new Map([[taskKey(task(5)), { id: '90', state: 'leased', team: 'bronze' }]]);
-  const lists = [{ sourceId: 'glide', tasks: [task(1), task(2, { description: '' }), task(3, { labels: [{ name: 'ready' }], priority: 1 }), task(4, { status: 'closed' }), task(5), task(6, { labels: [{ name: 'ready' }], priority: 3, dueAt: '2026-11-20T00:00:00Z' }), task(7, { title: 'Epic: rebalance the cluster' }), task(8, { labels: [{ name: 'epic' }] }), task(9, { priority: 3, dueAt: '2026-10-30T00:00:00Z' }), task(10), task(11, { priority: 3 })] }];
-  const queue = startQueue(lists, standings, [{ sourceId: 'glide', taskId: '1' }], { sources: [source], connections });
+  const lists = [{ sourceId: 'unfold', tasks: [task(1), task(2, { description: '' }), task(3, { labels: [{ name: 'ready' }], priority: 1 }), task(4, { status: 'closed' }), task(5), task(6, { labels: [{ name: 'ready' }], priority: 3, dueAt: '2026-11-20T00:00:00Z' }), task(7, { title: 'Epic: rebalance the cluster' }), task(8, { labels: [{ name: 'epic' }] }), task(9, { priority: 3, dueAt: '2026-10-30T00:00:00Z' }), task(10), task(11, { priority: 3 })] }];
+  const queue = startQueue(lists, standings, [{ sourceId: 'unfold', taskId: '1' }], { sources: [source], connections });
   assert.deepEqual(queue.map(entry => entry.task.id), ['9', '6', '11', '3', '2', '10'], 'highest priority first, the earlier due date breaks a tie, then the tracker list; a ready label does not jump the order');
   assert.deepEqual(queue.map(entry => entry.position), [8, 5, 10, 2, 1, 9], 'each entry keeps its place in the list the tracker returned');
   assert.equal(queue.find(entry => entry.task.id === '2').blocker, 'No brief: an agent would start from the title alone');
@@ -61,29 +61,29 @@ test('a task is agent-ready only when its board routes it to a ready repository 
   const route = (labels, conn = connections, src = source) => routeOf(task(1, { labels: labels.map(name => ({ name })) }), src, conn);
   assert.deepEqual(route([]), { ok: true, repository: 'unfold' }, 'no repo/ label takes the board default');
   assert.deepEqual(route(['repo/ploeg']), { ok: true, repository: 'ploeg' });
-  assert.deepEqual(route(['repo/site']), { ok: false, reason: 'repo/site is not allowed on the Glide board' });
+  assert.deepEqual(route(['repo/site']), { ok: false, reason: 'repo/site is not allowed on the Unfold board' });
   assert.deepEqual(route(['repo/mailboxes']), { ok: false, reason: 'repo/mailboxes names no repository Ploeg knows' });
   assert.deepEqual(route(['repo/ploeg', 'repo/unfold']), { ok: false, reason: 'More than one repo/ label (repo/ploeg, repo/unfold): keep exactly one' });
   assert.deepEqual(route(['repo/homelab']), { ok: false, reason: 'homelab-cluster is not ready for agents: webgrip/homelab-cluster has no AGENTS.md on branch "main"' });
   const noDefault = { ...connections, boards: [{ ...connections.boards[0], default: null }] };
-  assert.deepEqual(route([], noDefault), { ok: false, reason: 'The Glide board needs a repo/ label on this task' });
+  assert.deepEqual(route([], noDefault), { ok: false, reason: 'The Unfold board needs a repo/ label on this task' });
   const noTeam = { ...connections, boards: [{ ...connections.boards[0], teams: [] }] };
-  assert.deepEqual(route([], noTeam), { ok: false, reason: 'No Team of yours takes work from the Glide board' });
-  assert.deepEqual(route([], { ...connections, boards: [] }), { ok: false, reason: 'Ploeg routes no board for Glide board' });
-  const unrouted = { ...connections, boards: [{ ...connections.boards[0], sources: [{ id: 'glide', routed: false }] }] };
+  assert.deepEqual(route([], noTeam), { ok: false, reason: 'No Team of yours takes work from the Unfold board' });
+  assert.deepEqual(route([], { ...connections, boards: [] }), { ok: false, reason: 'Ploeg routes no board for Unfold board' });
+  const unrouted = { ...connections, boards: [{ ...connections.boards[0], sources: [{ id: 'unfold', routed: false }] }] };
   assert.equal(route([], unrouted).ok, false);
   assert.deepEqual(route(['repo/site'], null), { ok: true, repository: 'unfold' }, 'without the connections read, a connection that names a repository routes');
   assert.deepEqual(route([], null, { ...source, repositoryId: '' }), { ok: false, reason: 'This connection names no repository for agents to work in' });
-  const refused = new Map([['vikunja:3', 'The Glide board needs a repo/ label on this task.']]);
-  const queue = startQueue([{ sourceId: 'glide', tasks: [task(3), task(4, { labels: [{ name: 'repo/site' }] })] }], new Map(), [], { sources: [source], connections, refused });
-  assert.deepEqual(queue.map(entry => entry.blocker), ['The Glide board needs a repo/ label on this task.', 'repo/site is not allowed on the Glide board'], 'Ploeg’s own refusal wins over the routing read');
+  const refused = new Map([['vikunja:3', 'The Unfold board needs a repo/ label on this task.']]);
+  const queue = startQueue([{ sourceId: 'unfold', tasks: [task(3), task(4, { labels: [{ name: 'repo/site' }] })] }], new Map(), [], { sources: [source], connections, refused });
+  assert.deepEqual(queue.map(entry => entry.blocker), ['The Unfold board needs a repo/ label on this task.', 'repo/site is not allowed on the Unfold board'], 'Ploeg’s own refusal wins over the routing read');
 });
 
 test('each Up next row says why it is there, in the tracker’s words', () => {
   assert.equal(whyHere(entryOf(task(1, { priority: 4, dueAt: '2026-10-30T09:00:00Z' }))), `Priority urgent · due ${namedDate('2026-10-30T09:00:00Z')}`);
   assert.equal(whyHere(entryOf(task(1, { priority: 3 }))), 'Priority high');
   assert.equal(whyHere(entryOf(task(1, { dueAt: '2026-10-30T09:00:00Z' }))), `Due ${namedDate('2026-10-30T09:00:00Z')}`);
-  assert.equal(whyHere(entryOf(task(1), 'glide', 2)), 'Tracker order #3');
+  assert.equal(whyHere(entryOf(task(1), 'unfold', 2)), 'Tracker order #3');
 });
 
 test('review room reads as a sentence and is full at the limit', () => {
@@ -102,8 +102,8 @@ test('Up next lists the first five tasks agents can take in the tracker’s orde
   assert.match(startCard({ queue: [], sources: [], room: null }), /No task connection hands work to Ploeg/);
   assert.match(startCard({ queue: null, sources: [source], error: 'Vikunja is down', room: null }), /Could not list your tasks[\s\S]*Vikunja is down[\s\S]*start-reload/);
   assert.match(startCard({ queue: [], sources: [source], room: null }), /Nothing left to start/);
-  const ready = Array.from({ length: startLimit + 3 }, (_, index) => entryOf(task(index + 1, { labels: [{ name: 'ready' }] }), 'glide', index));
-  const held = [{ ...entryOf(task(20, { title: 'Create the hello@ mailbox', labels: [{ name: 'repo/mailboxes' }] }), 'glide', 20), blocker: 'repo/mailboxes names no repository Ploeg knows' }];
+  const ready = Array.from({ length: startLimit + 3 }, (_, index) => entryOf(task(index + 1, { labels: [{ name: 'ready' }] }), 'unfold', index));
+  const held = [{ ...entryOf(task(20, { title: 'Create the hello@ mailbox', labels: [{ name: 'repo/mailboxes' }] }), 'unfold', 20), blocker: 'repo/mailboxes names no repository Ploeg knows' }];
   const queue = [...ready, ...held];
   const html = startCard({ queue, sources: [source], room: roomOf({ waiting: [] }), singleKeys: true });
   assert.equal(html.match(/data-action="start-open"/g).length, startLimit);
@@ -120,7 +120,7 @@ test('Up next lists the first five tasks agents can take in the tracker’s orde
   const included = startCard({ queue, sources: [source], room: null, all: true, include: true });
   assert.equal(included.match(/data-action="start-open"/g).length, startLimit + 4);
   assert.match(included, /data-held[\s\S]*hello@ mailbox[\s\S]*data-blocked>repo\/mailboxes names no repository Ploeg knows/);
-  const mixed = startCard({ queue: [entryOf(task(1, { labels: [{ name: 'ready' }] })), entryOf(task(2), 'glide', 1)], sources: [source], room: null });
+  const mixed = startCard({ queue: [entryOf(task(1, { labels: [{ name: 'ready' }] })), entryOf(task(2), 'unfold', 1)], sources: [source], room: null });
   assert.match(mixed, /Marked ready/, 'when some rows are not marked ready, the badge tells them apart');
   assert.doesNotMatch(mixed, /Not marked ready/, 'the usual case carries no badge');
   const none = startCard({ queue: held, sources: [source], room: null });
@@ -135,7 +135,7 @@ test('Up next rows show the board, size and Team label, and Show all adds a boar
     entryOf(task(2), 'homelab', 0),
   ];
   const top = startCard({ queue, sources: [source, other], room: null });
-  assert.match(top, /Priority high[\s\S]*Spike[\s\S]*#1[\s\S]*Glide board[\s\S]*size S[\s\S]*for bronze/);
+  assert.match(top, /Priority high[\s\S]*Spike[\s\S]*#1[\s\S]*Unfold board[\s\S]*size S[\s\S]*for bronze/);
   assert.doesNotMatch(top, /data-action="start-board"/, 'the first five carry no board switch');
   const all = startCard({ queue, sources: [source, other], room: null, all: true });
   assert.match(all, /data-action="start-board" data-board="" aria-pressed="true">All 2</);
@@ -148,7 +148,7 @@ test('Up next rows show the board, size and Team label, and Show all adds a boar
 });
 
 test('a hand-off stays under Just handed over until Ploeg runs it, with Take back', () => {
-  const handed = [{ key: 'vikunja:1', sourceId: 'glide', taskId: '1', title: 'Task 1', team: 'bronze', at: 0 }, { key: 'vikunja:2', sourceId: 'glide', taskId: '2', title: 'Task 2', team: 'bronze', at: 0 }, { key: 'vikunja:3', sourceId: 'glide', taskId: '3', title: 'Task 3', team: 'pewter', at: 0 }];
+  const handed = [{ key: 'vikunja:1', sourceId: 'unfold', taskId: '1', title: 'Task 1', team: 'bronze', at: 0 }, { key: 'vikunja:2', sourceId: 'unfold', taskId: '2', title: 'Task 2', team: 'bronze', at: 0 }, { key: 'vikunja:3', sourceId: 'unfold', taskId: '3', title: 'Task 3', team: 'pewter', at: 0 }];
   const standings = new Map([['vikunja:2', { id: '41', state: 'queued', team: 'bronze' }], ['vikunja:3', { id: '42', state: 'leased', team: 'pewter' }]]);
   const pending = pendingHandoffs(handed, standings);
   assert.deepEqual(pending.map(entry => entry.taskId), ['1', '2']);

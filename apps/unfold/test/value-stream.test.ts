@@ -4,7 +4,7 @@ import type { FactsPullRequest, WorkItemFacts } from '../src/cards/facts.ts';
 import { valueStream } from '../src/value-stream.ts';
 
 const pull = (patch: Partial<FactsPullRequest> = {}): FactsPullRequest => ({
-  id: '7', forge: 'forgejo', owner: 'webgrip', repo: 'glide', number: 42, url: 'https://forge.example/webgrip/glide/pulls/42', shiftId: '3', branch: 'b', baseBranch: 'development',
+  id: '7', forge: 'forgejo', owner: 'webgrip', repo: 'unfold', number: 42, url: 'https://forge.example/webgrip/unfold/pulls/42', shiftId: '3', branch: 'b', baseBranch: 'development',
   state: 'merged', draft: false, author: 'unfold-bot', headSha: 'abcdef1234', mergeCommitSha: 'feedbeef99', openedAt: '2026-10-02T10:00:00Z', firstSeenAt: '2026-10-02T10:00:00Z',
   mergedAt: '2026-10-02T15:00:00Z', mergedBy: 'ryan', closedAt: null, updatedAt: '2026-10-02T15:00:00Z', additions: 1, deletions: 1, changedFiles: 1, labels: null,
   commits: 2, firstCommitAt: null, forcePushes: 0, activityCapturedAt: null, activityTruncated: false, commitStatus: null, ciRunsCapturedAt: null, ciRunsSource: null, ciRunsTruncated: false,
@@ -30,7 +30,7 @@ const facts = (patch: Partial<WorkItemFacts> = {}): WorkItemFacts => ({
     { status: 'In progress', gate: 'development', at: '2026-10-02T09:00:00Z', observed: true, receivedAt: '2026-10-02T09:00:00Z' },
     { status: 'Review', gate: 'test', at: '2026-10-02T12:00:00Z', observed: true, receivedAt: '2026-10-02T12:00:00Z' },
   ],
-  gateTransitions: [], deployEnvironments: [{ forge: 'forgejo', owner: 'webgrip', repo: 'glide', environment: 'staging', firstDeployedAt: '2026-01-01T00:00:00Z' }, { forge: 'forgejo', owner: 'webgrip', repo: 'glide', environment: 'production', firstDeployedAt: '2026-01-02T00:00:00Z' }],
+  gateTransitions: [], deployEnvironments: [{ forge: 'forgejo', owner: 'webgrip', repo: 'unfold', environment: 'staging', firstDeployedAt: '2026-01-01T00:00:00Z' }, { forge: 'forgejo', owner: 'webgrip', repo: 'unfold', environment: 'production', firstDeployedAt: '2026-01-02T00:00:00Z' }],
   roster: [], botLogins: [], truncated: { shifts: false, runs: false, pullRequests: false, statusTransitions: false, gateTransitions: false },
   ...patch,
 });

@@ -7,7 +7,7 @@ import type { PloegDetail, PloegNowItem } from '../src/ploeg-types.ts';
 const core = await loadCore(new URL('../media/core/', import.meta.url));
 const at = new Date(Date.now() - 3_600_000).toISOString();
 const item = (state: string, extra: Partial<PloegNowItem> = {}): PloegNowItem => ({ id: '42', team: 'bronze', state, title: 'unfold: <b>show</b> one provisional total', url: 'https://vikunja.example/tasks/1694', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: '1694', priority: 4, attempts: 1, infraFailures: 0, target: null, closeReason: null, latestShift: null, spentUsd: 1.5, pullRequestUrl: '', ...extra });
-const handOff = (workItem: PloegNowItem | null, extra: Partial<HandOff> = {}): HandOff => ({ id: 7, at, channel: 'mcp:Claude Code 2.1.300', team: 'bronze', origin: { kind: 'task', sourceId: 'board', sourceName: 'Glide board', taskId: '1694' }, workItem, note: workItem ? '' : 'Ploeg has not listed a Work Item for this hand-off yet.', ...extra });
+const handOff = (workItem: PloegNowItem | null, extra: Partial<HandOff> = {}): HandOff => ({ id: 7, at, channel: 'mcp:Claude Code 2.1.300', team: 'bronze', origin: { kind: 'task', sourceId: 'board', sourceName: 'Unfold board', taskId: '1694' }, workItem, note: workItem ? '' : 'Ploeg has not listed a Work Item for this hand-off yet.', ...extra });
 const list = (...handoffs: HandOff[]): HandOffList => ({ handoffs, demo: false, fetchedAt: at });
 const pr = 'https://forgejo.example/webgrip/unfold/pulls/731';
 
@@ -25,7 +25,7 @@ test('a hand-off row shows its title as given, its Team, state, why it waits, th
   const waiting = describeHandOff(core, handOff(item('needs_human', { closeReason: 'question_for_person' })), false);
   assert.match(waiting.heading, /^Needs you/);
   const pending = describeHandOff(core, handOff(null), false);
-  assert.equal(pending.label, 'Task 1694 on Glide board');
+  assert.equal(pending.label, 'Task 1694 on Unfold board');
   assert.equal(pending.heading, 'Waiting for Ploeg');
   assert.ok(pending.lines.includes('Ploeg has not listed a Work Item for this hand-off yet.'));
   assert.match(describeHandOff(core, handOff(item('leased')), true).description, /demo, no spend/, 'the demo shows no spend');
