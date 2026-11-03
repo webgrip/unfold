@@ -191,7 +191,7 @@
 **Linked Sessions — implemented (ADR 0047 proposed with implementation; openspec change `linked-agent-sessions`)**
 - A Linked Session is a person's own local Claude Code session that reports to Unfold through plugin hooks (SessionStart, UserPromptSubmit, Notification, PostToolUse, Stop, SessionEnd) to `POST /api/linked-sessions/events`, using the `vle_` editor credential. Unfold never starts, steers or pays for it.
 - Statuses: working, waiting, idle, ended; a session reads as stale after 30 minutes without a report.
-- Links come from branch names (`feat/vik-2051-…`), commit trailers `Unfold-Session:`, mentions, PRs, or the `unfold_link_session` tool.
+- Links come from branch names, commit trailers `Unfold-Session:`, mentions, PRs, or the `unfold_link_session` tool.
 - Agent Trace 0.1 records per commit are stored in `refs/notes/agent-trace`. Telemetry is read from VictoriaMetrics and VictoriaLogs. Unfold holds no Claude credential.
 - Only the `claude-code` harness is supported (`linkedHarnesses`).
 - Code: apps/unfold/src/linked-sessions.ts, `public/views/linked-sessions.js`, `public/core/linked-sessions.js`.

@@ -254,7 +254,6 @@ Source: `search/repositories?q=t3code`, `repos/pingdotgg/t3code/forks?sort=starg
 | A2A | **Absent** (only in vendored `.repos/alchemy-effect` GCP bindings); 0 issues match | search `repo:pingdotgg/t3code A2A` = 0 |
 | Linear | **Absent on `main`** (word hits are "linear time" etc.) | Open PR #19274 <https://github.com/pingdotgg/t3code/pull/19274>; Ideas #6752, #21613, #18961 |
 | Jira | **Absent on `main`** (Atlassian appears only as Bitbucket credentials in SRC/packages/source-control-bitbucket/src/shared/definition.ts) | Open PRs #18456, #23055; #16992 shows Jira used through MCP Apps <https://github.com/pingdotgg/t3code/issues/16992> |
-| Vikunja | **Absent**: 0 code hits, 0 issues | grep and `search/issues?q=repo:pingdotgg/t3code vikunja` |
 | Multi-user / tenancy | **Absent**: one environment = one owner; RFC closed not_planned | #12278, Ideas #12283, #27974 |
 
 ## Not verified

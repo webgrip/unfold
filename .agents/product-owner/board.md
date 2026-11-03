@@ -8,28 +8,12 @@ only what Unfold adds.
 
 ## Additions
 
-- Tracker: **ClickUp**, overriding the default team's Vikunja. Workspace `1500520000009653`
-  (webgrip), Space `Unfold` (`1500520000050331`); Ploeg work sits in Space `Ploeg`
-  (`1500520000050334`). The Vikunja project (id 10) is an archive: older commits and documents
-  cite `VIK-<id>`. Ids are a cache: re-resolve with `clickup_get_workspace_hierarchy` when a call
-  behaves oddly. Tickets are referred to as `CU-<id>`; cross-references are full
-  `https://app.clickup.com/t/<id>` links.
-- Fixture projects, never backlogs, stay in Vikunja: `Ploeg Test` (id 11) and `Ploeg Bench`
-  (id 49). They feed Ploeg's tests and benchmarks; do not groom, split or close their tickets.
-- Use only a ClickUp MCP connection authorized for the webgrip workspace. If the connection
-  lists another organisation's workspace, stop and say so; never write a webgrip ticket there.
-- Stages are the List statuses, not labels: `backlog`, `ready`, `in progress`, `in review`,
-  `needs you`, `done` ([the board](../../docs/contributing/way-of-working.md#the-board)).
-  Tags carry the default team's dimensions with a colon: `repo:<repo>`, `impact:h|m|l`,
-  `effort:s|m|l`, `time:hours|days|weeks`, `uncertainty:low|med|high`, plus `spike`, `epic`,
-  `meta`, `phase-1`/`phase-2`, `agent-ready`. Enumerate the tags in use before applying one;
-  never invent a dimension. Epics are parent tasks with the `epic` tag; children are subtasks.
-- Each List is an area (for example `Sessions, editors & AI clients`, `Review & delivery`,
-  `Docs, journeys & decisions`); a new ticket goes in the List of the area it changes.
+- Tracker: ClickUp, Space `Unfold` in the webgrip workspace; Ploeg work sits in Space `Ploeg`.
+  Resolve lists, statuses and tags from the board itself, never from this file.
 - `repo:*` names the repository the work lands in; Ploeg routes a ticket by it
   ([assign work to an agent](../../docs/how-to/assign-work-to-an-agent.md)). A ticket without
   one is not `ready`.
-- Assigning the ClickUp member **Unfold** dispatches a ticket to agents. Grooming never assigns;
+- Assigning a ticket to a Team's user dispatches it to agents. Grooming never assigns;
   only an `agent-ready` ticket is assigned, and only by a human.
 - Domain language: the [glossary](../../docs/reference/glossary.md) is authoritative — Work
   Item, Run, Shift, Role, Verdict, Acceptance in the meaning it gives them, in titles,
