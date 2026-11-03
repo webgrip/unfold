@@ -31,7 +31,7 @@
     },
     {
       "customType": "regex",
-      "description": "Local checks run the CI toolchain images by tag outside any workflow file. Managing them here keeps release-check and docs-site-check on the image CI uses; the update shares the workflow's branch because the dependency name is the same.",
+      "description": "Local checks run the CI toolchain images by tag outside any workflow file. Managing them here keeps release-check and docs-site-check on the image CI uses; a package rule puts these updates on the branch that moves the workflow pins.",
       "managerFilePatterns": [
         "/^mise\\.toml$/",
         "/^scripts/docs-site\\.sh$/"
@@ -294,6 +294,17 @@
         "fileFilters": ["**/pnpm-lock.yaml"],
         "executionMode": "update"
       }
+    },
+    {
+      "description": "The preset gives Webgrip pins under .forgejo/** their own webgrip CI dependencies branch, committed as ci(tooling). The local-check pins of the same images sit in mise.toml and scripts/docs-site.sh, outside that rule, so they moved on a separate fix(deps) branch: development then ran the release jobs on the new semantic-release image while release-check still named the old one, and the workflow policy test failed the release. This rule moves both on one branch, and the ci type keeps that branch from cutting a release.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["mise.toml", "scripts/docs-site.sh"],
+      "matchPackageNames": ["harbor.webgrip.dev/webgrip/semantic-release", "harbor.webgrip.dev/webgrip/techdocs-builder"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "webgrip CI dependencies",
+      "groupSlug": "webgrip-ci",
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "tooling"
     }
   ],
   "helm-values": {
