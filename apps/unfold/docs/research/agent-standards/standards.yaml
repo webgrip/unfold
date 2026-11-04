@@ -10422,7 +10422,7 @@ standards:
     date: '2026-09-15'
     url: https://packagist.org/packages/ucp-php-sdk/core
   watch:
-  - {kind: github-tags, ref: agentic-commerce-alliance/ucp-php-sdk-core, current: "0.0.7"}
+  - {kind: github-tags, ref: agentic-commerce-alliance/ucp-php-sdk-core, current: "0.0.8"}
   adoption:
   - 21k downloads but 1 GitHub star. The download count may be inflated (https://github.com/agentic-commerce-alliance/ucp-php-sdk-core).
   - tcgunel/ucp-laravel v0.3.0 (2026-05-21), 0 downloads (https://packagist.org/packages/tcgunel/ucp-laravel).
