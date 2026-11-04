@@ -8,16 +8,13 @@ only what Unfold adds.
 
 ## Additions
 
-- Project: `Unfold` (Vikunja id 10). Ids are a cache: re-resolve with `projects_list` when a
-  call behaves oddly.
-- Fixture projects, never backlogs: `Ploeg Test` (id 11) and `Ploeg Bench` (id 49). They feed
-  Ploeg's tests and benchmarks; do not groom, split or close their tickets.
-- `repo/*` names the repository the work lands in; on a board that serves several
-  repositories Ploeg routes a ticket by it
+- Tracker: ClickUp, Space `Unfold` in the webgrip workspace; Ploeg work sits in Space `Ploeg`.
+  Resolve lists, statuses and tags from the board itself, never from this file.
+- `repo:*` names the repository the work lands in; Ploeg routes a ticket by it
   ([assign work to an agent](../../docs/how-to/assign-work-to-an-agent.md)). A ticket without
   one is not `ready`.
-- Assigning a ticket to a Team's user dispatches it to agents. Grooming never assigns; only
-  an `agent-ready` ticket is assigned, and only by a human.
+- Assigning a ticket to a Team's user dispatches it to agents. Grooming never assigns;
+  only an `agent-ready` ticket is assigned, and only by a human.
 - Domain language: the [glossary](../../docs/reference/glossary.md) is authoritative — Work
   Item, Run, Shift, Role, Verdict, Acceptance in the meaning it gives them, in titles,
   TL;DR and criteria alike. A ticket that needs a new term proposes it in Open questions.
