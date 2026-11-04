@@ -170,6 +170,20 @@
       "semanticCommitScope": "agent"
     },
     {
+      "description": "Moving Mermaid or Marked in the landscape build makes docs/landscape/explorer.html stale, and the docs gate stays red until someone rebuilds it with Playwright's Chromium, which Renovate's runner lacks. In the all non-major branch that red held every other update back (#839), so these pins get a branch of their own.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchFileNames": [
+        "apps/unfold/scripts/build-landscape.mjs"
+      ],
+      "groupName": "landscape renderer",
+      "groupSlug": "landscape-renderer",
+      "prBodyNotes": [
+        "This update stays red until the landscape explorer is rebuilt: run `mise run landscape` on this branch and push the two changed files under `docs/landscape/`. Forgejo then merges it on a green gate."
+      ]
+    },
+    {
       "description": "Every Unfold release is a candidate X.Y.Z-rc.N, so the released unfold-agent image is offered as one. Moving the references releases nothing: a releasing commit type would cut a candidate whose image Renovate then offers again. A reference ahead of Harbor is a release still publishing, not one to roll back.",
       "matchDatasources": [
         "docker"
