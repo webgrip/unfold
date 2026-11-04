@@ -82,6 +82,18 @@ Ask and chat answers stay inside Unfold and are not written to a forge or tracke
 
 Commits and pull requests that Ploeg's workers create are written by Ploeg, not Unfold. They carry `Agent-Trace-Id` and the tracker reference that Ploeg's prompt asks for. They get the marker and the sentence only through the keyed comments above, and only for Teams that turned those comments on.
 
+## Not marked yet: generated card art
+
+Card themes can carry custom art: a GLSL shader, `vec3 art_custom(vec2 uv, float t)`, that paints the moving art window of a Run Card. A designer can ask a model to write that shader ([`src/card-art.ts`](../../src/card-art.ts), [`CardArtGenerator`](../../src/card-art.ts)). Unfold then renders its output as moving imagery in the card views ([`forge-model.js`](../../public/cards/skins/forge/forge-model.js) labels it only "Custom shader").
+
+That output is synthetic image content in the sense of Article 50(2), and none of the markings above cover it:
+
+- The stored theme does not record whether a model or a person wrote the shader.
+- The card view shows no visible notice.
+- No machine-readable mark travels with a frame or a still.
+
+The static card image on pull requests ([`cards/cardimage-svg.ts`](../../src/cards/cardimage-svg.ts)) does not draw the shader art, so the gap is limited to the card views. The Article 50(2) grace period for systems placed on the market before 2026-08-02 ends on 2026-12-02. Closing this gap is open work, and whether it is required for this use needs counsel.
+
 ## Pointing to it from a transparency notice
 
 [Article 50(2) of the AI Act](https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng) requires providers of AI systems that generate synthetic audio, image, video or text content to ensure that the outputs are "marked in a machine-readable format and detectable as artificially generated or manipulated". Under Article 113, Article 50 applies from 2 August 2026. Article 111(4), added by [Regulation (EU) 2026/1744](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202601744), gives providers of such systems placed on the market before 2 August 2026 until 2 December 2026 to comply with Article 50(2). Article 50(5) asks for the information to be given "in a clear and distinguishable manner at the latest at the time of the first interaction or exposure".
