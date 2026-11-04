@@ -94,7 +94,7 @@ The [catalogue's radar](agent-standards/index.md#radar) shows every ring. In sho
 ## Findings that need someone
 
 1. **The A2A review is overdue.** Ploeg ADR-0007's review-by date (2026-10-31) has passed without a dated re-confirmation. The evidence says the same as on 2026-10-13: maturity no longer blocks it, and fit does.
-2. **The watchlist reuses T29 to T33.** Rows added on 2026-10-29 and 2026-10-30 each took T29 to T33. The catalogue cites the 2026-10-30 meanings (MCP Events, trust annotations, ID-JAG, Client Credentials, Server Card). The 2026-10-29 rows need new ids.
+2. **The watchlist reused T29 to T33; fixed here.** The rows added on 2026-10-29 took the same ids as the rows added on 2026-10-30. This change renumbers the 2026-10-29 rows to T43 to T47, in the watchlist and in [the 1.144 dossier](2026-10-29-vscode-1-144-fit.md). T29 to T33 keep their 2026-10-30 meanings, which the catalogue cites: MCP Events, trust annotations, ID-JAG, Client Credentials and Server Card.
 3. **The EU AI Act has a date.** The Article 50(2) grace period ends on 2026-12-02. The AI-marking contract covers text but not generated images, such as Run Card art and the pull-request card image. Who is provider and who is deployer in the Agency contract needs counsel.
 4. **Unfold has no threat model of its own.** Ploeg maps to the OWASP agentic risks; Unfold does not. MCP conformance runs only three scenarios for `unfold-mcp`.
 5. **MCP Apps behind an aggregator.** ext-apps #745 and #753 break apps behind a namespacing gateway such as LiteLLM, so an Agency connects `unfold-mcp` directly.
