@@ -278,6 +278,12 @@ Each item below is conditional. Any one of the listed triggers reopens it.
 | T31 | Unfold in VS Code's Remote Environments dialog | — | The dialog lists WebSocket agent hosts, not only SSH, WSL, tunnels, GitHub Environments and Dev Containers; added 2026-10-29 |
 | T32 | Unfold as a partner agent inside GitHub | — | GitHub documents a partner programme for third-party coding agents; today only Claude and Codex appear there; added 2026-10-29 |
 | T33 | Publishing the extension without a stored token | — | Open VSX Trusted Publishing accepts a non-GitHub CI issuer, so Forgejo Actions can drop `OVSX_PAT`; added 2026-10-29 |
+| T37 | OpenTelemetry GenAI conventions as the vocabulary of [Ploeg ADR-0113](../../../ploeg/docs/adrs/0113-a-runs-harness-exports-opentelemetry-to-a-collector-set-per-team-and-role.md) and both gateways' metrics | — | `open-telemetry/semantic-conventions-genai` publishes its first tagged release with a schema URL; until then pin a commit; added 2026-11-04 from [the agent-standards dossier](2026-11-04-agent-standards-landscape.md) |
+| T38 | Transaction Tokens as the format of the proposed Run token (`sub` person, `act` Team and Role, `txn` Run) | [RFC-0011](../../../../docs/design/rfc-0011-every-agent-action-names-its-person.md) | `draft-ietf-oauth-transaction-tokens` is approved by the IESG; added 2026-11-04 |
+| T39 | Mapping the signed audit-chain head ([ADR 0061](../adrs/0061-unfold-signs-the-audit-chain-head-with-openbao-transit-and-copies-it-to-a-locked-bucket-daily.md)) onto a cross-boundary audit standard | — | The IETF AUDIT BoF (IETF 127, 2026-11-14) becomes a working group with an adopted record format; added 2026-11-04 |
+| T40 | Client ID Metadata Documents for `unfold-mcp` clients | the OAuth resource server ([how-to](../../../../docs/how-to/serve-unfold-mcp-over-https.md)) | Authentik closes [#27431](https://github.com/goauthentik/authentik/issues/27431) and ships CIMD; added 2026-11-04 |
+| T41 | Open Responses as the shape of Unfold's model calls | — | LiteLLM or Fireworks publishes an Open Responses compliance result; added 2026-11-04 |
+| T42 | "Make this webshop agent-ready" as a Work Item kind Agencies sell their Clients (UCP catalogue and cart, handing over to iDEAL \| Wero) | the agency offering (system ADRs 0005 to 0010) | Google, Shopify or ChatGPT agent checkout opens to Dutch shoppers; added 2026-11-04 |
 
 Rejected shapes, so they are not argued again:
 
