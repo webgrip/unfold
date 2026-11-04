@@ -58,6 +58,10 @@ description = "Regenerate Unfold's mark, lockups and tokens in docs/brand, the s
 run = "node scripts/build-brand.mjs --check"
 description = "Fail when the committed brand files differ from the generator or break the mark's construction"
 
+[tasks.agent-standards]
+run = "uv run --frozen python scripts/agent-standards.py render"
+description = "Check the agent-standards catalogue and regenerate its pages in apps/unfold/docs/research/agent-standards"
+
 [tasks.integration]
 run = "node scripts/integration.mjs"
 description = "Qualify standalone and Ploeg-managed execution without paid models"

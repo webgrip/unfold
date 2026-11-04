@@ -130,6 +130,20 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The agent-standards catalogue: every watch entry is one flow mapping on one line, {kind: K, ref: R, current: \"V\"}, which scripts/agent-standards.py enforces. Loose versioning because spec repositories tag however they like and an IETF revision is a bare number.",
+      "managerFilePatterns": [
+        "/(^|/)apps/unfold/docs/research/agent-standards/standards\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\{kind: (?<datasource>github-releases|github-tags), ref: (?<depName>[^,\\s]+), current: \"(?<currentValue>[^\"]+)\"\\}",
+        "\\{kind: ietf-draft, ref: (?<depName>draft-[a-z0-9-]+), current: \"(?<currentValue>\\d+)\"\\}"
+      ],
+      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}custom.ietf-draft{{/if}}",
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "agent-standard"
     }
   ],
   "packageRules": [
@@ -319,8 +333,29 @@
       "groupSlug": "webgrip-ci",
       "semanticCommitType": "ci",
       "semanticCommitScope": "tooling"
+    },
+    {
+      "description": "A watched agent standard is not a dependency: its pull request asks whether a radar ring moves, so it never merges on its own, needs no soak, and stays one pull request per standard. The docs type keeps it from cutting a release.",
+      "matchDepTypes": ["agent-standard"],
+      "automerge": false,
+      "minimumReleaseAge": null,
+      "groupName": null,
+      "abandonmentThreshold": null,
+      "labels": ["agent-standards"],
+      "semanticCommitType": "docs",
+      "semanticCommitScope": "research",
+      "commitMessageTopic": "agent standard {{depName}}",
+      "prBodyNotes": ["This bumps a watched standard in apps/unfold/docs/research/agent-standards/standards.yaml. Before merging, read the release notes, update latest, status and reviewed, decide whether the radar ring moves, re-read the decisions the entry names, then run mise run agent-standards and commit the regenerated pages. The procedure is docs/how-to/keep-the-agent-standards-catalogue-current.md."]
     }
   ],
+  "customDatasources": {
+    "ietf-draft": {
+      "defaultRegistryUrlTemplate": "https://datatracker.ietf.org/api/v1/doc/document/{{packageName}}/?format=json",
+      "transformTemplates": [
+        "{\"releases\": [{\"version\": rev}], \"homepage\": \"https://datatracker.ietf.org/doc/\" & name & \"/\"}"
+      ]
+    }
+  },
   "helm-values": {
     "managerFilePatterns": [
       "/(^|/)values\\.ya?ml$/"

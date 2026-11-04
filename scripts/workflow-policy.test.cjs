@@ -26,7 +26,7 @@ const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
-  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_nightly.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_release_train.yml', 'on_schedule.yml', 'on_source_change.yml']);
+  assert.deepEqual(Object.keys(workflows).sort(), ['on_agent_standards.yml', 'on_dns_change.yml', 'on_docs_change.yml', 'on_nightly.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_release_train.yml', 'on_schedule.yml', 'on_source_change.yml']);
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
@@ -980,4 +980,20 @@ test('Renovate moves the committed unfold-agent references to the newest Unfold 
   assert.equal(rule.semanticCommitType, 'chore');
   assert.notEqual(rule.semanticCommitScope, 'deps', 'chore(deps) releases Unfold, and that release would offer its image again');
   for (const candidate of ['0.4.0-rc.115', '0.4.0', '0.5.0-rc.1']) assert.match(`harbor.webgrip.dev/webgrip/unfold-agent:${candidate}`, new RegExp(`^${config.customManagers.find(manager => manager.managerFilePatterns.some(pattern => pattern.includes('warm-pool'))).matchStrings[0]}$`));
+});
+
+test('the agent-standards survey is off by default, holds only the CI token and an optional model key, and only ever pushes its own survey branch', () => {
+  const workflow = workflows['on_agent_standards.yml'];
+  assert.deepEqual(Object.keys(workflow.on).sort(), ['schedule', 'workflow_dispatch']);
+  assert.match(workflow.on.schedule[0].cron, /^\d+ \d+ \* \* [0-6]$/, 'weekly');
+  assert.deepEqual(Object.keys(workflow.jobs), ['survey']);
+  const job = workflow.jobs.survey;
+  assert.equal(job.if, "vars.AGENT_STANDARDS_SURVEY_ENABLED == 'true'");
+  const secrets = [...JSON.stringify(workflow).matchAll(/secrets\.([A-Z_]+)/g)].map(match => match[1]).sort();
+  assert.deepEqual(secrets, ['AGENT_STANDARDS_MODEL_KEY', 'WEBGRIP_CI_TOKEN']);
+  assert.doesNotMatch(JSON.stringify(workflow), /UNFOLD_(RELEASES|DOCS_PUBLISH)_ENABLED|permissions|webgrip-release/);
+  const survey = fs.readFileSync(path.join(root, 'scripts/agent-standards-survey.py'), 'utf8');
+  assert.match(survey, /branch = f'docs\/agent-standards-survey-\{week\}'/);
+  assert.match(survey, /'base': 'development'/);
+  assert.doesNotMatch(survey, /refs\/heads\/development|refs\/heads\/main|--delete|--prune|--mirror/);
 });

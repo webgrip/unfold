@@ -311,6 +311,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0062](../../apps/unfold/docs/adrs/0062-background-work-runs-through-one-durable-job-queue-in-the-workbench-database.md) | Background work runs through one durable job queue in the workbench database | 2026-10-30 | unknown | — |
 | Unfold | [0063](../../apps/unfold/docs/adrs/0063-unfold-reaches-ploeg-and-trackers-through-ports-with-interchangeable-adapters.md) | Unfold reaches Ploeg and trackers through ports with interchangeable adapters | 2026-10-31 | unknown | — |
 | Unfold | [0064](../../apps/unfold/docs/adrs/0064-people-add-tracker-connections-from-the-screen-and-unfold-keeps-them-with-an-encrypted-service-account-token.md) | People add tracker connections from the screen, and Unfold keeps them with an encrypted service account token | 2026-10-31 | unknown | — |
+| Unfold | [0065](../../apps/unfold/docs/adrs/0065-unfold-tracks-agent-standards-in-a-catalogue-that-renovate-and-a-weekly-survey-keep-current.md) | Unfold tracks agent standards in a catalogue that Renovate and a weekly survey keep current | 2026-11-04 | unknown | — |
 
 ## Other statuses
 

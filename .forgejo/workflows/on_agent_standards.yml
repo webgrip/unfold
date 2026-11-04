@@ -1,0 +1,34 @@
+name: '[Workflow] On Agent Standards'
+
+on:
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: agent-standards-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  survey:
+    if: vars.AGENT_STANDARDS_SURVEY_ENABLED == 'true'
+    runs-on: docker
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: development
+      - uses: https://github.com/jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+          github_token: ''
+      - name: Survey the agent-standards sources and open a pull request when something changed
+        env:
+          FORGEJO_URL: ${{ github.server_url }}
+          WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
+          AGENT_STANDARDS_MODEL_URL: ${{ vars.AGENT_STANDARDS_MODEL_URL }}
+          AGENT_STANDARDS_MODEL: ${{ vars.AGENT_STANDARDS_MODEL }}
+          AGENT_STANDARDS_MODEL_KEY: ${{ secrets.AGENT_STANDARDS_MODEL_KEY }}
+        run: mise exec uv -- uv run --frozen python scripts/agent-standards-survey.py
