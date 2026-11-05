@@ -2110,7 +2110,7 @@ standards:
     date: '2026-11-02'
     url: https://github.com/docker/docker-agent/releases
   watch:
-  - {kind: github-releases, ref: docker/docker-agent, current: "v1.156.2"}
+  - {kind: github-releases, ref: docker/docker-agent, current: "v1.157.2"}
   adoption:
   - docker agent CLI plugin bundled in Docker Desktop 4.63+; push/pull agents to OCI registries; MCP toolsets (https://github.com/docker/docker-agent)
   relations:
