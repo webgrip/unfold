@@ -4887,7 +4887,7 @@ standards:
     date: '2026-11-02'
     url: https://code.claude.com/docs/en/llm-gateway-protocol
   watch:
-  - {kind: github-releases, ref: anthropics/anthropic-sdk-python, current: "v2.4.0"}
+  - {kind: github-releases, ref: anthropics/anthropic-sdk-python, current: "v2.6.0"}
   adoption:
   - LiteLLM /v1/messages for all providers (https://docs.litellm.ai/docs/anthropic_unified)
   - vLLM /v1/messages and /v1/messages/count_tokens (https://docs.vllm.ai/en/latest/serving/online_serving/)
