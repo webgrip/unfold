@@ -6346,7 +6346,7 @@ standards:
     date: '2026-09-29'
     url: https://github.com/traceloop/openllmetry/releases/tag/0.62.4
   watch:
-  - {kind: github-releases, ref: traceloop/openllmetry, current: "0.62.4"}
+  - {kind: github-releases, ref: traceloop/openllmetry, current: "0.63.0"}
   adoption:
   - Release 0.62.4 with MCP client span fixes (https://github.com/traceloop/openllmetry/releases/tag/0.62.4)
   - LiteLLM 'legacy' mapper emits these names (https://github.com/BerriAI/litellm/blob/main/litellm/integrations/otel/README.md)
