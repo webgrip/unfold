@@ -4819,7 +4819,7 @@ standards:
     date: '2026-11-04'
     url: https://developers.openai.com/api/docs/guides/migrate-to-responses
   watch:
-  - {kind: github-releases, ref: openai/openai-python, current: "v3.45.0"}
+  - {kind: github-releases, ref: openai/openai-python, current: "v3.47.0"}
   adoption:
   - Anthropic compat layer, labelled 'not considered a long-term or production-ready solution'; strict ignored, n must be
     1, no prompt caching (https://platform.claude.com/docs/en/api/openai-sdk)
