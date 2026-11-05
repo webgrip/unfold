@@ -5577,7 +5577,7 @@ standards:
     date: '2026-10-29'
     url: https://github.com/openenv/OpenEnv/releases/tag/v0.11.0
   watch:
-  - {kind: github-releases, ref: openenv/OpenEnv, current: "v0.11.0"}
+  - {kind: github-releases, ref: openenv/OpenEnv, current: "v0.12.0"}
   adoption:
   - 'AAIF announcement 2026-10-22: https://aaif.io/news/agentic-ai-foundation-announces-four-new-projects'
   - 'agent-sandbox v1.0.0 added NeMo Gym/Gymnasium integrations (adjacent, not OpenEnv): https://github.com/kubernetes-sigs/agent-sandbox/releases/tag/v1.0.0'
