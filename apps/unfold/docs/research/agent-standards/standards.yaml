@@ -4614,7 +4614,7 @@ standards:
     date: '2026-10-30'
     url: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1
   watch:
-  - {kind: github-releases, ref: kagent-dev/kagent, current: "v1.0.0-rc1"}
+  - {kind: github-releases, ref: kagent-dev/kagent, current: "v1.0.0-rc3"}
   adoption:
   - 'v1.0.0-rc1 notes: pre-RC API breaks, cross-namespace ModelConfig/RemoteMCPServer via allowedNamespaces: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1'
   relations:
