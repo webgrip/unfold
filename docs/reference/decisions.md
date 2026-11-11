@@ -52,6 +52,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0048](../adr/adr-0048-projects-share-accounts-and-repositories-within-a-tenant-and-a-work-item-has-one-origin.md) | Projects share accounts and repositories within a Tenant, and a Work Item has one origin | 2026-10-31 | — |
 | System | [0050](../adr/adr-0050-unfold-integrates-through-open-standards-and-registries-and-never-locks-a-customer-in.md) | Unfold integrates through open standards and registries and never locks a customer in | 2026-10-30 | — |
 | System | [0051](../adr/adr-0051-an-unowned-work-item-belongs-to-the-default-tenant-and-delegated-credentials-keep-shared-memberships.md) | A Work Item without a known owner belongs to the default Tenant, and a delegated credential keeps only memberships held twice | 2026-10-30 | — |
+| System | [0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md) | GitHub unfold-hq/unfold is the project home, and GitHub Actions builds, releases and publishes Unfold | 2026-11-11 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
