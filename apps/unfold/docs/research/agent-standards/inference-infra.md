@@ -269,8 +269,8 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 | | |
 | --- | --- |
 | Steward | kagent project, CNCF Sandbox (accepted 2025-05-22 per https://github.com/kagent-dev/community/issues/7; CNCF blog https://www.cncf.io/blog/2025/08/19/celebrating-100-days-of-kagent/) (foundation) |
-| Status | stabilising |
-| Latest | [v1.0.0-rc1 (stable line v0.10.4, 2026-10-21) 2026-10-30](https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1) |
+| Status | stable |
+| Latest | [v1.0.0 2026-11-09](https://github.com/kagent-dev/kagent/releases/tag/v1.0.0) |
 | Radar | **hold**: Fit decided it: kagent overlaps Ploeg's dispatch plane and is CRD-first, which Ploeg ADR-0071 rules out, and its 1.0 is still a release candidate. |
 | Moves when | kagent adds a tracker or forge trigger or an enforced budget (the trigger named in ecosystem-fit.md), or an Agency asks to drive Ploeg from kagent. |
 | Competes with | — |
@@ -279,7 +279,7 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 | Superseded by | — |
 | Decisions | [0005-build-a-dedicated-dispatch-plane](../../../../../apps/ploeg/docs/adrs/0005-build-a-dedicated-dispatch-plane.md), [0032-keep-the-dispatch-plane-and-compete-on-authorized-spend](../../../../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md), [0033-board-control-planes-are-mined-for-design-never-depended-on](../../../../../apps/ploeg/docs/adrs/0033-board-control-planes-are-mined-for-design-never-depended-on.md), [0071-ploeg-keeps-its-state-in-postgresql-and-is-not-a-kubernetes-operator](../../../../../apps/ploeg/docs/adrs/0071-ploeg-keeps-its-state-in-postgresql-and-is-not-a-kubernetes-operator.md), [0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills](../../../../../apps/ploeg/docs/adrs/0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills.md) |
 | Watchlist | — |
-| Reviewed | 2026-11-04 |
+| Reviewed | 2026-11-11 |
 
 | Use case | Where | How | Effort | Value |
 | --- | --- | --- | --- | --- |
@@ -293,7 +293,7 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 
 **Open problems:** API version and whether SandboxTemplate is the k8s-sigs CRD are not stated in the RC notes: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1
 
-**Watched:** github-releases `kagent-dev/kagent` at v1.0.0-rc1
+**Watched:** github-releases `kagent-dev/kagent` at v1.0.0
 
 ## Kata Containers { #kata-containers }
 

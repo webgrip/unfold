@@ -569,7 +569,7 @@ Not to be confused with: Community PHP implementations of the UCP merchant side.
 | --- | --- |
 | Steward | agentic-commerce-alliance GitHub org (identity not stated); tcgunel (ucp-laravel) (community) |
 | Status | draft |
-| Latest | [core 0.0.7 (UCP 2026-08-25 schemas) 2026-09-15](https://packagist.org/packages/ucp-php-sdk/core) |
+| Latest | [core 0.0.9 (UCP 2026-08-25 schemas; 0.0.9 adds platform policy and discovery bounds) 2026-11-10](https://packagist.org/packages/ucp-php-sdk/core) |
 | Radar | **hold**: Maturity decided it: 0.0.x, unknown maintainer and download counts that may be inflated. |
 | Moves when | UCP publishes an official PHP SDK or a known maintainer takes these over. |
 | Competes with | — |
@@ -578,7 +578,7 @@ Not to be confused with: Community PHP implementations of the UCP merchant side.
 | Superseded by | — |
 | Decisions | — |
 | Watchlist | — |
-| Reviewed | 2026-11-04 |
+| Reviewed | 2026-11-11 |
 
 | Use case | Where | How | Effort | Value |
 | --- | --- | --- | --- | --- |
@@ -592,7 +592,7 @@ Not to be confused with: Community PHP implementations of the UCP merchant side.
 
 **Open problems:** Unknown maintainer. Symfony-first with no Laravel adapter (https://github.com/agentic-commerce-alliance/ucp-php-sdk-core).
 
-**Watched:** github-tags `agentic-commerce-alliance/ucp-php-sdk-core` at 0.0.7
+**Watched:** github-tags `agentic-commerce-alliance/ucp-php-sdk-core` at 0.0.9
 
 ## Universal Commerce Protocol (UCP) { #ucp }
 
