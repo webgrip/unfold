@@ -298,7 +298,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806
+  content_hash: sha256:ceda8bf0253792d6be1d8d5022f6c437e3c7c91cf0930592254738bdb33cb700
 - kind: project-relative
   target: claude
   value: .claude/hooks/guard-secrets/scripts/guard_secrets.py
@@ -316,7 +316,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4d36db0c14674e15e91155c045e8c7dca3d4c423a9a1d3d0d557a2fb80ac2e21
+  content_hash: sha256:773c4b5d7e744cf1513aa98fee0e56c8e7db09f9af0c31fab76dd6f92eaf397b
 - kind: project-relative
   target: claude
   value: .claude/rules/apps-unfold.md
@@ -325,7 +325,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:98f4f72a8f06cfef2953c5b06a61a7940309b6006628d84669659f2d24c5fcbe
+  content_hash: sha256:e29cee8b4c493f866155363897264c5dff260fa18bdcdae08d1442d7226c3f17
 - kind: project-relative
   target: claude
   value: .claude/rules/baseline.md
@@ -1468,7 +1468,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806
+  content_hash: sha256:ceda8bf0253792d6be1d8d5022f6c437e3c7c91cf0930592254738bdb33cb700
 mcp_servers:
 - vikunja
 mcp_configs:
@@ -1523,9 +1523,9 @@ local_deployed_file_hashes:
   .agents/skills/expressive-product-sites/references/unfold-case-study.md: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
   .agents/skills/investigate-session/SKILL.md: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
   .agents/skills/investigate-session/scripts/investigate.py: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
-  .claude/commands/unfold-review.md: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806
-  .claude/rules/apps-site.md: sha256:4d36db0c14674e15e91155c045e8c7dca3d4c423a9a1d3d0d557a2fb80ac2e21
-  .claude/rules/apps-unfold.md: sha256:98f4f72a8f06cfef2953c5b06a61a7940309b6006628d84669659f2d24c5fcbe
+  .claude/commands/unfold-review.md: sha256:ceda8bf0253792d6be1d8d5022f6c437e3c7c91cf0930592254738bdb33cb700
+  .claude/rules/apps-site.md: sha256:773c4b5d7e744cf1513aa98fee0e56c8e7db09f9af0c31fab76dd6f92eaf397b
+  .claude/rules/apps-unfold.md: sha256:e29cee8b4c493f866155363897264c5dff260fa18bdcdae08d1442d7226c3f17
   .claude/rules/forgejo.md: sha256:4e5e272fa024766d9fb8cec042e63f4c2a4c9b85cdfd876bb62879cd7518e61f
   .claude/rules/repo.md: sha256:c3c3c403e185339a1844b4066c6fc8247a5089426ea1976892349513f385219d
   .claude/skills/explain-a-dependency-update/SKILL.md: sha256:8c0f8d75233f5646d91eef9f37dd326c63e1410eb411ffd21dc9d23a05c21ccb
@@ -1535,4 +1535,4 @@ local_deployed_file_hashes:
   .claude/skills/expressive-product-sites/references/unfold-case-study.md: sha256:1eada03c51fe5d23e6952c252a5a4a3a1f24ebfed9ca3e5d0c9f86645475afac
   .claude/skills/investigate-session/SKILL.md: sha256:624217e42b73ca7c103f830d1aae7a013403283f8b2620442a6676437ac84e9a
   .claude/skills/investigate-session/scripts/investigate.py: sha256:1ae547ce32e0b77f2f2e48313cfd361597fb00cf303e817f590e136c0e90c973
-  .opencode/commands/unfold-review.md: sha256:a62ae390eb59ad8068d1380809496eadfcca7cce2d44edc813fc310240251806
+  .opencode/commands/unfold-review.md: sha256:ceda8bf0253792d6be1d8d5022f6c437e3c7c91cf0930592254738bdb33cb700

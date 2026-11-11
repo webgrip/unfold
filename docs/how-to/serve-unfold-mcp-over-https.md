@@ -3,7 +3,7 @@ type: how-to
 audience: [operator, owner]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Read against apps/unfold/src/mcp.ts, mcp-http.ts and mcp-auth.ts and the MCP 2026-07-28 changelog, authorization, client registration, versioning, Streamable HTTP and MRTR pages; ran apps/unfold/test/mcp-http.test.ts and mcp.test.ts. The Authentik steps were last run end to end with apps/unfold/test/e2e/mcp-over-https.e2e.ts on 2026-10-17 against Authentik 2026.5.2 with the official MCP TypeScript client 2.3.1, before UNFOLD_MCP_TOKEN_AUDIENCE existed. Not checked against Claude Code, VS Code or Cursor themselves, or the homelab. The Tasks section was read against apps/unfold/src/mcp.ts and mcp-tasks.ts, the Tasks extension 2026-07-28 and Claude Code's MCP tasks pages, and apps/unfold/test/mcp-tasks.test.ts passed; no real client was tried."
+verified_by: "Read against apps/unfold/src/mcp.ts, mcp-http.ts and mcp-auth.ts and the MCP 2026-07-28 changelog, authorization, client registration, versioning, Streamable HTTP and MRTR pages; ran apps/unfold/test/mcp-http.test.ts and mcp.test.ts. The Authentik steps were last run end to end with apps/unfold/test/e2e/mcp-over-https.e2e.ts on 2026-10-17 against Authentik 2026.5.2 with the official MCP TypeScript client 2.3.1, before UNFOLD_MCP_TOKEN_AUDIENCE existed. Not checked against Claude Code, VS Code or Cursor themselves, or the owner's staging cluster. The Tasks section was read against apps/unfold/src/mcp.ts and mcp-tasks.ts, the Tasks extension 2026-07-28 and Claude Code's MCP tasks pages, and apps/unfold/test/mcp-tasks.test.ts passed; no real client was tried."
 ---
 
 # Serve Unfold's MCP tools over HTTPS with a browser sign-in

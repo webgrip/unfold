@@ -9,7 +9,7 @@ import { agentForm, agentPreview, assignMarkup, builderNote, copyTeam, demoRoste
 const labsFlag = 'teams.builder';
 const storage = 'unfold.teamBuilder';
 const tabs = [['agents', 'teams/agents', 'Build an agent'], ['teams', 'teams', 'Teams'], ['assign', 'teams/assign', 'Assign on a card']];
-const demoCard = () => ({ reference: 'CU-8w2k', title: 'Add a "Needs you" status to the way-of-working doc', brief: 'The board gained a "Needs you" status this morning. The doc under docs/contributing still lists five statuses. Add the sixth, say when Ploeg moves a card into it, and link the Status page.', repository: 'webgrip/unfold', team: '', size: 's', assigned: false });
+const demoCard = () => ({ reference: 'CU-8w2k', title: 'Add a "Needs you" status to the way-of-working doc', brief: 'The board gained a "Needs you" status this morning. The doc under docs/contributing still lists five statuses. Add the sixth, say when Ploeg moves a card into it, and link the Status page.', repository: 'acme/unfold', team: '', size: 's', assigned: false });
 
 const view = { tab: 'teams', roster: null, draft: newAgent(), openTeam: null, version: null, card: demoCard(), comments: [], timer: null };
 onForget(() => { clearTimeout(view.timer); Object.assign(view, { tab: 'teams', roster: null, draft: newAgent(), openTeam: null, version: null, card: demoCard(), comments: [], timer: null }); });

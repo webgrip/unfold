@@ -808,11 +808,11 @@ test('the demo Now projection names its limitation and never invents model calls
 function liveCard(id: string, team = 'delivery') {
   return {
     workItemId: id, title: 'Retry sandbox claims', externalRef: 'VIK-1612', url: 'https://tracker.example.test/tasks/1612', team,
-    target: { forge: 'forgejo', owner: 'webgrip', repo: 'unfold' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
+    target: { forge: 'forgejo', owner: 'acme', repo: 'unfold' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
     rarity: 'legendary', finish: 'holo', grade: 9, condition: 'cracked',
     steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
     roles: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }],
-    plays: [{ number: 57, url: 'https://forge.example.test/webgrip/unfold/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
+    plays: [{ number: 57, url: 'https://forge.example.test/acme/unfold/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, usageComplete: false, runs: 3, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
     events: [{ at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:delivery', detail: { secret: 'private', number: 57 } }],
     demo: false,
@@ -863,10 +863,10 @@ test('the browser card parser passes a contract grade and condition through vali
 
 test('the browser card parser passes a contract rarity through, drops fields it does not know, and nulls a rarity it cannot read', async () => {
   const upstreamApi = cardInput();
-  const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
+  const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'acme/unfold', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity };
   const view = await parsedCard(upstreamApi, '101');
-  assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
+  assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'acme/unfold', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
   assert.equal(JSON.stringify(view).includes(upstreamApi.token), false, 'an unknown input is not passed on');
   for (const [bad, why] of [[{ ...rarity, tier: 'mythic' }, 'an unknown tier'], [{ ...rarity, score: 140 }, 'a score above 100'], [{ ...rarity, percentile: 0 }, 'a percentile of zero'], [{ ...rarity, cohort: { ...rarity.cohort, quarter: '2026-Q4' } }, 'a quarter in another form'], [{ ...rarity, revealedAt: 'at release' }, 'a time that is not a time'], [{ ...rarity, inputs: { ...rarity.inputs, novelty: { share: 1.5, files: 6, novel: 3 } } }, 'a share above one'], ['legendary', 'a bare word']] as const) {
     upstreamApi.cards['101'] = { ...liveCard('101'), rarity: bad };
@@ -965,7 +965,7 @@ test('the card route is scoped to the caller\'s Teams, read-only, and a demo car
 
 const settle = async (rounds = 12) => { for (let index = 0; index < rounds; index++) await new Promise(resolve => setImmediate(resolve)); };
 
-const routeRefusal = (externalId: string, extra: Record<string, unknown> = {}) => ({ provider: 'vikunja', externalId, externalScope: '10', team: 'delivery', title: `Refused task ${externalId}`, labels: ['do-next'], code: 'label_missing', reason: 'board rule "10" requires a repository label and the item has none; add one of: repo/homelab-cluster, repo/unfold', allowedLabels: ['repo/homelab-cluster', 'repo/unfold'], refusedAt: '2026-10-02T09:00:00Z', ...extra });
+const routeRefusal = (externalId: string, extra: Record<string, unknown> = {}) => ({ provider: 'vikunja', externalId, externalScope: '10', team: 'delivery', title: `Refused task ${externalId}`, labels: ['do-next'], code: 'label_missing', reason: 'board rule "10" requires a repository label and the item has none; add one of: repo/infra, repo/unfold', allowedLabels: ['repo/infra', 'repo/unfold'], refusedAt: '2026-10-02T09:00:00Z', ...extra });
 const unfoldBoard = { id: 'unfold', name: 'Unfold', provider: 'vikunja' as const, baseUrl: 'https://vikunja.example.test/api/v1', project: '10', repositoryId: 'unfold', executionOwner: 'ploeg' as const };
 
 function refusalsUpstream(upstreamApi: Awaited<ReturnType<typeof upstream>>, answer: (res: ServerResponse) => boolean) {
@@ -984,7 +984,7 @@ test('Now lists the tasks Ploeg could not start, with the board name and the tas
   assert.equal(now.errors.refused, undefined);
   assert.deepEqual(now.refused.map(entry => entry.externalId), ['1612', '1620'], 'a refusal of a team the caller cannot see is left out');
   assert.deepEqual({ board: now.refused[0].board, url: now.refused[0].url, link: now.refused[0].link }, { board: 'Unfold', url: 'https://vikunja.example.test/tasks/1612', link: 'task' });
-  assert.deepEqual(now.refused[0].allowedLabels, ['repo/homelab-cluster', 'repo/unfold']);
+  assert.deepEqual(now.refused[0].allowedLabels, ['repo/infra', 'repo/unfold']);
   assert.equal(now.refused[0].code, 'label_missing');
   assert.deepEqual({ board: now.refused[1].board, url: now.refused[1].url, link: now.refused[1].link }, { board: '', url: 'https://vikunja.example.test', link: 'tracker' }, 'without a matching source the tracker root is the link');
   assert(upstreamApi.seen.some(entry => entry.path === '/api/v1/operator/route-refusals'), 'the list is read without query parameters');
@@ -1158,13 +1158,13 @@ test('the demo stores no context files and says so', async t => {
   assert.equal(demoContextRefusal, 'The demo does not store context files.');
 });
 
-const connectionRepository = (key: string, extra: Record<string, unknown> = {}) => ({ key, label: key, forge: 'forgejo', owner: 'webgrip', repo: key, baseBranch: 'development', readiness: 'ready', reason: '', lastForgeEventAt: '2026-10-18T10:00:00Z', boards: ['Unfold', 'Research'], ...extra });
+const connectionRepository = (key: string, extra: Record<string, unknown> = {}) => ({ key, label: key, forge: 'forgejo', owner: 'acme', repo: key, baseBranch: 'development', readiness: 'ready', reason: '', lastForgeEventAt: '2026-10-18T10:00:00Z', boards: ['Unfold', 'Research'], ...extra });
 const connectionBoard = (name: string, projectId: string, extra: Record<string, unknown> = {}) => ({ tracker: 'vikunja', name, projectId, team: null, repository: null, default: 'unfold', allow: [], webhook: 'present', teams: [{ team: 'delivery', assignees: [{ username: 'delivery', shared: true }] }, { team: 'research', assignees: [{ username: 'research', shared: false }] }], ...extra });
 
 test('Connections match Ploeg’s boards to Unfold’s task sources and stay inside the person’s Teams', async (t) => {
   const upstreamApi = await upstream(t);
   upstreamApi.intercept((req, res) => new URL(req.url!, 'http://fixture.invalid').pathname.endsWith('/connections') ? reply(res, 200, { generatedAt: '2026-10-19T10:00:00Z', checkedAt: '2026-10-19T09:40:00Z', eventWindowDays: 30, repositories: [connectionRepository('unfold'), connectionRepository('lab', { readiness: 'from-the-future', boards: ['Research'] })], boards: [connectionBoard('Unfold', '10'), connectionBoard('Research', '12', { team: 'research', webhook: 'missing' })] }) : false);
-  const target = { forge: 'forgejo', owner: 'webgrip', repo: 'unfold', baseBranch: 'development' };
+  const target = { forge: 'forgejo', owner: 'acme', repo: 'unfold', baseBranch: 'development' };
   const sources = [
     { ...unfoldBoard, ploeg: { target } },
     { ...unfoldBoard, id: 'elsewhere', name: 'Elsewhere', ploeg: { target: { ...target, repo: 'other' } } },
@@ -1177,7 +1177,7 @@ test('Connections match Ploeg’s boards to Unfold’s task sources and stay ins
   assert.equal(connections.checkedAt, '2026-10-19T09:40:00Z');
   assert.deepEqual(connections.boards.map(board => board.name), ['Unfold'], 'a board pinned to a Team the person cannot read is left out');
   assert.deepEqual(connections.boards[0].teams.map(entry => entry.team), ['delivery']);
-  assert.deepEqual(connections.boards[0].sources, [{ id: 'unfold', name: 'Unfold', target: 'webgrip/unfold@development', routed: true }, { id: 'elsewhere', name: 'Elsewhere', target: 'webgrip/other@development', routed: false }]);
+  assert.deepEqual(connections.boards[0].sources, [{ id: 'unfold', name: 'Unfold', target: 'acme/unfold@development', routed: true }, { id: 'elsewhere', name: 'Elsewhere', target: 'acme/other@development', routed: false }]);
   assert.deepEqual(connections.unrouted, [{ id: 'dark-factory', name: 'Dark Factory', provider: 'vikunja', project: '5' }], 'only sources that hand work to Ploeg can be unrouted');
   assert.deepEqual(connections.repositories.map(entry => [entry.key, entry.readiness, entry.boards]), [['unfold', 'ready', ['Unfold']], ['lab', 'unknown', []]], 'an unknown readiness is unknown, and hidden boards are not named');
   assert(upstreamApi.seen.some(entry => entry.path === '/api/v1/operator/connections'));

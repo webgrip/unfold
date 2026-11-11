@@ -43,7 +43,7 @@ function today() {
     now: nowOf({
       teams: ['bronze', 'copper', 'pewter', 'silver', 'unfold'],
       waiting: [
-        item(232, 'bronze', 'awaiting_review', observability, { ref: 2200, minutes: 11, round: 2, pr: 'https://forge.example.invalid/homelab-cluster/pulls/784' }),
+        item(232, 'bronze', 'awaiting_review', observability, { ref: 2200, minutes: 11, round: 2, pr: 'https://forge.example.invalid/infra/pulls/784' }),
         item(227, 'unfold', 'needs_human', 'Say how to run the unit tests in the README', { minutes: 12 * 60 }),
         item(192, 'unfold', 'needs_human', 'Say how to run the unit tests in the README', { minutes: 14 * 60 }),
       ],

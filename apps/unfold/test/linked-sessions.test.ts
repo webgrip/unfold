@@ -45,12 +45,12 @@ function trace(fields: Record<string, unknown> = {}) {
 }
 
 test('a hook report keeps only the fields Unfold uses, strips credentials from the repository and refuses unknown harnesses and events', () => {
-  const parsed = event({ title: 'Fix\nlogin', repository: 'https://ryan:secret@forgejo.example.org/webgrip/unfold.git?x=1', branch: 'feat/vik-2051-login', model: 'claude-opus-5-5[1m]', prompt: 'never kept', remoteUrl: 'https://claude.ai/code/session_01abcdefgh', waitingFor: 'permission_prompt' });
+  const parsed = event({ title: 'Fix\nlogin', repository: 'https://ryan:secret@forgejo.example.org/acme/unfold.git?x=1', branch: 'feat/vik-2051-login', model: 'claude-opus-5-5[1m]', prompt: 'never kept', remoteUrl: 'https://claude.ai/code/session_01abcdefgh', waitingFor: 'permission_prompt' });
   assert.equal(parsed.title, 'Fix login');
-  assert.equal(parsed.repository, 'https://forgejo.example.org/webgrip/unfold.git');
+  assert.equal(parsed.repository, 'https://forgejo.example.org/acme/unfold.git');
   assert.equal(parsed.remoteUrl, 'https://claude.ai/code/session_01abcdefgh');
   assert.equal('prompt' in parsed, false);
-  assert.equal(repositoryAddress('git@forgejo.example.org:webgrip/unfold.git'), 'forgejo.example.org:webgrip/unfold.git');
+  assert.equal(repositoryAddress('git@forgejo.example.org:acme/unfold.git'), 'forgejo.example.org:acme/unfold.git');
   assert.equal(event({ remoteUrl: 'https://evil.example/code/x' }).remoteUrl, '');
   assert.throws(() => event({ harness: 'cursor' }), { code: 'linked_harness' });
   assert.throws(() => event({ event: 'deploy' }), { code: 'linked_event' });

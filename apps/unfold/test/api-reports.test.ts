@@ -51,25 +51,25 @@ async function post(url: string, cookie: string, form: FormData) {
 }
 
 function forgejoSource(baseUrl: string) {
-  return { id: 'forge', name: 'Forgejo', provider: 'forgejo' as const, baseUrl, project: 'webgrip/unfold', repositoryId: 'order-service', token: 'forgejo-test-token', executionOwner: 'interactive' as const };
+  return { id: 'forge', name: 'Forgejo', provider: 'forgejo' as const, baseUrl, project: 'acme/unfold', repositoryId: 'order-service', token: 'forgejo-test-token', executionOwner: 'interactive' as const };
 }
 
 test('a report is filed as a Forgejo issue with three attachments, the screenshot in its body and its address shown', async t => {
   const forgejo = await tracker(call => {
-    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/labels')) return { status: 200, body: [{ id: 7, name: 'reported-in-app' }] };
-    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues') return { status: 201, body: { id: 9001, number: 252, html_url: 'https://forgejo.test/webgrip/unfold/issues/252' } };
-    if (call.method === 'POST' && call.path.startsWith('/api/v1/repos/webgrip/unfold/issues/252/assets')) return { status: 201, body: { uuid: 'u', browser_download_url: `https://forgejo.test/attachments/${new URL(call.path, 'http://x').searchParams.get('name')}` } };
-    if (call.method === 'PATCH' && call.path === '/api/v1/repos/webgrip/unfold/issues/252') return { status: 201, body: {} };
+    if (call.path.startsWith('/api/v1/repos/acme/unfold/labels')) return { status: 200, body: [{ id: 7, name: 'reported-in-app' }] };
+    if (call.method === 'POST' && call.path === '/api/v1/repos/acme/unfold/issues') return { status: 201, body: { id: 9001, number: 252, html_url: 'https://forgejo.test/acme/unfold/issues/252' } };
+    if (call.method === 'POST' && call.path.startsWith('/api/v1/repos/acme/unfold/issues/252/assets')) return { status: 201, body: { uuid: 'u', browser_download_url: `https://forgejo.test/attachments/${new URL(call.path, 'http://x').searchParams.get('name')}` } };
+    if (call.method === 'PATCH' && call.path === '/api/v1/repos/acme/unfold/issues/252') return { status: 201, body: {} };
     return { status: 404, body: {} };
   });
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; config.baseUrl = undefined; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'acme/unfold' }; config.baseUrl = undefined; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
 
   const filed = await post(app.url, cookie, report());
   assert.equal(filed.status, 201, filed.text);
-  assert.deepEqual({ status: filed.body.status, url: filed.body.url }, { status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252' });
+  assert.deepEqual({ status: filed.body.status, url: filed.body.url }, { status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/252' });
 
   const created = forgejo.calls.find(call => call.method === 'POST' && call.path.endsWith('/issues'))!;
   assert.equal(created.type, 'application/json');
@@ -96,7 +96,7 @@ test('a report is filed as a Forgejo issue with three attachments, the screensho
   assert.match(JSON.parse(patched.body.toString()).body, /!\[Screenshot\]\(https:\/\/forgejo\.test\/attachments\/screenshot\.png\)/);
   assert.equal(forgejo.calls.find(call => call.path.endsWith('/issues'))!.method, 'POST');
   const row = app.app.store.db.prepare('SELECT status, url FROM reports').get() as Record<string, string>;
-  assert.deepEqual({ ...row }, { status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252' });
+  assert.deepEqual({ ...row }, { status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/252' });
 });
 
 test('a report is filed as a Vikunja task with its files attached and its address shown', async t => {
@@ -127,13 +127,13 @@ test('a refusing tracker keeps the report, says it will retry, and the retry con
   let refuseAssets = true;
   const forgejo = await tracker(call => {
     if (call.path.includes('/labels')) return { status: 200, body: [] };
-    if (call.method === 'POST' && call.path.endsWith('/issues')) return { status: 201, body: { id: 1, number: 5, html_url: 'https://forgejo.test/webgrip/unfold/issues/5' } };
+    if (call.method === 'POST' && call.path.endsWith('/issues')) return { status: 201, body: { id: 1, number: 5, html_url: 'https://forgejo.test/acme/unfold/issues/5' } };
     if (call.path.includes('/assets')) return refuseAssets ? { status: 503, body: { message: 'storage full' } } : { status: 201, body: { browser_download_url: 'https://forgejo.test/a.png' } };
     if (call.method === 'PATCH') return { status: 201, body: {} };
     return { status: 404, body: {} };
   });
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'acme/unfold' }; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   const errors: string[] = [];
@@ -243,10 +243,10 @@ test('reports can have a connection of their own, which is not a task source, an
   const previous = process.env.UNFOLD_REPORTS_TEST_TOKEN;
   t.after(() => { if (previous === undefined) delete process.env.UNFOLD_REPORTS_TEST_TOKEN; else process.env.UNFOLD_REPORTS_TEST_TOKEN = previous; });
   const sources = [{ id: 'ploeg-board', name: 'Ploeg board', provider: 'vikunja' as const, baseUrl: 'https://vikunja.test/api/v1', project: '11', repositoryId: 'ploeg', token: 't', executionOwner: 'ploeg' as const }];
-  const raw = { provider: 'forgejo', baseUrl: 'https://forgejo.test/api/v1', project: 'WebGrip/Unfold', tokenEnv: 'UNFOLD_REPORTS_TEST_TOKEN' };
+  const raw = { provider: 'forgejo', baseUrl: 'https://forgejo.test/api/v1', project: 'Acme/Unfold', tokenEnv: 'UNFOLD_REPORTS_TEST_TOKEN' };
   process.env.UNFOLD_REPORTS_TEST_TOKEN = 'reports-token';
   const target = reportSettings(raw, sources, 'live');
-  assert.equal(target?.project, 'webgrip/unfold');
+  assert.equal(target?.project, 'acme/unfold');
   assert.deepEqual({ provider: target?.source.provider, baseUrl: target?.source.baseUrl, token: target?.source.token, executionOwner: target?.source.executionOwner }, { provider: 'forgejo', baseUrl: 'https://forgejo.test/api/v1', token: 'reports-token', executionOwner: 'interactive' });
   assert.equal(sources.length, 1, 'the connection is not added to the task sources, so the Tasks page never lists it');
 
@@ -267,7 +267,7 @@ test('reports can have a connection of their own, which is not a task source, an
 test('a configuration with its own report connection loads, keeps the task sources as they were, and the server files with it', async t => {
   const forgejo = await tracker(call => {
     if (call.path.includes('/labels')) return { status: 200, body: [] };
-    if (call.method === 'POST' && call.path.endsWith('/issues')) return { status: 201, body: { id: 3, number: 9, html_url: 'https://forgejo.test/webgrip/unfold/issues/9' } };
+    if (call.method === 'POST' && call.path.endsWith('/issues')) return { status: 201, body: { id: 3, number: 9, html_url: 'https://forgejo.test/acme/unfold/issues/9' } };
     if (call.path.includes('/assets')) return { status: 201, body: { browser_download_url: 'https://forgejo.test/a.png' } };
     return { status: 201, body: {} };
   });
@@ -275,13 +275,13 @@ test('a configuration with its own report connection loads, keeps the task sourc
   const { reportSettings } = await import('../src/reports.ts');
   process.env.UNFOLD_REPORTS_SERVER_TOKEN = 'server-token';
   t.after(() => { delete process.env.UNFOLD_REPORTS_SERVER_TOKEN; });
-  const app = await application('live', config => { config.reports = reportSettings({ provider: 'forgejo', baseUrl: forgejo.url, project: 'webgrip/unfold', tokenEnv: 'UNFOLD_REPORTS_SERVER_TOKEN' }, config.taskSources, 'live'); });
+  const app = await application('live', config => { config.reports = reportSettings({ provider: 'forgejo', baseUrl: forgejo.url, project: 'acme/unfold', tokenEnv: 'UNFOLD_REPORTS_SERVER_TOKEN' }, config.taskSources, 'live'); });
   t.after(() => app.close());
   assert(!app.config.taskSources?.some(source => source.id === 'reports'), 'no task source was added');
   const { cookie } = await login(app.url);
   const filed = await post(app.url, cookie, report());
   assert.equal(filed.body.status, 'filed', filed.text);
-  assert.equal(filed.body.url, 'https://forgejo.test/webgrip/unfold/issues/9');
+  assert.equal(filed.body.url, 'https://forgejo.test/acme/unfold/issues/9');
 });
 
 const runningVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
@@ -290,8 +290,8 @@ function filedForgejo(extra: (call: Call) => { status: number; body: unknown } |
   return (call: Call) => {
     const answered = extra(call);
     if (answered) return answered;
-    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/labels')) return { status: 200, body: [] };
-    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues') return { status: 201, body: { id: 9001, number: 252, html_url: 'https://forgejo.test/webgrip/unfold/issues/252' } };
+    if (call.path.startsWith('/api/v1/repos/acme/unfold/labels')) return { status: 200, body: [] };
+    if (call.method === 'POST' && call.path === '/api/v1/repos/acme/unfold/issues') return { status: 201, body: { id: 9001, number: 252, html_url: 'https://forgejo.test/acme/unfold/issues/252' } };
     if (call.method === 'POST' && call.path.includes('/issues/252/assets')) return { status: 201, body: { browser_download_url: `https://forgejo.test/attachments/${new URL(call.path, 'http://x').searchParams.get('name')}` } };
     if (call.method === 'PATCH') return { status: 201, body: {} };
     if (call.path === '/api/v1/user') return { status: 200, body: { login: 'unfold-reports' } };
@@ -307,14 +307,14 @@ test('a filed report follows its issue: the team’s comment, the merged fix and
   let closed = false;
   const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
   const forgejo = await tracker(filedForgejo(call => {
-    if (call.method === 'GET' && call.path === '/api/v1/repos/webgrip/unfold/issues/252') return { status: 200, body: { number: 252, state: closed ? 'closed' : 'open', closed_at: closed ? later(60) : null, labels: [], assignees: [] } };
-    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/issues/252/timeline')) return { status: 200, body: closed ? [
+    if (call.method === 'GET' && call.path === '/api/v1/repos/acme/unfold/issues/252') return { status: 200, body: { number: 252, state: closed ? 'closed' : 'open', closed_at: closed ? later(60) : null, labels: [], assignees: [] } };
+    if (call.path.startsWith('/api/v1/repos/acme/unfold/issues/252/timeline')) return { status: 200, body: closed ? [
       { id: 1, type: 'comment', body: 'Thanks! I can see it, **looking**. ![x](https://forgejo.test/x.png)', user: { login: 'ryangr0' }, created_at: later(10) },
-      { id: 2, type: 'pull_ref', ref_issue: { number: 351, html_url: 'https://forgejo.test/webgrip/unfold/pulls/351' }, created_at: later(20) },
+      { id: 2, type: 'pull_ref', ref_issue: { number: 351, html_url: 'https://forgejo.test/acme/unfold/pulls/351' }, created_at: later(20) },
       { id: 3, type: 'close', created_at: later(60) },
     ] : [] };
-    if (call.path === '/api/v1/repos/webgrip/unfold/pulls/351') return { status: 200, body: { number: 351, html_url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true, merged_at: later(50) } };
-    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/releases')) return { status: 200, body: [
+    if (call.path === '/api/v1/repos/acme/unfold/pulls/351') return { status: 200, body: { number: 351, html_url: 'https://forgejo.test/acme/unfold/pulls/351', merged: true, merged_at: later(50) } };
+    if (call.path.startsWith('/api/v1/repos/acme/unfold/releases')) return { status: 200, body: [
       { tag_name: `unfold-v${runningVersion}`, html_url: 'https://forgejo.test/r/running', created_at: later(90) },
       { tag_name: 'unfold-v0.0.1-rc.2', html_url: 'https://forgejo.test/r/first', created_at: later(70) },
       { tag_name: 'ploeg-v9.9.9', html_url: 'https://forgejo.test/r/other', created_at: later(55) },
@@ -323,7 +323,7 @@ test('a filed report follows its issue: the team’s comment, the merged fix and
     return undefined;
   }));
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'acme/unfold' }; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   assert.equal((await post(app.url, cookie, report())).body.status, 'filed');
@@ -336,7 +336,7 @@ test('a filed report follows its issue: the team’s comment, the merged fix and
   const shipped = await reportsOf(app.url, cookie);
   const entry = shipped.reports[0];
   assert.deepEqual({ stage: entry.stage, words: entry.words, unread: entry.unread, updates: shipped.updates }, { stage: 'shipped', words: 'Fixed in 0.0.1-rc.2', unread: true, updates: 1 }, 'the first release of the running line after the merge, never another product’s tag');
-  assert.deepEqual(entry.fix, { number: '351', url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true });
+  assert.deepEqual(entry.fix, { number: '351', url: 'https://forgejo.test/acme/unfold/pulls/351', merged: true });
   assert.deepEqual(entry.release, { tag: '0.0.1-rc.2', url: 'https://forgejo.test/r/first', live: true });
   assert.deepEqual(entry.comments.map((comment: { author: string; text: string; mine: boolean }) => [comment.author, comment.text, comment.mine]), [['ryangr0', 'Thanks! I can see it, **looking**. [image]', false]], 'comments travel as plain text without images');
 
@@ -347,11 +347,11 @@ test('a filed report follows its issue: the team’s comment, the merged fix and
 
 test('the reporter adds details from Unfold as a comment under their name; nobody else can, and a kept report cannot', async t => {
   const forgejo = await tracker(filedForgejo(call => {
-    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues/252/comments') return { status: 201, body: { id: 77 } };
+    if (call.method === 'POST' && call.path === '/api/v1/repos/acme/unfold/issues/252/comments') return { status: 201, body: { id: 77 } };
     return undefined;
   }));
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'acme/unfold' }; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   const filed = await post(app.url, cookie, report());
@@ -371,11 +371,11 @@ test('the reporter adds details from Unfold as a comment under their name; nobod
 
 test('a report that repeats an open one is suggested while typing and joins that issue as a comment instead of a second issue', async t => {
   const forgejo = await tracker(filedForgejo(call => {
-    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues/252/comments') return { status: 201, body: { id: 78 } };
+    if (call.method === 'POST' && call.path === '/api/v1/repos/acme/unfold/issues/252/comments') return { status: 201, body: { id: 78 } };
     return undefined;
   }));
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold', acknowledgement: 'We read every report on weekdays.' }; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'acme/unfold', acknowledgement: 'We read every report on weekdays.' }; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   const first = await post(app.url, cookie, report());
@@ -390,7 +390,7 @@ test('a report that repeats an open one is suggested while typing and joins that
 
   const joined = await post(app.url, other.cookie, report({ duplicateOf: first.body.id, happened: 'Same here, the waiting count is off.' }));
   assert.equal(joined.status, 201, joined.text);
-  assert.deepEqual({ status: joined.body.status, url: joined.body.url, joined: joined.body.joined, others: joined.body.others }, { status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252', joined: true, others: 1 });
+  assert.deepEqual({ status: joined.body.status, url: joined.body.url, joined: joined.body.joined, others: joined.body.others }, { status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/252', joined: true, others: 1 });
   assert.equal(forgejo.calls.filter(call => call.method === 'POST' && call.path.endsWith('/issues')).length, 1, 'no second issue');
   const comment = JSON.parse(forgejo.calls.find(call => call.path.endsWith('/issues/252/comments'))!.body.toString());
   assert.match(comment.body, /^\*\*Someone else hit this too\.\*\*\n\n## What went wrong\n\nSame here/);

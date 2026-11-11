@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, operator, agent]
 owner: unfold
 last_verified: 2026-09-29
-verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/unfold/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Unfold navigation and Cancel Work Item were re-read in apps/unfold/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/unfold-redesign"
+verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/unfold/src and .forgejo/workflows at 050fa3b; cluster repository main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Unfold navigation and Cancel Work Item were re-read in apps/unfold/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/unfold-redesign"
 ---
 
 # Journeys
@@ -65,7 +65,7 @@ sequenceDiagram
 
 ## B. Merge to production
 
-A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) an Unfold release carries only the Unfold application; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
+A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in the owner's cluster repository pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) an Unfold release carries only the Unfold application; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
 
 ```mermaid
 sequenceDiagram
@@ -74,7 +74,7 @@ sequenceDiagram
     participant CI as Forgejo Actions
     participant H as Harbor
     participant GH as GitHub / GHCR
-    participant HC as homelab-cluster
+    participant HC as cluster repository
     participant Flux
     Dev->>FJ: merge to development
     FJ->>CI: on_source_change.yml
@@ -94,7 +94,7 @@ sequenceDiagram
 2. **Version.** When `UNFOLD_RELEASES_ENABLED` is `true`, the hourly [release train](../operations/ci.md#the-release-train) runs the same checks on the development head and, if `development` has not moved since, semantic-release reads the commits under `apps/`, tags `unfold-v0.x.y-rc.N` and creates the Forgejo release. `fix:` and `feat:` commits cut a release; `docs:` and `chore:` do not. Only zero-major release candidates are allowed ([ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)).
 3. **Build, gate, sign.** The published release triggers [`on_release_published.yml`](../../.forgejo/workflows/on_release_published.yml). Each image is built once in Harbor, held to its application's CVE budget with grype and OpenVEX statements, then signed and attested with cosign. Unfold's Helm chart is published to Harbor.
 4. **Distribute.** [`publish_release.py`](../../scripts/publish_release.py) copies the signed images and charts to Forgejo and GHCR, verifies digests, creates a draft GitHub release, attaches the assets and then publishes it without marking it latest. GitHub receives the source through a push mirror ([Source and artifacts](../operations/artifacts.md)).
-5. **Pin.** Production state lives in `homelab-cluster`. Ploeg runs inside the Unfold release: the Unfold chart is pinned by tag and digest in its [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/unfold/app/ocirepository.yaml), and its [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/unfold/app/helmrelease.yaml) takes `ploegd` from Ploeg's own `ghcr.io/ploeg-hq` images through Harbor. Renovate opens one pull request per Unfold release, and Forgejo merges it when its checks pass. The pins from `0.4.0-rc.2` to `0.4.0-rc.11` were committed by hand, and releases up to `0.4.0-rc.35` also carried Ploeg.
+5. **Pin.** Production state lives in the owner's cluster repository. Ploeg runs inside the Unfold release: the Unfold chart is pinned by tag and digest in its OCIRepository, and its HelmRelease takes `ploegd` from Ploeg's own `ghcr.io/ploeg-hq` images through Harbor. Renovate opens one pull request per Unfold release, and Forgejo merges it when its checks pass. The pins from `0.4.0-rc.2` to `0.4.0-rc.11` were committed by hand, and releases up to `0.4.0-rc.35` also carried Ploeg.
 6. **Apply.** Flux reconciles the change and Helm upgrades the release. On 2026-09-29 the cluster ran `0.4.0-rc.11`.
 
 [CI and releases](../operations/ci.md) covers the workflows and gates in detail.

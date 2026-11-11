@@ -332,7 +332,7 @@ export function productEventsSetting(): boolean {
   return value === 'on';
 }
 
-export const managedExecutionGuide = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/workflows/managed-execution.md';
+export const managedExecutionGuide = 'https://github.com/unfold-hq/unfold/blob/development/docs/workflows/managed-execution.md';
 
 /**
  * Refuses to start a live Unfold that Ploeg does not authorize. Ploeg authorizes and budgets every

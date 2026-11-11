@@ -463,7 +463,7 @@ export class ScimService {
   private serviceProviderConfig() {
     return {
       schemas: [configSchema],
-      documentationUri: 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/provision-and-deprovision-people.md',
+      documentationUri: 'https://github.com/unfold-hq/unfold/blob/development/apps/unfold/docs/operations/provision-and-deprovision-people.md',
       patch: { supported: true },
       bulk: { supported: false, maxOperations: 0, maxPayloadSize: 0 },
       filter: { supported: true, maxResults: maxCount },

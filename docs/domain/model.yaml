@@ -502,7 +502,7 @@ terms:
       over), Product owner (makes work Ready, prioritises, signs off, never
       accepts code) and Viewer (reads), plus the Client membership of system
       ADR-0017. An Agency may compose its own Access Roles from the same
-      permissions. Decided by the owner on VIK-2011; replaces system ADR-0017's
+      permissions. Decided by the owner; replaces system ADR-0017's
       viewer, member and admin and the code's admin, operator and viewer; not
       implemented yet.
     avoid: [operator, member, pilot]

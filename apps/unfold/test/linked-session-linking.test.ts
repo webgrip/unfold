@@ -20,9 +20,9 @@ const sha = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
 const at = new Date('2026-10-24T10:00:00.000Z');
 
 const open: LinkedNowItem[] = [
-  { id: '184', title: 'Fix login', state: 'awaiting_review', updatedAt: '2026-10-24T09:00:00Z', target: { owner: 'webgrip', repo: 'unfold' }, pullRequestUrl: 'https://forgejo.example.org/webgrip/unfold/pulls/514', pullRequest: null },
-  { id: '185', title: 'Other on unfold', state: 'active', updatedAt: '2026-10-24T08:00:00Z', target: { owner: 'WebGrip', repo: 'Unfold' }, pullRequestUrl: '' },
-  { id: '186', title: 'Elsewhere', state: 'active', updatedAt: '2026-10-24T09:30:00Z', target: { owner: 'webgrip', repo: 'homelab-cluster' }, pullRequestUrl: '' },
+  { id: '184', title: 'Fix login', state: 'awaiting_review', updatedAt: '2026-10-24T09:00:00Z', target: { owner: 'acme', repo: 'unfold' }, pullRequestUrl: 'https://forgejo.example.org/acme/unfold/pulls/514', pullRequest: null },
+  { id: '185', title: 'Other on unfold', state: 'active', updatedAt: '2026-10-24T08:00:00Z', target: { owner: 'Acme', repo: 'Unfold' }, pullRequestUrl: '' },
+  { id: '186', title: 'Elsewhere', state: 'active', updatedAt: '2026-10-24T09:30:00Z', target: { owner: 'acme', repo: 'infra' }, pullRequestUrl: '' },
 ];
 
 function fakePloeg(readable: Record<string, string[]> = { 'u-ryan': ['184', '185', '186', '190'], 'u-sam': ['184'] }): LinkedPloeg & { nowCalls: number } {
@@ -45,7 +45,7 @@ function fakePloeg(readable: Record<string, string[]> = { 'u-ryan': ['184', '185
 }
 
 const service = (ploeg: LinkedPloeg = fakePloeg()) => new LinkedSessions(new DatabaseSync(':memory:'), {} as never, ploeg, { now: () => at });
-const event = (fields: Record<string, unknown>) => parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', repository: 'git@forgejo-ssh.example.org:webgrip/unfold.git', ...fields }, at);
+const event = (fields: Record<string, unknown>) => parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', repository: 'git@forgejo-ssh.example.org:acme/unfold.git', ...fields }, at);
 
 test('a report keeps only well-formed tracker references and Work Item ids among its mentions', () => {
   const parsed = event({ event: 'prompt', mentions: { refs: ['VIK-2190', 'vik-2190', 'UTF-8', 'ABC-1', 'VIK-0', 42], workItems: ['184', '0', 'x', '184', 7] } });
@@ -71,27 +71,27 @@ test('a pull request the session opened links the Work Item that pull request be
   const linked = service(ploeg);
   await linked.report(owner, event({}), base);
   assert.equal(ploeg.nowCalls, 0, 'no pull request, no lookup');
-  const opened = await linked.report(owner, event({ event: 'prompt', pullRequests: ['https://Forgejo.example.org/webgrip/unfold/pull/514/'] }), base);
+  const opened = await linked.report(owner, event({ event: 'prompt', pullRequests: ['https://Forgejo.example.org/acme/unfold/pull/514/'] }), base);
   assert.deepEqual(opened.session.workItems.map(entry => [entry.id, entry.how]), [['184', 'pull_request']]);
-  await linked.report(owner, event({ event: 'prompt', pullRequests: ['https://Forgejo.example.org/webgrip/unfold/pull/514/'] }), base);
+  await linked.report(owner, event({ event: 'prompt', pullRequests: ['https://Forgejo.example.org/acme/unfold/pull/514/'] }), base);
   assert.equal(ploeg.nowCalls, 1, 'a pull request already known is not looked up again');
   assert.equal(pullRequestKey('https://github.com/o/r/pull/3'), pullRequestKey('https://GITHUB.com/o/r/pulls/3/'));
 });
 
 test('suggestions offer the Work Item of the session’s pull request first, then open work on its repository, only to its owner', async () => {
   const linked = service();
-  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', repository: 'https://forgejo.example.org/webgrip/unfold.git' }, at), base);
+  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', repository: 'https://forgejo.example.org/acme/unfold.git' }, at), base);
   const listed = await linked.suggestions(owner, id);
   assert.deepEqual(listed.map(entry => [entry.id, entry.reason]), [['184', 'repository'], ['185', 'repository']], 'newest first; a Work Item on another repository is left out');
   await assert.rejects(linked.suggestions(teammate, id), { status: 404 });
   await linked.setLink(owner, id, '185', true, base);
   assert.deepEqual((await linked.suggestions(owner, id)).map(entry => entry.id), ['184'], 'a linked Work Item is not suggested');
-  assert.equal(repositoryPath('forgejo-ssh.example.org:WebGrip/Unfold.git'), 'webgrip/unfold');
-  assert.equal(repositoryPath('https://forgejo.example.org/webgrip/unfold'), 'webgrip/unfold');
+  assert.equal(repositoryPath('forgejo-ssh.example.org:Acme/Unfold.git'), 'acme/unfold');
+  assert.equal(repositoryPath('https://forgejo.example.org/acme/unfold'), 'acme/unfold');
 });
 
 test('a session without a title shows its own first commit, else its branch in words, else its harness and repository', () => {
-  const session = { title: '', branch: '', repository: 'git@host:webgrip/unfold.git', harness: 'claude-code' as const, commits: [] as never[] };
+  const session = { title: '', branch: '', repository: 'git@host:acme/unfold.git', harness: 'claude-code' as const, commits: [] as never[] };
   assert.equal(displayTitle({ ...session, title: 'Named' }), 'Named');
   assert.equal(displayTitle({ ...session, branch: 'docs/connect-a-repository' }), 'Connect a repository');
   assert.equal(displayTitle({ ...session, branch: 'feat/vik-2051-login' }), 'VIK-2051 login');
@@ -163,12 +163,12 @@ test('the hook sends the ids a prompt and a commit message name, never their tex
   await writeFile(transcript, [
     { type: 'ai-title', aiTitle: 'Summary of a secret plan', sessionId: 'plugin-session-9' },
     { type: 'custom-title', customTitle: 'Login fix', sessionId: 'plugin-session-9' },
-    { type: 'pr-link', sessionId: 'plugin-session-9', prNumber: 514, prUrl: 'https://forgejo.example.org/webgrip/unfold/pulls/514' },
+    { type: 'pr-link', sessionId: 'plugin-session-9', prNumber: 514, prUrl: 'https://forgejo.example.org/acme/unfold/pulls/514' },
   ].map(line => JSON.stringify(line)).join('\n') + '\n');
   await run({ hook_event_name: 'Stop', transcript_path: transcript });
   const stopped = received.filter(entry => entry.body.event === 'idle').at(-1);
   assert.equal(stopped?.body.title, 'Login fix', 'a name the person gave with /rename is the title');
-  assert.deepEqual(stopped?.body.pullRequests, ['https://forgejo.example.org/webgrip/unfold/pulls/514'], 'a pull request Claude Code recorded is reported');
+  assert.deepEqual(stopped?.body.pullRequests, ['https://forgejo.example.org/acme/unfold/pulls/514'], 'a pull request Claude Code recorded is reported');
   await run({ hook_event_name: 'Stop', transcript_path: transcript });
   assert.equal(received.filter(entry => entry.body.event === 'idle').at(-1)?.body.pullRequests, undefined, 'a reported pull request is sent once');
   assert.equal(JSON.stringify(received).includes('secret plan'), false, 'Claude Code’s own summary title stays local unless the person shares the transcript');

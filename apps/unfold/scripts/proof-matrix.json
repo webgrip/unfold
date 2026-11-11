@@ -30,7 +30,7 @@
       "runs": [{ "task": "mise:browser", "flow": "tasks" }],
       "live": [],
       "desktop": [],
-      "gap": "Never run against a real Vikunja from Unfold's tests; the homelab uses one every day, which is use, not a repeatable check."
+      "gap": "Never run against a real Vikunja from Unfold's tests; the owner's staging cluster uses one every day, which is use, not a repeatable check."
     },
     {
       "group": "Trackers",
@@ -489,7 +489,7 @@
       "runs": [{ "task": "mise:browser", "flow": "report" }, { "task": "mise:browser", "flow": "report-follow" }],
       "live": [],
       "desktop": [],
-      "gap": "The homelab files real reports into Forgejo, which is use, not a repeatable check."
+      "gap": "The owner's staging cluster files real reports into Forgejo, which is use, not a repeatable check."
     }
   ],
   "probes": {

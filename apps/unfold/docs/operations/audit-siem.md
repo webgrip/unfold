@@ -8,7 +8,7 @@ verified_by: "Written with the implementation on branch feat/ocsf-audit: src/aud
 
 # Send Unfold's audit to your SIEM (OCSF)
 
-Unfold records sign-ins, credentials, account and membership changes, administrator actions and data downloads as [OCSF](https://ocsf.io/) 1.9.0 events. It keeps them in its own database in a hash chain per Tenant, and it can send them to any SIEM that reads OCSF over OTLP or NDJSON. Export is off until you turn it on. System ADR-0050 rule 3 ([pull request #697](https://forgejo.webgrip.dev/webgrip/unfold/pulls/697), proposed) is the decision behind it: audit records leave Unfold as OCSF, through the API, never only on a screen or in a CSV.
+Unfold records sign-ins, credentials, account and membership changes, administrator actions and data downloads as [OCSF](https://ocsf.io/) 1.9.0 events. It keeps them in its own database in a hash chain per Tenant, and it can send them to any SIEM that reads OCSF over OTLP or NDJSON. Export is off until you turn it on. System ADR-0050 rule 3 (pull request #697 on the previous forge, proposed) is the decision behind it: audit records leave Unfold as OCSF, through the API, never only on a screen or in a CSV.
 
 ## What is recorded
 

@@ -14,6 +14,6 @@
 | Condition | Mended · 1 crack sealed |
 | Steward | anna · Merged the pull request |
 | Roles | builder ×2 · reviewer ×1 |
-| Ids | #⁠42 · VIK-1701 · webgrip/ploeg |
+| Ids | #⁠42 · VIK-1701 · acme/ploeg |
 
 <sub>Posted by Ploeg when this card reached a moment: a merge, a release to production, a new finish or a mend. It shows the change's own facts and its steward; nothing on it ranks or scores a person.</sub>

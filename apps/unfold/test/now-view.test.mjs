@@ -484,7 +484,7 @@ test('Now shows no unsettled callout with none, without the list, or in the demo
 });
 
 function refusal(code, extra = {}) {
-  return { provider: 'vikunja', externalId: '1612', externalScope: '10', team: 'delivery', title: 'ploeg: cap reviewer retries per Round', labels: [], code, reason: `Ploeg reason for ${code}`, allowedLabels: ['repo/homelab-cluster', 'repo/unfold'], refusedAt: '2026-09-20T09:20:00Z', board: 'Unfold', url: 'https://vikunja.example.test/tasks/1612', link: 'task', ...extra };
+  return { provider: 'vikunja', externalId: '1612', externalScope: '10', team: 'delivery', title: 'ploeg: cap reviewer retries per Round', labels: [], code, reason: `Ploeg reason for ${code}`, allowedLabels: ['repo/infra', 'repo/unfold'], refusedAt: '2026-09-20T09:20:00Z', board: 'Unfold', url: 'https://vikunja.example.test/tasks/1612', link: 'task', ...extra };
 }
 
 test('Needs you lists a task Ploeg could not start first, says why in plain words and opens it in its tracker', () => {
@@ -493,7 +493,7 @@ test('Needs you lists a task Ploeg could not start first, says why in plain word
   assert.match(html, /id="now-group-needs"[\s\S]*Could not start[\s\S]*Review the rounding criteria/, 'the group leads Needs you');
   assert.match(html, /<span class="task-chip"><span class="task-chip-from">Vikunja<\/span> <span class="task-chip-ref">#1612<\/span><\/span>/, 'the row names the task reference as a task chip');
   assert.match(html, /ploeg: cap reviewer retries per Round/);
-  assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/homelab-cluster, repo\/unfold\./);
+  assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/infra, repo\/unfold\./);
   assert.match(html, /<a class="button[^"]*"[^>]*href="https:\/\/vikunja\.example\.test\/tasks\/1612"[^>]*>[\s\S]*?Open in Vikunja/, 'a primary button opens the task itself');
   const open = html.match(/<a [^>]*id="now-refused-open-[^"]*"[\s\S]*?<\/a>/)[0];
   assert.equal(open.split(icon('external')).length + open.split(icon('external', 'button-external')).length - 2, 1, 'one external icon, not one on each side');
@@ -510,7 +510,7 @@ test('each refusal code has its own sentence and an unclassified one shows Ploeg
     return match[1];
   });
   assert.equal(new Set(sentences).size, codes.length, 'no two codes share a sentence');
-  assert.match(sentences[1], /repo\/infrastructure is not allowed on the Unfold board\. Use one of repo\/homelab-cluster, repo\/unfold\./);
+  assert.match(sentences[1], /repo\/infrastructure is not allowed on the Unfold board\. Use one of repo\/infra, repo\/unfold\./);
   const unclassified = nowMarkup(view({ data: { ...nowData(), refused: [refusal('unclassified', { reason: 'label "repo/x" names no registered target', allowedLabels: [] })] } }), options, nowAt);
   assert.match(unclassified, /label &quot;repo\/x&quot; names no registered target/);
 });
@@ -524,7 +524,7 @@ test('an intake gate refusal (Ploeg ADR-0187) leads with Ploeg’s reason and en
   assert.equal(sentence('team_missing', { team: '', reason: 'Which Team should take this card? Set the Team field. Teams that can take this repository: bronze, silver.' }), 'Which Team should take this card? Set the Team field. Teams that can take this repository: bronze, silver. Set the Team field, then assign the task again.');
   assert.equal(sentence('team_cannot_write', { team: 'silver', reason: 'Team silver has no Role that writes code.' }), 'Team silver has no Role that writes code. Give the Team a writing Role, or pick another Team.');
   assert.equal(sentence('budget_exhausted', { team: 'bronze', reason: 'Team bronze has spent US$ 5,00 of its US$ 5,00 this week; it can take this card again from Monday 2 November 2026.' }), 'Team bronze has spent US$ 5,00 of its US$ 5,00 this week; it can take this card again from Monday 2 November 2026. Wait for the next period, raise the cap, or pick another Team.');
-  assert.equal(sentence('harness_refuses_repository', { team: 'bronze', reason: 'Team bronze runs OpenHands for its builder Role, and OpenHands refuses a repository that ships .openhands/hooks.json, which webgrip/app does.' }), 'Team bronze runs OpenHands for its builder Role, and OpenHands refuses a repository that ships .openhands/hooks.json, which webgrip/app does. Pick a Team on another harness, or remove the file the harness refuses.');
+  assert.equal(sentence('harness_refuses_repository', { team: 'bronze', reason: 'Team bronze runs OpenHands for its builder Role, and OpenHands refuses a repository that ships .openhands/hooks.json, which acme/app does.' }), 'Team bronze runs OpenHands for its builder Role, and OpenHands refuses a repository that ships .openhands/hooks.json, which acme/app does. Pick a Team on another harness, or remove the file the harness refuses.');
   assert.equal(sentence('team_unknown', { reason: '' }), 'The Team field on this task names a Team Ploeg does not know. Pick one of the known Teams in the field, then assign the task again.', 'without a reason the sentence still says what went wrong');
   assert.equal(sentence('team_missing', { team: '', reason: '' }), 'Nothing on this task names a Team: the field is empty, the board pins none and the assignee maps to none. Set the Team field, then assign the task again.');
   assert.equal(sentence('team_cannot_write', { team: 'silver', reason: '' }), 'Team silver has no Role that writes code. Give the Team a writing Role, or pick another Team.');

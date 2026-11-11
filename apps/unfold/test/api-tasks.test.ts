@@ -39,18 +39,18 @@ async function providerFixture(t: TestContext) {
       return;
     }
     if (req.method !== 'GET') { res.writeHead(405); res.end('{}'); return; }
-    if (url.pathname === '/api/v1/repos/webgrip/order-service/issues') {
+    if (url.pathname === '/api/v1/repos/acme/order-service/issues') {
       res.end(JSON.stringify([issue]));
       return;
     }
-    if (url.pathname === '/api/v1/repos/webgrip/order-service/issues/17') {
+    if (url.pathname === '/api/v1/repos/acme/order-service/issues/17') {
       res.end(JSON.stringify(issue));
       return;
     }
     res.writeHead(404); res.end(JSON.stringify({ message: 'Not found' }));
   });
   const url = await listen(server);
-  issue.html_url = `${url}/webgrip/order-service/issues/17`;
+  issue.html_url = `${url}/acme/order-service/issues/17`;
   t.after(async () => {
     await new Promise<void>(resolve => { server.close(() => resolve()); server.closeIdleConnections(); });
   });
@@ -60,7 +60,7 @@ async function providerFixture(t: TestContext) {
 function configureSource(config: AppConfig, fixture: ProviderFixture) {
   config.taskSources = [{
     id: 'engineering', name: 'Engineering tasks', provider: 'forgejo', baseUrl: `${fixture.url}/api/v1`,
-    project: 'webgrip/order-service', repositoryId: 'order-service', token: sourceToken,
+    project: 'acme/order-service', repositoryId: 'order-service', token: sourceToken,
     executionOwner: 'interactive',
   }];
 }

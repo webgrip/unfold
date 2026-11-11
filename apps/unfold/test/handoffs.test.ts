@@ -58,14 +58,14 @@ test('a task hand-off shows the newest Work Item of the Team it went to, with it
   const older = item({ id: '501', team: 'bronze', state: 'done', createdAt: '2026-10-01T09:00:00.000Z' });
   const otherTeam = item({ id: '503', team: 'silver', state: 'queued', createdAt: '2026-10-30T09:30:00.000Z' });
   const current = item({ id: '502', team: 'bronze', state: 'awaiting_review', createdAt: '2026-10-30T09:05:00.000Z', latestShift: { id: '9', workItemId: '502', team: 'bronze', branch: 'ploeg/502', round: 1, budgetUsd: 8, spentUsd: 1.25, reservedUsd: 0, openedAt: '2026-10-30T09:05:00.000Z', closedAt: null, closeReason: '' } });
-  const fake = sources([handed], { items: { 17: [older, otherTeam, current] }, details: { 502: current }, prUrl: 'https://forgejo.example/webgrip/unfold/pulls/731' });
+  const fake = sources([handed], { items: { 17: [older, otherTeam, current] }, details: { 502: current }, prUrl: 'https://forgejo.example/acme/unfold/pulls/731' });
   const { handoffs } = await listHandOffs(fake, ryan);
   assert.equal(handoffs.length, 1);
   assert.deepEqual(handoffs[0].origin, { kind: 'task', sourceId: 'board', sourceName: 'Board board', taskId: '17' });
   assert.equal(handoffs[0].channel, 'mcp:Claude Code 2.1.300');
   assert.equal(handoffs[0].team, 'bronze');
   assert.equal(handoffs[0].workItem?.id, '502');
-  assert.equal(handoffs[0].workItem?.pullRequestUrl, 'https://forgejo.example/webgrip/unfold/pulls/731');
+  assert.equal(handoffs[0].workItem?.pullRequestUrl, 'https://forgejo.example/acme/unfold/pulls/731');
   assert.equal(handoffs[0].workItem?.spentUsd, 1.25);
 });
 
