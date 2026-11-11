@@ -2,7 +2,7 @@ module github.com/unfold-hq/unfold/apps/unfold/scripts/unified-demo
 
 go 1.26.0
 
-require github.com/ploeg-hq/ploeg v0.2.0-rc.103
+require github.com/ploeg-hq/ploeg v0.2.0-rc.106
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
