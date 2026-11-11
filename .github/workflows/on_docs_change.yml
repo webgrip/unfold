@@ -94,7 +94,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: corepack pnpm --dir apps/site exec wrangler deploy --config ../../ops/docs/wrangler.toml --env staging
       - name: Verify the staging pages, Markdown, revision and search
-        run: uv run --frozen python scripts/docs-live.py --base https://docs.staging.unfoldhq.dev/
+        run: uv run --frozen python scripts/docs-live.py --base https://docs-staging.unfoldhq.dev/
       - name: Deploy the production Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -26,9 +26,9 @@ Both Workers serve static assets only, without Worker code. [ops/docs/wrangler.t
 | Worker | Address | Configuration |
 | --- | --- | --- |
 | `unfold-docs` | <https://docs.unfoldhq.dev/> | top level |
-| `unfold-docs-staging` | <https://docs.staging.unfoldhq.dev/> | `[env.staging]` |
+| `unfold-docs-staging` | <https://docs-staging.unfoldhq.dev/> | `[env.staging]` |
 
-Each address is a route on the `unfoldhq.dev` zone, and a route needs a proxied DNS record for its hostname. The [DNS config](../../apps/site/ops/dns/dnsconfig.js) declares `docs` and `docs.staging` as proxied `AAAA 100::`, like the site's own records ([the site's DNS guide](../../apps/site/docs/deploy.md#dns)). `workers_dev` and preview URLs are off, so the routes are the only way in. Zensical writes canonical links to `site_url`, so the staging copy points search engines at production.
+Each address is a route on the `unfoldhq.dev` zone, and a route needs a proxied DNS record for its hostname. The [DNS config](../../apps/site/ops/dns/dnsconfig.js) declares `docs` and `docs-staging` as proxied `AAAA 100::`, like the site's own records ([the site's DNS guide](../../apps/site/docs/deploy.md#dns)). `workers_dev` and preview URLs are off, so the routes are the only way in. Zensical writes canonical links to `site_url`, so the staging copy points search engines at production.
 
 | Output | Purpose |
 | --- | --- |
@@ -48,7 +48,7 @@ A local build has 1,743 files and 72 MB, well inside the Workers static-asset li
 2. Run `mise run docs-check`. Besides generated-view drift, it fails on a missing link target or heading anchor, on a current page that links through a [moved path](../research/2026-09-12-glide-document-paths.json), on a current page that is neither in the `mkdocs.yml` nav nor linked from a nav page, on an inconsistent ADR ledger (system, Ploeg or application), on a stale [decision register](../reference/decisions.md), and on a Zensical warning. Regenerate that register with `mise run docs-decisions`. The check leaves the publishable site, with its Pagefind index, in `.build/site`; `mise run docs-build` builds the same site without the checks. Output under `.build/` is not committed.
 3. Run `mise run verify` before delivery.
 4. Merge the change to `development` and follow the docs workflow in the repository's Actions tab.
-5. The `deploy` job checks every human page and Markdown export, both search indexes and the source manifest against its checkout, first on staging and then on production. Run `mise run docs-live-check` locally for the same check against production; the checkout must match the published revision. `uv run --frozen python scripts/docs-live.py --base https://docs.staging.unfoldhq.dev/` checks staging. Rerun the workflow manually for a retry at the same revision.
+5. The `deploy` job checks every human page and Markdown export, both search indexes and the source manifest against its checkout, first on staging and then on production. Run `mise run docs-live-check` locally for the same check against production; the checkout must match the published revision. `uv run --frozen python scripts/docs-live.py --base https://docs-staging.unfoldhq.dev/` checks staging. Rerun the workflow manually for a retry at the same revision.
 
 Publishing these pages does not create an application release, push a container image or deploy Unfold or Ploeg.
 

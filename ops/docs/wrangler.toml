@@ -13,7 +13,7 @@ not_found_handling = "404-page"
 name = "unfold-docs-staging"
 workers_dev = false
 preview_urls = false
-routes = [{ pattern = "docs.staging.unfoldhq.dev/*", zone_name = "unfoldhq.dev" }]
+routes = [{ pattern = "docs-staging.unfoldhq.dev/*", zone_name = "unfoldhq.dev" }]
 
 [env.staging.assets]
 directory = "../../.build/site"
