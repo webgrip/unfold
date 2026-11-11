@@ -10,6 +10,8 @@ verified_by: "Forgejo merging Renovate checked on 2026-10-27 against renovate.js
 
 When a run fails in a way this page does not explain, see [Troubleshoot CI and releases](ci-troubleshooting.md).
 
+This page describes the Forgejo pipeline that runs today. The GitHub Actions pipeline that replaces it on the cutover day is [at the end of this page](#github-actions-after-the-cutover-proposed) ([ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md)); until then a CI or release change lands in both `.forgejo/` and `.github/`.
+
 Unfold uses Webgrip's event-named entry points. The executable definitions live in the root [workflow directory](../../.forgejo/workflows/). Forgejo reads workflows only from the repository root, so the applications have no workflow directories of their own.
 
 | Entry point | Trigger | Responsibility |
@@ -141,3 +143,47 @@ The release policy's `verifyRelease` refuses a computed version that is at or be
 Run `mise run verify` and `mise run release-check`. The latter executes the [release-policy tests](../../scripts/release-policy.test.cjs), [release-isolation tests](../../scripts/release-isolation.test.cjs) and [workflow routing tests](../../scripts/workflow-policy.test.cjs) in the pinned release container. They cover application-tag rejection, manual ref matching, disabled publication, CVE gates before signing, the absence of Ploeg publication, dependency integrity, release floors and orphaned tags. Set `UNFOLD_RELEASE_HISTORY=true` to also compute the next version from the actual history and check it against the floors and the repository's tags; this needs a full clone, not a worktree, because the container mounts only the checkout.
 
 The [documentation publisher](docs-publishing.md) has its own `UNFOLD_DOCS_PUBLISH_ENABLED` gate and dedicated Garage bucket. It uses the shared TechDocs generation and Zensical deployment workflows at `v2.7.1`. Its scoped credentials cannot publish application packages. Application destination permissions and complete artifact delivery still require the evidence listed in the [cutover preparation gates](first-cutover.md#2-close-the-release-blockers). Passing workflow tests or a release preview does not close those gates.
+
+## GitHub Actions after the cutover (proposed)
+
+Proposed: this takes effect on the cutover day in [ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md), when `unfold-hq/unfold` on GitHub becomes the source of truth. Until then every job below starts with `if: github.repository == 'unfold-hq/unfold'` and does nothing, on the mirror and in a fork alike. The workflows live in [`.github/workflows`](../../.github/workflows/) and the local actions in [`.github/actions`](../../.github/actions/). They run on GitHub-hosted `ubuntu-24.04` runners, pin every action to a commit and every image to a digest, and name no Webgrip host or secret.
+
+| Entry point | Trigger | Difference from Forgejo |
+| --- | --- | --- |
+| [on_pull_request.yml](../../.github/workflows/on_pull_request.yml) | Pull request; manual | Same jobs and the same single required `gate`. `build-contexts` signs in to `dhi.io` with `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, the only secrets a pull request reads; a pull request from a fork gets no secrets, so the job skips the image build with a notice and `development` builds it after the merge. `release-policy` runs the release tests with the repository's own toolchain in [`scripts/release-config`](../../scripts/release-config/) and [`scripts/github-workflow-policy.test.cjs`](../../scripts/github-workflow-policy.test.cjs). |
+| [on_source_change.yml](../../.github/workflows/on_source_change.yml) | Push to `development` or `main`; manual | Same checks. A push to `main` releases a stable site version and dispatches its publication. |
+| [on_release_train.yml](../../.github/workflows/on_release_train.yml) | Hourly at minute 7; manual | No `merge-pin` job: the Ploeg pin merges itself (below). `release` and `site-release` run semantic-release directly and then dispatch `on_release_published.yml` at the tag they cut. |
+| [on_release_published.yml](../../.github/workflows/on_release_published.yml) | Release published; dispatch at a tag | Builds both images for AMD64 and ARM64 straight to `ghcr.io/unfold-hq`, holds each to its CVE budget, signs it keyless and attests its SBOM and CVE verdict; publishes and signs the chart at `oci://ghcr.io/unfold-hq/charts/unfold`; packages, signs and attests the VSIX, attaches it to the draft release and publishes it to Open VSX with Trusted Publishing; deploys the site with `wrangler deploy`; then [`scripts/publish_release.py`](../../scripts/publish_release.py) verifies every artifact anonymously, attaches `release-artifacts-unfold.json` and takes the release out of draft. Nothing goes to Harbor. |
+| [on_ploeg_pin.yml](../../.github/workflows/on_ploeg_pin.yml) | A pull request from a `ploeg/<version>` branch of this repository; manual | New: turns on auto-merge for the newest Ploeg pin pull request and closes the older ones. |
+| [on_release_preview.yml](../../.github/workflows/on_release_preview.yml) | Manual, on `development` | The preflight checks that the GitHub API answers as `unfold-hq/unfold` itself rather than through a rename redirect, that `webgrip/unfold` has not come back as a repository of its own, that the trunk is public and current, that `GITHUB_TOKEN` may push to the three GHCR packages, that Open VSX has the `unfold-hq` namespace, and that the job gets a GitHub OIDC identity. The preview is a semantic-release dry run. |
+| [on_nightly.yml](../../.github/workflows/on_nightly.yml), [on_schedule.yml](../../.github/workflows/on_schedule.yml), [on_agent_standards.yml](../../.github/workflows/on_agent_standards.yml), [on_dns_change.yml](../../.github/workflows/on_dns_change.yml) | As on Forgejo | The browser flows run in `mcr.microsoft.com/playwright`; the MCP end-to-end suite starts its own Authentik with Docker Compose, as it does locally. The DNS preview reads the zone with `CLOUDFLARE_DNS_READ_TOKEN`. The weekly release-notes check fails when GitHub loses an imported note. The agent-standards survey opens its pull request with `GITHUB_TOKEN`. |
+
+Documentation publishing moves in its own change; `on_docs_change.yml` has no GitHub counterpart here.
+
+### Releases and publication
+
+semantic-release runs from `apps` and `apps/site` with `UNFOLD_RELEASE_FORGE=github`, which makes `apps/.releaserc.cjs` and `apps/site/.releaserc.cjs` load [`scripts/release-config`](../../scripts/release-config/index.cjs) instead of the shared configuration Forgejo uses. That package holds the same tags-only trains, commit rules and notes as the shared configuration at 2.5.2, files releases with `@semantic-release/github`, and pins its toolchain in its own lockfile. Unfold's release is a draft until publication has attached its assets; the site's is published at once.
+
+A tag or release that `GITHUB_TOKEN` creates starts no workflow, but a `workflow_dispatch` does. So the job that cut a release runs `gh workflow run on_release_published.yml --ref <tag> -f tag=<tag>`, with `actions: write`. Dispatching at the tag is also what signs under the tag: the keyless identity is `https://github.com/unfold-hq/unfold/.github/workflows/on_release_published.yml@refs/tags/unfold-v0.x.y-rc.N`, issued by `https://token.actions.githubusercontent.com`, and the parse job refuses a dispatch whose ref is not the tag. `UNFOLD_RELEASES_ENABLED` stays a repository variable and gates every release and publication job.
+
+### The Ploeg pin
+
+Ploeg's `consumers` job opens the pin pull request with the `unfold-hq-bot` GitHub App in `by-consumer` mode, which leaves the merge to Unfold. [`on_ploeg_pin.yml`](../../.github/workflows/on_ploeg_pin.yml) runs [`scripts/release_train_pin.py`](../../scripts/release_train_pin.py) when such a pull request opens or moves: it turns on auto-merge for the newest pin, as a merge commit at its head, and closes every older pin with a comment. Branch protection on `development` holds the merge until `gate` passes. When the pin is already green, GitHub refuses auto-merge and the script merges it at its head instead. A merge made this way starts no push run, so the next release train checks the head that holds it. The repository variable `PLOEG_PIN_AUTHOR` names the App's bot account when it is not `unfold-hq-bot[bot]`.
+
+### Settings, secrets and variables
+
+| Name | Kind | Used by |
+| --- | --- | --- |
+| `UNFOLD_RELEASES_ENABLED` | variable, `true` to release | release train, `site-release`, publication |
+| `PLOEG_PIN_AUTHOR` | variable, optional | `on_ploeg_pin.yml` |
+| `AGENT_STANDARDS_SURVEY_ENABLED`, `AGENT_STANDARDS_MODEL_URL`, `AGENT_STANDARDS_MODEL` | variables | `on_agent_standards.yml` |
+| `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | secrets, a read-only Docker Hub token | image builds from `dhi.io` |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | secrets | site deploy |
+| `CLOUDFLARE_DNS_READ_TOKEN` | secret, read-only on the zone | `on_dns_change.yml` |
+| `VSCE_PAT`, `MARKETPLACE_AZURE_CLIENT_ID`, `MARKETPLACE_AZURE_TENANT_ID` | secrets, optional | Visual Studio Marketplace, stable versions only |
+| `AGENT_STANDARDS_MODEL_KEY` | secret, optional | `on_agent_standards.yml` |
+
+GHCR and the GitHub release use the job's `GITHUB_TOKEN`; signing, provenance and Open VSX use its OIDC identity, so no registry or signing secret exists. The repository also needs Actions enabled, auto-merge allowed, a ruleset on `development` that requires `gate`, and Open VSX Trusted Publishing configured for `on_release_published.yml`.
+
+Run `mise run release-check-github` after changing a workflow, an action or the release configuration: it installs the release toolchain, runs the release-policy, release-isolation and [GitHub workflow policy](../../scripts/github-workflow-policy.test.cjs) tests, and lints the workflows with actionlint.
+

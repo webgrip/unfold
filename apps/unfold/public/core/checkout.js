@@ -1,5 +1,5 @@
 /** The VS Code extension that handles `checkoutLink` URIs: publisher `webgrip`, name `unfold`. */
-export const extensionId = 'webgrip.unfold';
+export const extensionId = 'unfold-hq.unfold';
 
 const amount = value => typeof value === 'number' && Number.isFinite(value);
 const text = value => typeof value === 'string' ? value.trim() : '';

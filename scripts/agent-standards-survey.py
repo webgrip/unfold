@@ -161,26 +161,29 @@ def has_news(findings, candidates, triaged):
 
 
 def open_pull_request(week, path):
-    token = os.environ['WEBGRIP_CI_TOKEN']
+    on_github = os.environ.get('SURVEY_FORGE') == 'github'
+    token = os.environ['GITHUB_TOKEN' if on_github else 'WEBGRIP_CI_TOKEN']
     branch = f'docs/agent-standards-survey-{week}'
     title = f'docs(research): agent standards survey {week}'
     git = lambda *args: subprocess.run(['git', *args], cwd=root, check=True)
-    git('config', 'user.name', 'unfold-agent-standards-survey')
-    git('config', 'user.email', 'ci@webgrip.dev')
+    git('config', 'user.name', 'github-actions[bot]' if on_github else 'unfold-agent-standards-survey')
+    git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com' if on_github else 'ci@webgrip.dev')
     git('checkout', '-B', branch)
     git('add', str(path.relative_to(root)))
     git('commit', '-m', title)
-    host = urllib.parse.urlparse(forgejo).netloc
-    git('push', '--force', f'https://ci:{token}@{host}/{repository}.git', f'HEAD:refs/heads/{branch}')
+    host = 'github.com' if on_github else urllib.parse.urlparse(forgejo).netloc
+    user = 'x-access-token' if on_github else 'ci'
+    git('push', '--force', f'https://{user}:{token}@{host}/{repository}.git', f'HEAD:refs/heads/{branch}')
     body = json.dumps({'head': branch, 'base': 'development', 'title': title,
                        'body': f'Weekly agent-standards survey. Review `{path.relative_to(root)}`, edit `standards.yaml` here and run `mise run agent-standards` if a ring moves, or close this pull request.'}).encode()
-    request = urllib.request.Request(f'{forgejo}/api/v1/repos/{repository}/pulls', data=body, method='POST',
-                                     headers={'Authorization': f'token {token}', 'Content-Type': 'application/json'})
+    api = f'https://api.github.com/repos/{repository}/pulls' if on_github else f'{forgejo}/api/v1/repos/{repository}/pulls'
+    authorization = f'Bearer {token}' if on_github else f'token {token}'
+    request = urllib.request.Request(api, data=body, method='POST', headers={'Authorization': authorization, 'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             print(f'Opened {json.loads(response.read()).get("html_url")}')
     except urllib.error.HTTPError as error:
-        if error.code != 409:
+        if error.code not in (409, 422):
             raise
         print(f'A pull request from {branch} is already open; its branch now carries this report')
 

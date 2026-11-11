@@ -1,0 +1,142 @@
+name: Verify both applications
+description: Verify both applications, or the gate groups a job names
+inputs:
+  only:
+    description: Comma-separated gate groups to run, as scripts/verify.mjs names them; empty runs every group
+    default: ''
+  except:
+    description: Comma-separated gate groups to leave to another job
+    default: ''
+  setup:
+    description: The mise task that installs the dependencies; setup-unfold installs only what the unfold group reads and skips the site, Go and docs toolchains and their caches
+    default: setup
+outputs:
+  warnings:
+    description: Tool warnings in the setup and verification output that scripts/ci-warnings-allow.json does not accept; empty when there are none
+    value: ${{ steps.warnings.outputs.report }}
+runs:
+  using: composite
+  steps:
+    - name: Fetch imported release metadata
+      shell: bash
+      run: git fetch origin '+refs/notes/*:refs/notes/*'
+    - name: Restore mise tool installs
+      id: mise-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.local/share/mise/installs
+        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/site/mise.toml') }}
+        restore-keys: unfold-mise-${{ runner.os }}-
+    - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      with:
+        version: 2026.10.25
+        cache: false
+    - run: mise trust apps/unfold/mise.toml && mise trust apps/site/mise.toml
+      shell: bash
+    - name: Prepare the output capture
+      shell: bash
+      run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
+    - run: set -o pipefail; mise -C apps/unfold install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
+      shell: bash
+    - if: inputs.setup == 'setup'
+      run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
+      shell: bash
+    - name: Save mise tool installs
+      if: steps.mise-cache.outputs.cache-hit != 'true' && inputs.setup == 'setup' && github.event_name != 'pull_request'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.local/share/mise/installs
+        key: ${{ steps.mise-cache.outputs.cache-primary-key }}
+    - name: Locate dependency caches
+      id: caches
+      shell: bash
+      env:
+        SETUP: ${{ inputs.setup }}
+      run: |
+        set -euo pipefail
+        echo "npm=$(mise -C apps/unfold exec -- npm config get cache)" >> "$GITHUB_OUTPUT"
+        if [ "$SETUP" = setup ]; then
+          {
+            echo "gomod=$(mise exec -- go env GOMODCACHE)"
+            echo "gobuild=$(mise exec -- go env GOCACHE)"
+            echo "go=$(mise exec -- go env GOVERSION)"
+            echo "pnpm=$(mise -C apps/site exec -- corepack pnpm store path)"
+          } >> "$GITHUB_OUTPUT"
+        fi
+    - name: Restore Go module and build caches
+      id: go-cache
+      if: inputs.setup == 'setup'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ steps.caches.outputs.gomod }}
+          ${{ steps.caches.outputs.gobuild }}
+        key: unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/unfold/scripts/unified-demo/go.sum') }}-${{ hashFiles('apps/unfold/scripts/unified-demo/**/*.go') }}
+        restore-keys: |
+          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/unfold/scripts/unified-demo/go.sum') }}-
+          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
+          unfold-go-${{ runner.os }}-
+    - name: Restore npm download cache
+      id: npm-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.caches.outputs.npm }}
+        key: unfold-npm-${{ runner.os }}-${{ inputs.setup }}-${{ hashFiles('apps/unfold/package-lock.json', 'apps/unfold/extensions/vscode/package-lock.json') }}
+        restore-keys: |
+          unfold-npm-${{ runner.os }}-${{ inputs.setup }}-
+          unfold-npm-${{ runner.os }}-
+    - name: Restore pnpm store
+      id: pnpm-cache
+      if: inputs.setup == 'setup'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.caches.outputs.pnpm }}
+        key: unfold-pnpm-${{ runner.os }}-${{ hashFiles('apps/site/pnpm-lock.yaml') }}
+        restore-keys: unfold-pnpm-${{ runner.os }}-
+    - name: Restore verified gate results
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/unfold-verify
+        key: unfold-verify-${{ runner.os }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: unfold-verify-${{ runner.os }}-${{ github.job }}-
+    - run: set -o pipefail; mise run "$SETUP" 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/setup.log"
+      shell: bash
+      env:
+        SETUP: ${{ inputs.setup }}
+    - run: set -o pipefail; mise run verify 2>&1 | tee "${RUNNER_TEMP:-/tmp}/unfold-output/verify.log"
+      shell: bash
+      env:
+        UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
+        GOFLAGS: -count=1
+        UNFOLD_TEST_TIMEOUT_SCALE: '2'
+        UNFOLD_VERIFY_RESULTS: ~/.cache/unfold-verify
+        UNFOLD_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
+        UNFOLD_VERIFY_CPUS: '4'
+        UNFOLD_VERIFY_GROUPS: '2'
+        UNFOLD_VERIFY_ONLY: ${{ inputs.only }}
+        UNFOLD_VERIFY_EXCEPT: ${{ inputs.except }}
+    - name: Save Go module and build caches
+      if: steps.go-cache.outcome == 'success' && steps.go-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ steps.caches.outputs.gomod }}
+          ${{ steps.caches.outputs.gobuild }}
+        key: ${{ steps.go-cache.outputs.cache-primary-key }}
+    - name: Save npm download cache
+      if: steps.npm-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.caches.outputs.npm }}
+        key: ${{ steps.npm-cache.outputs.cache-primary-key }}
+    - name: Save pnpm store
+      if: steps.pnpm-cache.outcome == 'success' && steps.pnpm-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.caches.outputs.pnpm }}
+        key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
+    - name: Collect warnings
+      id: warnings
+      if: always()
+      shell: bash
+      run: node scripts/ci-warnings.mjs "${RUNNER_TEMP:-/tmp}/unfold-output"

@@ -1,0 +1,136 @@
+name: '[Workflow] On Source Change'
+
+on:
+  push:
+    branches: [development, main]
+  workflow_dispatch:
+
+concurrency:
+  group: source-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          except: unfold
+
+  checks-unfold:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          only: unfold
+          setup: setup-unfold
+
+  warnings:
+    needs: [checks, checks-unfold]
+    if: github.repository == 'unfold-hq/unfold' && always() && needs.checks.result != 'skipped' && needs.checks.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail when setup or verification printed a warning
+        env:
+          CHECKS: ${{ needs.checks.outputs.warnings }}
+          UNFOLD: ${{ needs.checks-unfold.outputs.warnings }}
+        run: |
+          REPORT=$(printf '%s\n%s\n' "$CHECKS" "$UNFOLD" | sed '/^$/d')
+          if [ -z "$REPORT" ]; then
+            echo "No warnings in setup and verification output."
+            exit 0
+          fi
+          echo "Setup or verification printed warnings. Fix them, or accept one with a reason in scripts/ci-warnings-allow.json:"
+          printf '%s\n' "$REPORT"
+          exit 1
+
+  build-contexts:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-contexts
+        with:
+          dhi-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dhi-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  ploeg-pin:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
+      - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
+
+  site-release:
+    if: github.repository == 'unfold-hq/unfold' && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    needs: [checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Install the release toolchain from its lockfile
+        run: mise exec node -- npm ci --prefix scripts/release-config --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Semantic Release
+        id: release
+        working-directory: apps/site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UNFOLD_RELEASE_FORGE: github
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: mise exec node -- node "$GITHUB_WORKSPACE/scripts/release-config/node_modules/semantic-release/bin/semantic-release.js"
+      - name: Start the publication of the release at its tag
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run on_release_published.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"

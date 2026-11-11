@@ -31,6 +31,11 @@ SIGNING_AUDIENCE = 'openbao-cosign'
 SIGNING_ROLE = 'cosign-signer'
 SIGNING_KEY = 'hashivault://cosign-webgrip'
 PUBLIC_KEY = str(Path(__file__).resolve().parent.parent / 'ops/security/cosign.pub')
+FORGEJO_SOURCE = 'https://github.com/webgrip/unfold'
+GITHUB_SOURCE = 'https://github.com/unfold-hq/unfold'
+GITHUB_ISSUER = 'https://token.actions.githubusercontent.com'
+GITHUB_SIGNER = r'^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'
+KEYLESS_IDENTITY = ('--certificate-identity-regexp', GITHUB_SIGNER, '--certificate-oidc-issuer', GITHUB_ISSUER)
 
 
 def request(url, method='GET', data=None, headers=None, missing=False):
@@ -166,10 +171,9 @@ def copy_chart(source, target, repository, version):
     return expected
 
 
-def verify_image(registry, repository, version, revision):
+def verify_image(registry, repository, version, revision, source=FORGEJO_SOURCE):
     raw = registry.manifest(repository, version)
     index = json.loads(raw)
-    source = 'https://github.com/webgrip/unfold'
     require_same(index.get('annotations', {}).get('org.opencontainers.image.source'), source, 'index source')
     platforms = set()
     for descriptor in index.get('manifests', []):
@@ -243,3 +247,25 @@ def copy_image(source, target, repository, version, revision):
     require_same(verify_image(target, repository, version, revision), expected, dst)
     verify_signature(f'{target.host}/{repository}@{expected}')
     return expected
+
+
+def verify_keyless(reference):
+    command('cosign', 'verify', *KEYLESS_IDENTITY, reference)
+
+
+def sign_keyless_once(reference):
+    try:
+        verify_keyless(reference)
+        return False
+    except RuntimeError:
+        pass
+    command('cosign', 'sign', '--yes', reference)
+    verify_keyless(reference)
+    return True
+
+
+def verify_keyless_signature(reference):
+    verify_keyless(reference)
+    statements = command('cosign', 'verify-attestation', *KEYLESS_IDENTITY, '--type', 'cyclonedx', reference)
+    if not statements:
+        raise RuntimeError(f'Missing verified SBOM for {reference}')

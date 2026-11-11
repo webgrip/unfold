@@ -8,12 +8,17 @@ import urllib.parse
 from pathlib import Path
 
 from release_floors import refuse_occupied
-from release_registry import Registry, command, copy_chart, copy_image, digest, request, require_same
+from release_registry import GITHUB_SOURCE, Registry, command, copy_chart, copy_image, digest, request, require_same, verify_image, verify_keyless, verify_keyless_signature
 
 
 ROOT = Path(__file__).resolve().parent.parent
 FORGEJO = 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/unfold'
 GITHUB = 'https://api.github.com/repos/webgrip/unfold'
+HOME_REPOSITORY = 'unfold-hq/unfold'
+HOME = f'https://api.github.com/repos/{HOME_REPOSITORY}'
+HOME_REGISTRY = 'ghcr.io'
+HOME_NAMESPACE = 'unfold-hq'
+EXTENSION_MANIFEST = ROOT / 'apps/unfold/extensions/vscode/package.json'
 OPEN_VSX_SCAN_DEADLINE = 1200
 OPEN_VSX_POLL_INTERVAL = 30
 RETIRED_PUBLISHERS = {
@@ -44,16 +49,22 @@ def publishable_tag(application, version):
     return tag
 
 
+def extension_identity():
+    manifest = json.loads(EXTENSION_MANIFEST.read_text(encoding='utf-8'))
+    return manifest['publisher'], manifest['name']
+
+
 def open_vsx_extension(version):
-    url = f'https://open-vsx.org/api/webgrip/unfold/{version}'
+    namespace, name = extension_identity()
+    url = f'https://open-vsx.org/api/{namespace}/{name}/{version}'
     deadline = time.monotonic() + OPEN_VSX_SCAN_DEADLINE
     while True:
         extension = api(url, '', missing=True)
         if extension is not None:
             return extension
         if time.monotonic() >= deadline:
-            raise RuntimeError(f'Open VSX still does not serve webgrip.unfold {version} after {OPEN_VSX_SCAN_DEADLINE} seconds; check its publish scan at https://open-vsx.org/extension/webgrip/unfold')
-        print(f'Open VSX does not serve webgrip.unfold {version} yet; it is still scanning the published VSIX', file=sys.stderr)
+            raise RuntimeError(f'Open VSX still does not serve {namespace}.{name} {version} after {OPEN_VSX_SCAN_DEADLINE} seconds; check its publish scan at https://open-vsx.org/extension/{namespace}/{name}')
+        print(f'Open VSX does not serve {namespace}.{name} {version} yet; it is still scanning the published VSIX', file=sys.stderr)
         time.sleep(OPEN_VSX_POLL_INTERVAL)
 
 
@@ -90,21 +101,34 @@ def attach_forgejo(release, name, content, token):
     request(f'{FORGEJO}/releases/{release["id"]}/assets?name={urllib.parse.quote(name)}', method='POST', data=body, headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/form-data; boundary=' + boundary})
 
 
-def github_release(tag, token):
-    target = api(f'{GITHUB}/releases/tags/{tag}', token, missing=True)
+def github_release(tag, token, repository=GITHUB):
+    target = api(f'{repository}/releases/tags/{tag}', token, missing=True)
     if target is not None:
         return target
-    drafts = [r for r in api(f'{GITHUB}/releases?per_page=100', token) if r['draft'] and r['tag_name'] == tag]
+    drafts = [r for r in api(f'{repository}/releases?per_page=100', token) if r['draft'] and r['tag_name'] == tag]
     return drafts[0] if drafts else None
 
 
-def fetch_github_asset(asset, token, draft):
+def fetch_github_asset(asset, token, draft, repository=GITHUB):
     if not draft:
         return fetch_asset(asset, token)
-    if not asset['url'].startswith(GITHUB + '/releases/assets/'):
+    if not asset['url'].startswith(repository + '/releases/assets/'):
         raise RuntimeError('Unexpected GitHub asset URL')
     data, _ = request(asset['url'], headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/octet-stream'})
     return data
+
+
+def attach_github(release, name, content, token, repository=GITHUB):
+    existing = next((a for a in release['assets'] if a['name'] == name), None)
+    if existing:
+        require_same(digest(fetch_github_asset(existing, token, release['draft'], repository)), digest(content), 'GitHub asset ' + name)
+        return
+    if not release['draft']:
+        raise RuntimeError(f'GitHub release {release["tag_name"]} is already published without {name}; immutable releases take assets only while they are drafts')
+    upload = release['upload_url'].split('{')[0]
+    if urllib.parse.urlsplit(upload).netloc != 'uploads.github.com':
+        raise RuntimeError('Unexpected GitHub upload host')
+    request(upload + '?' + urllib.parse.urlencode({'name': name}), method='POST', data=content, headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/octet-stream'})
 
 
 def mirror_release(tag, source, forge_token, github_token, publish=True):
@@ -120,17 +144,7 @@ def mirror_release(tag, source, forge_token, github_token, publish=True):
         for key in expected:
             require_same(target[key], expected[key], f'GitHub release {key}')
     for asset in source.get('assets', []):
-        content = fetch_asset(asset, forge_token)
-        existing = next((a for a in target['assets'] if a['name'] == asset['name']), None)
-        if existing:
-            require_same(digest(fetch_github_asset(existing, github_token, target['draft'])), digest(content), 'GitHub asset ' + asset['name'])
-            continue
-        if not target['draft']:
-            raise RuntimeError(f'GitHub release {tag} is already published without {asset["name"]}; immutable releases take assets only while they are drafts')
-        upload = target['upload_url'].split('{')[0]
-        if urllib.parse.urlsplit(upload).netloc != 'uploads.github.com':
-            raise RuntimeError('Unexpected GitHub upload host')
-        request(upload + '?' + urllib.parse.urlencode({'name': asset['name']}), method='POST', data=content, headers={'Authorization': 'Bearer ' + github_token, 'Content-Type': 'application/octet-stream'})
+        attach_github(target, asset['name'], fetch_asset(asset, forge_token), github_token)
     if target['draft'] and publish:
         target = api(f'{GITHUB}/releases/{target["id"]}', github_token, 'PATCH', {'draft': False, 'make_latest': 'false'})
     return target['html_url']
@@ -178,5 +192,39 @@ def publish(application, version):
     print(json.dumps(evidence, indent=2))
 
 
+def publish_github(application, version):
+    tag = publishable_tag(application, version)
+    revision = git('rev-parse', f'{tag}^{{commit}}')
+    require_same(git('rev-parse', 'HEAD'), revision, 'publisher checkout')
+    token = os.environ['GITHUB_TOKEN']
+    release = github_release(tag, token, HOME)
+    if release is None:
+        raise RuntimeError(f'{HOME_REPOSITORY} has no release for {tag}; the release train files it as a draft')
+    anonymous = Registry(HOME_REGISTRY)
+    evidence = {'schema_version': 2, 'tag': tag, 'source': GITHUB_SOURCE, 'revision': revision, 'images': [], 'charts': []}
+    for name in ['unfold', 'unfold-agent']:
+        repository = f'{HOME_NAMESPACE}/{name}'
+        reference = verify_image(anonymous, repository, version, revision, GITHUB_SOURCE)
+        verify_keyless_signature(f'{HOME_REGISTRY}/{repository}@{reference}')
+        evidence['images'].append({'name': name, 'reference': f'{HOME_REGISTRY}/{repository}@{reference}'})
+    chart = f'{HOME_NAMESPACE}/charts/unfold'
+    reference = digest(anonymous.manifest(chart, version))
+    verify_keyless(f'{HOME_REGISTRY}/{chart}@{reference}')
+    evidence['charts'].append({'name': 'unfold', 'reference': f'{HOME_REGISTRY}/{chart}@{reference}'})
+    extension = open_vsx_extension(version)
+    require_same(extension['version'], version, 'Open VSX version')
+    vsix = next((a for a in release['assets'] if a['name'] == f'unfold-{version}.vsix'), None)
+    if vsix is None:
+        raise RuntimeError(f'{tag} has no unfold-{version}.vsix; the extension job attaches it before Open VSX gets it')
+    data, _ = request(extension['files']['download'])
+    require_same(digest(data), digest(fetch_github_asset(vsix, token, release['draft'], HOME)), 'Open VSX VSIX')
+    evidence['extension'] = {'id': '.'.join(extension_identity()), 'version': version, 'sha256': hashlib.sha256(data).hexdigest(), 'url': extension['files']['download']}
+    attach_github(release, f'release-artifacts-{application}.json', (json.dumps(evidence, indent=2) + '\n').encode(), token, HOME)
+    if release['draft']:
+        release = api(f'{HOME}/releases/{release["id"]}', token, 'PATCH', {'draft': False, 'make_latest': 'false'})
+    print(release['html_url'])
+    print(json.dumps(evidence, indent=2))
+
+
 if __name__ == '__main__':
-    publish(sys.argv[1], sys.argv[2])
+    (publish_github if os.environ.get('UNFOLD_RELEASE_HOME') == 'github' else publish)(sys.argv[1], sys.argv[2])
