@@ -98,7 +98,7 @@ if args.domain_check:
 staging = root / '.build/docs'
 site = root / '.build/site'
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-source_url = f'https://forgejo.webgrip.dev/webgrip/unfold/src/commit/{revision}/'
+source_url = f'https://github.com/unfold-hq/unfold/blob/{revision}/'
 
 if args.check:
     for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py', 'generate-domain.test.py', 'agent-standards.test.py']:
@@ -253,5 +253,6 @@ if failures:
 }, indent=2) + '\n')
 print(f'Unfold docs: {len(mapping)} sources, {checked} repository links')
 if not args.stage_only:
-    subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
+    subprocess.run([sys.executable, '-m', 'zensical', 'build', '--clean', '--strict', '--config-file', str(root / 'mkdocs.yml')], cwd=root, check=True)
     subprocess.run([sys.executable, str(root / 'scripts/docs-output.py'), '--site', str(site)], cwd=root, check=True)
+    subprocess.run([sys.executable, '-m', 'pagefind', '--site', str(site)], cwd=root, check=True, stdout=subprocess.DEVNULL)

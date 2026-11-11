@@ -80,7 +80,7 @@ description = "Pin a published Ploeg release: mise run ploeg-pin 0.x.y-rc.N move
 
 [tasks.docs-check]
 run = "uv run --frozen python scripts/docs.py --check"
-description = "Check generated models, links, agent instruction files and strict TechDocs output"
+description = "Check generated models, links and agent instruction files, then build the site with Zensical in strict mode and index it with Pagefind"
 
 [tasks.domain]
 run = "uv run --frozen python scripts/docs.py --domain"
@@ -114,7 +114,7 @@ description = "Regenerate the decision register from the three ADR ledgers"
 
 [tasks.docs-build]
 run = "uv run --frozen python scripts/docs.py"
-description = "Build the shared and application TechDocs site"
+description = "Build the shared and application documentation site with Zensical and Pagefind into .build/site"
 
 [tasks.harness-conformance]
 dir = "apps/unfold/scripts/unified-demo"

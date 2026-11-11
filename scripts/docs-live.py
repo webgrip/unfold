@@ -1,3 +1,4 @@
+import argparse
 import concurrent.futures
 import importlib.util
 import json
@@ -55,5 +56,8 @@ def verify(base, staging, read=read_url):
 
 
 if __name__ == '__main__':
-    base = yaml.safe_load((root / 'mkdocs.yml').read_text())['site_url']
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--base', help='published site to check; defaults to site_url in mkdocs.yml')
+    args = parser.parse_args()
+    base = args.base or yaml.safe_load((root / 'mkdocs.yml').read_text())['site_url']
     print(json.dumps(verify(base, root / '.build/docs')))

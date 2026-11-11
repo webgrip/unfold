@@ -37,9 +37,6 @@ def validate(site, staging):
         assert target.startswith(base), f'Index link escapes site: {target}'
         assert (site / target.removeprefix(base).split('#')[0]).is_file(), f'Broken machine index link: {target}'
     assert sources['revision'] in (site / 'llms-full.txt').read_text(), 'Missing bundle provenance'
-    index_path = site / 'search/search_index.json'
-    if index_path.exists():
-        assert not any(historical(entry['location']) for entry in json.loads(index_path.read_text())['docs']), 'History leaked into search'
     zensical_index = site / 'search.json'
     if zensical_index.exists():
         assert not any(historical(entry['location']) for entry in json.loads(zensical_index.read_text())['items']), 'History leaked into Zensical search'
