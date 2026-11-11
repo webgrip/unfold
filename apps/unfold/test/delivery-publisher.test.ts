@@ -255,7 +255,7 @@ test('publisher configuration rejects shared or agent-visible tokens and plain-t
     const raw = (publisher: unknown) => ({ verifierTokenEnv: 'VERIFIER_TOKEN', policies: [f.policy], publisher });
     const valid = { kind: 'forgejo', apiUrl: 'https://forge.example/api/v1/', tokenEnv: 'PUBLISHER_TOKEN' };
     assert.deepEqual(validateDeliveryConfig(raw(valid), config)?.publisher, { ...valid, apiUrl: 'https://forge.example/api/v1', username: 'unfold-publisher' });
-    assert.equal(validateDeliveryConfig(raw({ ...valid, username: 'webgrip-bot' }), config)?.publisher?.username, 'webgrip-bot');
+    assert.equal(validateDeliveryConfig(raw({ ...valid, username: 'acme-bot' }), config)?.publisher?.username, 'acme-bot');
     assert.throws(() => validateDeliveryConfig(raw({ ...valid, username: 'bad name' }), config), /delivery.publisher/);
     for (const tokenEnv of ['AGENT_VISIBLE', 'EXECUTOR_TOKEN', 'VERIFIER_TOKEN', 'lowercase']) assert.throws(() => validateDeliveryConfig(raw({ ...valid, tokenEnv }), config), /delivery.publisher/);
     assert.throws(() => validateDeliveryConfig(raw({ ...valid, apiUrl: 'http://forge.example/api/v1' }), config), /delivery.publisher/);

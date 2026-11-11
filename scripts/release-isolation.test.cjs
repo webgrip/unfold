@@ -9,8 +9,15 @@ const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const { readYaml } = require('./yaml-documents.cjs');
 
-process.env.SEMANTIC_RELEASE_GITEA = 'true';
 const root = path.resolve(__dirname, '..');
+const onGitHub = process.env.UNFOLD_RELEASE_FORGE === 'github';
+const forge = onGitHub ? '.github' : '.forgejo';
+if (onGitHub) {
+  process.env.GITHUB_TOKEN ||= 'release-isolation-test';
+  process.env.UNFOLD_RELEASE_CONFIG ||= path.join(root, 'scripts/release-config');
+} else {
+  process.env.SEMANTIC_RELEASE_GITEA = 'true';
+}
 const logger = { log() {}, success() {}, warn() {}, error() {}, scope() { return this; } };
 
 function git(cwd, ...args) {
@@ -103,7 +110,7 @@ test('the publisher shell rejects application tags and mismatched manual refs be
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-publisher-'));
   const output = path.join(directory, 'output');
   try {
-    const workflow = readYaml(path.join(root, '.forgejo/workflows/on_release_published.yml'));
+    const workflow = readYaml(path.join(root, forge, 'workflows/on_release_published.yml'));
     const shell = workflow.jobs['parse-release-tag'].steps.find(step => step.id === 'parse').run;
     const valid = 'unfold-v0.4.0-rc.5';
     for (const [tag, ref, accepted] of [

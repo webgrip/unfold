@@ -1,0 +1,17 @@
+name: Verify the Unfold release policy
+description: Verify the Unfold release policy with the repository's own release toolchain; the job installs scripts/release-config first
+runs:
+  using: composite
+  steps:
+    - name: Verify release baseline branch
+      shell: bash
+      run: git show-ref --verify refs/remotes/origin/main
+    - name: Verify Unfold's zero-major release policy
+      shell: bash
+      run: UNFOLD_RELEASE_FORGE=github NODE_PATH="$PWD/scripts/release-config/node_modules" mise exec node -- node --test scripts/release-policy.test.cjs
+    - name: Verify application commit selection
+      shell: bash
+      run: UNFOLD_RELEASE_FORGE=github NODE_PATH="$PWD/scripts/release-config/node_modules" mise exec node -- node --test scripts/release-isolation.test.cjs
+    - name: Verify workflow routing and publication gates
+      shell: bash
+      run: NODE_PATH="$PWD/scripts/release-config/node_modules" mise exec node -- node --test scripts/github-workflow-policy.test.cjs

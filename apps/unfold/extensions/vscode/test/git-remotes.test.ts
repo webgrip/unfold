@@ -43,12 +43,12 @@ test('the expected repository takes its host from the pull request link, and has
 });
 
 test('an SSH host under the same parent domain as the forge matches without a setting', () => {
-  const unfold = expectedRepository('https://forgejo.webgrip.dev/webgrip/unfold/pulls/12', 'webgrip', 'unfold');
-  assert.equal(remoteMatches('ssh://git@forgejo-ssh.webgrip.dev/webgrip/unfold.git', unfold), true);
-  assert.equal(remoteMatches('https://github.com/webgrip/unfold.git', unfold), false);
-  assert.equal(remoteMatches('ssh://git@forgejo-ssh.webgrip.dev/webgrip/other.git', unfold), false);
-  assert.equal(hostsMatch('forgejo-ssh.webgrip.dev', 'forgejo.webgrip.dev'), true);
-  for (const [remote, forge] of [['github.com', 'forgejo.webgrip.dev'], ['gitlab.com', 'github.com'], ['webgrip.dev', 'forgejo.webgrip.dev'], ['forgejo.webgrip.dev', 'forgejo.other.dev'], ['10.0.0.5', '11.0.0.5']]) assert.equal(hostsMatch(remote!, forge!), false, `${remote} ~ ${forge}`);
+  const unfold = expectedRepository('https://forgejo.example.org/acme/unfold/pulls/12', 'acme', 'unfold');
+  assert.equal(remoteMatches('ssh://git@forgejo-ssh.example.org/acme/unfold.git', unfold), true);
+  assert.equal(remoteMatches('https://github.com/acme/unfold.git', unfold), false);
+  assert.equal(remoteMatches('ssh://git@forgejo-ssh.example.org/acme/other.git', unfold), false);
+  assert.equal(hostsMatch('forgejo-ssh.example.org', 'forgejo.example.org'), true);
+  for (const [remote, forge] of [['github.com', 'forgejo.example.org'], ['gitlab.com', 'github.com'], ['acme.dev', 'forgejo.example.org'], ['forgejo.example.org', 'forgejo.other.dev'], ['10.0.0.5', '11.0.0.5']]) assert.equal(hostsMatch(remote!, forge!), false, `${remote} ~ ${forge}`);
 });
 
 test('a GHE.com enterprise matches its own clones over HTTPS and SSH, never another enterprise on GHE.com', () => {

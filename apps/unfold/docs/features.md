@@ -3,12 +3,12 @@ type: reference
 audience: [owner, contributor, agent]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Source read of webgrip/unfold at commit 6738fb37 on development (after unfold-v0.4.0-rc.125): the 257 non-merge commits since 86b3da80 and the diff of apps/unfold/src, apps/unfold/public, apps/unfold/extensions and docs/domain/model.yaml; every port type was opened in its file (src/ploeg-port.ts, src/task-providers/registry.ts, src/link-providers/registry.ts, src/delivery-publishers/registry.ts, src/notify/channels.ts, src/billing-export.ts, src/audit/signer.ts, src/intake/templates.ts, src/intake/signatures.ts, src/jobs/worker.ts), statuses were read from src/flag-registry.json and every evidence path was checked to exist. Screens were not opened in a browser for this pass."
+verified_by: "Source read of unfold at commit 6738fb37 on development (after unfold-v0.4.0-rc.125): the 257 non-merge commits since 86b3da80 and the diff of apps/unfold/src, apps/unfold/public, apps/unfold/extensions and docs/domain/model.yaml; every port type was opened in its file (src/ploeg-port.ts, src/task-providers/registry.ts, src/link-providers/registry.ts, src/delivery-publishers/registry.ts, src/notify/channels.ts, src/billing-export.ts, src/audit/signer.ts, src/intake/templates.ts, src/intake/signatures.ts, src/jobs/worker.ts), statuses were read from src/flag-registry.json and every evidence path was checked to exist. Screens were not opened in a browser for this pass."
 ---
 
 # Unfold features by bounded context
 
-Unfold's features grouped by the bounded contexts of the domain model in [`docs/domain/model.yaml`](../../../docs/domain/model.yaml), in its ubiquitous language, with each context's ports (the interfaces in code) and adapters (what binds them to the world). Snapshot: `webgrip/unfold` at `6738fb37` on `development`.
+Unfold's features grouped by the bounded contexts of the domain model in [`docs/domain/model.yaml`](../../../docs/domain/model.yaml), in its ubiquitous language, with each context's ports (the interfaces in code) and adapters (what binds them to the world). Snapshot: Unfold at `6738fb37` on `development`.
 
 How to read it: terms in Capitalized Case are canonical model terms. "(Ploeg term)" marks the first use in a context of a term Unfold's model imports from Ploeg's model; "(Ploeg term, not imported)" marks a Ploeg term Unfold's code relies on but its model does not import. Code names that differ from the model term appear in backticks. Evidence links open the file that implements or decides the capability. A port is listed only when its type exists in code; where the code calls a vendor directly, the table says "implicit, no interface".
 
@@ -603,7 +603,7 @@ How Unfold's own source and releases are proven and shipped. Terms that only mea
 - **Sandbox runtimes for agent pods**: RuntimeClasses for Kata and gVisor, admission policies that refuse Kata annotations and require a sandbox runtime on agent pods, smoke jobs, a benchmark, and Talos patches; applied by the cluster, not by either chart. Tooling. Evidence: [`apps/unfold/ops/cluster/sandbox-runtimes/README.md`](../ops/cluster/sandbox-runtimes/README.md).
 - **Local compose stacks**: demo and live Docker Compose setups. Shipped. Evidence: [`apps/unfold/ops/local/compose.yaml`](../ops/local/compose.yaml), [`apps/unfold/ops/local/compose.live.yaml`](../ops/local/compose.live.yaml).
 - **Zero-CVE image budgets and VEX**: CVE budgets of zero critical and zero high for both images, and a place for OpenVEX statements, of which none are in force. Shipped. Evidence: [`apps/unfold/ops/security/cve-budgets.yaml`](../ops/security/cve-budgets.yaml), [`apps/unfold/ops/vex/README.md`](../ops/vex/README.md).
-- **Production on a rented EU Talos cluster**: deployment lives in `webgrip/homelab-cluster`, not here. Proposed. Evidence: [`docs/adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md`](../../../docs/adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md).
+- **Production on a rented EU Talos cluster**: deployment lives in the owner's cluster repository, not here. Proposed. Evidence: [`docs/adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md`](../../../docs/adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md).
 
 ### Ports
 

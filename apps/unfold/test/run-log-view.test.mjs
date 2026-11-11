@@ -5,14 +5,14 @@ import { commonFields, defaultLogView, logDownloadText, logExtent, logLineShown,
 const slog = (at, level, msg, extra = '') => ({ at, text: `time=${at} level=${level} msg="${msg}" trace=ploeg-f8a5bb14e4a6 role=reviewer${extra}` });
 const lines = [
   slog('2026-10-10T23:24:02.110Z', 'INFO', 'ploeg-worker starting'),
-  slog('2026-10-10T23:24:02.140Z', 'WARN', 'claim target differs from the env repo; using the claim target', ' claim=webgrip/unfold'),
+  slog('2026-10-10T23:24:02.140Z', 'WARN', 'claim target differs from the env repo; using the claim target', ' claim=acme/unfold'),
   slog('2026-10-10T23:26:14.782Z', 'INFO', 'reading run prepared', ' commit=ca80173'),
   slog('2026-10-10T23:30:00.000Z', 'ERROR', 'harness exited', ' code=1 output="no such file"'),
 ];
 const run = { id: '31', startedAt: '2026-10-10T23:24:00Z', finishedAt: '2026-10-10T23:31:00Z' };
 
 test('slog text lines give their level, message and fields without the time', () => {
-  assert.deepEqual(parseLogLine('time=2026-10-10T23:24:02.140Z level=WARN msg="claim target differs" claim=webgrip/unfold title="a \\"quoted\\" word"'), { level: 'warn', message: 'claim target differs', fields: [['claim', 'webgrip/unfold'], ['title', 'a "quoted" word']] });
+  assert.deepEqual(parseLogLine('time=2026-10-10T23:24:02.140Z level=WARN msg="claim target differs" claim=acme/unfold title="a \\"quoted\\" word"'), { level: 'warn', message: 'claim target differs', fields: [['claim', 'acme/unfold'], ['title', 'a "quoted" word']] });
 });
 
 test('JSON lines and plain lines are read too', () => {

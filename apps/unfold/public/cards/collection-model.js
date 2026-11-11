@@ -49,7 +49,7 @@ export function pullText(pull) {
 
 const finishLabel = key => finishLadder.find(step => step.key === key)?.label ?? key;
 
-/** A card moment in words: "Finish rose to Holo", "Rarity revealed: Epic", "Cracked · S2 · VIK-1642", "Merged #57", "Graded 8,5", "Set of 5 complete". */
+/** A card moment in words: "Finish rose to Holo", "Rarity revealed: Epic", "Cracked · S2 · VIK-123", "Merged #57", "Graded 8,5", "Set of 5 complete". */
 export function momentText(moment) {
   const detail = moment?.detail ?? {};
   switch (moment?.kind) {

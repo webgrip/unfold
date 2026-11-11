@@ -1,4 +1,4 @@
-module forgejo.webgrip.dev/webgrip/unfold/unified-demo
+module github.com/unfold-hq/unfold/apps/unfold/scripts/unified-demo
 
 go 1.26.0
 

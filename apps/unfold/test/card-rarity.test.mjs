@@ -15,9 +15,9 @@ import { ploegDemo } from '../src/ploeg-demo.ts';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const h = { escape };
 const inputs = (extra = {}) => ({ reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], ...extra });
-const revealed = (extra = {}) => ({ formula: '2026.1', predicted: 'rare', revealed: 'epic', tier: 'epic', score: 74.2, percentile: 96.5, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 200 }, inputs: inputs(), revealedAt: '2026-10-01T12:00:00Z', ...extra });
-const predicted = (extra = {}) => ({ formula: '2026.1', predicted: 'rare', revealed: null, tier: 'rare', score: 67.4, percentile: null, cohort: { target: 'webgrip/unfold', quarter: '2026Q4', size: 12 }, inputs: inputs({ set: true }), revealedAt: null, ...extra });
-const card = (extra = {}) => ({ workItemId: '7', title: 'Rotate merchant keys', team: 'delivery', state: 'merged', target: { forge: 'forgejo', owner: 'webgrip', repo: 'unfold' }, style: { skin: 'unfold-native', theme: null }, plays: [{ number: 9, state: 'merged', mergedAt: '2026-09-30T10:00:00Z', additions: 200, deletions: 52, changedFiles: 6 }], totals: {}, events: [], release: { at: '2026-10-01T12:00:00Z', source: 'deploy', environment: 'production' }, ...extra });
+const revealed = (extra = {}) => ({ formula: '2026.1', predicted: 'rare', revealed: 'epic', tier: 'epic', score: 74.2, percentile: 96.5, cohort: { target: 'acme/unfold', quarter: '2026Q4', size: 200 }, inputs: inputs(), revealedAt: '2026-10-01T12:00:00Z', ...extra });
+const predicted = (extra = {}) => ({ formula: '2026.1', predicted: 'rare', revealed: null, tier: 'rare', score: 67.4, percentile: null, cohort: { target: 'acme/unfold', quarter: '2026Q4', size: 12 }, inputs: inputs({ set: true }), revealedAt: null, ...extra });
+const card = (extra = {}) => ({ workItemId: '7', title: 'Rotate merchant keys', team: 'delivery', state: 'merged', target: { forge: 'forgejo', owner: 'acme', repo: 'unfold' }, style: { skin: 'unfold-native', theme: null }, plays: [{ number: 9, state: 'merged', mergedAt: '2026-09-30T10:00:00Z', additions: 200, deletions: 52, changedFiles: 6 }], totals: {}, events: [], release: { at: '2026-10-01T12:00:00Z', source: 'deploy', environment: 'production' }, ...extra });
 const tab = view => view.tabs.find(entry => entry.id === 'rarity');
 const row = (view, label) => tab(view).rows.find(entry => entry.label === label);
 const now = Date.parse('2026-10-02T12:00:00Z');
@@ -49,7 +49,7 @@ test('a predicted rarity is a hint: its tier, a glow on the card, no reveal yet,
   assert.match(rarity.why, /^Predicted rare because it /);
   assert.match(rarity.why, /The merged change reveals its rarity at release\.$/);
   assert.deepEqual([row(view, 'Rarity').value, row(view, 'Predicted').value, row(view, 'Revealed').value, row(view, 'Revealed').status], ['Rare, predicted', 'Rare, before the merge', 'At release, from the merged change', 'unreported']);
-  assert.equal(row(view, 'Rank').value, 'Fixed thresholds: 12 cards in webgrip/unfold for 2026-Q4, fewer than 30');
+  assert.equal(row(view, 'Rank').value, 'Fixed thresholds: 12 cards in acme/unfold for 2026-Q4, fewer than 30');
   assert.equal(row(view, 'On the card').value, 'A silver glow until release');
   const parts = tab(view).groups[0].rows.map(entry => [entry.label, entry.value]);
   assert.deepEqual(parts.slice(0, 5), [
@@ -67,10 +67,10 @@ test('a revealed rarity shows its tier, score, rank in its cohort, formula and a
   const view = cardView(card({ rarity: revealed() }), { now });
   const rarity = view.rarity;
   assert.deepEqual([rarity.key, rarity.state, rarity.chip, rarity.change, rarity.scoreText, rarity.topText], ['epic', 'revealed', 'Epic', 'up', '74,2 of 100', '4%']);
-  assert.equal(rarity.rank, 'top 4% of webgrip/unfold in 2026-Q4');
-  assert.equal(rarity.text, 'Epic · top 4% of webgrip/unfold in 2026-Q4');
-  assert.equal(rarity.why, 'Epic because it reached 4 modules and broke new ground in 50% of its files: a challenge score of 74,2, in the top 4% of webgrip/unfold in 2026-Q4.');
-  assert.deepEqual([row(view, 'Challenge score').value, row(view, 'Rank').value, row(view, 'Formula').value, row(view, 'On the card').value], ['74,2 of 100', 'Top 4% of webgrip/unfold in 2026-Q4 · 200 cards', '2026.1', 'Gold frame, mythic orange set symbol']);
+  assert.equal(rarity.rank, 'top 4% of acme/unfold in 2026-Q4');
+  assert.equal(rarity.text, 'Epic · top 4% of acme/unfold in 2026-Q4');
+  assert.equal(rarity.why, 'Epic because it reached 4 modules and broke new ground in 50% of its files: a challenge score of 74,2, in the top 4% of acme/unfold in 2026-Q4.');
+  assert.deepEqual([row(view, 'Challenge score').value, row(view, 'Rank').value, row(view, 'Formula').value, row(view, 'On the card').value], ['74,2 of 100', 'Top 4% of acme/unfold in 2026-Q4 · 200 cards', '2026.1', 'Gold frame, mythic orange set symbol']);
   assert.match(row(view, 'Revealed').value, /^Epic · /);
   assert.equal(tab(view).lead, rarity.why, 'the back leads with the why line');
   assert.match(tab(view).note, /^Rarity is how exceptional the work was/);
@@ -135,7 +135,7 @@ test('the skin kit prints one escaped rarity mark and frame ring for every skin,
   assert.equal(rarityMark(cardView(card({ rarity: null }), { now }), h), '');
   assert.equal(rarityFrame(cardView(card({ rarity: null }), { now })), '');
   const mark = rarityMark(view, h);
-  assert.match(mark, /^<span class="uc-rarity" data-rarity="epic" data-state="revealed" title="Rarity: Epic, top 4% of webgrip\/unfold in 2026-Q4\./);
+  assert.match(mark, /^<span class="uc-rarity" data-rarity="epic" data-state="revealed" title="Rarity: Epic, top 4% of acme\/unfold in 2026-Q4\./);
   assert.match(mark, /<span class="uc-rarity-word" aria-hidden="true">Epic<\/span>/);
   assert.match(mark, /<span class="sr-only">Rarity: Epic/);
   assert.match(rarityMark(cardView(card({ rarity: predicted() }), { now }), h), /<small>Predicted<\/small> Rare/);

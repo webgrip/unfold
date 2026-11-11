@@ -6,14 +6,14 @@ import { insightCatalogue } from '../src/insight.ts';
 const origin = 'https://unfold.example';
 
 test('a followed link is named by what it leads to, and a link inside Unfold or to an unknown site is not recorded', () => {
-  assert.equal(linkOutTarget('https://forgejo.webgrip.dev/webgrip/unfold/pulls/249', origin), 'pr');
+  assert.equal(linkOutTarget('https://forgejo.example.org/acme/unfold/pulls/249', origin), 'pr');
   assert.equal(linkOutTarget('https://github.com/ploeg-hq/ploeg/pull/12/files', origin), 'pr');
   assert.equal(linkOutTarget('https://gitlab.example/group/app/-/merge_requests/7', origin), 'pr');
-  assert.equal(linkOutTarget('https://vikunja.webgrip.dev/tasks/1896', origin), 'tracker');
+  assert.equal(linkOutTarget('https://vikunja.example.org/tasks/1896', origin), 'tracker');
   assert.equal(linkOutTarget('https://app.clickup.com/t/86c1abc', origin), 'tracker');
-  assert.equal(linkOutTarget('https://forgejo.webgrip.dev/webgrip/unfold/issues/12', origin), 'tracker');
-  assert.equal(linkOutTarget('https://forgejo.webgrip.dev/webgrip/unfold/commit/0ae6ee51', origin), 'forge');
-  assert.equal(linkOutTarget('https://docs.webgrip.dev/unfold/', origin), 'docs');
+  assert.equal(linkOutTarget('https://forgejo.example.org/acme/unfold/issues/12', origin), 'tracker');
+  assert.equal(linkOutTarget('https://forgejo.example.org/acme/unfold/commit/0ae6ee51', origin), 'forge');
+  assert.equal(linkOutTarget('https://docs.example.org/unfold/', origin), 'docs');
   assert.equal(linkOutTarget('#work/12', origin), null);
   assert.equal(linkOutTarget(`${origin}/#now`, origin), null);
   assert.equal(linkOutTarget('https://grafana.example/d/abc', origin), null);

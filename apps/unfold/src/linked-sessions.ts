@@ -60,7 +60,7 @@ export type LinkedEventInput = {
   workItem: string; pullRequests: string[]; commit: { sha: string; subject: string; trailer: boolean } | null;
   mentions: LinkedMentions;
 };
-/** The tracker tasks (`VIK-2051`) and Work Items a prompt or commit message named, extracted on the person's machine. */
+/** The tracker tasks (`VIK-123`) and Work Items a prompt or commit message named, extracted on the person's machine. */
 export type LinkedMentions = { refs: { provider: string; externalId: string; ref: string }[]; workItems: string[] };
 /** An open Work Item as Unfold's Now read returns it, enough to match a pull request or a repository. */
 export type LinkedNowItem = { id: string; title: string; state: string; updatedAt: string; target: { owner: string; repo: string } | null; pullRequestUrl?: string; pullRequest?: { url: string } | null };
@@ -103,7 +103,7 @@ export function repositoryAddress(value: unknown): string {
   } catch { return ''; }
 }
 
-/** The tracker tasks a branch name refers to, such as `vik-2051` in `feat/vik-2051-login` or `agent/vik-2051`. */
+/** The tracker tasks a branch name refers to, such as `vik-123` in `feat/vik-123-login` or `agent/vik-123`. */
 export function branchReferences(branch: string): { provider: string; externalId: string; ref: string }[] {
   const found = new Map<string, { provider: string; externalId: string; ref: string }>();
   for (const match of branch.toLowerCase().matchAll(/(?:^|[^a-z0-9])([a-z]{2,10})-([1-9][0-9]{0,18})(?=$|[^0-9])/g)) {
@@ -113,7 +113,7 @@ export function branchReferences(branch: string): { provider: string; externalId
   return [...found.values()];
 }
 
-/** Tracker references such as `VIK-2051` a hook extracted, kept when their prefix names a known tracker. */
+/** Tracker references such as `VIK-123` a hook extracted, kept when their prefix names a known tracker. */
 export function trackerReferences(values: unknown): LinkedMentions['refs'] {
   const found = new Map<string, LinkedMentions['refs'][number]>();
   for (const value of Array.isArray(values) ? values.slice(0, 20) : []) {

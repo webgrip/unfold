@@ -14,7 +14,7 @@ export const readOnlyRefusal = 'Unfold decides a session\'s MCP servers from its
 
 const readOnlyActions = new Set(['session/customizationToggled', 'session/mcpServerStartRequested', 'session/mcpServerStopRequested', 'session/mcpServerBackgroundRequested']);
 
-const ploegKeyScope = 'Ploeg mints this session\'s gateway key and does not yet apply the repository\'s MCP access groups to it (VIK-1934), so the gateway alone decides which tools, if any, the agent gets.';
+const ploegKeyScope = 'Ploeg mints this session\'s gateway key and does not yet apply the repository\'s MCP access groups to it, so the gateway alone decides which tools, if any, the agent gets.';
 
 /** The facts that decide whether a session's agent is configured with the gateway's MCP server, for a started or a pending session. */
 export type GatewaySubject = { repositoryId: string; runtime: Session['runtime']; placement?: WorkspaceBackend; status?: Session['status']; execution?: Session['execution'] };

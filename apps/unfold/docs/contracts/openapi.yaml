@@ -43,7 +43,7 @@ info:
     identifier: Apache-2.0
 externalDocs:
   description: 'HTTP contract (prose)'
-  url: https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/contracts/api.md
+  url: https://github.com/unfold-hq/unfold/blob/development/apps/unfold/docs/contracts/api.md
 servers:
   - url: /
     description: 'The workbench that serves this document.'

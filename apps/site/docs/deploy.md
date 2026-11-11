@@ -31,12 +31,12 @@ Each Worker binds its own sign-up database: production `unfold-site-signups`, wh
 
 ## DNS
 
-The `unfoldhq.dev` zone's records live in [ops/dns/dnsconfig.js](../ops/dns/dnsconfig.js) as DNSControl config. twente.dev keeps its zone the same way; `webgrip/cloudflare` keeps only account-wide objects. `on_dns_change.yml` runs DNSControl in one job of its own, and only reads:
+The `unfoldhq.dev` zone's records live in [ops/dns/dnsconfig.js](../ops/dns/dnsconfig.js) as DNSControl config; account-wide objects live outside this repository. `on_dns_change.yml` runs DNSControl in one job of its own, and only reads:
 
 - A push to `development` that changes `apps/site/ops/dns/` previews the corrections. A manual run does the same.
 - Every day at 05:45 UTC it fails when the live zone differs from the config.
 
-CI never holds a token that can change DNS ([homelab-cluster ADR-0061](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0061-ci-reads-over-oidc-writes-from-the-cluster.md)). The job exchanges its Forgejo Actions OIDC token, through the `openbao-read` action from `webgrip/workflows`, for a ten-minute OpenBao token on the role `ci-unfold`. That role reads only `secret/cloudflare/dns/unfoldhq-dev-ro`: a Cloudflare token with Zone Read, DNS Read and Dynamic URL Redirects Read on `unfoldhq.dev` alone. The `cloudflare-dns-token-minter` CronJob in `webgrip/homelab-cluster` mints it, together with the matching write token at `secret/cloudflare/dns/unfoldhq-dev-rw`, and renews both before they expire.
+CI never holds a token that can change DNS. The job exchanges its Forgejo Actions OIDC token for a short-lived read from the owner's secret store, which holds only a Cloudflare token with Zone Read, DNS Read and Dynamic URL Redirects Read on `unfoldhq.dev` alone. A job in the owner's cluster mints it, together with the matching write token, and renews both before they expire.
 
 The `dns-reconciler` CronJob in `webgrip/homelab-cluster` applies the config every hour at minute 37. It clones `development`, previews with the zone's write token, and pushes only when there are corrections. It refuses a push that would create a zone. It also refuses any deletion unless the last commit touching `apps/site/ops/dns/` names the record in a `DNS-Allow-Delete: <name>` line; DNSControl names a record at the apex `unfoldhq.dev`. A refusal fails the Job, and the zone stays as it was.
 
@@ -56,17 +56,17 @@ The site train counts only commits under `apps/site`, so an Unfold change alone 
 
 ## Credentials
 
-The deploy uses the org-level Forgejo Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, the same ones twente.dev and webgrip.nl deploy with. Nobody adds them to this repository. Their source is OpenBao `secret/cloudflare/deploy`; the `forgejo-actions-secrets` bridge in `webgrip/homelab-cluster` publishes them hourly and fails loudly when Cloudflare rejects the token, and `cloudflare-token-roller` rotates it monthly.
+The deploy uses the org-level Forgejo Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, which other sites of the owner deploy with too. Nobody adds them to this repository. The owner's secret store is their source; a bridge in the owner's cluster publishes them hourly and fails loudly when Cloudflare rejects the token, and a roller rotates the token monthly.
 
 With no route, the token needs Account › Workers Scripts: Edit, Account › Account Settings: Read and Account › D1: Edit. The D1 permission is new with the sign-up form: the upload binds the Worker to the database by id. Cloudflare's own Workers token templates pair D1 with Edit; a narrower Read-only grant has not been tried. Reading the `workers.dev` subdomain is covered by the scripts permission. The routes need Zone › Workers Routes: Edit on the `unfoldhq.dev` zone as well. Without it, wrangler uploads the Worker and then fails to bind the route.
 
-When Cloudflare answers 401 the token itself is rejected, and a 403 on the route means it lacks Workers Routes on the zone: fix either in OpenBao, not in this repository.
+When Cloudflare answers 401 the token itself is rejected, and a 403 on the route means it lacks Workers Routes on the zone: fix either in the owner's secret store, not in this repository.
 
 ## The sign-up database
 
 The form writes to a D1 database bound as `SIGNUPS` ([ADR-0016](../../../docs/adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md)). A D1 jurisdiction can only be set when a database is created, so the owner creates it once by hand. Until its id is in `wrangler.toml`, `pnpm run build:release` stops the deploy with an instruction and the previous release stays live; local builds, `mise run verify` and pull request checks do not need it.
 
-1. From `apps/site`, with a token or `wrangler login` session that may create D1 databases on the Webgrip account, create the database in the EU jurisdiction:
+1. From `apps/site`, with a token or `wrangler login` session that may create D1 databases on the account that holds the zone, create the database in the EU jurisdiction:
 
    ```sh
    mise exec -- corepack pnpm exec wrangler d1 create unfold-site-signups --jurisdiction eu
@@ -75,7 +75,7 @@ The form writes to a D1 database bound as `SIGNUPS` ([ADR-0016](../../../docs/ad
    If wrangler offers to add the binding to `wrangler.toml`, decline: the binding is already there.
 
 2. Copy the `database_id` it prints into `wrangler.toml`, replacing `PASTE-THE-EU-D1-DATABASE-ID-HERE` under `[[d1_databases]]`. This is the only place the id lives. Commit it as `fix(site): set the sign-up database id`.
-3. Give the deploy token Account › D1: Edit. The token lives in OpenBao `secret/cloudflare/deploy` and `cloudflare-token-roller` in `webgrip/homelab-cluster` rotates it, so the permission is added there, not in this repository.
+3. Give the deploy token Account › D1: Edit. The token lives in the owner's secret store and a roller in the owner's cluster rotates it, so the permission is added there, not in this repository.
 4. Check the database: Cloudflare's dashboard lists it under Storage & databases › D1 with the EU jurisdiction. The table does not exist until the first sign-up; the Worker creates it.
 
 After the first deploy, sign up on `https://staging.unfoldhq.dev` and read it back:

@@ -20,7 +20,7 @@ Unfold runs managed work only through Ploeg ([ADR-0002](docs/adr/adr-0002-ploeg-
 You need [mise](https://mise.jdx.dev/). It installs every other tool at the pinned version.
 
 ```sh
-git clone https://forgejo.webgrip.dev/webgrip/unfold.git
+git clone https://github.com/unfold-hq/unfold.git
 cd unfold
 mise trust
 mise install
@@ -71,7 +71,7 @@ Before you change behavior that crosses Ploeg and Unfold, read [managed executio
 - The trunk is `development`. Use [Conventional Commits](https://www.conventionalcommits.org/).
 - Other sessions share this checkout. Stage only the paths you wrote, and never run `git add -A`, `git add .` or `git commit -a`.
 - Read the app's own `AGENTS.md` before you change that app, for example [apps/unfold/AGENTS.md](apps/unfold/AGENTS.md).
-- Production desired state lives in `webgrip/homelab-cluster`, not here.
+- Production desired state lives in the owner's cluster repository, not here.
 - Agents start from [AGENTS.md](AGENTS.md) and [llms.txt](llms.txt).
 
 ## Documentation

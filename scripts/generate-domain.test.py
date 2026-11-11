@@ -22,7 +22,7 @@ PLOEG = """project: Ploeg
 owner: ploeg
 references:
   - label: Unfold ADR-0002
-    path: https://github.com/webgrip/unfold/blob/0000000/docs/adr/adr-0002.md
+    path: https://github.com/acme/unfold/blob/0000000/docs/adr/adr-0002.md
     note: Ploeg is the only engine.
   - label: Ploeg ADR-0062
     path: https://github.com/ploeg-hq/ploeg/blob/main/docs/adrs/0062.md

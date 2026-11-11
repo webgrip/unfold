@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SELF = Path(__file__).resolve().relative_to(ROOT).as_posix()
-SCANNED = re.compile(r'^(?:\.forgejo/|scripts/|apps/[^/]+/(?:scripts|\.forgejo|ops)/|(?:apps/[^/]+/)?(?:mise\.toml|package\.json|Makefile))')
+SCANNED = re.compile(r'^(?:\.forgejo/|\.github/|scripts/|apps/[^/]+/(?:scripts|\.forgejo|ops)/|(?:apps/[^/]+/)?(?:mise\.toml|package\.json|Makefile))')
 PUSH = re.compile(r'\bpush\b')
 PRUNING = re.compile(r'--(?:prune|mirror|delete)\b|\s:refs/|["\']:refs/')
 
@@ -31,6 +31,9 @@ class NoAutomationDeletesOrRewritesReleaseRefs(unittest.TestCase):
 
     def test_nothing_pushes_release_channel_notes(self):
         self.assertEqual(offending_lines(lambda line: 'refs/notes' in line), [])
+
+    def test_the_github_workflows_and_actions_are_scanned(self):
+        self.assertTrue(any(name.startswith('.github/workflows/') for name in tracked()), 'the GitHub workflows are tracked and scanned')
 
 
 if __name__ == '__main__':

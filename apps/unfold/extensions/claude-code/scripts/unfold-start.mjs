@@ -15,7 +15,7 @@ export function workItemArgument(value) {
   return match ? match[1] : '';
 }
 
-/** The owner and name a git remote names, lower-cased: `webgrip/unfold` for `git@host:webgrip/unfold.git`. */
+/** The owner and name a git remote names, lower-cased: `acme/unfold` for `git@host:acme/unfold.git`. */
 export function remoteName(remote) {
   const path = String(remote ?? '').trim().replace(/^[a-z+]+:\/\/[^/]+\//i, '').replace(/^[^/:@]+@[^:]+:/, '').replace(/\.git$/, '').replace(/\/+$/, '');
   const parts = path.split('/').filter(Boolean);
