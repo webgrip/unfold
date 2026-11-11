@@ -98,7 +98,7 @@ helm template unfold ops/helm/unfold
 
 Releases, images, the chart and the extension ship from one Forgejo train; see [releases](docs/operations/release.md). Read [architecture](docs/architecture.md), [decisions](docs/adrs/README.md), the [HTTP contract](docs/contracts/api.md) and [source research](docs/research/conventions-and-alternatives.md). The [operator skill](skills/operate-agent-session/SKILL.md) is portable procedure; its [local contract](.agents/contracts/operate-agent-session.md) contains repository facts. Copying it does not install client hooks.
 
-The [Forgejo repository](https://forgejo.webgrip.dev/webgrip/unfold) is the source home. Release-specific walkthroughs and screenshots retain the version they actually demonstrate.
+The [Forgejo repository](https://github.com/unfold-hq/unfold) is the source home. Release-specific walkthroughs and screenshots retain the version they actually demonstrate.
 
 Trunk: `development`. License: [Apache-2.0](LICENSE).
 

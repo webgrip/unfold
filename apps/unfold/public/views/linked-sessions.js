@@ -27,9 +27,9 @@ export function setupSteps(origin) {
   return `<ol class="linked-setup-steps">
     <li><p>Sign in a client for Claude Code and copy the token it prints:</p><pre class="mono" data-private><code>UNFOLD_URL=${escape(origin)} npm --prefix apps/unfold run mcp -- login</code></pre></li>
     <li><p>Put the address and token in <code>~/.claude/settings.json</code>, beside the telemetry settings you already have:</p><pre class="mono" data-private><code>${escape(settings)}</code></pre></li>
-    <li><p>In Claude Code, add the Unfold marketplace and install the plugin:</p><pre class="mono" data-private><code>/plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+    <li><p>In Claude Code, add the Unfold marketplace and install the plugin:</p><pre class="mono" data-private><code>/plugin marketplace add https://github.com/unfold-hq/unfold.git
 /plugin install unfold@unfold</code></pre></li>
-    <li><p>Start a session. It appears below and links itself to the Work Item its branch names, such as <code>feat/vik-2051-login</code>. Ask it to link to another Work Item at any time.</p></li>
+    <li><p>Start a session. It appears below and links itself to the Work Item its branch names, such as <code>feat/vik-123-login</code>. Ask it to link to another Work Item at any time.</p></li>
   </ol>`;
 }
 

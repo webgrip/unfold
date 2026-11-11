@@ -3,7 +3,7 @@ type: reference
 audience: [owner, operator, integrator]
 owner: unfold
 last_verified: 2026-10-03
-verified_by: "VIK-1749: each row read against apps/ploeg/ops/helm/ploeg/values.yaml, templates/_helpers.tpl and deployment.yaml, ci/golden/executor.yaml, the named Go tests and package documentation, apps/unfold/docs/architecture.md, docs/contracts/ploeg-execution.md, src/main.ts and test/execution.test.ts, and ADR-0002's Confirmation; the named tests ran in mise run verify. LiteLLM's own budget enforcement was not tested here; nothing ran against a live cluster"
+verified_by: "Each row read against apps/ploeg/ops/helm/ploeg/values.yaml, templates/_helpers.tpl and deployment.yaml, ci/golden/executor.yaml, the named Go tests and package documentation, apps/unfold/docs/architecture.md, docs/contracts/ploeg-execution.md, src/main.ts and test/execution.test.ts, and ADR-0002's Confirmation; the named tests ran in mise run verify. LiteLLM's own budget enforcement was not tested here; nothing ran against a live cluster"
 ---
 
 # Capability matrix

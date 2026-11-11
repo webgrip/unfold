@@ -18,8 +18,8 @@ assert.equal(provider, 'vikunja', 'This qualification uses the bounded Vikunja H
 const taskId = process.env.PLOEG_QUALIFICATION_TASK_ID ?? '585';
 const scope = process.env.PLOEG_QUALIFICATION_SCOPE ?? '11';
 const team = process.env.PLOEG_QUALIFICATION_TEAM ?? 'delivery';
-const repositoryUrl = process.env.PLOEG_QUALIFICATION_REPOSITORY_URL ?? 'https://forge.example/webgrip/example.git';
-const target = { forge: process.env.PLOEG_QUALIFICATION_TARGET_FORGE ?? 'forgejo', owner: process.env.PLOEG_QUALIFICATION_TARGET_OWNER ?? 'webgrip', repo: process.env.PLOEG_QUALIFICATION_TARGET_REPO ?? 'example', baseBranch: process.env.PLOEG_QUALIFICATION_BASE_BRANCH ?? 'development' };
+const repositoryUrl = process.env.PLOEG_QUALIFICATION_REPOSITORY_URL ?? 'https://forge.example/acme/example.git';
+const target = { forge: process.env.PLOEG_QUALIFICATION_TARGET_FORGE ?? 'forgejo', owner: process.env.PLOEG_QUALIFICATION_TARGET_OWNER ?? 'acme', repo: process.env.PLOEG_QUALIFICATION_TARGET_REPO ?? 'example', baseBranch: process.env.PLOEG_QUALIFICATION_BASE_BRANCH ?? 'development' };
 const directory = await mkdtemp(join(tmpdir(), 'unfold-tracker-authority-'));
 let release!: () => void;
 const held = new Promise<void>(resolve => { release = resolve; });

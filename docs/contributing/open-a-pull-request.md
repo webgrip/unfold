@@ -9,7 +9,7 @@ verified_by: "AGit push options used for pull requests #223, #224 and #308 on fo
 # Open a pull request
 
 1. Run `mise run verify` (and `mise run docs-check` after a docs or `AGENTS.md` change) and keep the output for the description.
-2. Write the description from the [template](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/.forgejo/pull_request_template.md): what changed and why, the ticket, how you verified it, and the risk areas from the [review guide](review.md) that it touches.
+2. Write the description from the [template](https://github.com/unfold-hq/unfold/blob/development/.forgejo/pull_request_template.md): what changed and why, the ticket, how you verified it, and the risk areas from the [review guide](review.md) that it touches.
 3. Push. With a Forgejo account, push the branch and open the pull request in the web interface. Without a token, open it over SSH with AGit; push options cannot contain newlines, so the description goes base64-encoded:
 
     ```sh

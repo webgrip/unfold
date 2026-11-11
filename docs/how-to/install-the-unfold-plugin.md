@@ -44,7 +44,7 @@ Sign-in needs a client id when the identity provider supports neither Dynamic Cl
 ## Codex
 
 ```sh
-codex plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+codex plugin marketplace add https://github.com/unfold-hq/unfold.git
 codex plugin add unfold@unfold
 ```
 
@@ -61,7 +61,7 @@ Source: the `--url` and `--oauth-client-id` flags. Not run.
 ## GitHub Copilot CLI
 
 ```sh
-copilot plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+copilot plugin marketplace add https://github.com/unfold-hq/unfold.git
 copilot plugin install unfold@unfold
 ```
 
@@ -73,7 +73,7 @@ Add the marketplace to your user settings, then install **unfold** from the **Ag
 
 ```json
 "chat.plugins.enabled": true,
-"chat.plugins.marketplaces": ["https://forgejo.webgrip.dev/webgrip/unfold.git"]
+"chat.plugins.marketplaces": ["https://github.com/unfold-hq/unfold.git"]
 ```
 
 Source: VS Code accepts an HTTPS URL as a marketplace, with or without `.git`, and `#<ref>` after it pins a branch, tag or commit. It reads the same `.claude-plugin/marketplace.json`. Its Claude agent harness gets only remote MCP servers from an Agent Plugins package, not the skills.
@@ -83,7 +83,7 @@ Source: VS Code accepts an HTTPS URL as a marketplace, with or without `.git`, a
 VS Code 1.144 opens `vscode://chat-plugin/install?source=<marketplace>&plugin=<name>`. Put it behind a button on your own page:
 
 ```html
-<a href="vscode://chat-plugin/install?source=https%3A%2F%2Fforgejo.webgrip.dev%2Fwebgrip%2Funfold.git&plugin=unfold">Install the Unfold plugin in VS Code</a>
+<a href="vscode://chat-plugin/install?source=https%3A%2F%2Fgithub.com%2Funfold-hq%2Funfold.git&plugin=unfold">Install the Unfold plugin in VS Code</a>
 ```
 
 Source:
@@ -100,7 +100,7 @@ Not checked: whether the Copilot agent host clones a non-GitHub URL from a link.
 Cursor imports team marketplaces from GitHub, GitLab, Bitbucket and Azure DevOps only (Docs), so copy the plugin in:
 
 ```sh
-git clone https://forgejo.webgrip.dev/webgrip/unfold.git
+git clone https://github.com/unfold-hq/unfold.git
 mkdir -p ~/.cursor/plugins/local
 cp -R unfold/apps/unfold/extensions/claude-code ~/.cursor/plugins/local/unfold
 ```

@@ -9,7 +9,7 @@ When Unfold knows this session, its start-up context holds a line beginning "Unf
 
 Without that line, for example in GitHub Copilot, Cursor or VS Code chat, Unfold does not know this session: find the Work Item as in step 1, give the person its link, and say that only sessions that report to Unfold (Claude Code with this plugin, Codex or OpenCode with Unfold's reporter) can be linked.
 
-1. Find the Work Item id. An Unfold link ends in `#work/<id>`. For a tracker ticket such as `VIK-2051`, call `unfold_find_work` or `unfold_now` and pick the Work Item whose tracker is `vikunja:2051`. Ask the person when more than one matches.
+1. Find the Work Item id. An Unfold link ends in `#work/<id>`. For a tracker ticket such as `VIK-123`, call `unfold_find_work` or `unfold_now` and pick the Work Item whose tracker is `vikunja:123`. Ask the person when more than one matches.
 2. Call `unfold_link_session` with `session_id` and `id`. To undo a link, call it with `unlink: true`; the branch name will not link that Work Item again.
 3. Say which Work Item the session is now linked to, with the link the tool returned.
 

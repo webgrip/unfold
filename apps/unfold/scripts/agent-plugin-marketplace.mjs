@@ -9,7 +9,7 @@ const pluginSchema = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
 const mcpSchema = 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json';
 const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-export const defaultRepository = 'https://forgejo.webgrip.dev/webgrip/unfold.git';
+export const defaultRepository = 'https://github.com/unfold-hq/unfold.git';
 export const connectionPlugin = 'unfold-mcp';
 export const defaultClientId = 'unfold-mcp';
 

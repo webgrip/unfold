@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-29
-verified_by: "Kit in apps/unfold/ops/cluster/sandbox-runtimes run on kind 0.33.0 (Kubernetes 1.37.0, containerd 2.3.4) with gVisor release-20261005.0: gVisor smoke Job, admission dry runs and the bench. Talos patches validated with talosctl 1.13.4; Image Factory extension list for Talos 1.13.4 and 1.14.0 read on 2026-10-24; Kata handler and configuration read from a homelab Talos 1.13.10 worker with talosctl. Chart values read from apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and from Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) on 2026-10-29. Not run here: Kata outside the homelab, gVisor on Talos, k3s, GKE and AKS."
+verified_by: "Kit in apps/unfold/ops/cluster/sandbox-runtimes run on kind 0.33.0 (Kubernetes 1.37.0, containerd 2.3.4) with gVisor release-20261005.0: gVisor smoke Job, admission dry runs and the bench. Talos patches validated with talosctl 1.13.4; Image Factory extension list for Talos 1.13.4 and 1.14.0 read on 2026-10-24; Kata handler and configuration read from a staging Talos 1.13.10 worker with talosctl. Chart values read from apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and from Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) on 2026-10-29. Not run here: Kata outside the owner's staging cluster, gVisor on Talos, k3s, GKE and AKS."
 ---
 
 # Run agent code in a sandbox runtime
