@@ -3,7 +3,7 @@ type: how-to
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-11
-verified_by: "AGit push options used for pull requests #223, #224 and #308 on forgejo.webgrip.dev; the re-push behaviour observed on #206."
+verified_by: "AGit push options used for pull requests #223, #224 and #308 on the previous forge; the re-push behaviour observed on #206."
 ---
 
 # Open a pull request

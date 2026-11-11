@@ -48,7 +48,7 @@ codex plugin marketplace add https://github.com/unfold-hq/unfold.git
 codex plugin add unfold@unfold
 ```
 
-Source: Codex accepts any HTTPS git URL as a marketplace, reads `.claude-plugin/marketplace.json` when the repository has no `.agents/plugins/marketplace.json`, and takes the root `plugin.json` over `.claude-plugin/plugin.json`. Codex was not run against forgejo.webgrip.dev.
+Source: Codex accepts any HTTPS git URL as a marketplace, reads `.claude-plugin/marketplace.json` when the repository has no `.agents/plugins/marketplace.json`, and takes the root `plugin.json` over `.claude-plugin/plugin.json`. Codex was not run against the repository's forge.
 
 For the MCP tools without an operator marketplace:
 

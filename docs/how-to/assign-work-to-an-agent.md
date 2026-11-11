@@ -23,7 +23,7 @@ Terms: a **Work Item** is Ploeg's copy of your ticket. A **Team** is a named ros
      vikunja:
        projects:
          - name: "Ploeg Test"   # resolved to an id when ploegd starts
-           repo: webgrip/ploeg
+           repo: acme/ploeg
            branch: development  # pin it; unset means the repo default
    teams:
      bronze:
