@@ -83,14 +83,14 @@ That leaves three options for Open VSX:
 
 | Option | Cost | Verdict |
 | --- | --- | --- |
-| Keep a token, scoped to the namespace and rotated | One secret to rotate every 90 days | **Chosen** |
+| Keep a token, scoped to the namespace and rotated | One secret to rotate every 90 days | **Chosen** until the move to GitHub; from then on GitHub Actions publishes with `--trusted-publishing` ([ADR-0055](../../../../docs/adr/adr-0055-github-unfold-hq-is-the-project-home.md), proposed until the cutover) |
 | Mirror-publish from a GitHub Actions workflow on `github.com/webgrip/unfold` | A second publisher, with GitHub Actions turned back on for the mirror, and the VSIX and its signature carried across | Rejected: Forgejo stays the only publisher |
 | Wait for GitLab or generic OIDC support on open-vsx.org | Nothing now | Revisit when open-vsx.org enables a provider Forgejo can act as |
 
-`OVSX_PAT` belongs to the Open VSX account that owns the `webgrip` namespace and is used only for that namespace. Rotate it every 90 days, and right away if it may have leaked:
+`OVSX_PAT` belongs to the Open VSX account that owns the extension's namespace and is used only for it. The namespace is the `publisher` in the [extension manifest](../../extensions/vscode/package.json): `unfold-hq` since [ADR-0055](../../../../docs/adr/adr-0055-github-unfold-hq-is-the-project-home.md), so the account must own `unfold-hq` before the next Forgejo release, which publishes `unfold-hq.unfold` for the first time. Earlier versions stay under `webgrip.unfold`. Rotate it every 90 days, and right away if it may have leaked:
 
-1. Sign in at [open-vsx.org](https://open-vsx.org/user-settings/tokens) as the owner of the `webgrip` namespace and create a token whose description names the date, for example `unfold-release-2026-10-30`.
-2. Check it before storing it: `npx ovsx verify-pat webgrip -p <token>`.
+1. Sign in at [open-vsx.org](https://open-vsx.org/user-settings/tokens) as the owner of the `unfold-hq` namespace and create a token whose description names the date, for example `unfold-release-2026-10-30`.
+2. Check it before storing it: `npx ovsx verify-pat unfold-hq -p <token>`.
 3. Replace the value in OpenBao at the path the estate's [Actions secret configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app) bridges to the `OVSX_PAT` repository secret, and wait for the bridge to publish it.
 4. Run the [release preview](../../../../.forgejo/workflows/on_release_preview.yml). Its preflight fails without `OVSX_PAT`; the next release's Open VSX step proves that the token publishes.
 5. Delete the old token in the same Open VSX settings page.
