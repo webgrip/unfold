@@ -1,0 +1,103 @@
+name: '[Workflow] On Schedule'
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: schedule-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  external-links:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install: false
+          cache: false
+      - run: python3 scripts/ploeg-contract.py fetch
+      - name: Report broken external links in current docs
+        continue-on-error: true
+        run: mise run docs-links-external
+
+  tutorial-smoke:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/tutorial-smoke
+
+  ploeg-ahead:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        ploeg: [newest-release, development]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the contract bundle of Ploeg's newest release, or build one from its development head
+        env:
+          PLOEG: ${{ matrix.ploeg }}
+        run: |
+          set -eu
+          if [ "$PLOEG" = development ]; then
+            clone="${RUNNER_TEMP:-/tmp}/ploeg-development"
+            git clone --quiet --depth 1 --no-tags --branch development https://github.com/ploeg-hq/ploeg.git "$clone"
+            oras_version=$(sed -n 's/^oras = "\(.*\)"$/\1/p' "$clone/mise.toml")
+            CONTRACT_BUNDLE_OUTPUT="$clone/.bundle" mise exec "oras@${oras_version:?the mise.toml of Ploeg pins no oras}" -- bash "$clone/scripts/contract-bundle.sh" build v0.0.0-rc.1 "$clone"
+            mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned 0.0.0-rc.1 --archive "$clone/.bundle/ploeg-contract-0.0.0-rc.1.tar.gz"
+            echo "Checking Unfold's docs against Ploeg's development head $(git -C "$clone" rev-parse HEAD), labelled 0.0.0-rc.1"
+          else
+            mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned latest
+          fi
+      - name: Regenerate the Ploeg-derived pages as Renovate would, then fail on what it cannot fix
+        env:
+          UNFOLD_PLOEG_CONTRACT_UNPINNED: 'true'
+        run: |
+          mise exec uv -- sh scripts/renovate-ploeg-docs.sh
+          mise exec uv -- uv run --frozen python scripts/docs.py --domain-check --without-landscape
+          mise exec uv -- uv run --frozen python scripts/docs.py --stage-only
+
+  release-notes:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch imported release metadata
+        run: git fetch origin '+refs/notes/*:refs/notes/*'
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Fail when GitHub no longer holds every imported release note
+        env:
+          UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
+        run: mise exec uv -- uv run --frozen python scripts/verify-import.py

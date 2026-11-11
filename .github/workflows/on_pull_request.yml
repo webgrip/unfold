@@ -1,0 +1,219 @@
+name: '[Workflow] On Pull Request'
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          except: unfold
+
+  checks-unfold:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      warnings: ${{ steps.verify.outputs.warnings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          only: unfold
+          setup: setup-unfold
+
+  warnings:
+    needs: [checks, checks-unfold]
+    if: github.repository == 'unfold-hq/unfold' && always() && needs.checks.result != 'skipped' && needs.checks.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail when setup or verification printed a warning
+        env:
+          CHECKS: ${{ needs.checks.outputs.warnings }}
+          UNFOLD: ${{ needs.checks-unfold.outputs.warnings }}
+        run: |
+          REPORT=$(printf '%s\n%s\n' "$CHECKS" "$UNFOLD" | sed '/^$/d')
+          if [ -z "$REPORT" ]; then
+            echo "No warnings in setup and verification output."
+            exit 0
+          fi
+          echo "Setup or verification printed warnings. Fix them, or accept one with a reason in scripts/ci-warnings-allow.json:"
+          printf '%s\n' "$REPORT"
+          exit 1
+
+  agent-trace:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Read the Agent Trace notes from origin, read-only
+        run: git fetch --no-tags origin 'refs/notes/agent-trace:refs/notes/agent-trace' || echo "origin holds no Agent Trace notes."
+      - name: Summarise which lines agents wrote, without blocking the pull request
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mise exec node -- node apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs --base "${BASE:-origin/development}" --head "${HEAD_SHA:-HEAD}" > agent-trace.md || echo "The Agent Trace report did not run." > agent-trace.md
+          cat agent-trace.md
+          cat agent-trace.md >> "$GITHUB_STEP_SUMMARY" || true
+
+  agents-check:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MISE_AUTO_INSTALL: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Check the agent files against the agent standard, without blocking
+        continue-on-error: true
+        run: mise run agents-check
+
+  opencode-contract:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MISE_AUTO_INSTALL: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - run: mise trust apps/unfold/mise.toml
+      - run: mise -C apps/unfold exec -- npm ci
+      - run: mise -C apps/unfold run opencode-contract
+        env:
+          UNFOLD_TEST_TIMEOUT_SCALE: '2'
+
+  build-contexts:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-contexts
+        with:
+          dhi-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dhi-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          skip-without-credentials: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+
+  ploeg-pin:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
+      - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
+
+  ploeg-docs:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
+      - name: Require the glossary and decision register to match the pinned Ploeg's domain model and ADRs
+        run: mise exec uv -- uv run --frozen python scripts/docs.py --domain-check
+      - name: Require every documentation link into the pinned Ploeg to resolve
+        run: mise exec uv -- uv run --frozen python scripts/docs.py --stage-only
+
+  release-policy:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Install the release toolchain from its lockfile
+        run: mise exec node -- npm ci --prefix scripts/release-config --omit=dev --ignore-scripts --no-audit --no-fund
+      - uses: ./.github/actions/release-policy
+
+  gate:
+    needs: [checks, checks-unfold, build-contexts, agents-check, opencode-contract, ploeg-pin, ploeg-docs, release-policy]
+    if: github.repository == 'unfold-hq/unfold' && always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every job this gate waits for to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          results=$(printf '%s' "$NEEDS" | grep -oE '"result": ?"[a-z]+"' | sed -E 's/.*"([a-z]+)"$/\1/' || true)
+          printf '%s\n' "$NEEDS"
+          if grep -vqx success <<< "$results"; then
+            echo "A job the gate waits for did not succeed, or the gate read no results."
+            exit 1
+          fi
+          echo "Every job the gate waits for succeeded."

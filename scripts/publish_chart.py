@@ -8,30 +8,30 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from publish_release import publishable_tag
-from release_registry import Registry, command, digest, require_same, sign_once
+from publish_release import HOME_NAMESPACE, HOME_REGISTRY, publishable_tag
+from release_registry import Registry, command, digest, require_same, sign_keyless_once, sign_once
 
 IMAGE_DIGESTS = {'unfold': 'UNFOLD_IMAGE_DIGEST', 'unfold-agent': 'UNFOLD_AGENT_IMAGE_DIGEST'}
-WORKSPACE_REPOSITORY = 'ghcr.io/webgrip/unfold-agent'
 DIGEST = re.compile(r'^sha256:[0-9a-f]{64}$')
 RELEASED_IMAGE_BLOCKS = {'image': 'unfold', 'workspaceAgentImage': 'unfold-agent'}
 
 
-def released_digests(registry, version, environ=os.environ):
+def released_digests(registry, version, environ=os.environ, namespace='webgrip'):
     digests = {}
     for name, variable in IMAGE_DIGESTS.items():
         value = environ.get(variable, '')
         if not DIGEST.match(value):
-            raise RuntimeError(f'{variable} must be the pushed digest of webgrip/{name}:{version}, got {value!r}; the chart is published only after every image of the release')
-        require_same(digest(registry.manifest(f'webgrip/{name}', version)), value, f'{registry.host}/webgrip/{name}:{version}')
+            raise RuntimeError(f'{variable} must be the pushed digest of {namespace}/{name}:{version}, got {value!r}; the chart is published only after every image of the release')
+        require_same(digest(registry.manifest(f'{namespace}/{name}', version)), value, f'{registry.host}/{namespace}/{name}:{version}')
         digests[name] = value
     return digests
 
 
-def release_values(values, version, digests):
+def release_values(values, version, digests, registry=None):
     for key, name in RELEASED_IMAGE_BLOCKS.items():
-        block = re.compile(rf'^({key}:\n  repository: \S+\n)  tag: ""\n  digest: ""\n', re.M)
-        values, stamped = block.subn(rf'\g<1>  tag: "{version}"\n  digest: "{digests[name]}"\n', values)
+        block = re.compile(rf'^({key}:\n)  repository: (\S+)\n  tag: ""\n  digest: ""\n', re.M)
+        repository = (lambda match: f'{registry}/{name}') if registry else (lambda match: match[2])
+        values, stamped = block.subn(lambda match: f'{match[1]}  repository: {repository(match)}\n  tag: "{version}"\n  digest: "{digests[name]}"\n', values)
         if stamped != 1:
             raise RuntimeError(f'values.yaml must hold one {key} block with an empty tag and digest for the release to fill')
     if not re.search(r'^workspaceImage: ""$', values, re.M):
@@ -52,8 +52,8 @@ def locked_ploeg(chart_directory):
     return match[1]
 
 
-def require_complete(archive_path, archive, version, digests, ploeg):
-    expected = {f'ghcr.io/webgrip/unfold@{digests["unfold"]}', f'{WORKSPACE_REPOSITORY}:{version}@{digests["unfold-agent"]}'}
+def require_complete(archive_path, archive, version, digests, ploeg, images='ghcr.io/webgrip'):
+    expected = {f'{images}/unfold@{digests["unfold"]}', f'{images}/unfold-agent:{version}@{digests["unfold-agent"]}'}
     images = rendered_images(archive_path)
     unpinned = [image for image in images if '@sha256:' not in image]
     if unpinned or not expected <= set(images):
@@ -84,23 +84,28 @@ def publish(application, version):
     chart = 'unfold'
     path = f'apps/{application}/ops/helm/{chart}'
     metadata = release_metadata(command('helm', 'show', 'chart', path), version)
-    registry = Registry('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN'])
-    digests = released_digests(registry, version)
-    repository = f'webgrip/charts/{chart}'
+    if os.environ.get('UNFOLD_RELEASE_HOME') == 'github':
+        registry = Registry(HOME_REGISTRY, os.environ['GITHUB_ACTOR'], os.environ['GITHUB_TOKEN'])
+        namespace, images = HOME_NAMESPACE, f'{HOME_REGISTRY}/{HOME_NAMESPACE}'
+    else:
+        registry = Registry('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN'])
+        namespace, images = 'webgrip', None
+    digests = released_digests(registry, version, namespace=namespace)
+    repository = f'{namespace}/charts/{chart}'
     existing = registry.manifest(repository, version, missing=True)
     with tempfile.TemporaryDirectory() as directory:
         staged = Path(directory) / 'source' / chart
         shutil.copytree(path, staged, ignore=shutil.ignore_patterns('charts'))
         values = staged / 'values.yaml'
-        values.write_text(release_values(values.read_text(), version, digests))
+        values.write_text(release_values(values.read_text(), version, digests, images))
         command('helm', 'dependency', 'build', str(staged))
         packaged = str(package_release_chart(staged, directory, version))
         archive = Path(packaged).read_bytes()
         shown = command('helm', 'show', 'chart', packaged)
         require_same(shown, metadata, 'packaged chart metadata')
-        require_complete(packaged, archive, version, digests, locked_ploeg(staged))
+        require_complete(packaged, archive, version, digests, locked_ploeg(staged), images or 'ghcr.io/webgrip')
         if existing is None:
-            command('helm', 'push', packaged, 'oci://harbor.webgrip.dev/webgrip/charts')
+            command('helm', 'push', packaged, f'oci://{registry.host}/{namespace}/charts')
     published_manifest = registry.manifest(repository, version)
     manifest = json.loads(published_manifest)
     config = json.loads(registry.blob(repository, manifest['config']['digest']))
@@ -110,7 +115,8 @@ def publish(application, version):
     published = registry.blob(repository, layer['digest'])
     require_same(chart_files(published), chart_files(archive), 'published chart contents')
     reference = f'{registry.host}/{repository}@{digest(published_manifest)}'
-    print(f'{"Signed" if sign_once(reference) else "Kept the existing signature of"} {reference}')
+    signed = sign_keyless_once(reference) if images else sign_once(reference)
+    print(f'{"Signed" if signed else "Kept the existing signature of"} {reference}')
     print(f'Published {repository}:{version} with {", ".join(f"{name}@{value}" for name, value in digests.items())}')
 
 
