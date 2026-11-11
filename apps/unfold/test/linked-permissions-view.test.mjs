@@ -7,7 +7,7 @@ import { fleetScenarios } from '../public/live/fleet-fixtures.js';
 
 const now = Date.parse('2026-10-24T10:00:00.000Z');
 const ago = minutes => new Date(now - minutes * 60_000).toISOString();
-const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, title: `Session ${id}`, repository: 'https://forgejo.example.org/webgrip/unfold.git', branch: `feat/${id}`, state: 'waiting', waitingFor: 'permission_prompt', remoteUrl: '', startedAt: ago(60), lastSeenAt: ago(2), workItems: [], commits: [], aiLines: 0, resume: `claude --resume ${id}`, ...fields });
+const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, title: `Session ${id}`, repository: 'https://forgejo.example.org/acme/unfold.git', branch: `feat/${id}`, state: 'waiting', waitingFor: 'permission_prompt', remoteUrl: '', startedAt: ago(60), lastSeenAt: ago(2), workItems: [], commits: [], aiLines: 0, resume: `claude --resume ${id}`, ...fields });
 const prompt = (fields = {}) => ({ id: '7d1f0c2a-3b4c-4d5e-8f60-718293a4b5c6', sessionId: 'aaaaaaaa1', tool: 'Bash', summary: 'Remove <b>node_modules</b>', detail: 'Runs rm', createdAt: ago(1), expiresAt: new Date(now + 90_000).toISOString(), state: 'pending', ...fields });
 
 test('a waiting prompt shows its tool and the agent’s summary as text, how long it still waits here, and Approve and Deny', () => {

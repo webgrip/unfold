@@ -25,7 +25,7 @@ test('an error leaves as one envelope with its stack, tags, level, release and e
   const net = tracker();
   const lines: string[] = [];
   const reports = new ErrorReporter({ sentryDsn: dsn, environment: 'staging' }, [], { fetch: net.fetcher, log: (line: string) => lines.push(line) });
-  reports.capture(new TypeError('boom'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'timeout', empty: '' }, fingerprint: ['ask', 'timeout'], extra: { askId: 'a1' }, user: 'ryan@webgrip.nl' });
+  reports.capture(new TypeError('boom'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'timeout', empty: '' }, fingerprint: ['ask', 'timeout'], extra: { askId: 'a1' }, user: 'owner@example.org' });
   await reports.flush();
   assert.equal(net.sent.length, 1);
   const [head, item, event] = net.sent[0].lines;
@@ -41,7 +41,7 @@ test('an error leaves as one envelope with its stack, tags, level, release and e
   assert.deepEqual(event.fingerprint, ['ask', 'timeout']);
   assert.deepEqual(event.extra, { askId: 'a1' });
   assert.match(event.user.id, /^[0-9a-f]{16}$/, 'the user id is hashed');
-  assert.doesNotMatch(JSON.stringify(net.sent[0].lines), /ryan@webgrip\.nl/);
+  assert.doesNotMatch(JSON.stringify(net.sent[0].lines), /owner@example\.org/);
   assert.equal(event.exception.values[0].type, 'TypeError');
   assert.equal(event.exception.values[0].value, 'boom');
   assert.ok(event.exception.values[0].stacktrace.frames.length > 0);
@@ -122,7 +122,7 @@ test('an OpenTelemetry collector gets one log record with the exception attribut
   const fetcher = (async (url: string, init: RequestInit) => { sent.push({ url, body: JSON.parse(String(init.body)) }); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
   const reports = new ErrorReporter({ otlpUrl: 'http://alloy.test:4318/v1/logs', environment: 'staging' }, ['ploeg-operator-token'], { fetch: fetcher, log: () => {} });
   assert.deepEqual(reports.destinations, ['otlp']);
-  reports.capture(new RangeError('bad ploeg-operator-token'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'cut_off' }, fingerprint: ['ask', 'cut_off'], user: 'ryan@webgrip.nl', extra: { askId: 'a1' } });
+  reports.capture(new RangeError('bad ploeg-operator-token'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'cut_off' }, fingerprint: ['ask', 'cut_off'], user: 'owner@example.org', extra: { askId: 'a1' } });
   await reports.flush();
   assert.equal(sent[0].url, 'http://alloy.test:4318/v1/logs');
   const [resourceLogs] = sent[0].body.resourceLogs;
@@ -137,7 +137,7 @@ test('an OpenTelemetry collector gets one log record with the exception attribut
   assert.match(attributes['exception.stacktrace'], /^RangeError: bad \[redacted\]\n\s+at /);
   assert.deepEqual([attributes['unfold.feature'], attributes['unfold.ask_failure'], attributes['unfold.fingerprint'], attributes['unfold.extra']], ['ask', 'cut_off', 'ask cut_off', '{"askId":"a1"}']);
   assert.match(attributes['unfold.user_hash'], /^[0-9a-f]{16}$/);
-  assert.doesNotMatch(JSON.stringify(sent[0].body), /ryan@webgrip|ploeg-operator-token/);
+  assert.doesNotMatch(JSON.stringify(sent[0].body), /owner@example|ploeg-operator-token/);
   assert.match(record.timeUnixNano, /^\d{19}$/);
 });
 

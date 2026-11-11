@@ -92,7 +92,7 @@ test('the browser flows run every night and on command, never on a push, in the 
   assert.match(job.container.image, new RegExp(`^harbor\\.webgrip\\.dev/mcr/playwright:v${playwright.replace(/\./g, '\\.')}-noble@sha256:[0-9a-f]{64}$`), 'the image carries the Chromium build that Unfold\'s playwright package expects');
 });
 
-test('unfold-mcp\'s end-to-end suite runs every night and on command against an Authentik of the homelab\'s version', () => {
+test('unfold-mcp\'s end-to-end suite runs every night and on command against an Authentik of the cluster\'s version', () => {
   const job = workflows['on_nightly.yml'].jobs['mcp-e2e'];
   assert.equal(job.container.image, workflows['on_nightly.yml'].jobs['browser-suite'].container.image, 'the same Playwright image as the browser flows');
   assert.ok(job.steps.some(step => step.uses === './.forgejo/actions/mcp-e2e'));
@@ -793,7 +793,7 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
         assert.match(job.uses, /^webgrip\/workflows\/\.forgejo\/workflows\/[a-z-]+\.yml@(?:v\d+\.\d+\.\d+|[a-f0-9]{40})$/);
         assert.equal(typeof job.with.enabled, 'string');
       } else {
-        assert.ok(['docker', 'unfold-ci'].includes(job['runs-on']), `${file}: ${name} runs on the homelab or the unfold-ci pool`);
+        assert.ok(['docker', 'unfold-ci'].includes(job['runs-on']), `${file}: ${name} runs on the cluster or the unfold-ci pool`);
         if (job['runs-on'] === 'unfold-ci') {
           const secrets = [...JSON.stringify(job).matchAll(/secrets\.([A-Z_]+)/g)].map(match => match[1]);
           const allowed = file === 'on_release_train.yml' && name === 'merge-pin' ? ['PLOEG_RELEASE_TOKEN'] : [];
@@ -896,7 +896,7 @@ test('every pnpm lockfile records the pnpm its package.json names, which a froze
   }
 });
 
-test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, through a command the homelab allows', () => {
+test('Renovate refreshes the lockfile\'s pnpm record with the pnpm it moves to, through a command the cluster allows', () => {
   const rules = renovateConfig().packageRules.filter(rule => rule.postUpgradeTasks && (rule.matchDepNames ?? []).includes('pnpm'));
   assert.equal(rules.length, 1);
   const [rule] = rules;
