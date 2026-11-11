@@ -1,0 +1,104 @@
+name: '[Workflow] On Docs Change'
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - 'docs/**'
+      - 'apps/*/docs/**'
+      - 'apps/unfold/ploeg-release.json'
+      - 'scripts/ploeg-contract.py'
+      - '**/README.md'
+      - '**/AGENTS.md'
+      - 'llms.txt'
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'mise.toml'
+      - 'ops/docs/**'
+      - 'scripts/docs*'
+      - 'scripts/tutorial-smoke.*'
+      - 'scripts/generate-domain.py'
+      - 'scripts/validate_adr_consistency.py'
+      - '.github/workflows/on_docs_change.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and scan the documentation site
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: python3 scripts/ploeg-contract.py fetch
+      - name: Check the sources, then build with Zensical, validate the output and index it with Pagefind
+        run: uv run --frozen python scripts/docs.py --check
+      - name: Scan the built site for secrets
+        run: >-
+          docker run --rm --network none
+          -v "$PWD/.build/site:/site:ro"
+          -v "$PWD/scripts/docs-gitleaks.toml:/docs-gitleaks.toml:ro"
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          dir /site --config /docs-gitleaks.toml --no-banner --redact
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-site
+          path: |
+            .build/site
+            .build/docs
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to staging, then production
+    needs: build
+    if: github.repository == 'unfold-hq/unfold' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv node
+          cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-site
+          path: .build
+      - name: Install the site's locked wrangler
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+        run: corepack pnpm --dir apps/site install --frozen-lockfile
+      - name: Deploy the staging Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: corepack pnpm --dir apps/site exec wrangler deploy --config ../../ops/docs/wrangler.toml --env staging
+      - name: Verify the staging pages, Markdown, revision and search
+        run: uv run --frozen python scripts/docs-live.py --base https://docs.staging.unfoldhq.dev/
+      - name: Deploy the production Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: corepack pnpm --dir apps/site exec wrangler deploy --config ../../ops/docs/wrangler.toml
+      - name: Verify the production pages, Markdown, revision and search
+        run: uv run --frozen python scripts/docs-live.py
