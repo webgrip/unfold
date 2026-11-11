@@ -4815,11 +4815,11 @@ standards:
   status: stable
   latest:
     version: no spec version; OpenAI says 'Chat Completions remains supported, Responses is recommended for all new projects';
-      openai-python v3.45.0
+      the API changelog is its changelog
     date: '2026-11-04'
     url: https://developers.openai.com/api/docs/guides/migrate-to-responses
   watch:
-  - {kind: github-releases, ref: openai/openai-python, current: "v3.45.0"}
+  - {kind: changelog-page, ref: "https://developers.openai.com/api/docs/changelog.md"}
   adoption:
   - Anthropic compat layer, labelled 'not considered a long-term or production-ready solution'; strict ignored, n must be
     1, no prompt caching (https://platform.claude.com/docs/en/api/openai-sdk)
@@ -4883,11 +4883,11 @@ standards:
   governance: single-vendor
   status: stable
   latest:
-    version: no spec version; anthropic-sdk-python v2.4.0
+    version: no spec version; the API release notes are its changelog
     date: '2026-11-02'
     url: https://code.claude.com/docs/en/llm-gateway-protocol
   watch:
-  - {kind: github-releases, ref: anthropics/anthropic-sdk-python, current: "v2.4.0"}
+  - {kind: changelog-page, ref: "https://platform.claude.com/docs/en/release-notes/overview.md"}
   adoption:
   - LiteLLM /v1/messages for all providers (https://docs.litellm.ai/docs/anthropic_unified)
   - vLLM /v1/messages and /v1/messages/count_tokens (https://docs.vllm.ai/en/latest/serving/online_serving/)
