@@ -46,7 +46,7 @@ jobs:
           printf 'enabled=%s\n' "$enabled" >> "$GITHUB_OUTPUT"
           printf 'Documentation publication enabled: %s\n' "$enabled"
   generate-documentation:
-    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v4.1.1
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v4.2.0
     with:
       enabled: 'true'
       source-dir: '.'
@@ -54,7 +54,7 @@ jobs:
       finalize-command: python3 scripts/docs-output.py --site techdocs-site
   deploy-docs-site:
     needs: [generate-documentation, authorize-publication]
-    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v4.1.1
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v4.2.0
     with:
       enabled: ${{ needs.authorize-publication.outputs.enabled }}
       source-dir: '.'
@@ -72,7 +72,7 @@ jobs:
     if: ${{ needs.authorize-publication.outputs.enabled == 'true' }}
     runs-on: docker
     timeout-minutes: 5
-    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.8.2@sha256:2a5f94c84b26a4bc9d490964de6fbf82c8fe90b427fcd7d01c34d23459e282d4
+    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.9.0@sha256:f2c906edf5b842e217372a09b07d3cd99c9b4ac2e22d7c8da20c6d213b66db4a
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 scripts/ploeg-contract.py fetch
