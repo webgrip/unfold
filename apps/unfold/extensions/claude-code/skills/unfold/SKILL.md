@@ -10,7 +10,7 @@ Unfold is where people follow, review and act on the agent work Ploeg runs. A Wo
 ## Read first
 
 1. Call `unfold_now` first. Each waiting Work Item carries the reason it waits and the fix, and the result lists the Teams the person can read.
-2. For one Work Item in depth, call `unfold_get_work` with its id. An Unfold link ends in `#work/<id>`. For a tracker ticket such as `VIK-2051`, find it with `unfold_find_work` and match the tracker `vikunja:2051`.
+2. For one Work Item in depth, call `unfold_get_work` with its id. An Unfold link ends in `#work/<id>`. For a tracker ticket such as `VIK-123`, find it with `unfold_find_work` and match the tracker `vikunja:123`.
 3. For "what changed", call `unfold_digest`. For cost, call `unfold_spend`.
 4. Give the person every answer with the Unfold link the tool returned.
 

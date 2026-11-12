@@ -61,7 +61,7 @@ test('task source validation binds registered repositories, explicit authority a
 
 test('task sources accept documented cloud and self-hosted API roots and reject ambiguous project IDs', () => {
   const cases: Array<[TaskProvider, string, string]> = [
-    ['github', 'https://api.github.com', 'webgrip/orders'], ['github', 'https://api.octocorp.ghe.com', 'webgrip/orders'], ['github', 'https://enterprise.example/forge/api/v3', 'webgrip/orders'],
+    ['github', 'https://api.github.com', 'acme/orders'], ['github', 'https://api.octocorp.ghe.com', 'acme/orders'], ['github', 'https://enterprise.example/forge/api/v3', 'acme/orders'],
     ['gitlab', 'https://gitlab.example/gitlab/api/v4', 'group/subgroup/orders'], ['gitlab', 'https://gitlab.com/api/v4', '42'],
     ['clickup', 'https://api.clickup.com/api/v2', '42'], ['vikunja', 'https://tasks.example/vikunja/api/v1', '42']
   ];
@@ -73,7 +73,7 @@ test('task sources accept documented cloud and self-hosted API roots and reject 
 });
 
 test('GitHub sources accept a GHE.com tenant API root and reject look-alike hosts, while GitHub.com and Enterprise Server roots are unchanged', () => {
-  const github = (baseUrl: string) => validateTaskSources([{ id: 'issues', name: 'Issues', provider: 'github', baseUrl, project: 'webgrip/orders', repositoryId: 'order-service', executionOwner: 'interactive' }], repositories, 'live')[0];
+  const github = (baseUrl: string) => validateTaskSources([{ id: 'issues', name: 'Issues', provider: 'github', baseUrl, project: 'acme/orders', repositoryId: 'order-service', executionOwner: 'interactive' }], repositories, 'live')[0];
   for (const [baseUrl, normalized] of [
     ['https://api.octocorp.ghe.com', 'https://api.octocorp.ghe.com'], ['https://api.octocorp.ghe.com/', 'https://api.octocorp.ghe.com'], ['https://API.OctoCorp.GHE.com', 'https://api.octocorp.ghe.com'],
     ['https://api.octo-corp-1.ghe.com', 'https://api.octo-corp-1.ghe.com'], ['https://api.octocorp.ghe.com:443', 'https://api.octocorp.ghe.com'],
@@ -90,11 +90,11 @@ test('GitHub sources accept a GHE.com tenant API root and reject look-alike host
 });
 
 test('GitHub task links point at the web host of GitHub.com, a GHE.com tenant and an Enterprise Server', () => {
-  const github = (baseUrl: string) => validateTaskSources([{ id: 'issues', name: 'Issues', provider: 'github', baseUrl, project: 'Webgrip/Orders', repositoryId: 'order-service', executionOwner: 'interactive' }], repositories, 'live')[0];
-  assert.equal(sourceTaskUrl(github('https://api.github.com'), '17'), 'https://github.com/webgrip/orders/issues/17');
-  assert.equal(sourceTaskUrl(github('https://api.octocorp.ghe.com'), '17'), 'https://octocorp.ghe.com/webgrip/orders/issues/17');
-  assert.equal(sourceTaskUrl(github('https://github.example/api/v3'), '17'), 'https://github.example/webgrip/orders/issues/17');
-  assert.equal(sourceTaskUrl(github('https://enterprise.example/forge/api/v3'), '17'), 'https://enterprise.example/forge/webgrip/orders/issues/17');
+  const github = (baseUrl: string) => validateTaskSources([{ id: 'issues', name: 'Issues', provider: 'github', baseUrl, project: 'Acme/Orders', repositoryId: 'order-service', executionOwner: 'interactive' }], repositories, 'live')[0];
+  assert.equal(sourceTaskUrl(github('https://api.github.com'), '17'), 'https://github.com/acme/orders/issues/17');
+  assert.equal(sourceTaskUrl(github('https://api.octocorp.ghe.com'), '17'), 'https://octocorp.ghe.com/acme/orders/issues/17');
+  assert.equal(sourceTaskUrl(github('https://github.example/api/v3'), '17'), 'https://github.example/acme/orders/issues/17');
+  assert.equal(sourceTaskUrl(github('https://enterprise.example/forge/api/v3'), '17'), 'https://enterprise.example/forge/acme/orders/issues/17');
 });
 
 for (const provider of ['forgejo', 'github', 'gitlab', 'clickup', 'vikunja'] as const) {

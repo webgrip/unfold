@@ -1,0 +1,31 @@
+name: Suggest an improvement
+description: Something Unfold should do, or do differently
+labels: [enhancement]
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: What are you trying to get done
+      description: The situation and the outcome you want, not the solution yet. "When a Shift fails CI, I want to see why without opening the forge."
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today
+      description: The workaround, and what it costs you.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: A proposal, if you have one. A maintainer may answer with a different one.
+  - type: dropdown
+    id: role
+    attributes:
+      label: Your role
+      options:
+        - Developer reviewing agent pull requests
+        - Team lead or product owner
+        - Operator running Unfold and Ploeg
+        - Agency or client stakeholder
+        - Other

@@ -1,0 +1,58 @@
+name: Verify a site on the live edge
+description: Wait until an origin answers its probe path, then require every smoke path to answer 200, the not-found path to answer 404 and every rule in the site's public/_redirects to answer its status; each request retries, because an edge can take a minute to serve a new deploy
+inputs:
+  origin:
+    description: Origin to verify, no trailing slash, e.g. https://unfoldhq.dev
+    required: true
+  smoke-paths:
+    description: Newline-separated paths that must answer 200
+    default: ''
+  not-found-path:
+    description: A path that must answer 404, proving the error page is not a soft-404; empty skips it
+    default: ''
+  working-directory:
+    description: Directory holding public/_redirects
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - name: Verify the edge
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ORIGIN: ${{ inputs.origin }}
+        SMOKE_PATHS: ${{ inputs.smoke-paths }}
+        NOT_FOUND_PATH: ${{ inputs.not-found-path }}
+      run: |
+        set -euo pipefail
+        answers() {
+          local path="$1" want="$2" code attempt
+          for attempt in $(seq 1 6); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${ORIGIN}${path}" || echo 000)"
+            [ "${code}" = "${want}" ] && break
+            [ "${attempt}" = 6 ] || sleep 10
+          done
+          echo "${path} -> ${code} (expected ${want}, attempt ${attempt}/6)"
+          [ "${code}" = "${want}" ]
+        }
+        for attempt in $(seq 1 12); do
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${ORIGIN}/" || echo 000)"
+          [ "${code}" = 200 ] && { echo "edge ready after ${attempt} attempt(s)"; break; }
+          echo "waiting for the edge (/ -> ${code}, attempt ${attempt}/12)"
+          [ "${attempt}" = 12 ] && { echo "::error::${ORIGIN} never answered 200"; exit 1; }
+          sleep 10
+        done
+        while IFS= read -r path; do
+          [ -n "${path}" ] || continue
+          answers "${path}" 200 || { echo "::error::${ORIGIN}${path} does not answer 200"; exit 1; }
+        done <<< "${SMOKE_PATHS}"
+        if [ -n "${NOT_FOUND_PATH}" ]; then
+          answers "${NOT_FOUND_PATH}" 404 || { echo "::error::soft-404: ${ORIGIN} does not serve its error page with 404"; exit 1; }
+        fi
+        if [ -f public/_redirects ]; then
+          while read -r src target status _rest; do
+            case "${src}" in ''|'#'*) continue ;; esac
+            [ -n "${status}" ] || continue
+            answers "${src}" "${status}" || { echo "::error::${ORIGIN}${src} does not answer ${status}"; exit 1; }
+          done < public/_redirects
+        fi

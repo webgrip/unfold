@@ -1,0 +1,39 @@
+name: '[Workflow] On Ploeg Pin'
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [development]
+  workflow_dispatch:
+
+concurrency:
+  group: ploeg-pin
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    if: >-
+      github.repository == 'unfold-hq/unfold' &&
+      (github.event_name == 'workflow_dispatch' ||
+        (startsWith(github.head_ref, 'ploeg/') && github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Turn on auto-merge for the newest Ploeg pin pull request and close the ones it supersedes
+        env:
+          GITHUB_REPOSITORY_API: ${{ github.api_url }}/repos/${{ github.repository }}
+          REPOSITORY: ${{ github.repository }}
+          PIN_BASE: development
+          PIN_AUTHOR: ${{ vars.PLOEG_PIN_AUTHOR || 'unfold-hq-bot[bot]' }}
+          PIN_MERGE_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_train_pin.py

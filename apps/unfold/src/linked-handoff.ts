@@ -209,7 +209,7 @@ export function handoffDigest(personId: string, confirmed: ConfirmedHandoff): st
 const confirmationKey = (personId: string, id: string) => `${confirmationPrefix}${createHash('sha256').update(personId).digest('hex').slice(0, 32)}:${id}`;
 const sameDigest = (left: string, right: string) => left.length === right.length && timingSafeEqual(Buffer.from(left), Buffer.from(right));
 
-/** The owner and name a repository address names, such as `webgrip/unfold` for `https://forgejo.example.org/webgrip/unfold.git`. */
+/** The owner and name a repository address names, such as `acme/unfold` for `https://forgejo.example.org/acme/unfold.git`. */
 export function repositoryName(address: string): string {
   const path = address.replace(/^[a-z]+:\/\/[^/]+\//i, '').replace(/^[^/:]+:/, '').replace(/\.git$/, '').replace(/\/+$/, '');
   const parts = path.split('/').filter(Boolean);

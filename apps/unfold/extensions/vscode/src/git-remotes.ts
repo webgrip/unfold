@@ -67,7 +67,7 @@ export function hostAliases(value: unknown): HostAliases {
 /**
  * Whether a remote's host and a forge's host name the same forge: they are equal, `aliases` maps one to the other,
  * or both have at least three labels and share the parent domain left after their first label
- * (`forgejo-ssh.webgrip.dev` and `forgejo.webgrip.dev`). That parent never joins two hosts on GHE.com, where each
+ * (`forgejo-ssh.example.org` and `forgejo.example.org`). That parent never joins two hosts on GHE.com, where each
  * first label is another enterprise (`octocorp.ghe.com` and `othercorp.ghe.com`).
  */
 export function hostsMatch(remoteHost: string, forgeHost: string, aliases: HostAliases = {}): boolean {

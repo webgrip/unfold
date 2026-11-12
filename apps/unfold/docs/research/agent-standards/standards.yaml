@@ -4608,13 +4608,13 @@ standards:
   steward: kagent project, CNCF Sandbox (accepted 2025-05-22 per https://github.com/kagent-dev/community/issues/7; CNCF blog
     https://www.cncf.io/blog/2025/08/19/celebrating-100-days-of-kagent/)
   governance: foundation
-  status: stabilising
+  status: stable
   latest:
-    version: v1.0.0-rc1 (stable line v0.10.4, 2026-10-21)
-    date: '2026-10-30'
-    url: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1
+    version: v1.0.0
+    date: '2026-11-09'
+    url: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0
   watch:
-  - {kind: github-releases, ref: kagent-dev/kagent, current: "v1.0.0-rc1"}
+  - {kind: github-releases, ref: kagent-dev/kagent, current: "v1.0.0"}
   adoption:
   - 'v1.0.0-rc1 notes: pre-RC API breaks, cross-namespace ModelConfig/RemoteMCPServer via allowedNamespaces: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1'
   relations:
@@ -4667,7 +4667,7 @@ standards:
   - apps/ploeg/docs/adrs/0071-ploeg-keeps-its-state-in-postgresql-and-is-not-a-kubernetes-operator.md
   - apps/ploeg/docs/adrs/0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills.md
   watchlist: []
-  reviewed: '2026-11-04'
+  reviewed: '2026-11-11'
 - id: kmcp
   name: kmcp
   disambiguation: CLI + Kubernetes controller to build/deploy MCP servers as CRs (api/v1alpha1 dir; kind not stated on README)
@@ -4815,11 +4815,11 @@ standards:
   status: stable
   latest:
     version: no spec version; OpenAI says 'Chat Completions remains supported, Responses is recommended for all new projects';
-      openai-python v3.45.0
+      the API changelog is its changelog
     date: '2026-11-04'
     url: https://developers.openai.com/api/docs/guides/migrate-to-responses
   watch:
-  - {kind: github-releases, ref: openai/openai-python, current: "v3.45.0"}
+  - {kind: changelog-page, ref: "https://developers.openai.com/api/docs/changelog.md"}
   adoption:
   - Anthropic compat layer, labelled 'not considered a long-term or production-ready solution'; strict ignored, n must be
     1, no prompt caching (https://platform.claude.com/docs/en/api/openai-sdk)
@@ -4883,11 +4883,11 @@ standards:
   governance: single-vendor
   status: stable
   latest:
-    version: no spec version; anthropic-sdk-python v2.4.0
+    version: no spec version; the API release notes are its changelog
     date: '2026-11-02'
     url: https://code.claude.com/docs/en/llm-gateway-protocol
   watch:
-  - {kind: github-releases, ref: anthropics/anthropic-sdk-python, current: "v2.6.0"}
+  - {kind: changelog-page, ref: "https://platform.claude.com/docs/en/release-notes/overview.md"}
   adoption:
   - LiteLLM /v1/messages for all providers (https://docs.litellm.ai/docs/anthropic_unified)
   - vLLM /v1/messages and /v1/messages/count_tokens (https://docs.vllm.ai/en/latest/serving/online_serving/)
@@ -10418,11 +10418,11 @@ standards:
   governance: community
   status: draft
   latest:
-    version: core 0.0.7 (UCP 2026-08-25 schemas)
-    date: '2026-09-15'
+    version: core 0.0.9 (UCP 2026-08-25 schemas; 0.0.9 adds platform policy and discovery bounds)
+    date: '2026-11-10'
     url: https://packagist.org/packages/ucp-php-sdk/core
   watch:
-  - {kind: github-tags, ref: agentic-commerce-alliance/ucp-php-sdk-core, current: "0.0.7"}
+  - {kind: github-tags, ref: agentic-commerce-alliance/ucp-php-sdk-core, current: "0.0.9"}
   adoption:
   - 21k downloads but 1 GitHub star. The download count may be inflated (https://github.com/agentic-commerce-alliance/ucp-php-sdk-core).
   - tcgunel/ucp-laravel v0.3.0 (2026-05-21), 0 downloads (https://packagist.org/packages/tcgunel/ucp-laravel).
@@ -10465,7 +10465,7 @@ standards:
   flip_trigger: UCP publishes an official PHP SDK or a known maintainer takes these over.
   decisions: []
   watchlist: []
-  reviewed: '2026-11-04'
+  reviewed: '2026-11-11'
 - id: laravel-x402-mpp-packages
   name: Laravel agent-payment middleware (sandermuller/laravel-x402, square1/laravel-mpp)
   disambiguation: Community Laravel middleware for x402 and MPP.

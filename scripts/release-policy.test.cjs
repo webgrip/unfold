@@ -10,8 +10,12 @@ const os = require('node:os');
 const vm = require('node:vm');
 const { readYaml } = require('./yaml-documents.cjs');
 
-process.env.SEMANTIC_RELEASE_GITEA = 'true';
-const { makeConfig, COMMIT_ANALYZER_PLUGIN, RELEASE_NOTES_PLUGIN, TAGS_ONLY_PLUGIN } = require('@webgrip/semantic-release-config');
+const onGitHub = process.env.UNFOLD_RELEASE_FORGE === 'github';
+const forge = onGitHub ? '.github' : '.forgejo';
+if (onGitHub) process.env.GITHUB_TOKEN ||= 'release-policy-test';
+else process.env.SEMANTIC_RELEASE_GITEA = 'true';
+const configPackage = onGitHub ? (process.env.UNFOLD_RELEASE_CONFIG ||= path.join(__dirname, 'release-config')) : '@webgrip/semantic-release-config';
+const { makeConfig, COMMIT_ANALYZER_PLUGIN, RELEASE_NOTES_PLUGIN, TAGS_ONLY_PLUGIN } = require(configPackage);
 const root = path.resolve(__dirname, '..');
 const config = require(path.join(root, 'apps/.releaserc.cjs'));
 const policy = require('./release-policy.cjs');
@@ -56,7 +60,7 @@ const nextVersion = async (tags, type) => {
   const lastRelease = getLastRelease({ branch: candidate, options: config });
   return getNextVersion({ branch: candidate, lastRelease, nextRelease: { type, channel: branch.channel }, logger });
 };
-const publisher = () => readYaml(path.join(root, '.forgejo/workflows/on_release_published.yml'));
+const publisher = () => readYaml(path.join(root, forge, 'workflows/on_release_published.yml'));
 const floors = require('./release-floors.cjs');
 const repositoryWithOrphanedTags = (tags) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-tags-'));
@@ -70,12 +74,13 @@ const repositoryWithOrphanedTags = (tags) => {
 };
 
 test('the installed release toolchain is the one exercised by this suite', () => {
-  const versions = Object.fromEntries(['semantic-release', '@semantic-release/commit-analyzer', '@webgrip/semantic-release-config'].map((name) => {
+  const versions = Object.fromEntries(['semantic-release', '@semantic-release/commit-analyzer', configPackage].map((name) => {
     const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(require.resolve(name)), 'package.json'), 'utf8'));
     console.log(`${name}: ${manifest.version}`);
     return [name, manifest.version];
   }));
-  assert.match(versions['@webgrip/semantic-release-config'], /^2\./, 'the tags-only configuration');
+  if (onGitHub) assert.equal(path.dirname(require.resolve('semantic-release')).startsWith(path.join(configPackage, 'node_modules')), true, 'semantic-release comes from the repository\'s own release toolchain');
+  else assert.match(versions[configPackage], /^2\./, 'the tags-only configuration');
 });
 
 test('the actual historical breaking commit is major once initial development ends, and minor for Unfold', async () => {
@@ -230,14 +235,14 @@ test('a release is the tag alone: nothing is prepared or committed, and the guar
 test('effective configuration uses unfold-v tags and CI tests it before invoking release', () => {
   assert.equal(config.tagFormat, 'unfold-v${version}');
   assert.equal(config.plugins[0], path.join(__dirname, 'release-policy.cjs'));
-  const workflow = readYaml(path.join(root, '.forgejo/workflows/on_release_train.yml'));
+  const workflow = readYaml(path.join(root, forge, 'workflows/on_release_train.yml'));
   const steps = workflow.jobs.release.steps;
-  const policy = steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
+  const policy = steps.findIndex(step => step.uses === `./${forge}/actions/release-policy`);
   assert.ok(policy >= 0 && policy < steps.findIndex(step => step.id === 'release'));
-  const action = readYaml(path.join(root, '.forgejo/actions/release-policy/action.yml'));
+  const action = readYaml(path.join(root, forge, 'actions/release-policy/action.yml'));
   const gate = action.runs.steps.find(step => step.run?.includes('node --test scripts/release-policy.test.cjs'));
   assert.equal(gate['working-directory'], undefined);
-  assert.match(gate.run, /NODE_PATH="\$\{SEMREL_PREBAKED:\?/);
+  assert.match(gate.run, onGitHub ? /NODE_PATH="\$PWD\/scripts\/release-config\/node_modules"/ : /NODE_PATH="\$\{SEMREL_PREBAKED:\?/);
 });
 
 
@@ -278,6 +283,7 @@ test('artifact jobs accept validated parse output without unavailable job result
         for (const unavailableResult of [undefined, '']) {
           const enabled = vm.runInNewContext(job.if.replace(/needs\.([a-z-]+)/g, "needs['$1']"), {
             always: () => true,
+            github: { repository: 'unfold-hq/unfold' },
             needs: {
               'parse-release-tag': { outputs: { version }, result: unavailableResult },
             },

@@ -340,11 +340,11 @@ test('the agent declares no protected resource, so VS Code 1.141 does not gate U
 test('repository folders are named after their forge path and projects Unfold · <folder>, with the id only when two share a name', () => {
   const repository = (id: string, url: string) => ({ id, name: id, description: '', url, baseBranch: 'main', verify: [] });
   const repositories = [
-    repository('unfold', 'https://forgejo.webgrip.dev/webgrip/unfold.git'),
+    repository('unfold', 'https://forgejo.example.org/acme/unfold.git'),
     repository('api', 'ssh://git@forge.example/team/service/'),
     repository('web', 'https://forge.example/team/service'),
     repository('order-service', '/srv/fixtures/order-service/'),
-    repository('twente-dev', 'https://forgejo.webgrip.dev/webgrip/twente.dev.git'),
+    repository('twente-dev', 'https://forgejo.example.org/acme/twente.dev.git'),
   ];
   assert.deepEqual([...repositoryFolderNames(repositories).values()], ['unfold', 'service (api)', 'service (web)', 'order-service', 'twente.dev']);
   assert.deepEqual([...repositoryWorkspaceNames(repositories).values()], ['Unfold · unfold', 'Unfold · service (api)', 'Unfold · service (web)', 'Unfold · order-service', 'Unfold · twente.dev']);

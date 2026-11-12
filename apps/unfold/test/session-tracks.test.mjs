@@ -14,7 +14,7 @@ const at = minutes => new Date(t0 + minutes * 60_000).toISOString();
 const now = t0 + 300 * 60_000;
 
 const detail = {
-  item: { id: '184', target: { owner: 'webgrip', repo: 'unfold' } },
+  item: { id: '184', target: { owner: 'acme', repo: 'unfold' } },
   shifts: [
     { id: 's1', branch: 'agent/vik-2051', round: 2, openedAt: at(0), closedAt: at(60) },
     { id: 's2', branch: 'agent/vik-2051', round: 1, openedAt: at(200), closedAt: null },
@@ -26,7 +26,7 @@ const detail = {
   ],
 };
 
-const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, displayTitle: `Session ${id}`, repository: 'https://forgejo.example.org/webgrip/unfold.git', branch: `feat/${id}`, state: 'ended', startedAt: at(0), lastSeenAt: at(0), endedAt: null, workItems: [{ id: '184', how: 'explicit' }], commits: [], handovers: [], ...fields });
+const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, displayTitle: `Session ${id}`, repository: 'https://forgejo.example.org/acme/unfold.git', branch: `feat/${id}`, state: 'ended', startedAt: at(0), lastSeenAt: at(0), endedAt: null, workItems: [{ id: '184', how: 'explicit' }], commits: [], handovers: [], ...fields });
 
 test('attempts and Rounds become time windows; an open attempt and a running Round reach now', () => {
   assert.deepEqual(shiftWindows(detail, now).map(shift => [shift.id, shift.attempt, shift.open]), [['s1', 1, false], ['s2', 2, true]]);
