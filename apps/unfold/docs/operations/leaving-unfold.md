@@ -8,7 +8,7 @@ verified_by: "Written with the implementation on branch feat/tenant-export: src/
 
 # Leaving Unfold: export a Tenant
 
-A Tenant can leave Unfold with everything Unfold holds for it, through the API and in documented open formats, without a support ticket. This is rule 6 of system ADR-0050 ([pull request #697](https://forgejo.webgrip.dev/webgrip/unfold/pulls/697)), and it is how the hosted service meets the switching duty of the EU Data Act ([Regulation (EU) 2023/2854](https://eur-lex.europa.eu/eli/reg/2023/2854/oj), Chapter VI).
+A Tenant can leave Unfold with everything Unfold holds for it, through the API and in documented open formats, without a support ticket. This is rule 6 of system ADR-0050 (pull request #697 on the previous forge), and it is how the hosted service meets the switching duty of the EU Data Act ([Regulation (EU) 2023/2854](https://eur-lex.europa.eu/eli/reg/2023/2854/oj), Chapter VI).
 
 One export is one bundle: a gzip-compressed POSIX tar archive of JSON Lines files, one per entity, with a JSON Schema for each and a `manifest.json` that lists every file with its row count and SHA-256. The code is [`src/tenant-export.ts`](../../src/tenant-export.ts) and [`src/tenant-export-jobs.ts`](../../src/tenant-export-jobs.ts).
 

@@ -1,0 +1,543 @@
+name: '[Workflow] On Release Published'
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish, selected as the workflow ref too, e.g. unfold-v0.4.0-rc.1 or unfold-site-v1.0.0-rc.1'
+        required: true
+        type: string
+
+concurrency:
+  group: release-publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  parse-release-tag:
+    if: github.repository == 'unfold-hq/unfold' && vars.UNFOLD_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'unfold-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      created: ${{ steps.parse.outputs.created }}
+    steps:
+      - id: parse
+        shell: bash
+        env:
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          SELECTED_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
+          RELEASE_CREATED_AT: ${{ github.event.release.created_at }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG:-}"
+          if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
+            [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before publishing." >&2; exit 1; }
+          fi
+          [[ "$tag" =~ ^unfold-v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "Unfold publishes only unfold-v0.x.y-rc.N tags; stable and 1.x releases require an explicit policy change." >&2; exit 1; }
+          plausible() { local v="${1:-}"; [[ -n "$v" ]] || return 1; [[ "$v" =~ ^([0-9]{4})-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || return 1; (( BASH_REMATCH[1] >= 2020 )); }
+          created=""
+          for cand in "${RELEASE_PUBLISHED_AT:-}" "${RELEASE_CREATED_AT:-}"; do
+            [[ -n "$cand" ]] || continue
+            if plausible "$cand"; then created="$cand"; break; fi
+            echo "NOTE: release timestamp '$cand' is a zero time or implausible; ignoring it."
+          done
+          [[ -n "$created" ]] || created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          plausible "$created" || { echo "ERROR: IMAGE_CREATED is not a plausible instant: '$created'" >&2; exit 1; }
+          echo "version=${tag#unfold-v}" >> "$GITHUB_OUTPUT"
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+  unfold-release-images:
+    name: Unfold - Build, gate, sign and attest images (GHCR)
+    needs: [parse-release-tag]
+    if: github.repository == 'unfold-hq/unfold' && needs.parse-release-tag.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      unfold-digest: ${{ steps.digest.outputs.digest-unfold }}
+      unfold-agent-digest: ${{ steps.digest.outputs.digest-unfold-agent }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: unfold
+            context: apps/unfold
+            dockerfile: apps/unfold/Dockerfile
+            target: app
+          - name: unfold-agent
+            context: apps/unfold/ops/agent
+            dockerfile: apps/unfold/ops/agent/Dockerfile
+            target: ''
+    env:
+      IMAGE: ghcr.io/unfold-hq/${{ matrix.name }}
+      VERSION: ${{ needs.parse-release-tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install: false
+          cache: false
+      - name: Sign in to GHCR and dhi.io
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          DHI_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          [ -n "$DHI_USERNAME" ] && [ -n "$DHI_TOKEN" ] || { echo "::error::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are required: the images build from dhi.io."; exit 1; }
+          printf '%s' "$DHI_TOKEN" | docker login dhi.io --username "$DHI_USERNAME" --password-stdin
+
+      - name: Probe GHCR for an existing image
+        id: probe
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -uo pipefail
+          bearer="$(curl -sS --fail --max-time 30 -u "${GITHUB_ACTOR}:${GHCR_TOKEN}" "https://ghcr.io/token?scope=repository:unfold-hq/${NAME}:pull" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')" || bearer=""
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -H "Authorization: Bearer ${bearer}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/unfold-hq/${NAME}/manifests/${VERSION}")" || true
+          [ -n "$code" ] || code=000
+          if [ "$code" = 200 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${VERSION} is already published; skipping the build."
+          elif [ "$code" = 404 ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "GHCR answered HTTP ${code} for ${IMAGE}:${VERSION}; building."
+          else
+            echo "GHCR probe failed with HTTP $code; refusing to rebuild an unknown version." >&2
+            exit 1
+          fi
+
+      - name: Build and push (GHCR)
+        id: build
+        if: steps.probe.outputs.exists != 'true'
+        env:
+          CONTEXT: ${{ matrix.context }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          TARGET: ${{ matrix.target }}
+          IMAGE_CREATED: ${{ needs.parse-release-tag.outputs.created }}
+          SOURCE: https://github.com/unfold-hq/unfold
+        run: |
+          set -euo pipefail
+          docker run --privileged --rm docker.io/tonistiigi/binfmt@sha256:d3b963f787999e6c0219a48dba02978769286ff61a5f4d26245cb6a6e5567ea3 --install arm64
+          docker buildx create --name unfold-release --driver docker-container --driver-opt image=docker.io/moby/buildkit@sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c --use
+          docker buildx build --progress=plain \
+            --platform linux/amd64,linux/arm64 \
+            --file "$DOCKERFILE" ${TARGET:+--target "$TARGET"} \
+            --build-arg IMAGE_CREATED="$IMAGE_CREATED" \
+            --build-arg IMAGE_VERSION="$VERSION" \
+            --build-arg IMAGE_REVISION="$GITHUB_SHA" \
+            --label org.opencontainers.image.source="$SOURCE" \
+            --label org.opencontainers.image.url="$SOURCE" \
+            --annotation index:org.opencontainers.image.source="$SOURCE" \
+            --annotation index:org.opencontainers.image.url="$SOURCE" \
+            --provenance=mode=max --sbom=true \
+            --tag "$IMAGE:$VERSION" --push "$CONTEXT"
+
+      - name: Resolve the published digest
+        id: digest
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{ .Manifest.Digest }}')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "no digest resolved for $IMAGE:$VERSION" >&2; exit 1; }
+          {
+            echo "digest=$digest"
+            echo "digest-${{ matrix.name }}=$digest"
+            echo "ref=$IMAGE@${digest}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: CVE budget gate (grype + OpenVEX)
+        uses: ./.github/actions/cve-gate
+        with:
+          image-ref: ${{ steps.digest.outputs.ref }}
+          image-name: ${{ matrix.name }}
+          budgets-file: apps/unfold/ops/security/cve-budgets.yaml
+          vex-dir: apps/unfold/ops/vex/statements
+          registry-username: ${{ github.actor }}
+          registry-token: ${{ github.token }}
+
+      - name: Sign keyless, then attest the SBOM and the CVE budget
+        env:
+          REF: ${{ steps.digest.outputs.ref }}
+        run: |
+          set -euo pipefail
+          tools=(mise exec cosign@2.6.5 aqua:anchore/syft@1.55.0 --)
+          "${tools[@]}" cosign sign --yes "$REF"
+          "${tools[@]}" syft scan "registry:$REF" --output "cyclonedx-json=${RUNNER_TEMP}/sbom.cdx.json"
+          "${tools[@]}" cosign attest --yes --type cyclonedx --predicate "${RUNNER_TEMP}/sbom.cdx.json" "$REF"
+          "${tools[@]}" cosign attest --yes --type https://unfoldhq.dev/attestations/cve-budget/v1 --predicate cve-budget.json "$REF"
+          "${tools[@]}" cosign verify \
+            --certificate-identity-regexp '^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$REF" > /dev/null
+          echo "- \`$REF\` signed keyless by this workflow, with a CycloneDX SBOM and its CVE budget attested" >> "$GITHUB_STEP_SUMMARY"
+
+  unfold-release-publish-chart:
+    name: Unfold - Publish and sign Helm chart (GHCR)
+    needs: [parse-release-tag, unfold-release-images]
+    if: github.repository == 'unfold-hq/unfold' && needs.parse-release-tag.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Stamp the release version into the chart
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+        run: node apps/unfold/scripts/stamp-version.mjs "$VERSION" chart
+      - name: Publish, sign and verify the canonical chart
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          UNFOLD_IMAGE_DIGEST: ${{ needs.unfold-release-images.outputs.unfold-digest }}
+          UNFOLD_AGENT_IMAGE_DIGEST: ${{ needs.unfold-release-images.outputs.unfold-agent-digest }}
+          UNFOLD_RELEASE_HOME: github
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DOCKER_CONFIG="$(mktemp -d)"
+          export DOCKER_CONFIG
+          export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          mise exec helm cosign@2.6.5 -- python3 scripts/publish_chart.py unfold "$VERSION"
+
+  unfold-release-publish-extension:
+    name: Unfold - Publish VS Code extension
+    needs: [parse-release-tag]
+    if: github.repository == 'unfold-hq/unfold' && needs.parse-release-tag.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.parse-release-tag.outputs.version }}
+      TAG: unfold-v${{ needs.parse-release-tag.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Stamp the release version into the tagged tree
+        shell: bash
+        run: node apps/unfold/scripts/stamp-version.mjs "$VERSION"
+      - name: Reuse the VSIX already on the release, or package it from the tagged tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node -p "require('./apps/unfold/extensions/vscode/package.json').version")" = "$VERSION"
+          npm ci --no-audit --no-fund --prefix apps/unfold/extensions/vscode
+          cd apps/unfold/extensions/vscode
+          vsix="unfold-${VERSION}.vsix"
+          if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$vsix" --pattern "${vsix}.sha256" --clobber 2>/dev/null && [ -s "$vsix" ]; then
+            sha256sum -c "${vsix}.sha256"
+            echo "Reusing $vsix from $TAG, so a retry publishes the same bytes."
+          else
+            rm -f "$vsix" "${vsix}.sha256"
+            npm --prefix ../.. run extension:build
+            prerelease=()
+            [[ "$VERSION" == *-* ]] && prerelease=(--pre-release)
+            npm run package -- --out "$vsix" "${prerelease[@]}"
+            test -s "$vsix"
+            sha256sum "$vsix" > "${vsix}.sha256"
+          fi
+      - name: Verify the listing and the packaged contents
+        shell: bash
+        env:
+          VSIX_PATH: extensions/vscode/unfold-${{ needs.parse-release-tag.outputs.version }}.vsix
+        run: npm --prefix apps/unfold run extension:verify
+      - name: Sign the VSIX keyless and verify the signature with cosign verify-blob
+        shell: bash
+        working-directory: apps/unfold/extensions/vscode
+        run: |
+          set -euo pipefail
+          vsix="unfold-${VERSION}.vsix"
+          tools=(mise exec cosign@2.6.5 --)
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${vsix}.sigstore.json" --clobber 2>/dev/null || "${tools[@]}" cosign sign-blob --yes --bundle "${vsix}.sigstore.json" "$vsix"
+          "${tools[@]}" cosign verify-blob --bundle "${vsix}.sigstore.json" \
+            --certificate-identity-regexp '^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$vsix"
+      - name: Attest the VSIX's build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: apps/unfold/extensions/vscode/unfold-${{ needs.parse-release-tag.outputs.version }}.vsix
+      - name: Attach the VSIX, its checksum and its signature bundle to the draft release
+        shell: bash
+        working-directory: apps/unfold/extensions/vscode
+        run: |
+          set -euo pipefail
+          vsix="unfold-${VERSION}.vsix"
+          attached="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          for asset in "$vsix" "${vsix}.sha256" "${vsix}.sigstore.json"; do
+            if grep -qx "$asset" <<< "$attached"; then
+              echo "$asset is already on $TAG."
+            else
+              gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "$asset"
+            fi
+          done
+      - name: Publish to Open VSX with Trusted Publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/unfold/extensions/vscode
+          ovsx="$(node -p "require('ovsx/package.json').version")"
+          [ "$(printf '%s\n1.4.0\n' "$ovsx" | sort -V | head -1)" = 1.4.0 ] || { echo "::error::ovsx $ovsx cannot publish with --trusted-publishing; it needs 1.4.0 or newer in apps/unfold/extensions/vscode/package.json."; echo "- Open VSX: **failed**, ovsx $ovsx predates Trusted Publishing" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          npx --no-install ovsx publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate --trusted-publishing
+          echo "- Open VSX: published \`$(node -p "const m=require('./package.json'); m.publisher+'.'+m.name")\` ${VERSION} with Trusted Publishing" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to the Visual Studio Marketplace
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          AZURE_CLIENT_ID: ${{ secrets.MARKETPLACE_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.MARKETPLACE_AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          cd apps/unfold/extensions/vscode
+          retired=2026-12-01
+          guide=apps/unfold/docs/operations/release.md#registry-credentials
+          summary() { printf -- '- Visual Studio Marketplace: %s\n' "$1" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"; }
+          if [[ "$VERSION" == *-* ]]; then
+            echo "::notice::${VERSION} is a pre-release version. The Visual Studio Marketplace accepts only major.minor.patch; Open VSX carries this build."
+            summary "**skipped**, ${VERSION} is a pre-release and the Marketplace accepts only major.minor.patch (ADR 0021); Open VSX carries it"
+            exit 0
+          fi
+          if [ -n "${AZURE_CLIENT_ID:-}" ] || [ -n "${AZURE_TENANT_ID:-}" ]; then
+            if [ -z "${AZURE_CLIENT_ID:-}" ] || [ -z "${AZURE_TENANT_ID:-}" ]; then
+              echo "::error::Only one of MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID is set. Set both for the Entra credential; see ${guide}."
+              summary "**failed**, the Entra credential is half configured"
+              exit 1
+            fi
+            [ -z "${VSCE_PAT:-}" ] || echo "::warning::VSCE_PAT is set but unused: the Entra credential publishes. Delete the VSCE_PAT secret."
+            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate --azure-credential
+            summary "published ${VERSION} with the Entra credential"
+            exit 0
+          fi
+          if [ -n "${VSCE_PAT:-}" ]; then
+            if [[ ! "$(date -u +%F)" < "$retired" ]]; then
+              echo "::error::Only VSCE_PAT is set, and Azure DevOps retired global personal access tokens on ${retired}, so the Marketplace no longer accepts it. Fix: add an Entra managed identity to the Marketplace publisher, set MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID, then delete VSCE_PAT; see ${guide}."
+              summary "**failed**, VSCE_PAT is a global PAT and those were retired on ${retired}"
+              exit 1
+            fi
+            echo "::warning::VSCE_PAT is an Azure DevOps global personal access token, and those stop working on ${retired}. From that date this step fails until MARKETPLACE_AZURE_CLIENT_ID and MARKETPLACE_AZURE_TENANT_ID are set; see ${guide}."
+            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
+            summary "published ${VERSION} with VSCE_PAT, which stops working on ${retired}"
+            exit 0
+          fi
+          echo "::warning::No Marketplace credential is configured, so stable ${VERSION} ships to Open VSX only (ADR 0021)."
+          summary "**skipped**, no credential is configured; ${VERSION} ships to Open VSX only (ADR 0021)"
+
+  unfold-release-distribute:
+    name: Unfold - Verify every destination and publish the release
+    needs: [parse-release-tag, unfold-release-images, unfold-release-publish-chart, unfold-release-publish-extension]
+    if: github.repository == 'unfold-hq/unfold' && needs.parse-release-tag.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install: false
+          cache: false
+      - name: Verify every artifact anonymously, attach the evidence and take the release out of draft
+        shell: bash
+        env:
+          VERSION: ${{ needs.parse-release-tag.outputs.version }}
+          UNFOLD_RELEASE_HOME: github
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mise exec cosign@2.6.5 -- python3 scripts/publish_release.py unfold "$VERSION"
+
+  site-release-tag:
+    if: github.repository == 'unfold-hq/unfold'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      channel: ${{ steps.site.outputs.channel }}
+    steps:
+      - id: site
+        shell: bash
+        env:
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          SELECTED_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          RELEASES_ENABLED: ${{ vars.UNFOLD_RELEASES_ENABLED }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG:-}"
+          if [[ "${RELEASES_ENABLED:-}" != true || ( "$tag" != unfold-site-v* && "$tag" != unfold-v* ) ]]; then
+            echo "channel=none" >> "$GITHUB_OUTPUT"
+            echo "${tag:-This release} is neither a site nor an Unfold release; the site is not deployed."
+            exit 0
+          fi
+          if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
+            [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before deploying." >&2; exit 1; }
+          fi
+          if [[ "$tag" == unfold-site-v* ]]; then
+            [[ "$tag" =~ ^unfold-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only unfold-site-vX.Y.Z or unfold-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
+          else
+            [[ "$tag" =~ ^unfold-v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "An Unfold release redeploys staging only from unfold-v0.x.y-rc.N tags." >&2; exit 1; }
+          fi
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || { echo "The Cloudflare deploy credential is missing: set the repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID." >&2; exit 1; }
+          if [[ "$tag" == *-rc.* ]]; then
+            echo "channel=prerelease" >> "$GITHUB_OUTPUT"
+            echo "Deploying ${tag} to staging."
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo "Deploying ${tag} to production."
+          fi
+
+  site-deploy-staging:
+    needs: [site-release-tag]
+    if: github.repository == 'unfold-hq/unfold' && needs.site-release-tag.outputs.channel == 'prerelease'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: site-deploy-prerelease
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install: false
+          cache: false
+      - name: Install the site's and Unfold's runtime dependencies
+        run: |
+          set -euo pipefail
+          mise trust apps/unfold/mise.toml
+          mise trust apps/site/mise.toml
+          mise -C apps/site install
+          mise -C apps/site exec -- npm --prefix ../unfold ci --omit=dev --no-audit --no-fund
+          mise -C apps/site exec -- corepack pnpm install --frozen-lockfile
+      - name: Build the release
+        working-directory: apps/site
+        env:
+          UNFOLD_SITE_URL: https://staging.unfoldhq.dev
+        run: mise exec -- corepack pnpm run build:release
+      - name: Deploy with wrangler
+        working-directory: apps/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: mise exec -- corepack pnpm exec wrangler deploy --env staging
+      - name: Verify the live edge
+        uses: ./.github/actions/edge-verify
+        with:
+          origin: https://staging.unfoldhq.dev
+          working-directory: apps/site
+          smoke-paths: |
+            /
+            /nl
+            /robots.txt
+            /sitemap-index.xml
+            /favicon.svg
+            /demo/
+            /demo/replay/replay.json
+            /privacy
+            /nl/privacy
+          not-found-path: /this-page-does-not-exist
+
+  site-deploy-production:
+    needs: [site-release-tag]
+    if: github.repository == 'unfold-hq/unfold' && needs.site-release-tag.outputs.channel == 'stable'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: site-deploy-stable
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install: false
+          cache: false
+      - name: Install the site's and Unfold's runtime dependencies
+        run: |
+          set -euo pipefail
+          mise trust apps/unfold/mise.toml
+          mise trust apps/site/mise.toml
+          mise -C apps/site install
+          mise -C apps/site exec -- npm --prefix ../unfold ci --omit=dev --no-audit --no-fund
+          mise -C apps/site exec -- corepack pnpm install --frozen-lockfile
+      - name: Build the release
+        working-directory: apps/site
+        env:
+          UNFOLD_SITE_URL: https://unfoldhq.dev
+        run: mise exec -- corepack pnpm run build:release
+      - name: Deploy with wrangler
+        working-directory: apps/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: mise exec -- corepack pnpm exec wrangler deploy
+      - name: Verify the live edge
+        uses: ./.github/actions/edge-verify
+        with:
+          origin: https://unfoldhq.dev
+          working-directory: apps/site
+          smoke-paths: |
+            /
+            /nl
+            /robots.txt
+            /sitemap-index.xml
+            /favicon.svg
+            /demo/
+            /demo/replay/replay.json
+            /privacy
+            /nl/privacy
+          not-found-path: /this-page-does-not-exist

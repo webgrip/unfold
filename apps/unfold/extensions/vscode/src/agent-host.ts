@@ -449,5 +449,5 @@ export function editorWindowOf(externalLink: string): { protocol: string; window
   try { url = new URL(externalLink); } catch { return undefined; }
   const windowId = url.searchParams.get('windowId') ?? '';
   const protocol = url.protocol.replace(/:$/, '');
-  return url.host === 'webgrip.unfold' && /^[1-9][0-9]{0,8}$/.test(windowId) && /^[a-z][a-z0-9-]*$/.test(protocol) ? { protocol, windowId } : undefined;
+  return url.host === 'unfold-hq.unfold' && /^[1-9][0-9]{0,8}$/.test(windowId) && /^[a-z][a-z0-9-]*$/.test(protocol) ? { protocol, windowId } : undefined;
 }

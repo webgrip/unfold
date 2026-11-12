@@ -3,7 +3,7 @@ type: explanation
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-31
-verified_by: "Board section read against the homelab-cluster ClickUp routing (kubernetes/apps/ploeg/unfold/app/helmrelease.yaml) and apps/unfold/docs/operations/working-from-clickup.md. Rest read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/taskprompt/prompt.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11, and its gate from the Forgejo API on 2026-10-27."
+verified_by: "Board section read against the owner's Ploeg routing for the board and apps/unfold/docs/operations/working-from-clickup.md. Rest read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/taskprompt/prompt.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11, and its gate from the Forgejo API on 2026-10-27."
 ---
 
 # How work on Unfold is done
@@ -14,10 +14,10 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 
 ## The flow
 
-1. **A ticket.** Work starts as a task in the Unfold Space in ClickUp (`https://app.clickup.com/t/<id>`), referred to as `CU-<id>`, and moves across [the board](#the-board). A ticket is ready when it states the problem with evidence, acceptance conditions someone can verify, and the gate commands that prove it. The Vikunja board is an archive: older commits and documents cite `VIK-<id>`.
+1. **A ticket.** Work starts as a task on the owner's board in ClickUp, or as an issue on the repository, and moves across [the board](#the-board). A ticket is ready when it states the problem with evidence, acceptance conditions someone can verify, and the gate commands that prove it. The ticket links to the pull request; the repository, its commits and its pull requests never name a ticket id or URL. Older commits and records cite tickets of an earlier board as `VIK-<id>`.
 2. **A design, when the change is not trivial.** A decision that outlives the change is an ADR ([System decisions](../adr/index.md), or the application's own ledger). A change with requirements is an OpenSpec change under `openspec/changes/`, whose `adr` artifact becomes the ADR. A question still open is an RFC in `docs/design/`. A trivial fix needs none of these.
-3. **A branch in its own worktree.** Branch from `development`, named `<type>/<short-slug>` (`fix/now-newest-first`); Ploeg names its branches `agent/CU-<id>`. Several sessions share one checkout, so each session works in its own worktree: [Set up a worktree](set-up-a-worktree.md).
-4. **Small commits.** Conventional commits (`fix(unfold): …`). A commit under `apps/site` is scoped `site` and never releases Unfold; a commit that moves the Ploeg release is a `fix(ploeg)` and cuts an Unfold candidate. A commit for a ticket ends with a bare `CU-<id>` trailer line. Stage only the paths you wrote: [`scripts/stage-explicit-paths.py`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/scripts/stage-explicit-paths.py) refuses `git add -A`, `git add .` and `git commit -a` in Claude Code, OpenHands and opencode, and the same rule binds every other tool. `apps/ploeg` is the unpacked contract bundle of the pinned Ploeg release, not a checkout; Ploeg work happens in a clone of `ploeg-hq/ploeg`.
+3. **A branch in its own worktree.** Branch from `development`, named `<type>/<short-slug>` (`fix/now-newest-first`). Ploeg names its own branches after the task; that naming is configured in Ploeg, outside this repository. Several sessions share one checkout, so each session works in its own worktree: [Set up a worktree](set-up-a-worktree.md).
+4. **Small commits.** Conventional commits (`fix(unfold): …`). A commit under `apps/site` is scoped `site` and never releases Unfold; a commit that moves the Ploeg release is a `fix(ploeg)` and cuts an Unfold candidate. Stage only the paths you wrote: [`scripts/stage-explicit-paths.py`](../../scripts/stage-explicit-paths.py) refuses `git add -A`, `git add .` and `git commit -a` in Claude Code, OpenHands and opencode, and the same rule binds every other tool. `apps/ploeg` is the unpacked contract bundle of the pinned Ploeg release, not a checkout; Ploeg work happens in a clone of `ploeg-hq/ploeg`.
 5. **The gates.** `mise run verify` from the repository root before every push, `mise run docs-check` after a docs or `AGENTS.md` change. CI runs the same gates.
 6. **A pull request** into `development`: [Open a pull request](open-a-pull-request.md). One whole change per pull request ([ADR-0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md) sets the size limits Unfold applies to agent work; its checks are not built yet, so here they are guidance).
 7. **Review** against the [review guide](review.md). Tools decide format, types, tests and policy; review covers intent, risk and what no test sees.
@@ -26,7 +26,7 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 
 ## The board
 
-The board is the Board view of each List in the Unfold Space. Every List has the same six columns, and a task moves left to right:
+The board is the Board view of each List in the owner's ClickUp Space for Unfold. Every List has the same six columns, and a task moves left to right:
 
 | Column | A task is here when | Who moves it in |
 | --- | --- | --- |
@@ -39,11 +39,11 @@ The board is the Board view of each List in the Unfold Space. Every List has the
 
 Work is pulled, not pushed. Take the top task of **Ready**, never one from Backlog: a Team gets nothing but the task's title and description, so a task that is not ready wastes a Run. Keep **In review** to three tasks at most. Review time is the scarce resource, so a full In review column means review first and start nothing new.
 
-To give a task to agents, assign the ClickUp member **Unfold** (`ryan+unfold-agent@webgrip.nl`), or choose **Hand to** on Unfold's Now page, which does the same. Ploeg's Team silver picks it up, works on branch `agent/CU-<id>`, and moves the card. Unassigning **Unfold** before a worker starts takes it back. Only that member starts work: assigning yourself or a colleague starts nothing. [Working with Unfold from ClickUp](../../apps/unfold/docs/operations/working-from-clickup.md) covers following, reviewing and stopping the work.
+To give a task to agents, assign the ClickUp member **Unfold**, the user Unfold hands tasks off as, or choose **Hand to** on Unfold's Now page, which does the same. Ploeg's Team silver picks it up, works on a branch named after the task, and moves the card. Unassigning **Unfold** before a worker starts takes it back. Only that member starts work: assigning yourself or a colleague starts nothing. [Working with Unfold from ClickUp](../../apps/unfold/docs/operations/working-from-clickup.md) covers following, reviewing and stopping the work.
 
 When the agents need a person, Ploeg moves the card to **Needs you** and comments the question or reason; Unfold's Now page lists it under **Needs you** too. A premise question is answered by editing the description. Then unassign **Unfold** and assign it again: a new assignment starts the task over.
 
-A task tagged `repo/homelab-cluster` is worked in `webgrip/homelab-cluster` instead of this repository. Tasks in the Ploeg Space are not picked up by agents, because its repository is on GitHub; change Ploeg by hand in `ploeg-hq/ploeg`.
+A task tagged with another repository is worked in that repository instead of this one. Tasks in the Ploeg Space are not picked up by agents, because its repository is on GitHub; change Ploeg by hand in `ploeg-hq/ploeg`.
 
 ## Branch rules
 

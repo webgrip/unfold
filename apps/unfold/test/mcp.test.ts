@@ -179,7 +179,7 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
 });
 
 test('unfold_now counts a pull request whose CI did not pass as needing a decision, with the CI reason, not as awaiting review', async t => {
-  const review = (id: string, ci: unknown) => ({ id, state: 'awaiting_review', team: 'unfold', title: `Item ${id}`, provider: 'vikunja', externalId: id, url: '', attempts: 1, infraFailures: 0, createdAt: '2026-10-18T08:00:00Z', updatedAt: '2026-10-18T08:00:00Z', closeReason: null, latestShift: null, spentUsd: null, pullRequestUrl: `https://forgejo.example/webgrip/homelab-cluster/pulls/${id}`, ci });
+  const review = (id: string, ci: unknown) => ({ id, state: 'awaiting_review', team: 'unfold', title: `Item ${id}`, provider: 'vikunja', externalId: id, url: '', attempts: 1, infraFailures: 0, createdAt: '2026-10-18T08:00:00Z', updatedAt: '2026-10-18T08:00:00Z', closeReason: null, latestShift: null, spentUsd: null, pullRequestUrl: `https://forgejo.example/acme/infra/pulls/${id}`, ci });
   const fake = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     if (req.url === '/api/ploeg/now') return res.end(JSON.stringify({ demo: false, teams: ['unfold'], waiting: [review('784', { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }] }), review('785', { state: 'pending', checks: [] }), review('786', { state: 'success', checks: [] }), review('787', null)], active: [], refused: [], running: [], recent: [], truncatedStates: [], errors: {} }));
@@ -447,7 +447,7 @@ test('unfold_digest reports only what changed since the cutoff, and remembers it
 
 test('unfold-mcp links and unlinks the caller’s agent session with PUT and DELETE, and lists Linked Sessions of a Work Item', async () => {
   const calls: { method: string; url: string; headers: Record<string, string> }[] = [];
-  const session = { id: 'abcd1234-session', harness: 'claude-code', ownerName: 'ryan', state: 'working', waitingFor: '', lastSeenAt: '2026-10-17T10:00:00.000Z', link: 'https://unfold.example.org/#linked-session/abcd1234-session', resume: 'claude --resume abcd1234-session', workItems: [{ id: '184', how: 'explicit' }], aiLines: 12, commits: [{ sha: 'a'.repeat(40), subject: 'fix', aiLines: 12, files: 1, trailer: true }], pullRequests: [], title: 'Fix login', branch: 'feat/vik-2051', repository: 'forgejo.example.org:webgrip/unfold.git' };
+  const session = { id: 'abcd1234-session', harness: 'claude-code', ownerName: 'ryan', state: 'working', waitingFor: '', lastSeenAt: '2026-10-17T10:00:00.000Z', link: 'https://unfold.example.org/#linked-session/abcd1234-session', resume: 'claude --resume abcd1234-session', workItems: [{ id: '184', how: 'explicit' }], aiLines: 12, commits: [{ sha: 'a'.repeat(40), subject: 'fix', aiLines: 12, files: 1, trailer: true }], pullRequests: [], title: 'Fix login', branch: 'feat/vik-2051', repository: 'forgejo.example.org:acme/unfold.git' };
   const fetcher = (async (url: string, init: RequestInit) => {
     calls.push({ method: String(init.method), url: String(url), headers: init.headers as Record<string, string> });
     return new Response(JSON.stringify(String(init.method) === 'GET' ? { sessions: [session] } : { session }), { status: 200 });

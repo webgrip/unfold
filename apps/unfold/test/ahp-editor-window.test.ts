@@ -10,13 +10,13 @@ test('only a VS Code build with an Agents window and a numeric window id is acce
 
 test('an editor link names the target, the workbench it belongs to and the window VS Code sends it to', () => {
   const window = { protocol: 'vscode', windowId: '4' };
-  assert.equal(editorLink(window, { kind: 'work-item', id: '227' }, 'https://unfold.example/'), 'vscode://webgrip.unfold/work-item?id=227&origin=https%3A%2F%2Funfold.example&windowId=4');
-  assert.equal(editorLink(window, { kind: 'session', id: 'abc_1-2' }), 'vscode://webgrip.unfold/session?id=abc_1-2&windowId=4');
+  assert.equal(editorLink(window, { kind: 'work-item', id: '227' }, 'https://unfold.example/'), 'vscode://unfold-hq.unfold/work-item?id=227&origin=https%3A%2F%2Funfold.example&windowId=4');
+  assert.equal(editorLink(window, { kind: 'session', id: 'abc_1-2' }), 'vscode://unfold-hq.unfold/session?id=abc_1-2&windowId=4');
   assert.equal(editorLink(window, { kind: 'work-item', id: 'wi-227' }), '', 'a Work Item link takes Ploeg\'s numeric id');
 });
 
 test('the open-elsewhere line offers VS Code first and the browser second, and is left out when it has neither', () => {
-  assert.deepEqual(openElsewherePart('p', { editor: 'vscode://webgrip.unfold/work-item?id=1&windowId=2', page: 'https://unfold.example/#work/1' }, 'Work Item'), { kind: 'markdown', id: 'p', content: '[Open the Work Item in VS Code](vscode://webgrip.unfold/work-item?id=1&windowId=2) · [Open in the browser ↗](https://unfold.example/#work/1)\n\n' });
+  assert.deepEqual(openElsewherePart('p', { editor: 'vscode://unfold-hq.unfold/work-item?id=1&windowId=2', page: 'https://unfold.example/#work/1' }, 'Work Item'), { kind: 'markdown', id: 'p', content: '[Open the Work Item in VS Code](vscode://unfold-hq.unfold/work-item?id=1&windowId=2) · [Open in the browser ↗](https://unfold.example/#work/1)\n\n' });
   assert.equal(openElsewherePart('p', { page: 'https://unfold.example/#session/s' }, 'session')?.content, '[Open in the browser ↗](https://unfold.example/#session/s)\n\n');
   assert.equal(openElsewherePart('p', {}, 'session'), undefined);
 });

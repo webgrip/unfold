@@ -31,8 +31,8 @@ test('readiness reads the task alone: a label, a brief and acceptance conditions
 
 const connections = {
   supported: true,
-  repositories: [{ key: 'unfold', label: 'unfold', repo: 'unfold', readiness: 'ready', reason: '' }, { key: 'ploeg', label: 'ploeg', repo: 'ploeg', readiness: 'ready', reason: '' }, { key: 'homelab', label: 'homelab-cluster', repo: 'homelab-cluster', readiness: 'not_ready', reason: 'webgrip/homelab-cluster has no AGENTS.md on branch "main".' }, { key: 'site', label: 'site', repo: 'site', readiness: 'ready', reason: '' }],
-  boards: [{ name: 'Unfold', repository: null, default: 'unfold', allow: ['ploeg', 'homelab'], teams: [{ team: 'bronze', assignees: [] }], sources: [{ id: 'unfold', name: 'Unfold board', target: '', routed: true }] }],
+  repositories: [{ key: 'unfold', label: 'unfold', repo: 'unfold', readiness: 'ready', reason: '' }, { key: 'ploeg', label: 'ploeg', repo: 'ploeg', readiness: 'ready', reason: '' }, { key: 'infra', label: 'infra', repo: 'infra', readiness: 'not_ready', reason: 'acme/infra has no AGENTS.md on branch "main".' }, { key: 'site', label: 'site', repo: 'site', readiness: 'ready', reason: '' }],
+  boards: [{ name: 'Unfold', repository: null, default: 'unfold', allow: ['ploeg', 'infra'], teams: [{ team: 'bronze', assignees: [] }], sources: [{ id: 'unfold', name: 'Unfold board', target: '', routed: true }] }],
 };
 const entryOf = (value, sourceId = 'unfold', position = 0) => ({ task: value, sourceId, position, readiness: readiness(value), blocker: '' });
 
@@ -64,7 +64,7 @@ test('a task is agent-ready only when its board routes it to a ready repository 
   assert.deepEqual(route(['repo/site']), { ok: false, reason: 'repo/site is not allowed on the Unfold board' });
   assert.deepEqual(route(['repo/mailboxes']), { ok: false, reason: 'repo/mailboxes names no repository Ploeg knows' });
   assert.deepEqual(route(['repo/ploeg', 'repo/unfold']), { ok: false, reason: 'More than one repo/ label (repo/ploeg, repo/unfold): keep exactly one' });
-  assert.deepEqual(route(['repo/homelab']), { ok: false, reason: 'homelab-cluster is not ready for agents: webgrip/homelab-cluster has no AGENTS.md on branch "main"' });
+  assert.deepEqual(route(['repo/infra']), { ok: false, reason: 'infra is not ready for agents: acme/infra has no AGENTS.md on branch "main"' });
   const noDefault = { ...connections, boards: [{ ...connections.boards[0], default: null }] };
   assert.deepEqual(route([], noDefault), { ok: false, reason: 'The Unfold board needs a repo/ label on this task' });
   const noTeam = { ...connections, boards: [{ ...connections.boards[0], teams: [] }] };
@@ -129,20 +129,20 @@ test('Up next lists the first five tasks agents can take in the tracker’s orde
 });
 
 test('Up next rows show the board, size and Team label, and Show all adds a board switch that narrows them', () => {
-  const other = { ...source, id: 'homelab', name: 'Homelab Roadmap' };
+  const other = { ...source, id: 'infra', name: 'Infra Roadmap' };
   const queue = [
     entryOf(task(1, { labels: [{ name: 'effort/S' }, { name: 'team/bronze' }, { name: 'spike' }], priority: 3 })),
-    entryOf(task(2), 'homelab', 0),
+    entryOf(task(2), 'infra', 0),
   ];
   const top = startCard({ queue, sources: [source, other], room: null });
   assert.match(top, /Priority high[\s\S]*Spike[\s\S]*#1[\s\S]*Unfold board[\s\S]*size S[\s\S]*for bronze/);
   assert.doesNotMatch(top, /data-action="start-board"/, 'the first five carry no board switch');
   const all = startCard({ queue, sources: [source, other], room: null, all: true });
   assert.match(all, /data-action="start-board" data-board="" aria-pressed="true">All 2</);
-  assert.match(all, /data-board="homelab" aria-pressed="false">Homelab Roadmap 1</);
-  const narrowed = startCard({ queue, sources: [source, other], room: null, all: true, board: 'homelab' });
+  assert.match(all, /data-board="infra" aria-pressed="false">Infra Roadmap 1</);
+  const narrowed = startCard({ queue, sources: [source, other], room: null, all: true, board: 'infra' });
   assert.equal(narrowed.match(/data-action="start-open"/g).length, 1);
-  assert.equal(startCard({ queue, sources: [source, other], room: null, board: 'homelab' }).match(/data-action="start-open"/g).length, 2, 'a chosen board applies only while every task shows');
+  assert.equal(startCard({ queue, sources: [source, other], room: null, board: 'infra' }).match(/data-action="start-open"/g).length, 2, 'a chosen board applies only while every task shows');
   assert.match(startCard({ queue, sources: [source, other], room: null, all: true, board: 'gone' }), /aria-pressed="true">All 2</, 'an unknown board falls back to all');
   assert.equal(labelledTeam(task(1, { labels: [{ name: 'team/pewter' }] })), 'pewter');
 });
@@ -161,14 +161,14 @@ test('a hand-off stays under Just handed over until Ploeg runs it, with Take bac
 });
 
 test('the sheet shows readiness, each Team with its last 7 days, the terms and one button', () => {
-  const html = sheetMarkup({ task: task(1), source, repository: 'webgrip/unfold', status: status(), summary: week, team: 'pewter', remembered: 'bronze', singleKeys: true });
+  const html = sheetMarkup({ task: task(1), source, repository: 'acme/unfold', status: status(), summary: week, team: 'pewter', remembered: 'bronze', singleKeys: true });
   assert.match(html, /data-form="start-handoff"/);
   assert.match(html, /Names acceptance conditions/);
   assert.match(html, /id="sheet-team-pewter"[^>]*checked/);
   assert.match(html, /bronze<\/span><span class="sheet-team-why">last used here/);
   assert.match(html, /writer → reviewer/);
   assert.match(html, /58 Runs in 7 d: 21 failed, 4 stuck/);
-  assert.match(html, /A branch of webgrip\/unfold, then a pull request for your review/);
+  assert.match(html, /A branch of acme\/unfold, then a pull request for your review/);
   assert.match(html, /<dt>In Vikunja<\/dt><dd>Assigns “pewter” to #1 in Vikunja and leaves a comment there/);
   assert.match(html, /<dt>Next<\/dt><dd>Ploeg queues it for the Team/);
   assert.match(html, /<dt>Take back<\/dt><dd>Free until a worker starts it: Take back on Now or Tasks, which removes “pewter” in Vikunja again\. After a worker starts it, Cancel on its Work Item page stops it\./);

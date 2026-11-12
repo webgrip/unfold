@@ -8,6 +8,8 @@ verified_by: "Repository claims checked: outcome values in cutover-record.exampl
 
 # First Unfold release and live test
 
+To move the project home from Forgejo to GitHub, follow [Move the home to GitHub](#move-the-home-to-github-proposed) at the end of this page.
+
 Use this playbook to transfer release authority to Unfold, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `UNFOLD_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.
 
 The [12 September readiness record](../research/2026-09-12-cutover-readiness.json) separates observed results from missing evidence. The [23 September readiness record](../research/2026-09-23-cutover-readiness.json) and its [summary](../research/2026-09-23-cutover-readiness.md) show which blockers are fixed and which owner actions remain. The [CI guide](ci.md) maps the current event entry points and publication guards. Copy the [execution record](cutover-record.example.json) for your test and replace its empty fields as each stage completes. Keep credentials, cookies, model prompts containing private data and database contents out of that record. A stage passes only when its evidence is attached; a skipped job is not a pass.
@@ -192,3 +194,43 @@ Setting `UNFOLD_RELEASES_ENABLED=false` prevents future eligible jobs; it does n
 The execution record must contain the exact source/release/export revisions, workflow links, required artifact outcomes and digests, GitOps before/after commits, recovery evidence, session IDs, actual spend and the operator's result. Use `passed`, `failed`, `not_run` or `excluded` with a reason; never translate a missing observation into a pass.
 
 Keep unattended work disabled until its separate admission, worker, accounting and delivery tests pass. Keep compatibility mirrors as distribution outputs and direct new source changes to Unfold. Update the [migration record](../migration.md) only when the release authority has actually changed. Record any follow-up work in the tracker rather than leaving an undocumented exception in this playbook.
+
+## Move the home to GitHub (proposed)
+
+Proposed: the procedure for the cutover day in [ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md). It takes about half a day. The owner runs every step that changes a forge, a registry or a shared remote; an agent prepares the pull requests and checks the result.
+
+### Before the day
+
+1. Claim the `unfold-hq` namespace on Open VSX with the account that owns `OVSX_PAT`, and check the token: `npx ovsx verify-pat unfold-hq -p <token>`. The next Forgejo release then publishes `unfold-hq.unfold` for the first time, which Trusted Publishing needs.
+2. Create the `unfold-hq-bot` GitHub App in the `unfold-hq` organisation with contents and pull-request write access, so Ploeg's `consumers` job can open the pin pull request there.
+3. Create the Cloudflare tokens: one that deploys the site Worker, and one that only reads the `unfoldhq.dev` zone.
+4. Create a read-only Docker Hub access token for an account that may pull Docker Hardened Images from `dhi.io`.
+5. Move `ovsx` in `apps/unfold/extensions/vscode/package.json` to 1.4.0 or newer; the GitHub publisher refuses an older one.
+6. Merge or close every open pull request on Forgejo; they do not move.
+
+### On the day
+
+1. Freeze `development` on Forgejo and wait until the last `unfold-v…-rc.N` release is fully published.
+2. Check that the mirror is current: `git ls-remote` on Forgejo and on `github.com/webgrip/unfold` show the same `development`, `main` and tags.
+3. Push the notes once, from a checkout that has fetched them all from Forgejo: `git fetch origin '+refs/notes/*:refs/notes/*'`, then `git push https://github.com/webgrip/unfold.git 'refs/notes/*:refs/notes/*'`. Without them the version would restart and `verify-import.py` fails.
+4. Turn off Forgejo's push mirror, then transfer `webgrip/unfold` to `unfold-hq` on GitHub.
+5. Configure `unfold-hq/unfold`: Actions on; the secrets and variables in [CI and release workflows](ci.md#settings-secrets-and-variables), with `UNFOLD_RELEASES_ENABLED` left unset; auto-merge allowed; a ruleset on `development` and `main` that requires the `gate` check; private vulnerability reporting on; Open VSX Trusted Publishing for `unfold-hq/unfold` and `on_release_published.yml`; Ploeg's `RELEASE_CONSUMERS` entry pointing at `unfold-hq/unfold` with the App.
+6. Archive the Forgejo repository under a new name and create the pull mirror `webgrip/unfold-mirror` of `https://github.com/unfold-hq/unfold`, with Actions off.
+7. Point every checkout at GitHub: `git remote set-url origin git@github.com:unfold-hq/unfold.git`.
+8. Run [the release preview](../../.github/workflows/on_release_preview.yml) on `development`. Its preflight must pass before `UNFOLD_RELEASES_ENABLED` becomes `true`.
+9. Open the first pull request on GitHub: it deletes `.forgejo/`, `scripts/workflow-policy.test.cjs` and the Forgejo branches of the release scripts.
+
+Until step 4 the move is undone by turning the push mirror back on. After it, transfer the repository back to `webgrip`; the archived Forgejo repository holds the full state.
+
+### The first release from GitHub
+
+Set `UNFOLD_RELEASES_ENABLED=true` and let the next release train cut a candidate, or dispatch it. Then check:
+
+- `cosign verify` against the keyless identity in [Source mirrors and release artifacts](artifacts.md#after-the-move-to-github-proposed) passes for both images and the chart;
+- the three GHCR packages are public and pull anonymously; the first run fails here until they are, and only its distribute job needs a rerun;
+- Open VSX serves `unfold-hq.unfold` at the release version;
+- the GitHub release is published and carries the VSIX, its checksum, its sigstore bundle and `release-artifacts-unfold.json`;
+- staging serves the site from the candidate.
+
+Then publish a last `webgrip.unfold` note, or a README line, that points people to `unfold-hq.unfold`.
+

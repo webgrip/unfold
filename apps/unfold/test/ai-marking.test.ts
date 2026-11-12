@@ -19,7 +19,7 @@ import type { AppConfig, User } from '../src/types.ts';
 const shaA = 'a'.repeat(40);
 const traceId = '0f6c1c9e-1111-4222-8333-944445555666';
 const pullRequest = (fields: Partial<FactsPullRequest> = {}) => ({
-  id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42, url: 'https://forgejo.example.org/webgrip/shop/pulls/42', state: 'open',
+  id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42, url: 'https://forgejo.example.org/acme/shop/pulls/42', state: 'open',
   openedAt: '2026-10-29T08:00:00Z', firstSeenAt: '2026-10-29T08:00:00Z', headSha: shaA, branch: 'feat/vik-2051-login', reviews: [], ...fields,
 }) as FactsPullRequest;
 const approvedBy = (reviewer: string, headSha: string | null = shaA, receivedAt = '2026-10-29T09:00:00Z') => ({ reviewer, state: 'APPROVED', headSha, receivedAt });
@@ -124,7 +124,7 @@ test('path: the Client Sign-off comment opens with the AI marking of the agentâ€
   const signOffs = new ClientSignOffs({
     factsSupported: async () => true,
     workItemFacts: async id => ({ workItem: { id, team: 'bronze' } as never, pullRequests: world.pullRequests }),
-    putPullRequestComment: async (_id, _key, body) => { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 }; },
+    putPullRequestComment: async (_id, _key, body) => { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 }; },
   }, new ClientSignOffStore(new DatabaseSync(':memory:')), { enabled: async () => true, commentEnabled: async () => true });
   const person: SignOffPerson = { id: 'u-olga', name: 'olga', role: 'operator', attribution: 'proven' };
   await signOffs.record(person, '184', { answer: 'looks_good', headSha: shaA });
@@ -142,14 +142,14 @@ test('path: the Agent Trace comment carries the marker with the record ids it co
   const ploeg: LinkedPloeg = { async detail(_user, id) { return { item: { id, title: 'Fix login', provider: 'vikunja', externalId: '2051' } }; }, async trackerItems() { return { items: [] }; } };
   const linked = new LinkedSessions(new DatabaseSync(':memory:'), {} as AppConfig, ploeg, { now: () => at });
   const session = '0f6c1c9e-2222-4222-8333-944445555666';
-  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: session, event: 'start', workItem: '184', repository: 'git@forgejo.example.org:webgrip/shop.git' }, at), base);
+  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: session, event: 'start', workItem: '184', repository: 'git@forgejo.example.org:acme/shop.git' }, at), base);
   await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: session, event: 'commit', commit: { sha: shaA, subject: 'feat: login', trailer: true } }, at), base);
   linked.addTrace(owner, session, parseAgentTrace({ version: '0.1', id: traceId, timestamp: '2026-10-24T09:00:00Z', vcs: { type: 'git', revision: shaA }, files: [{ path: 'src/login.ts', conversations: [{ contributor: { type: 'ai' }, ranges: [{ start_line: 1, end_line: 4 }] }] }] }));
   const puts: CommentRequest[] = [];
   const source: AgentTraceCommentSource = {
     async factsSupported() { return true; },
     async workItemFacts(id) { return { workItem: { id, team: 'bronze' } as never, pullRequests: [pullRequest({ reviews: [approvedBy('dev-ann')] })] }; },
-    async putPullRequestComment(_id, _key, body) { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: true }; },
+    async putPullRequestComment(_id, _key, body) { puts.push(body); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: true }; },
   };
   const comments = new AgentTraceComments(source, linked.store, { enabled: async () => true });
   assert.equal(await comments.publish('184', base), 'published');

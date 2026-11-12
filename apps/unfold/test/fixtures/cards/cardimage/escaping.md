@@ -7,4 +7,4 @@
 | Days live | Day 8 · Foil finish |
 | Steward | &lt;b&gt;ann&amp;a&lt;/b&gt; · Approved the pull request |
 | Roles | &lt;img src=x&gt; ×1 |
-| Ids | #⁠42 · VIK-1"/&gt;&lt;x · webgrip/ploeg |
+| Ids | #⁠42 · VIK-1"/&gt;&lt;x · acme/ploeg |

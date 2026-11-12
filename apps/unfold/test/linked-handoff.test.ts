@@ -45,7 +45,7 @@ test('a Work Item can be handed to Ploeg only when it is stopped with no open at
   assert.match(handoffReadiness({ state: 'awaiting_review', latestShift: { closedAt: null } }).reason, /attempt is still open/);
   assert.match(handoffReadiness({ state: 'leased', latestShift: { closedAt: null } }).reason, /working on it now/);
   assert.match(handoffReadiness({ state: 'done', latestShift: null }).reason, /closed/);
-  const note = handoffNote({ branch: 'feat/vik-2051-login', commits: [{ sha, subject: 'fix: login\nnext', at: '', trailer: true, aiLines: 1, files: 1 }], pullRequests: ['https://forgejo.example.org/webgrip/unfold/pulls/9'] }, 'https://unfold.example.org/#linked-session/abcd1234');
+  const note = handoffNote({ branch: 'feat/vik-2051-login', commits: [{ sha, subject: 'fix: login\nnext', at: '', trailer: true, aiLines: 1, files: 1 }], pullRequests: ['https://forgejo.example.org/acme/unfold/pulls/9'] }, 'https://unfold.example.org/#linked-session/abcd1234');
   assert.match(note, /own Claude Code session \(https:\/\/unfold\.example\.org\/#linked-session\/abcd1234\)/);
   assert.match(note, /branch: feat\/vik-2051-login\./);
   assert.match(note, /last commit: a1b2c3d4e5f6 \(fix: login next\)/);

@@ -87,7 +87,7 @@ class Links(Fixture):
         self.assertEqual(self.failures('links'), [])
 
     def test_backticks_that_are_not_repository_paths_are_ignored(self):
-        self.write('apps/app/AGENTS.md', APP + '\nUse `net/http/httptest`, `webgrip/homelab-cluster`, `cmd/*`, `docs/<topic>.md`, `fix:`/`feat:`, `go test ./x/`, `https://a.test/b`, `// @ts-check`.\n')
+        self.write('apps/app/AGENTS.md', APP + '\nUse `net/http/httptest`, `acme/infra`, `cmd/*`, `docs/<topic>.md`, `fix:`/`feat:`, `go test ./x/`, `https://a.test/b`, `// @ts-check`.\n')
         self.assertEqual(self.failures('links'), [])
 
     def test_links_inside_code_are_ignored(self):
@@ -169,7 +169,7 @@ CONCEPT = """---
 type: Pitfall
 title: "A trap"
 description: "What goes wrong."
-resource: https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/app/docs/index.md#part
+resource: https://github.com/unfold-hq/unfold/blob/development/apps/app/docs/index.md#part
 tags: [trap]
 ---
 

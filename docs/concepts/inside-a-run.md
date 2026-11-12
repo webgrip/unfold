@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, operator, agent]
 owner: unfold
 last_verified: 2026-09-29
-verified_by: "source read of apps/ploeg (pkg/sandboxlaunch, pkg/worker, pkg/harness/adapters, ops/helm/ploeg) at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29"
+verified_by: "source read of apps/ploeg (pkg/sandboxlaunch, pkg/worker, pkg/harness/adapters, ops/helm/ploeg) at 050fa3b; cluster repository main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29"
 ---
 
 # Inside a Run
@@ -154,7 +154,7 @@ The worker refuses to start if it can see the LiteLLM master key, the forge admi
 
 ## Network reach
 
-The `ploeg` namespace denies traffic by default. Per [ADR-0035](../../apps/ploeg/docs/adrs/0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) and the [namespace policy](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/networkpolicy.yaml), a worker pod reaches:
+The `ploeg` namespace denies traffic by default. Per [ADR-0035](../../apps/ploeg/docs/adrs/0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) and the namespace policy, a worker pod reaches:
 
 * DNS;
 * pods in `ploeg`: ploegd, and PostgreSQL (the network allows it; the worker holds no database credential);
@@ -166,7 +166,7 @@ It has no route to the internet, the LAN or a container registry. A toolchain th
 
 ## What production runs today
 
-Checked on 2026-09-29 against [homelab-cluster](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/commit/d66fca9aac464e56b642a235d5be17facdddbd4a/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) `main` and the live `ploeg` namespace. Unfold `0.4.0-rc.11` is deployed.
+Checked on 2026-09-29 against cluster repository `main` and the live `ploeg` namespace. Unfold `0.4.0-rc.11` is deployed.
 
 | Team | Executor | Harness | Model | State on 2026-09-29 |
 | --- | --- | --- | --- | --- |
