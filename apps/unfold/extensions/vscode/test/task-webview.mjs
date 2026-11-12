@@ -7,7 +7,7 @@ const now = new Date().toISOString();
 const ago = minutes => new Date(Date.now() - minutes * 60_000).toISOString();
 const theme = `:root{--vscode-font-family:Inter,Arial,sans-serif;--vscode-font-size:13px;--vscode-foreground:#d8dee9;--vscode-editor-background:#171c24;--vscode-descriptionForeground:#98a6b8;--vscode-widget-border:#343e4e;--vscode-button-secondaryForeground:#d8dee9;--vscode-button-secondaryBackground:#303b4e;--vscode-button-secondaryHoverBackground:#3c4c63;--vscode-button-background:#d37145;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#bc6039;--vscode-focusBorder:#dd9565;--vscode-textLink-foreground:#e4a177;--vscode-errorForeground:#ef9393;--vscode-badge-background:#354252;--vscode-badge-foreground:#d8dee9;--vscode-testing-iconPassed:#82bd9c;--vscode-list-warningForeground:#e5b26c;--vscode-textBlockQuote-background:#202731;--vscode-textCodeBlock-background:#111620;--vscode-list-hoverBackground:#26313e;--vscode-editor-font-family:monospace;--vscode-charts-purple:#b180d7;--vscode-charts-orange:#d18616;--vscode-charts-red:#f14c4c;--vscode-terminal-ansiCyan:#2aa198;}`;
 const unbreakable = `theme/unfold—[P1·impact-H·effort-M·time-days·unc-low]·researched-against-unfold-development@1e40700${'x'.repeat(160)}`;
-const description = `## Goal\n\nExplain how a Work Item becomes a pull request.\n\n${unbreakable}\n\n- [x] Read \`apps/ploeg/pkg/store/llm_accounts.go:303\` and \`${'apps/ploeg/pkg/store/'.repeat(6)}llm_accounts.go\`\n- [ ] Write the guide\n\n| Column | Another column | Third |\n|---|---|---|\n| ${'wide-cell-'.repeat(12)} | b | c |\n\nSee [the ADR](https://forgejo.example/webgrip/unfold/src/branch/development/docs/adr/adr-0002.md) and <script>window.compromised=true</script> [bad](javascript:alert(1)).\n\n\`\`\`sh\nmise run verify && ${'echo very-long-command-line-without-breaks;'.repeat(4)}\n\`\`\``;
+const description = `## Goal\n\nExplain how a Work Item becomes a pull request.\n\n${unbreakable}\n\n- [x] Read \`apps/ploeg/pkg/store/llm_accounts.go:303\` and \`${'apps/ploeg/pkg/store/'.repeat(6)}llm_accounts.go\`\n- [ ] Write the guide\n\n| Column | Another column | Third |\n|---|---|---|\n| ${'wide-cell-'.repeat(12)} | b | c |\n\nSee [the ADR](https://forgejo.example/acme/unfold/src/branch/development/docs/adr/adr-0002.md) and <script>window.compromised=true</script> [bad](javascript:alert(1)).\n\n\`\`\`sh\nmise run verify && ${'echo very-long-command-line-without-breaks;'.repeat(4)}\n\`\`\``;
 const teams = [{ id: 'bronze', assignee: 'bronze', queueDepth: 2, paused: false, roles: ['engineer', 'reviewer', 'tester', 'writer', 'analyst'] }, { id: 'copper', assignee: 'copper', queueDepth: 0, paused: true, roles: ['', 'builder', 'devops', 'operator', 'reviewer'] }, { id: 'silver', assignee: 'silver', queueDepth: 0, paused: false, roles: ['engineer', 'reviewer', 'tester'] }];
 const view = (status = {}, task = {}, extra = {}) => ({
   kind: 'task',
@@ -21,7 +21,7 @@ const workItem = (state, extra = {}) => ({ id: '42', team: 'bronze', state, atte
 const shift = (extra = {}) => ({ id: '7', branch: 'unfold/42-one-total', round: 2, budgetUsd: 5, spentUsd: 0.4, reservedUsd: 0, openedAt: ago(40), closedAt: null, closeReason: '', ...extra });
 const run = (id, extra = {}) => ({ id, shiftId: '7', role: 'engineer', round: 1, writes: true, state: 'finished', startedAt: ago(38), finishedAt: ago(30), outcome: 'pr_opened', summary: '', stuckReason: '', links: [], findings: '', verdict: '', problem: '', solution: '', failureReason: null, authorizedUsd: 1, usage: { inputTokens: 41200, outputTokens: 5300, costUsd: 0.2141 }, costStatus: 'observed', ...extra });
 const detail = (state, extra = {}) => ({
-  item: { id: '42', title: 'unfold: show one provisional total and a cost per role on a Work Item', provider: 'vikunja', externalId: '1505', team: 'bronze', state, description: '', descriptionMarkdown: description, attempts: 2, target: { owner: 'webgrip', repo: 'unfold' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(90), updatedAt: ago(1), latestShift: null },
+  item: { id: '42', title: 'unfold: show one provisional total and a cost per role on a Work Item', provider: 'vikunja', externalId: '1505', team: 'bronze', state, description: '', descriptionMarkdown: description, attempts: 2, target: { owner: 'acme', repo: 'unfold' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(90), updatedAt: ago(1), latestShift: null },
   shifts: [shift()], runs: [], checkpoints: [], events: [], fetchedAt: now, ...extra,
 });
 const reviewRuns = [
@@ -33,7 +33,7 @@ const reviewRuns = [
 ];
 const roles = [{ role: 'engineer', writes: true, runs: 3, costUsd: 0.4282, inputTokens: 82400, outputTokens: 10600 }, { role: '', writes: null, runs: 1 }, { role: 'reviewer', writes: false, runs: 2, costUsd: 0.095, inputTokens: 34000, outputTokens: 1600 }];
 const card = (extra = {}) => ({ workItemId: '42', state: 'in_review', roles, plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.5232, authorizedUsd: 5, runs: 5, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
-const play = { number: 77, url: 'https://forgejo.example/webgrip/unfold/pulls/77', state: 'open', branch: 'unfold/42-one-total', mergedAt: null, additions: 214, deletions: 37, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [] };
+const play = { number: 77, url: 'https://forgejo.example/acme/unfold/pulls/77', state: 'open', branch: 'unfold/42-one-total', mergedAt: null, additions: 214, deletions: 37, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [] };
 
 const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js', '/core/checkout.js': 'core/checkout.js', '/core/progress.js': 'core/progress.js', '/core/terms.js': 'core/terms.js' };
 const fixture = JSON.parse(await readFile(new URL('../../../test/fixtures/session-059675b9.json', import.meta.url), 'utf8'));
@@ -119,7 +119,7 @@ try {
   assert.doesNotMatch(await page.locator('#app').innerText(), /\$0\.00|US\$\s0,00/, 'unknown money never reads as zero');
   await both('running', () => page.getByRole('heading', { name: 'Team bronze is working on it.', exact: true }).waitFor());
 
-  const review = view({ assignedTeams: ['bronze'], workItems: [workItem('awaiting_review', { prUrl: 'https://forgejo.example/webgrip/unfold/pulls/77' })] }, { assignees: [{ username: 'bronze' }] }, { workItemId: '42', detail: detail('awaiting_review', { runs: reviewRuns, shifts: [shift({ closedAt: ago(9), closeReason: 'review_approved' })] }), card: card({ plays: [play, { ...play, number: 76, state: 'closed', url: 'https://forgejo.example/webgrip/unfold/pulls/76', ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }] }, reviews: [{ reviewer: 'ryan', state: 'changes_requested' }] }] }) });
+  const review = view({ assignedTeams: ['bronze'], workItems: [workItem('awaiting_review', { prUrl: 'https://forgejo.example/acme/unfold/pulls/77' })] }, { assignees: [{ username: 'bronze' }] }, { workItemId: '42', detail: detail('awaiting_review', { runs: reviewRuns, shifts: [shift({ closedAt: ago(9), closeReason: 'review_approved' })] }), card: card({ plays: [play, { ...play, number: 76, state: 'closed', url: 'https://forgejo.example/acme/unfold/pulls/76', ci: { state: 'failure', checks: [{ context: 'lint', state: 'failure' }] }, reviews: [{ reviewer: 'ryan', state: 'changes_requested' }] }] }) });
   await post({ type: 'state', view: review });
   await page.getByRole('heading', { name: 'A pull request is waiting for your review.', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Problem → Solution' }).waitFor();
@@ -129,10 +129,10 @@ try {
   await page.getByText('Agent review: approve').first().waitFor();
   await page.getByText('Human reviews: Changes requested by ryan').waitFor();
   await page.getByRole('button', { name: /^Review pull request ↗/ }).click();
-  assert.deepEqual(await lastMessage(), { type: 'open-url', url: 'https://forgejo.example/webgrip/unfold/pulls/77' });
+  assert.deepEqual(await lastMessage(), { type: 'open-url', url: 'https://forgejo.example/acme/unfold/pulls/77' });
   await page.getByRole('link', { name: 'the ADR' }).focus();
   await page.keyboard.press('Enter');
-  assert.equal((await lastMessage()).url, 'https://forgejo.example/webgrip/unfold/src/branch/development/docs/adr/adr-0002.md', 'description links open through the host by keyboard too');
+  assert.equal((await lastMessage()).url, 'https://forgejo.example/acme/unfold/src/branch/development/docs/adr/adr-0002.md', 'description links open through the host by keyboard too');
   await both('review', () => page.getByRole('heading', { name: 'A pull request is waiting for your review.', exact: true }).waitFor());
 
   const stuck = view({ assignedTeams: ['bronze'], workItems: [workItem('needs_human')] }, { assignees: [{ username: 'bronze' }] }, { workItemId: '42', detail: detail('needs_human', { shifts: [shift({ closedAt: ago(5), closeReason: 'run stuck: engineer round 2' })], runs: [reviewRuns[0], reviewRuns[1], run('106', { round: 2, outcome: 'stuck', stuckReason: `The task names ${'apps/ploeg/pkg/store/'.repeat(4)}llm_accounts.go:303 but the file does not have a cost-per-role query; I cannot tell which total is meant.` })] }), card: card({ totals: { costStatus: 'not_reported', usageComplete: null } }) });

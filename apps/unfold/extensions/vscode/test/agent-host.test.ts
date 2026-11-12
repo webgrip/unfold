@@ -69,9 +69,9 @@ test('signing out removes only the agent host entry whose token this editor issu
 });
 
 test('the user settings file is the default profile\'s, whichever profile the window uses', () => {
-  assert.equal(userSettingsFile('/data/Code/User/globalStorage/webgrip.unfold'), '/data/Code/User/settings.json');
-  assert.equal(userSettingsFile('/data/Code/User/profiles/-6e54893e/globalStorage/webgrip.unfold'), '/data/Code/User/settings.json');
-  assert.equal(userSettingsFile('/portable/data/user-data/User/globalStorage/webgrip.unfold'), '/portable/data/user-data/User/settings.json');
+  assert.equal(userSettingsFile('/data/Code/User/globalStorage/unfold-hq.unfold'), '/data/Code/User/settings.json');
+  assert.equal(userSettingsFile('/data/Code/User/profiles/-6e54893e/globalStorage/unfold-hq.unfold'), '/data/Code/User/settings.json');
+  assert.equal(userSettingsFile('/portable/data/user-data/User/globalStorage/unfold-hq.unfold'), '/portable/data/user-data/User/settings.json');
   assert.equal(userSettingsFile(undefined, { appName: 'Visual Studio Code - Insiders', platform: 'darwin', home: '/Users/me' }), '/Users/me/Library/Application Support/Code - Insiders/User/settings.json');
   assert.equal(userSettingsFile(undefined, { appName: 'VSCodium', platform: 'linux', home: '/home/me', env: {} }), '/home/me/.config/VSCodium/User/settings.json');
   assert.equal(userSettingsFile(undefined, { appName: 'Cursor', platform: 'linux', home: '/home/me', env: { XDG_CONFIG_HOME: '/xdg' } }), '/xdg/Cursor/User/settings.json');
@@ -317,10 +317,10 @@ test('a renamed entry keeps its name and no longer counts as one of Unfold\'s', 
 });
 
 test('the editor window is read from the extension\'s own link after env.asExternalUri', () => {
-  assert.deepEqual(editorWindowOf('vscode://webgrip.unfold/?windowId=3'), { protocol: 'vscode', windowId: '3' });
-  assert.deepEqual(editorWindowOf('vscode-insiders://webgrip.unfold/?windowId=12'), { protocol: 'vscode-insiders', windowId: '12' });
+  assert.deepEqual(editorWindowOf('vscode://unfold-hq.unfold/?windowId=3'), { protocol: 'vscode', windowId: '3' });
+  assert.deepEqual(editorWindowOf('vscode-insiders://unfold-hq.unfold/?windowId=12'), { protocol: 'vscode-insiders', windowId: '12' });
   assert.equal(editorWindowOf('https://vscode.dev/callback?windowId=3'), undefined, 'VS Code for the Web resolves the link to its own page');
-  assert.equal(editorWindowOf('vscode://webgrip.unfold/'), undefined, 'no window id, nothing to address');
+  assert.equal(editorWindowOf('vscode://unfold-hq.unfold/'), undefined, 'no window id, nothing to address');
   assert.equal(editorWindowOf('vscode://other.extension/?windowId=3'), undefined);
   assert.equal(editorWindowOf('not a link'), undefined);
 });

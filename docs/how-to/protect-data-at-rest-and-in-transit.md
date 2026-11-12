@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-24
-verified_by: "Talos patches in apps/unfold/ops/cluster/sandbox-runtimes/talos validated with talosctl 1.13.4 validate --mode metal; Talos VolumeConfig and disk-encryption docs for v1.13 and Longhorn 1.10 volume-encryption docs read on 2026-10-24; apps/unfold/src/store.ts read for the internal-state key; TPM presence read with talosctl ls /sys/class/tpm on the homelab's six nodes. The rolling wipe under step 2 and the encryptionProvider check were not run on any cluster."
+verified_by: "Talos patches in apps/unfold/ops/cluster/sandbox-runtimes/talos validated with talosctl 1.13.4 validate --mode metal; Talos VolumeConfig and disk-encryption docs for v1.13 and Longhorn 1.10 volume-encryption docs read on 2026-10-24; apps/unfold/src/store.ts read for the internal-state key; TPM presence read with talosctl ls /sys/class/tpm on the owner's staging cluster's six nodes. The rolling wipe under step 2 and the encryptionProvider check were not run on any cluster."
 ---
 
 # Protect data at rest and in transit

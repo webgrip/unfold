@@ -1,7 +1,7 @@
 const escaped = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * The tracker tasks (`VIK-2051`, for the prefixes Unfold named) and Work Items (an Unfold `#work/<id>` link on `base`,
+ * The tracker tasks (`VIK-123`, for the prefixes Unfold named) and Work Items (an Unfold `#work/<id>` link on `base`,
  * or "Work Item 184") a prompt or commit message names. Only these ids leave the machine, never the text.
  * @param {string} text
  * @param {string[]} [prefixes]

@@ -9,7 +9,7 @@ const at = new Date(Date.now() - 3_600_000).toISOString();
 const item = (state: string, extra: Partial<PloegNowItem> = {}): PloegNowItem => ({ id: '42', team: 'bronze', state, title: 'unfold: <b>show</b> one provisional total', url: 'https://vikunja.example/tasks/1694', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: '1694', priority: 4, attempts: 1, infraFailures: 0, target: null, closeReason: null, latestShift: null, spentUsd: 1.5, pullRequestUrl: '', ...extra });
 const handOff = (workItem: PloegNowItem | null, extra: Partial<HandOff> = {}): HandOff => ({ id: 7, at, channel: 'mcp:Claude Code 2.1.300', team: 'bronze', origin: { kind: 'task', sourceId: 'board', sourceName: 'Unfold board', taskId: '1694' }, workItem, note: workItem ? '' : 'Ploeg has not listed a Work Item for this hand-off yet.', ...extra });
 const list = (...handoffs: HandOff[]): HandOffList => ({ handoffs, demo: false, fetchedAt: at });
-const pr = 'https://forgejo.example/webgrip/unfold/pulls/731';
+const pr = 'https://forgejo.example/acme/unfold/pulls/731';
 
 class FakeMemory implements Memory {
   values = new Map<string, unknown>();

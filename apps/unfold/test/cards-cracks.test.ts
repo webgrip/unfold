@@ -30,14 +30,14 @@ class World {
   item(externalId: string, team: string, createdAt: number, plays: Play[] = [], state = 'open'): WorkItemFacts {
     const id = String(this.nextItem++);
     const facts = parseWorkItemFacts({
-      workItem: { id, provider: 'vikunja', externalId, title: `Item ${externalId}`, state, team, createdAt: t(createdAt), target: { forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', baseBranch: 'development' } },
+      workItem: { id, provider: 'vikunja', externalId, title: `Item ${externalId}`, state, team, createdAt: t(createdAt), target: { forge: 'forgejo', owner: 'acme', repo: 'ploeg', baseBranch: 'development' } },
       activityAt: t(createdAt),
       pullRequests: plays.map(p => {
         const merged = (p.state ?? 'merged') === 'merged';
         return {
-          id: String(this.nextPullRequest++), forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: p.number, state: p.state ?? 'merged', firstSeenAt: t(createdAt),
+          id: String(this.nextPullRequest++), forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: p.number, state: p.state ?? 'merged', firstSeenAt: t(createdAt),
           mergedAt: merged ? t(p.mergedAt!) : null, mergedBy: merged ? p.mergedBy ?? null : null, labels: p.labels ?? [],
-          reverts: p.reverted ? [{ forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 99, mergeCommitSha: null, mergedAt: t(this.now - day), mergedBy: 'anna', matchedBy: 'title', detectedAt: t(this.now - day) }] : [],
+          reverts: p.reverted ? [{ forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 99, mergeCommitSha: null, mergedAt: t(this.now - day), mergedBy: 'anna', matchedBy: 'title', detectedAt: t(this.now - day) }] : [],
         };
       }),
     });
@@ -392,9 +392,9 @@ test('a later merged fix mends the cracks without one, from the latest merged pu
   const fixed = parseWorkItemFacts({
     ...structuredClone(bug),
     pullRequests: [
-      { id: '900', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 21, state: 'merged', firstSeenAt: t(w.now), mergedAt: t(w.now + 2 * hour), mergedBy: 'helper' },
-      { id: '901', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 22, state: 'merged', firstSeenAt: t(w.now), mergedAt: t(w.now + 3 * hour), mergedBy: 'Stewart' },
-      { id: '902', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 23, state: 'open', firstSeenAt: t(w.now) },
+      { id: '900', forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 21, state: 'merged', firstSeenAt: t(w.now), mergedAt: t(w.now + 2 * hour), mergedBy: 'helper' },
+      { id: '901', forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 22, state: 'merged', firstSeenAt: t(w.now), mergedAt: t(w.now + 3 * hour), mergedBy: 'Stewart' },
+      { id: '902', forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 23, state: 'open', firstSeenAt: t(w.now) },
     ],
   });
   assert.equal(w.flow.syncMends(fixed, 'webhook:forgejo', w.now + 4 * hour), 1);
@@ -515,7 +515,7 @@ test('a crack imported from Ploeg earlier keeps its id and its workflow, and a r
   const bug = silverBug(w);
   const imported: CrackRecord = {
     id: '42', team: 'silver', state: 'proposed', cardWorkItemId: card.workItem.id, bugWorkItemId: bug.workItem.id, bug: { provider: 'vikunja', externalId: 'bug' },
-    pullRequest: { id: card.pullRequests[0]!.id, forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, severity: 'S3', share: 'primary', discovery: 'discovered', steward: 'stewart', note: null,
+    pullRequest: { id: card.pullRequests[0]!.id, forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 10 }, severity: 'S3', share: 'primary', discovery: 'discovered', steward: 'stewart', note: null,
     proposedBy: 'fixer', proposedAt: t(w.now - day), confirmedBy: null, confirmedAt: null, disputeUntil: null, disputedBy: null, disputedAt: null, disputeReason: null,
     resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null, mendPullRequest: null, mendNumber: null, mendedAt: null, mendedBy: null, mendBySteward: null, mendConfirmedAt: null, mendReopenedAt: null,
   };

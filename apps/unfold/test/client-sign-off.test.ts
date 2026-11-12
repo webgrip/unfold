@@ -19,7 +19,7 @@ const at = new Date('2026-10-29T10:00:00.000Z');
 
 const changed = (head: string, paths: string[], truncated = false) => ({ headSha: head, truncated, capturedAt: '2026-10-29T09:00:00Z', paths: paths.map(path => ({ path, status: 'modified' })) });
 const pullRequest = (fields: Partial<FactsPullRequest> = {}) => ({
-  id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42, url: 'https://forgejo.example.org/webgrip/shop/pulls/42', state: 'open',
+  id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42, url: 'https://forgejo.example.org/acme/shop/pulls/42', state: 'open',
   openedAt: '2026-10-29T08:00:00Z', firstSeenAt: '2026-10-29T08:00:00Z', headSha: shaA, changedPaths: changed(shaA, ['src/pages/home.tsx', 'infra/deploy.yaml']), ...fields,
 }) as FactsPullRequest;
 
@@ -36,7 +36,7 @@ function fixture(options: { team?: string; enabled?: boolean; comment?: boolean;
     async putPullRequestComment(id, key, body) {
       if (options.failWrite) throw new Error('ploeg answered 403 person_token_required');
       puts.push({ id, key, body });
-      return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 };
+      return { pullRequest: { id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 };
     },
   };
   const store = new ClientSignOffStore(new DatabaseSync(':memory:'));
@@ -103,10 +103,10 @@ test('only an administrator or operator records a Sign-off until Client users ca
 
 test('a Sign-off binds to the head the person saw, records the Work Item, pull request, person, time and scope, and changes nothing else', async () => {
   const { signOffs, store, world } = fixture();
-  store.setExclusions({ client: '', repository: 'WebGrip/Shop', exclude: ['infra/**'], keep: [], repositoryFile: false, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
+  store.setExclusions({ client: '', repository: 'Acme/Shop', exclude: ['infra/**'], keep: [], repositoryFile: false, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
   const signed = await signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA.slice(0, 10) });
   assert.equal(signed.workItemId, '184');
-  assert.deepEqual(signed.pullRequest, { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 });
+  assert.deepEqual(signed.pullRequest, { id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42 });
   assert.equal(signed.headSha, shaA, 'a short head the person saw binds to the full commit');
   assert.deepEqual(signed.person, { id: 'u-olga', name: 'olga', role: 'operator', attribution: 'proven', onBehalfOfClient: true });
   assert.equal(signed.recordedAt, at.toISOString());
@@ -124,7 +124,7 @@ test('a Sign-off binds to the head the person saw, records the Work Item, pull r
 test('a stored scope stays as signed when the Agency changes its exclusions later', async () => {
   const { signOffs, store } = fixture();
   await signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA });
-  store.setExclusions({ client: '', repository: 'webgrip/shop', exclude: ['infra/**'], keep: [], repositoryFile: false, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
+  store.setExclusions({ client: '', repository: 'acme/shop', exclude: ['infra/**'], keep: [], repositoryFile: false, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
   const view = await signOffs.view('184');
   assert.equal(view.current?.scope.wholeChange, true);
   assert.deepEqual(view.scope?.excluded, ['infra/deploy.yaml'], 'the next sign-off uses the new globs');
@@ -132,7 +132,7 @@ test('a stored scope stays as signed when the Agency changes its exclusions late
 
 test('the repository file’s exclusions apply only when the Agency turned the file on', async () => {
   const on = fixture({ readFile: 'exclude:\n  - src/**\n' });
-  on.store.setExclusions({ client: '', repository: 'webgrip/shop', exclude: [], keep: [], repositoryFile: true, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
+  on.store.setExclusions({ client: '', repository: 'acme/shop', exclude: [], keep: [], repositoryFile: true, updatedAt: at.toISOString(), updatedBy: 'u-admin' });
   assert.deepEqual((await on.signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA })).scope.excluded, ['src/pages/home.tsx']);
   const off = fixture({ readFile: 'exclude:\n  - src/**\n' });
   assert.deepEqual((await off.signOffs.record(operator, '184', { answer: 'looks_good', headSha: shaA })).scope.excluded, []);
@@ -237,7 +237,7 @@ test('after a restart the same stored Sign-off is written again under the same k
   const restarted = new ClientSignOffs({
     factsSupported: async () => true,
     workItemFacts: async id => ({ workItem: { id, team: 'bronze' } as never, pullRequests: [pullRequest()] }),
-    putPullRequestComment: async (id, key, body) => { puts.push({ id, key, body }); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: false }; },
+    putPullRequestComment: async (id, key, body) => { puts.push({ id, key, body }); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'acme', repo: 'shop', number: 42 }, commentId: 7, imageUrl: null, created: false }; },
   }, store, { enabled: async () => true, commentEnabled: async () => true });
   assert.equal(await restarted.publish('184'), 'published');
   assert.equal(await restarted.publish('184'), 'unchanged');

@@ -1,0 +1,40 @@
+name: '[Workflow] On Agent Standards'
+
+on:
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: agent-standards-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  survey:
+    if: github.repository == 'unfold-hq/unfold' && vars.AGENT_STANDARDS_SURVEY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: development
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Survey the agent-standards sources and open a pull request when something changed
+        env:
+          SURVEY_FORGE: github
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_STANDARDS_MODEL_URL: ${{ vars.AGENT_STANDARDS_MODEL_URL }}
+          AGENT_STANDARDS_MODEL: ${{ vars.AGENT_STANDARDS_MODEL }}
+          AGENT_STANDARDS_MODEL_KEY: ${{ secrets.AGENT_STANDARDS_MODEL_KEY }}
+        run: mise exec uv -- uv run --frozen python scripts/agent-standards-survey.py

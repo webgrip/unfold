@@ -6,8 +6,8 @@
     "name": "Ryan Grippeling / WebGrip",
     "url": "https://unfoldhq.dev"
   },
-  "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/claude-code",
-  "repository": "https://forgejo.webgrip.dev/webgrip/unfold",
+  "homepage": "https://github.com/unfold-hq/unfold/blob/development/apps/unfold/extensions/claude-code",
+  "repository": "https://github.com/unfold-hq/unfold",
   "license": "Apache-2.0",
   "keywords": [
     "unfold",

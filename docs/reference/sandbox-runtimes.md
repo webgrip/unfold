@@ -3,7 +3,7 @@ type: reference
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-10-24
-verified_by: "Sources and live checks in research/2026-10-24-sandbox-runtimes-and-encryption.md; extension tiers from the siderolabs/extensions README on 2026-10-24: primary sources (project repositories, release notes, security advisories, vendor docs) read on 2026-10-24; Image Factory extension lists for Talos 1.13.4 and 1.14.0; the Kata configuration on a homelab Talos 1.13.10 worker read with talosctl; gVisor run on kind. Start-up and overhead figures are the vendors' own unless the record says it measured them."
+verified_by: "Sources and live checks in research/2026-10-24-sandbox-runtimes-and-encryption.md; extension tiers from the siderolabs/extensions README on 2026-10-24: primary sources (project repositories, release notes, security advisories, vendor docs) read on 2026-10-24; Image Factory extension lists for Talos 1.13.4 and 1.14.0; the Kata configuration on a staging Talos 1.13.10 worker read with talosctl; gVisor run on kind. Start-up and overhead figures are the vendors' own unless the record says it measured them."
 ---
 
 # Sandbox runtimes

@@ -32,14 +32,14 @@ function ploegFor(readable: string[] = ['184']): LinkedPloeg {
   };
 }
 
-const pullRequest = (fields: Partial<FactsPullRequest> = {}) => ({ id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'unfold', number: 42, url: 'https://forgejo.example.org/webgrip/unfold/pulls/42', state: 'open', openedAt: '2026-10-24T08:00:00Z', firstSeenAt: '2026-10-24T08:00:00Z', branch: 'feat/vik-2051-login', ...fields }) as FactsPullRequest;
+const pullRequest = (fields: Partial<FactsPullRequest> = {}) => ({ id: '9', forge: 'forgejo', owner: 'acme', repo: 'unfold', number: 42, url: 'https://forgejo.example.org/acme/unfold/pulls/42', state: 'open', openedAt: '2026-10-24T08:00:00Z', firstSeenAt: '2026-10-24T08:00:00Z', branch: 'feat/vik-2051-login', ...fields }) as FactsPullRequest;
 
 function fakeSource(pullRequests: FactsPullRequest[] = [pullRequest()], team = 'bronze') {
   const puts: { id: string; key: string; body: CommentRequest }[] = [];
   const source: AgentTraceCommentSource = {
     async factsSupported() { return true; },
     async workItemFacts(id) { return { workItem: { id, team } as never, pullRequests }; },
-    async putPullRequestComment(id, key, body) { puts.push({ id, key, body }); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'webgrip', repo: 'unfold', number: body.number ?? 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 }; },
+    async putPullRequestComment(id, key, body) { puts.push({ id, key, body }); return { pullRequest: { id: '9', forge: 'forgejo', owner: 'acme', repo: 'unfold', number: body.number ?? 42 }, commentId: 7, imageUrl: null, created: puts.length === 1 }; },
   };
   return { source, puts };
 }
@@ -47,7 +47,7 @@ function fakeSource(pullRequests: FactsPullRequest[] = [pullRequest()], team = '
 async function linkedWithTraces() {
   const linked = new LinkedSessions(new DatabaseSync(':memory:'), {} as AppConfig, ploegFor(), { now: () => at });
   const id = '0f6c1c9e-1111-4222-8333-944445555666';
-  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', workItem: '184', repository: 'git@forgejo.example.org:webgrip/unfold.git' }, at), base);
+  await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'start', workItem: '184', repository: 'git@forgejo.example.org:acme/unfold.git' }, at), base);
   await linked.report(owner, parseLinkedEvent({ harness: 'claude-code', sessionId: id, event: 'commit', commit: { sha: shaA, subject: 'feat: login | form', trailer: true } }, at), base);
   linked.addTrace(owner, id, record(shaA, { metadata: { 'dev.unfoldhq': { session_id: id } } }));
   return { linked, id };
@@ -69,8 +69,8 @@ test('records from any tool are stored, and a commit names the tool when it is n
 test('the comment goes on the newest open pull request, for sessions of its repository, with counts and session links only', async () => {
   assert.equal(commentPullRequest([pullRequest({ state: 'merged' })]), null);
   assert.equal(commentPullRequest([pullRequest({ number: 1, openedAt: '2026-10-01T00:00:00Z' }), pullRequest({ number: 2, openedAt: '2026-10-02T00:00:00Z' }), pullRequest({ number: 3, state: 'closed' })])?.number, 2);
-  assert.equal(sameRepository({ repository: 'forgejo.example.org:webgrip/unfold.git' }, pullRequest()), true);
-  assert.equal(sameRepository({ repository: 'https://forgejo.example.org/webgrip/unfold-site' }, pullRequest()), false);
+  assert.equal(sameRepository({ repository: 'forgejo.example.org:acme/unfold.git' }, pullRequest()), true);
+  assert.equal(sameRepository({ repository: 'https://forgejo.example.org/acme/unfold-site' }, pullRequest()), false);
   assert.equal(sameRepository({ repository: '' }, pullRequest()), true);
   const { linked, id } = await linkedWithTraces();
   const session = linked.store.get(id)!;

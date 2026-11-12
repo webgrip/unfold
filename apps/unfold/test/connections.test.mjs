@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import { connectionsHeadline, connectionsMarkup, connectionsModel } from '../public/connections.js';
 
 const at = Date.parse('2026-10-19T10:00:00Z');
-const repository = (key, extra = {}) => ({ key, label: key, forge: 'forgejo', owner: 'webgrip', repo: key, baseBranch: 'main', readiness: 'ready', reason: '', lastForgeEventAt: '2026-10-18T10:00:00Z', boards: ['Unfold'], ...extra });
-const board = (name, extra = {}) => ({ tracker: 'vikunja', name, projectId: '10', team: null, repository: null, default: 'unfold', allow: ['homelab-cluster'], webhook: 'present', teams: [{ team: 'bronze', assignees: [{ username: 'bronze', shared: true }] }], sources: [{ id: 'unfold', name: 'Unfold', target: 'webgrip/unfold@main', routed: true }], ...extra });
-const data = (extra = {}) => ({ demo: false, supported: true, checkedAt: '2026-10-19T09:40:00Z', eventWindowDays: 30, repositories: [repository('unfold'), repository('homelab-cluster')], boards: [board('Unfold')], unrouted: [], ...extra });
+const repository = (key, extra = {}) => ({ key, label: key, forge: 'forgejo', owner: 'acme', repo: key, baseBranch: 'main', readiness: 'ready', reason: '', lastForgeEventAt: '2026-10-18T10:00:00Z', boards: ['Unfold'], ...extra });
+const board = (name, extra = {}) => ({ tracker: 'vikunja', name, projectId: '10', team: null, repository: null, default: 'unfold', allow: ['infra'], webhook: 'present', teams: [{ team: 'bronze', assignees: [{ username: 'bronze', shared: true }] }], sources: [{ id: 'unfold', name: 'Unfold', target: 'acme/unfold@main', routed: true }], ...extra });
+const data = (extra = {}) => ({ demo: false, supported: true, checkedAt: '2026-10-19T09:40:00Z', eventWindowDays: 30, repositories: [repository('unfold'), repository('infra')], boards: [board('Unfold')], unrouted: [], ...extra });
 const statuses = entry => Object.fromEntries(entry.checks.map(check => [check.id, check.status]));
 
 test('a fully wired board and its repositories read as working', () => {
@@ -14,16 +14,16 @@ test('a fully wired board and its repositories read as working', () => {
   assert.equal(model.warnings, 0);
   assert.equal(connectionsHeadline(model), 'Every connection works: 1 board and 2 repositories.');
   assert.deepEqual(statuses(model.boards[0]), { webhook: 'ok', teams: 'ok', route: 'ok', unfold: 'ok' });
-  assert.match(model.boards[0].checks.find(check => check.id === 'route').text, /Work without a repo\/ label goes to webgrip\/unfold\. A label may pick repo\/homelab-cluster\./);
+  assert.match(model.boards[0].checks.find(check => check.id === 'route').text, /Work without a repo\/ label goes to acme\/unfold\. A label may pick repo\/infra\./);
 });
 
 test('each broken wire is a problem with its fix, and broken entries sort first', () => {
   const model = connectionsModel(data({
-    repositories: [repository('unfold'), repository('homelab-cluster', { readiness: 'not_ready', reason: 'webgrip/homelab-cluster has no AGENTS.md on branch "main"', lastForgeEventAt: null })],
+    repositories: [repository('unfold'), repository('infra', { readiness: 'not_ready', reason: 'acme/infra has no AGENTS.md on branch "main"', lastForgeEventAt: null })],
     boards: [board('Unfold'), board('Dark Factory', { projectId: '5', webhook: 'missing', default: null, allow: [], repository: null, teams: [{ team: 'bronze', assignees: [{ username: 'bronze', shared: false }] }], sources: [] })],
     unrouted: [{ id: 'dark-factory', name: 'Dark Factory', provider: 'vikunja', project: '5' }],
   }), at);
-  assert.equal(model.repositories[0].title, 'webgrip/homelab-cluster', 'the repository that is not ready comes first');
+  assert.equal(model.repositories[0].title, 'acme/infra', 'the repository that is not ready comes first');
   assert.deepEqual(statuses(model.repositories[0]), { ready: 'problem', reviews: 'warning', boards: 'ok' });
   const dark = model.boards.find(entry => entry.title === 'Dark Factory');
   assert.deepEqual(statuses(dark), { webhook: 'problem', teams: 'problem', route: 'info', unfold: 'info' });
@@ -41,10 +41,10 @@ test('each broken wire is a problem with its fix, and broken entries sort first'
 });
 
 test('a task source that sends work elsewhere than the board routes is flagged', () => {
-  const model = connectionsModel(data({ boards: [board('Unfold', { sources: [{ id: 'u', name: 'Unfold tasks', target: 'webgrip/other@main', routed: false }] })] }), at);
+  const model = connectionsModel(data({ boards: [board('Unfold', { sources: [{ id: 'u', name: 'Unfold tasks', target: 'acme/other@main', routed: false }] })] }), at);
   const check = model.boards[0].checks.find(entry => entry.id === 'unfold');
   assert.equal(check.status, 'warning');
-  assert.match(check.text, /Unfold tasks sends its tasks to webgrip\/other@main, which this board does not route to/);
+  assert.match(check.text, /Unfold tasks sends its tasks to acme\/other@main, which this board does not route to/);
 });
 
 test('unknown shares and an older Ploeg say so instead of guessing', () => {

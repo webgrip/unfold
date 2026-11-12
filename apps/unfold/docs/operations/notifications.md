@@ -110,7 +110,7 @@ upstream-base-url: "https://ntfy.sh"
 * `auth-default-access: deny-all` means nobody reads or writes without an account. Create one publisher for Unfold, let it write the Unfold topics, and give it a token: `ntfy user add unfold`, `ntfy access unfold 'unfold-*' write-only`, `ntfy token add unfold`. Put that token in `UNFOLD_NTFY_TOKEN`.
 * Give each person an ntfy account that may read only their own topic, `ntfy access ann unfold-<their topic> read-only`; they see the topic on their Notifications page. On a server that allows anonymous reads, the random topic name is the only protection, so a person who leaked it gets a new one with **Get a new topic**.
 * `upstream-base-url` lets the ntfy iOS app get instant notices through ntfy.sh's relay, which sees only a message id, not the content. Leave it out if no one uses iOS; Android and the web app do not need it.
-* Phones off your network reach ntfy only where you publish it; the homelab reaches a phone over your VPN or a published hostname.
+* Phones off your network reach ntfy only where you publish it; the owner's staging cluster reaches a phone over your VPN or a published hostname.
 
 ## Web Push in the browser
 

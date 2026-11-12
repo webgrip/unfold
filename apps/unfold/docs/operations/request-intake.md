@@ -12,7 +12,7 @@ A **Request** is a Client's ask as it arrives, before **Refinement** turns it in
 
 A Request waits as `new` for Refinement. It is never dispatched and never starts a Run: the intake has no Ploeg client, no engine and no runtime, and a test checks its imports. Unfold never writes back to the sender or the Client, so it never sends email ([Who Unfold is for](../../../../docs/concepts/who-unfold-is-for.md)).
 
-The intake follows system ADR-0050, which [pull request #697](https://forgejo.webgrip.dev/webgrip/unfold/pulls/697) adds: signed deliveries use [Standard Webhooks](https://www.standardwebhooks.com/), templates and verifiers are registries looked up by name, and a mapping is data, not code.
+The intake follows system ADR-0050, which pull request #697 on the previous forge adds: signed deliveries use [Standard Webhooks](https://www.standardwebhooks.com/), templates and verifiers are registries looked up by name, and a mapping is data, not code.
 
 ## Turn it on
 

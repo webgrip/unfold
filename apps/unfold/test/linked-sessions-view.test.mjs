@@ -4,7 +4,7 @@ import { agentsText, attributionLine, linkedSessionPage, linkedSessionsMarkup, l
 import { setupSteps } from '../public/views/linked-sessions.js';
 
 const now = Date.parse('2026-10-17T10:00:00.000Z');
-const session = { id: 'abcd1234-session', harness: 'claude-code', harnessVersion: '2.1.301', ownerName: 'sam', mine: false, title: '<img src=x onerror=alert(1)>', repository: 'forgejo.example.org:webgrip/unfold.git', branch: 'feat/vik-2051-login', model: 'claude-opus-5-5', remoteUrl: '', state: 'waiting', waitingFor: 'permission_prompt', startedAt: '2026-10-17T09:00:00.000Z', lastSeenAt: '2026-10-17T09:58:00.000Z', endedAt: null, workItems: [{ id: '184', how: 'branch', linkedAt: '2026-10-17T09:00:00.000Z', linkedBy: 'sam' }], pullRequests: [], commits: [{ sha: 'a'.repeat(40), subject: 'feat: login', at: '2026-10-17T09:30:00.000Z', trailer: true, aiLines: 12, files: 2 }, { sha: 'b'.repeat(40), subject: 'docs', at: '2026-10-17T09:40:00.000Z', trailer: false, aiLines: null, files: null }], aiLines: 12, link: 'https://unfold.example.org/#linked-session/abcd1234-session', resume: 'claude --resume abcd1234-session' };
+const session = { id: 'abcd1234-session', harness: 'claude-code', harnessVersion: '2.1.301', ownerName: 'sam', mine: false, title: '<img src=x onerror=alert(1)>', repository: 'forgejo.example.org:acme/unfold.git', branch: 'feat/vik-2051-login', model: 'claude-opus-5-5', remoteUrl: '', state: 'waiting', waitingFor: 'permission_prompt', startedAt: '2026-10-17T09:00:00.000Z', lastSeenAt: '2026-10-17T09:58:00.000Z', endedAt: null, workItems: [{ id: '184', how: 'branch', linkedAt: '2026-10-17T09:00:00.000Z', linkedBy: 'sam' }], pullRequests: [], commits: [{ sha: 'a'.repeat(40), subject: 'feat: login', at: '2026-10-17T09:30:00.000Z', trailer: true, aiLines: 12, files: 2 }, { sha: 'b'.repeat(40), subject: 'docs', at: '2026-10-17T09:40:00.000Z', trailer: false, aiLines: null, files: null }], aiLines: 12, link: 'https://unfold.example.org/#linked-session/abcd1234-session', resume: 'claude --resume abcd1234-session' };
 
 test('the Work Item card lists linked sessions with their state, owner and AI-written lines, escaped, and shows nothing when none is linked', () => {
   const html = linkedSessionsMarkup({ item: { id: '184' } }, { sessions: [session] }, { now });
@@ -53,7 +53,7 @@ test('a commit row says which agents wrote its AI lines', () => {
 test('with linked.split-page a session page heads with where it works and its cost, and puts what its owner acts on before the reference cards', () => {
   const telemetry = { available: true, reason: null, costUsd: 1.5, tokens: null, activeSeconds: null, events: null, tools: [] };
   const page = linkedSessionPage({ ...session, mine: true, telemetry }, { now, workItems: { 184: 'Fix login' }, act: '<section id="act-probe"></section>', split: true });
-  assert.match(page, /forgejo\.example\.org:webgrip\/unfold\.git @ feat\/vik-2051-login/);
+  assert.match(page, /forgejo\.example\.org:acme\/unfold\.git @ feat\/vik-2051-login/);
   assert.match(page, /≈ US\$\s1,50 API-price estimate/);
   assert.match(page, /linked-session-layout has-act[\s\S]*act-probe[\s\S]*linked-session-rail[\s\S]*id="linked-session-work"[\s\S]*id="linked-session-about"/);
   assert.ok(page.indexOf('Resume it on your machine') < page.indexOf('act-probe'), 'resume sits in the head, above the actions');

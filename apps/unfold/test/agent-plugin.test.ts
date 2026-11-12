@@ -146,7 +146,7 @@ test('the generated marketplace pins the upstream plugin by commit and adds an A
   const claudeManifest = files[`${connectionPlugin}/.claude-plugin/plugin.json`];
   assert.deepEqual([claudeManifest.name, claudeManifest.version, claudeManifest.mcpServers], [connectionPlugin, manifest.version, undefined], 'Claude Code needs a manifest to validate the plugin; the server comes from .mcp.json');
   const [upstream, connection] = files['.claude-plugin/marketplace.json'].plugins;
-  assert.deepEqual(upstream.source, { source: 'git-subdir', url: 'https://forgejo.webgrip.dev/webgrip/unfold.git', path: 'apps/unfold/extensions/claude-code', sha: pinned });
+  assert.deepEqual(upstream.source, { source: 'git-subdir', url: 'https://github.com/unfold-hq/unfold.git', path: 'apps/unfold/extensions/claude-code', sha: pinned });
   assert.equal(readJson(join(repository, upstream.source.path, 'plugin.json')).name, upstream.name);
   assert.deepEqual(connection, { name: connectionPlugin, source: `./${connectionPlugin}`, description: manifest.description });
   assert.throws(() => buildMarketplace({ mcpUrl: 'https://unfold.example.com/mcp', sha: 'development' }), /40-character commit/);

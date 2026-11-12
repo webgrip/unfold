@@ -74,7 +74,7 @@ Not to be confused with: Rust proxy + Kubernetes controller for MCP, A2A, LLM an
 | --- | --- |
 | Steward | Anthropic (format); compat layers by third parties (single-vendor) |
 | Status | stable |
-| Latest | [no spec version; anthropic-sdk-python v2.4.0 2026-11-02](https://code.claude.com/docs/en/llm-gateway-protocol) |
+| Latest | [no spec version; the API release notes are its changelog 2026-11-02](https://code.claude.com/docs/en/llm-gateway-protocol) |
 | Radar | **adopt**: Fit decided it: Ploeg already runs the claude-code harness on this format through LiteLLM. |
 | Moves when | LiteLLM or Agent Router stops forwarding a beta capability Claude Code needs, or Claude Code drops gateway support. |
 | Competes with | [OpenAI Chat Completions API (de facto /v1/chat/completions)](inference-infra.md#openai-chat-completions), [Open Responses](inference-infra.md#open-responses), [Google Gemini Interactions API](inference-infra.md#gemini-interactions-api) |
@@ -97,7 +97,7 @@ Not to be confused with: Rust proxy + Kubernetes controller for MCP, A2A, LLM an
 
 **Open problems:** Claude Code hangs with a local Ollama model even though curl works (https://github.com/anthropics/claude-code/issues/51239); Gateways must forward anthropic-beta capabilities as Claude Code evolves (https://code.claude.com/docs/en/llm-gateway)
 
-**Watched:** github-releases `anthropics/anthropic-sdk-python` at v2.4.0
+**Watched:** changelog-page `https://platform.claude.com/docs/en/release-notes/overview.md`
 
 ## Certified Kubernetes AI Conformance Program (Certified Kubernetes AI Platform) { #cncf-k8s-ai-conformance }
 
@@ -269,8 +269,8 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 | | |
 | --- | --- |
 | Steward | kagent project, CNCF Sandbox (accepted 2025-05-22 per https://github.com/kagent-dev/community/issues/7; CNCF blog https://www.cncf.io/blog/2025/08/19/celebrating-100-days-of-kagent/) (foundation) |
-| Status | stabilising |
-| Latest | [v1.0.0-rc1 (stable line v0.10.4, 2026-10-21) 2026-10-30](https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1) |
+| Status | stable |
+| Latest | [v1.0.0 2026-11-09](https://github.com/kagent-dev/kagent/releases/tag/v1.0.0) |
 | Radar | **hold**: Fit decided it: kagent overlaps Ploeg's dispatch plane and is CRD-first, which Ploeg ADR-0071 rules out, and its 1.0 is still a release candidate. |
 | Moves when | kagent adds a tracker or forge trigger or an enforced budget (the trigger named in ecosystem-fit.md), or an Agency asks to drive Ploeg from kagent. |
 | Competes with | — |
@@ -279,7 +279,7 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 | Superseded by | — |
 | Decisions | [0005-build-a-dedicated-dispatch-plane](../../../../../apps/ploeg/docs/adrs/0005-build-a-dedicated-dispatch-plane.md), [0032-keep-the-dispatch-plane-and-compete-on-authorized-spend](../../../../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md), [0033-board-control-planes-are-mined-for-design-never-depended-on](../../../../../apps/ploeg/docs/adrs/0033-board-control-planes-are-mined-for-design-never-depended-on.md), [0071-ploeg-keeps-its-state-in-postgresql-and-is-not-a-kubernetes-operator](../../../../../apps/ploeg/docs/adrs/0071-ploeg-keeps-its-state-in-postgresql-and-is-not-a-kubernetes-operator.md), [0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills](../../../../../apps/ploeg/docs/adrs/0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills.md) |
 | Watchlist | — |
-| Reviewed | 2026-11-04 |
+| Reviewed | 2026-11-11 |
 
 | Use case | Where | How | Effort | Value |
 | --- | --- | --- | --- | --- |
@@ -293,7 +293,7 @@ Not to be confused with: Kubernetes-native agent framework (CRDs Agent, ModelCon
 
 **Open problems:** API version and whether SandboxTemplate is the k8s-sigs CRD are not stated in the RC notes: https://github.com/kagent-dev/kagent/releases/tag/v1.0.0-rc1
 
-**Watched:** github-releases `kagent-dev/kagent` at v1.0.0-rc1
+**Watched:** github-releases `kagent-dev/kagent` at v1.0.0
 
 ## Kata Containers { #kata-containers }
 
@@ -697,7 +697,7 @@ Not to be confused with: open multi-provider LLM API spec derived from the OpenA
 | --- | --- |
 | Steward | OpenAI (single-vendor) |
 | Status | stable |
-| Latest | [no spec version; OpenAI says 'Chat Completions remains supported, Responses is recommended for all new projects'; openai-python v3.45.0 2026-11-04](https://developers.openai.com/api/docs/guides/migrate-to-responses) |
+| Latest | [no spec version; OpenAI says 'Chat Completions remains supported, Responses is recommended for all new projects'; the API changelog is its changelog 2026-11-04](https://developers.openai.com/api/docs/guides/migrate-to-responses) |
 | Radar | **adopt**: Fit and maturity both decided it: it is the de facto format every component in Unfold's model path speaks today. |
 | Moves when | Fireworks or a harness on Ploeg's allowlist deprecates Chat Completions in favour of Responses. |
 | Competes with | [Open Responses](inference-infra.md#open-responses), [Anthropic Messages API compatibility (/v1/messages)](inference-infra.md#anthropic-messages-api), [Google Gemini Interactions API](inference-infra.md#gemini-interactions-api) |
@@ -720,7 +720,7 @@ Not to be confused with: open multi-provider LLM API spec derived from the OpenA
 
 **Open problems:** No neutral spec or conformance suite; each provider documents its own deviations (see the Anthropic and Gemini pages above)
 
-**Watched:** github-releases `openai/openai-python` at v3.45.0
+**Watched:** changelog-page `https://developers.openai.com/api/docs/changelog.md`
 
 ## OpenEnv { #aaif-openenv }
 

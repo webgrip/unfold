@@ -16,7 +16,7 @@ const head = 'b'.repeat(40), wip = 'c'.repeat(40);
 const me = { id: 'ryan', role: 'operator' };
 
 const running = (fields = {}) => ({
-  item: { id: '184', state: 'leased', title: 'Fix rounding', target: { owner: 'webgrip', repo: 'unfold' }, latestShift: { id: 's2', branch: 'agent/vik-2051', closedAt: null } },
+  item: { id: '184', state: 'leased', title: 'Fix rounding', target: { owner: 'acme', repo: 'unfold' }, latestShift: { id: 's2', branch: 'agent/vik-2051', closedAt: null } },
   shifts: [{ id: 's2', branch: 'agent/vik-2051', round: 1, openedAt: at(200), closedAt: null }],
   runs: [{ id: 'r3', workItemId: '184', shiftId: 's2', role: 'builder', round: 1, state: 'running', startedAt: at(205), finishedAt: null, writes: true, harness: 'acp' }],
   events: [],

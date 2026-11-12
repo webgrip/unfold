@@ -57,9 +57,9 @@ async function signedIn(t: TestContext, flag: boolean) {
 test('an operator records and withdraws a Client Sign-off at the head they saw, with exclusions an administrator set, and Ploeg sees no write', async t => {
   const { url, people, id, stub } = await signedIn(t, true);
   const route = `/api/ploeg/work-items/${id}/client-sign-off`;
-  const excluded = await request(url, '/api/client-sign-off/exclusions', { method: 'PUT', cookie: people.adam, body: { repository: 'WebGrip/Ploeg', exclude: ['infra/**'] } });
+  const excluded = await request(url, '/api/client-sign-off/exclusions', { method: 'PUT', cookie: people.adam, body: { repository: 'Acme/Ploeg', exclude: ['infra/**'] } });
   assert.equal(excluded.status, 200, excluded.text);
-  assert.equal((await request(url, '/api/client-sign-off/exclusions', { method: 'PUT', cookie: people.olga, body: { repository: 'webgrip/ploeg', exclude: [] } })).status, 403, 'only administrators set exclusions');
+  assert.equal((await request(url, '/api/client-sign-off/exclusions', { method: 'PUT', cookie: people.olga, body: { repository: 'acme/ploeg', exclude: [] } })).status, 403, 'only administrators set exclusions');
   const before = await request(url, route, { cookie: people.olga });
   assert.equal(before.status, 200, before.text);
   assert.deepEqual([before.body.current, before.body.pullRequest.headSha, before.body.scope.excluded], [null, head, ['infra/deploy.yaml']]);

@@ -7,18 +7,18 @@ export async function run({ page, app, assert, screenshot }) {
   const replies = [];
   const posted = [];
   const fixed = {
-    id: '6f0c1c1e-0000-4000-8000-000000000001', title: 'Approve does nothing on the delivery gate', status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252', createdAt: iso(-2880),
+    id: '6f0c1c1e-0000-4000-8000-000000000001', title: 'Approve does nothing on the delivery gate', status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/252', createdAt: iso(-2880),
     stage: 'shipped', words: 'Fixed in 0.4.0-rc.75', unread: true, others: 2, joined: false,
-    fix: { number: '351', url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true }, release: { tag: '0.4.0-rc.75', url: 'https://forgejo.test/webgrip/unfold/releases/tag/unfold-v0.4.0-rc.75', live: true },
+    fix: { number: '351', url: 'https://forgejo.test/acme/unfold/pulls/351', merged: true }, release: { tag: '0.4.0-rc.75', url: 'https://forgejo.test/acme/unfold/releases/tag/unfold-v0.4.0-rc.75', live: true },
     comments: [{ author: 'ryangr0', text: 'Found it: the gate ignored a second click while the first was saving. Fixed in #351.', at: iso(-600), mine: false }],
   };
   const asked = {
-    id: '6f0c1c1e-0000-4000-8000-000000000002', title: 'Runs list jumps while it refreshes', status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/260', createdAt: iso(-300),
+    id: '6f0c1c1e-0000-4000-8000-000000000002', title: 'Runs list jumps while it refreshes', status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/260', createdAt: iso(-300),
     stage: 'replied', words: 'The team replied', unread: true, others: 0, joined: false,
     comments: [{ author: 'ryangr0', text: 'Which browser, and does it happen with live updates paused?', at: iso(-30), mine: false }],
   };
   const list = () => ({ reports: [fixed, asked].map(report => ({ ...report, unread: seen ? false : report.unread })), updates: seen ? 0 : 2 });
-  await page.route('**/api/bootstrap', async route => { const response = await route.fetch(); const body = await response.json(); await route.fulfill({ response, json: { ...body, reports: { target: 'Forgejo · webgrip/unfold', demo: false } } }); });
+  await page.route('**/api/bootstrap', async route => { const response = await route.fetch(); const body = await response.json(); await route.fulfill({ response, json: { ...body, reports: { target: 'Forgejo · acme/unfold', demo: false } } }); });
   await page.route('**/api/reports', async route => {
     if (route.request().method() === 'GET') return route.fulfill({ json: list() });
     posted.push(route.request().headers()['content-type']);
@@ -48,7 +48,7 @@ export async function run({ page, app, assert, screenshot }) {
   await mine.locator('.report-follow').first().waitFor();
   const first = mine.locator('.report-follow').first();
   assert.match(await first.textContent(), /Fixed in 0\.4\.0-rc\.75/);
-  assert.match(await first.textContent(), /Fixed by webgrip\/unfold#351 · live in 0\.4\.0-rc\.75 · 2 other people hit this too/);
+  assert.match(await first.textContent(), /Fixed by acme\/unfold#351 · live in 0\.4\.0-rc\.75 · 2 other people hit this too/);
   assert.match(await first.textContent(), /the gate ignored a second click/);
   assert.equal(await mine.locator('.report-follow.is-new').count(), 2, 'both reports show as new the first time');
   await screenshot('report-follow-mine');

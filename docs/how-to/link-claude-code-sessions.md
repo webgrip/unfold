@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, contributor]
 owner: unfold
 last_verified: 2026-10-30
-verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts, test/linked-sessions-view.test.mjs, test/linked-handoff.test.ts, test/linked-handoff-view.test.mjs and test/claude-code-start.test.ts against a fake Ploeg and a fake claude binary; /unfold:start has not dispatched to a real Claude environment. On 2026-10-24 the ACP section was read against extensions/acp-proxy and test/acp-proxy.test.ts (a fake agent and editor over pipes), and against the ACP protocol pages and the Zed and JetBrains agent configuration docs; no real editor was run. Not yet checked against the homelab or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run. The two tracks and the collision rules were checked with test/session-tracks.test.mjs and test/linked-handoff.test.ts on 2026-10-24, against fixtures, not a live Work Item. Take control and hand back were checked with test/take-over.test.ts, test/take-over-view.test.mjs, test/claude-code-takeover.test.ts (a temporary git repository and a fake Unfold) and test/mcp-take-over.test.ts on 2026-10-24, against a fake Ploeg; no real Run was taken over. On 2026-10-30 /unfold:handoff was checked with test/claude-code-handoff.test.ts (a temporary git repository, a bare origin and a fake Unfold) and test/linked-handoff.test.ts (a fake Ploeg), and its secret scan against gitleaks 8.30.1; no real session was handed to a live Ploeg."
+verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts, test/linked-sessions-view.test.mjs, test/linked-handoff.test.ts, test/linked-handoff-view.test.mjs and test/claude-code-start.test.ts against a fake Ploeg and a fake claude binary; /unfold:start has not dispatched to a real Claude environment. On 2026-10-24 the ACP section was read against extensions/acp-proxy and test/acp-proxy.test.ts (a fake agent and editor over pipes), and against the ACP protocol pages and the Zed and JetBrains agent configuration docs; no real editor was run. Not yet checked against the owner's staging cluster or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run. The two tracks and the collision rules were checked with test/session-tracks.test.mjs and test/linked-handoff.test.ts on 2026-10-24, against fixtures, not a live Work Item. Take control and hand back were checked with test/take-over.test.ts, test/take-over-view.test.mjs, test/claude-code-takeover.test.ts (a temporary git repository and a fake Unfold) and test/mcp-take-over.test.ts on 2026-10-24, against a fake Ploeg; no real Run was taken over. On 2026-10-30 /unfold:handoff was checked with test/claude-code-handoff.test.ts (a temporary git repository, a bare origin and a fake Unfold) and test/linked-handoff.test.ts (a fake Ploeg), and its secret scan against gitleaks 8.30.1; no real session was handed to a live Ploeg."
 ---
 
 # Link your Claude Code sessions to Work Items
@@ -49,7 +49,7 @@ The same file switches on Claude Code's telemetry. The session page reads it bac
 In Claude Code:
 
 ```text
-/plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+/plugin marketplace add https://github.com/unfold-hq/unfold.git
 /plugin install unfold@unfold
 ```
 
@@ -65,7 +65,7 @@ To give every person who works in a repository the plugin without the two comman
 {
   "extraKnownMarketplaces": {
     "unfold": {
-      "source": { "source": "git", "url": "https://forgejo.webgrip.dev/webgrip/unfold.git" }
+      "source": { "source": "git", "url": "https://github.com/unfold-hq/unfold.git" }
     }
   },
   "enabledPlugins": { "unfold@unfold": true }
@@ -84,7 +84,7 @@ An administrator can install it on every managed machine instead. In Claude Code
 {
   "extraKnownMarketplaces": {
     "unfold": {
-      "source": { "source": "git", "url": "https://forgejo.webgrip.dev/webgrip/unfold.git" }
+      "source": { "source": "git", "url": "https://github.com/unfold-hq/unfold.git" }
     }
   },
   "enabledPlugins": { "unfold@unfold": true },
@@ -99,8 +99,8 @@ Replace the two addresses with your own. GitHub documents only `github` marketpl
 
 ## 4. Work as usual
 
-* **Start on a branch that names the ticket**, such as `feat/vik-2051-login`. The session links itself to that ticket's Work Items and takes "VIK-2051 …" as its title.
-* **Or just name the work.** A prompt or a commit message that names the ticket (`VIK-2051`), pastes the Unfold link (`…/#work/184`) or says "Work Item 184" links that Work Item. The plugin finds those ids on your machine and sends only the ids, never the text.
+* **Start on a branch that names the ticket**, such as `feat/vik-123-login`. The session links itself to that ticket's Work Items and takes "VIK-123 …" as its title.
+* **Or just name the work.** A prompt or a commit message that names the ticket (`VIK-123`), pastes the Unfold link (`…/#work/184`) or says "Work Item 184" links that Work Item. The plugin finds those ids on your machine and sends only the ids, never the text.
 * **Pull requests link too.** When the session opens a pull request that is a Work Item's, for example while fixing up a Ploeg pull request, the session links to that Work Item.
 * **Or pick it on the page.** The session's page suggests open Work Items on the same repository, with a **Link** button each, and has a field to link any Work Item by id. A Work Item you unlink is never linked again automatically.
 * **Titles.** A name you give the session with `/rename` becomes its title in Unfold. A session without one shows the subject of its first commit, or its branch in words, such as "Connect a repository" for `docs/connect-a-repository`.

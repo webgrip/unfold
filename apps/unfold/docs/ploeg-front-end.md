@@ -197,7 +197,7 @@ Each increment can ship and be reverted on its own, and it lands with the test n
 * **Unfold loses interactivity until S2 exists, and partly after.** People can no longer answer permission prompts, watch every tool call or work in the agent's workspace. The front end becomes a place to watch and command, not to drive.
 * **A cancel can turn into a retry.** A stopped writing Run looks like a failed one. The Shift must close in the same transaction, and increment 4's regression test is the guard.
 * **Unfold work competes with tracker work.** Submitted Work Items join the normal queue, and today's `priority` comes from trackers. The Unfold submission needs a defined priority.
-* **Targets live outside this repository.** A repository submitted from Unfold must be in Ploeg's target map. That map is production desired state in `webgrip/homelab-cluster` and is not changed by this refactor.
+* **Targets live outside this repository.** A repository submitted from Unfold must be in Ploeg's target map. That map is production desired state in the owner's cluster repository and is not changed by this refactor.
 * **The budget model changes.** Budgets come from the team plan's pool and Role caps, not from a per-session number that a person types.
 * **Operator Executions may still be open during migration.** They have to drain before increment 10. The sweep already expires stale ones and blocks their keys.
 * **Polling adds load.** Each watched Work Item costs one poll every two seconds, bounded by Unfold's cap of 100 streams. Increment 13 is the relief valve.

@@ -42,10 +42,10 @@ export const permissions = Object.freeze([
 ]);
 
 export const repositories = Object.freeze([
-  { id: 'webgrip/unfold', forge: 'Forgejo', language: 'TypeScript and Go', hooksFile: true },
-  { id: 'webgrip/homelab-cluster', forge: 'Forgejo', language: 'Kubernetes YAML', hooksFile: false },
-  { id: 'webgrip/erfbeeld', forge: 'Forgejo', language: 'PHP', hooksFile: false },
-  { id: 'webgrip/seekframe', forge: 'GitHub', language: 'Rust and WASM', hooksFile: false },
+  { id: 'acme/unfold', forge: 'Forgejo', language: 'TypeScript and Go', hooksFile: true },
+  { id: 'acme/infra', forge: 'Forgejo', language: 'Kubernetes YAML', hooksFile: false },
+  { id: 'acme/erfbeeld', forge: 'Forgejo', language: 'PHP', hooksFile: false },
+  { id: 'acme/seekframe', forge: 'GitHub', language: 'Rust and WASM', hooksFile: false },
 ]);
 
 /** The positions of a Team's workflow. A position is a slot in the flow, not a property of the agent that fills it. */
@@ -81,23 +81,23 @@ export function demoRoster() {
       { id: 'ag-erf', name: 'Erf handen', harness: 'openhands', model: 'haiku', skills: ['agit'], permissions: ['push', 'comment', 'egress'], budget: 0.8, owner: 'Noor' },
     ],
     teams: [
-      { id: 'tm-zwaluw', name: 'Zwaluw', owner: 'Ryan', charter: 'Small, quick changes in Unfold and the homelab: docs, config, one-file fixes. Cheap first, escalate by hand.', weekly: 15, spent: 4.9, repositories: ['webgrip/unfold', 'webgrip/homelab-cluster'], lineage: null, adopted: 3, version: 3,
+      { id: 'tm-zwaluw', name: 'Zwaluw', owner: 'Ryan', charter: 'Small, quick changes in Unfold and the infrastructure: docs, config, one-file fixes. Cheap first, escalate by hand.', weekly: 15, spent: 4.9, repositories: ['acme/unfold', 'acme/infra'], lineage: null, adopted: 3, version: 3,
         positions: { plan: null, build: 'ag-haiku', review: 'ag-qwen', fix: 'ag-haiku' },
         history: [
-          { v: 1, note: 'First cut: Sonnet builds, Qwen reviews.', positions: { plan: null, build: 'ag-sonnet', review: 'ag-qwen', fix: null }, record: { 'webgrip/unfold': { merged: 6, spent: 7.26, rounds: 1.8, reverts: 1, minutes: 9, failed: 1, failedWhy: 'budget cap hit on a large card' }, 'webgrip/homelab-cluster': { merged: 3, spent: 2.91, rounds: 1.3, reverts: 0, minutes: 5, failed: 0 } } },
-          { v: 2, note: 'Haiku builds; Sonnet was more than docs need.', positions: { plan: null, build: 'ag-haiku', review: 'ag-qwen', fix: null }, record: { 'webgrip/unfold': { merged: 11, spent: 6.38, rounds: 1.9, reverts: 1, minutes: 8, failed: 2, failedWhy: 'review asked for tests the builder could not run' }, 'webgrip/homelab-cluster': { merged: 7, spent: 2.1, rounds: 1.4, reverts: 0, minutes: 4, failed: 0 } } },
-          { v: 3, note: 'A Fix position, so review rounds stop bouncing to a person.', positions: { plan: null, build: 'ag-haiku', review: 'ag-qwen', fix: 'ag-haiku' }, record: { 'webgrip/unfold': { merged: 14, spent: 5.74, rounds: 1.3, reverts: 0, minutes: 6, failed: 1, failedWhy: 'sandbox claim never became ready within 10 minutes' }, 'webgrip/homelab-cluster': { merged: 9, spent: 2.52, rounds: 1.2, reverts: 0, minutes: 4, failed: 0 } } },
+          { v: 1, note: 'First cut: Sonnet builds, Qwen reviews.', positions: { plan: null, build: 'ag-sonnet', review: 'ag-qwen', fix: null }, record: { 'acme/unfold': { merged: 6, spent: 7.26, rounds: 1.8, reverts: 1, minutes: 9, failed: 1, failedWhy: 'budget cap hit on a large card' }, 'acme/infra': { merged: 3, spent: 2.91, rounds: 1.3, reverts: 0, minutes: 5, failed: 0 } } },
+          { v: 2, note: 'Haiku builds; Sonnet was more than docs need.', positions: { plan: null, build: 'ag-haiku', review: 'ag-qwen', fix: null }, record: { 'acme/unfold': { merged: 11, spent: 6.38, rounds: 1.9, reverts: 1, minutes: 8, failed: 2, failedWhy: 'review asked for tests the builder could not run' }, 'acme/infra': { merged: 7, spent: 2.1, rounds: 1.4, reverts: 0, minutes: 4, failed: 0 } } },
+          { v: 3, note: 'A Fix position, so review rounds stop bouncing to a person.', positions: { plan: null, build: 'ag-haiku', review: 'ag-qwen', fix: 'ag-haiku' }, record: { 'acme/unfold': { merged: 14, spent: 5.74, rounds: 1.3, reverts: 0, minutes: 6, failed: 1, failedWhy: 'sandbox claim never became ready within 10 minutes' }, 'acme/infra': { merged: 9, spent: 2.52, rounds: 1.2, reverts: 0, minutes: 4, failed: 0 } } },
         ] },
-      { id: 'tm-steenbok', name: 'Steenbok', owner: 'Ryan', charter: 'Careful feature work in Unfold with tests. Sonnet on both sides; Haiku mops up review rounds.', weekly: 40, spent: 11.3, repositories: ['webgrip/unfold'], lineage: 'Zwaluw v2', adopted: 1, version: 2,
+      { id: 'tm-steenbok', name: 'Steenbok', owner: 'Ryan', charter: 'Careful feature work in Unfold with tests. Sonnet on both sides; Haiku mops up review rounds.', weekly: 40, spent: 11.3, repositories: ['acme/unfold'], lineage: 'Zwaluw v2', adopted: 1, version: 2,
         positions: { plan: 'ag-haiku', build: 'ag-sonnet', review: 'ag-reviewer', fix: 'ag-haiku' },
         history: [
-          { v: 1, note: 'Copied from Zwaluw v2 with Sonnet as the builder.', positions: { plan: null, build: 'ag-sonnet', review: 'ag-reviewer', fix: null }, record: { 'webgrip/unfold': { merged: 5, spent: 7.95, rounds: 1.4, reverts: 0, minutes: 6, failed: 0 } } },
-          { v: 2, note: 'A Plan Run; the builder stopped guessing module boundaries.', positions: { plan: 'ag-haiku', build: 'ag-sonnet', review: 'ag-reviewer', fix: 'ag-haiku' }, record: { 'webgrip/unfold': { merged: 9, spent: 10.08, rounds: 1.1, reverts: 0, minutes: 4, failed: 0 } } },
+          { v: 1, note: 'Copied from Zwaluw v2 with Sonnet as the builder.', positions: { plan: null, build: 'ag-sonnet', review: 'ag-reviewer', fix: null }, record: { 'acme/unfold': { merged: 5, spent: 7.95, rounds: 1.4, reverts: 0, minutes: 6, failed: 0 } } },
+          { v: 2, note: 'A Plan Run; the builder stopped guessing module boundaries.', positions: { plan: 'ag-haiku', build: 'ag-sonnet', review: 'ag-reviewer', fix: 'ag-haiku' }, record: { 'acme/unfold': { merged: 9, spent: 10.08, rounds: 1.1, reverts: 0, minutes: 4, failed: 0 } } },
         ] },
-      { id: 'tm-erf', name: 'Erf', owner: 'Noor', charter: 'erfbeeld (PHP) maintenance on the frozen OpenHands harness until the Goose port lands.', weekly: 10, spent: 1.05, repositories: ['webgrip/erfbeeld'], lineage: null, adopted: 0, version: 1,
+      { id: 'tm-erf', name: 'Erf', owner: 'Noor', charter: 'erfbeeld (PHP) maintenance on the frozen OpenHands harness until the Goose port lands.', weekly: 10, spent: 1.05, repositories: ['acme/erfbeeld'], lineage: null, adopted: 0, version: 1,
         positions: { plan: null, build: 'ag-erf', review: 'ag-qwen', fix: null },
         history: [
-          { v: 1, note: 'First version.', positions: { plan: null, build: 'ag-erf', review: 'ag-qwen', fix: null }, record: { 'webgrip/erfbeeld': { merged: 5, spent: 3.15, rounds: 2.4, reverts: 1, minutes: 11, failed: 1, failedWhy: 'composer install blocked: the registry is not on the egress allowlist' } } },
+          { v: 1, note: 'First version.', positions: { plan: null, build: 'ag-erf', review: 'ag-qwen', fix: null }, record: { 'acme/erfbeeld': { merged: 5, spent: 3.15, rounds: 2.4, reverts: 1, minutes: 11, failed: 1, failedWhy: 'composer install blocked: the registry is not on the egress allowlist' } } },
         ] },
     ],
   };
@@ -115,12 +115,12 @@ export function newTeam(id) {
 
 /**
  * Whether an agent can enter a repository, and why not. These are the rules that used to surface as a failed Run:
- * the homelab executor reaches Forgejo only, and OpenHands refuses a repository that ships `.openhands/hooks.json`.
+ * the staging executor reaches Forgejo only, and OpenHands refuses a repository that ships `.openhands/hooks.json`.
  */
 export function repositoryAccess(agent, repository) {
   const harness = harnessOf(agent);
   if (!repository) return { ok: false, why: 'unknown repository' };
-  if (repository.forge === 'GitHub') return { ok: false, why: 'the homelab executor reaches Forgejo repositories only' };
+  if (repository.forge === 'GitHub') return { ok: false, why: 'the staging executor reaches Forgejo repositories only' };
   if (harness?.refusesHooksFile && repository.hooksFile) return { ok: false, why: 'OpenHands refuses a repository that ships .openhands/hooks.json' };
   return { ok: true, why: '' };
 }

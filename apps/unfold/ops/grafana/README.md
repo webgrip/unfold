@@ -4,7 +4,7 @@
 
 ## Import
 
-The homelab provisions dashboards; this repository only supplies the JSON for it to import. In Grafana, open **Dashboards → New → Import**, upload the file, and pick the VictoriaLogs datasource for `logsDatasource`. The dashboard uid is `unfold-insight`, so a provisioning job can pin it. Do not provision it from here: production desired state lives in `webgrip/homelab-cluster`.
+The owner's staging cluster provisions dashboards; this repository only supplies the JSON for it to import. In Grafana, open **Dashboards → New → Import**, upload the file, and pick the VictoriaLogs datasource for `logsDatasource`. The dashboard uid is `unfold-insight`, so a provisioning job can pin it. Do not provision it from here: production desired state lives in the owner's cluster repository.
 
 ## Variables
 
@@ -18,7 +18,7 @@ The homelab provisions dashboards; this repository only supplies the JSON for it
 
 The **Screens and link-outs** row reads the two events the browser sends today, `screen.viewed` and `link_out.opened`. `UNFOLD_INSIGHT_EXPORT_LEVEL=events` fills the Needs-you row: each event carries `actor`, `work_item.id`, `screen`, its catalogue properties and `at_ms`. The median time to resolve is computed from `at_ms`, because Faro events get the time they arrived at VictoriaLogs as `_time`. `aggregate`, the default, sends only finished days to the domain `unfold.insight.daily`, with `count` and `actors` and no actor hash; only the **Events per day** table reads them.
 
-The queries were checked against Alloy 1.20 `faro.receiver`, an OTLP receiver and VictoriaLogs 1.53, using the homelab's `alloy-gateway` pipeline and 7 synthetic people. VictoriaLogs keeps 30 days on the homelab, so the dashboard's window is the last 30 days.
+The queries were checked against Alloy 1.20 `faro.receiver`, an OTLP receiver and VictoriaLogs 1.53, using the owner's staging cluster's `alloy-gateway` pipeline and 7 synthetic people. VictoriaLogs keeps 30 days on the owner's staging cluster, so the dashboard's window is the last 30 days.
 
 ## Suppression
 

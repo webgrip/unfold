@@ -6,7 +6,7 @@
   "description": "The static marketing site for Unfold.",
   "repository": {
     "type": "git",
-    "url": "https://forgejo.webgrip.dev/webgrip/unfold.git",
+    "url": "https://github.com/unfold-hq/unfold.git",
     "directory": "apps/site"
   },
   "license": "Apache-2.0",

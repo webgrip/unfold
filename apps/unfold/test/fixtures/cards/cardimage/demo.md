@@ -6,4 +6,4 @@
 | Pull request | #⁠57 · Merged · CI passed |
 | Steward | anna · Merged the pull request |
 | Roles | builder ×2 · reviewer ×1 |
-| Ids | #⁠42 · VIK-1701 · webgrip/ploeg |
+| Ids | #⁠42 · VIK-1701 · acme/ploeg |

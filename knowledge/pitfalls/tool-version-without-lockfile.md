@@ -2,7 +2,7 @@
 type: Pitfall
 title: "A tool version bump without mise.lock breaks every run"
 description: "CI refuses a tool the committed mise.lock does not hold; commit the rewritten lockfile with the bump."
-resource: https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/operations/ci-troubleshooting.md
+resource: https://github.com/unfold-hq/unfold/blob/development/docs/operations/ci-troubleshooting.md
 tags: [mise, mise.toml, mise.lock, lockfile, tool, version, upgrade, dependency]
 timestamp: 2026-10-11T00:00:00Z
 ---
