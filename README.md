@@ -39,7 +39,7 @@ Run every tool through `mise exec -- <command>`, not from your `PATH`.
 | `mise run demo` | Unfold's deterministic fixture alone, without Ploeg or paid model calls |
 | `mise run demo-unified` | Both applications and PostgreSQL with a deterministic runtime |
 | `mise run integration` | The standalone and Ploeg-managed paths without paid providers, against a local fake LiteLLM gateway |
-| `mise run docs-check` | Links, generated models, agent instruction files and strict TechDocs output |
+| `mise run docs-check` | Links, generated models, agent instruction files and the strict Zensical build |
 | `mise run docs-build` | Build the documentation site |
 | `mise tasks` | List every task |
 
@@ -76,7 +76,7 @@ Before you change behavior that crosses Ploeg and Unfold, read [managed executio
 
 ## Documentation
 
-- Published: [Unfold documentation](https://docs.webgrip.dev/glide/) (the `/glide/` path is the docs site's former name and is being migrated)
+- Published: [Unfold documentation](https://docs.unfoldhq.dev/)
 - In the repo: start at [docs/index.md](docs/index.md)
 - Product direction: [Who Unfold is for](docs/concepts/who-unfold-is-for.md)
 

@@ -9,6 +9,8 @@ D(
   AAAA('@', '100::', CF_PROXY_ON),
   AAAA('www', '100::', CF_PROXY_ON),
   AAAA('staging', '100::', CF_PROXY_ON),
+  AAAA('docs', '100::', CF_PROXY_ON),
+  AAAA('docs-staging', '100::', CF_PROXY_ON),
 
   MX('@', 0, '.'),
   TXT('@', 'v=spf1 -all'),

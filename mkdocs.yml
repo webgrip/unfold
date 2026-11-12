@@ -1,13 +1,11 @@
 site_name: Unfold
 site_description: Units of work become review-ready pull requests written by AI agents
-site_url: https://docs.webgrip.dev/glide/
-repo_url: https://forgejo.webgrip.dev/webgrip/unfold
+site_url: https://docs.unfoldhq.dev/
+repo_url: https://github.com/unfold-hq/unfold
 edit_uri: ''
 docs_dir: .build/docs
 site_dir: .build/site
-plugins:
-  - techdocs-core:
-      use_material_search: true
+plugins: []
 nav:
   - Start here: index.md
   - Try it:

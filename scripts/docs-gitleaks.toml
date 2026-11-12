@@ -1,0 +1,17 @@
+title = "Unfold documentation site"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Runbooks intentionally show example credentials"
+paths = [
+  '''.*/runbooks/.*''',
+]
+
+[[allowlists]]
+description = "Lines explicitly marked as examples or placeholders"
+regexTarget = "line"
+regexes = [
+  '''(?i)(example|placeholder|dummy|sample|redacted)''',
+]

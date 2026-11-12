@@ -28,8 +28,6 @@ class PublishedDocumentation(unittest.TestCase):
             page = self.site / name
             page.parent.mkdir(parents=True, exist_ok=True)
             page.write_text('<body><article>page</article></body>')
-        (self.site / 'search').mkdir()
-        (self.site / 'search/search_index.json').write_text(json.dumps({'docs': [{'location': 'index.html'}]}))
         (self.site / 'search.json').write_text(json.dumps({'items': [{'location': 'index.html'}]}))
         output.finalize(self.site, self.staging)
 
@@ -61,10 +59,7 @@ class PublishedDocumentation(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, reason):
                 output.validate(self.site, self.staging)
 
-    def test_history_cannot_enter_default_search_or_bundle(self):
-        (self.site / 'search/search_index.json').write_text(json.dumps({'docs': [{'location': 'research/old/'}]}))
-        with self.assertRaisesRegex(AssertionError, 'History leaked'):
-            output.validate(self.site, self.staging)
+    def test_history_cannot_enter_default_bundle(self):
         (self.staging / 'llms.txt').write_text('[Old](research/old.md)')
         with self.assertRaisesRegex(AssertionError, 'Historical page'):
             output.finalize(self.site, self.staging)

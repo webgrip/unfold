@@ -331,14 +331,15 @@ terms:
     context: Tooling
     definition: >
       Backstage's documentation format: a static site built from Markdown by
-      MkDocs with the techdocs-core plugin. `mise run docs-check` builds Unfold's
-      TechDocs output in strict mode.
+      MkDocs with the techdocs-core plugin. Unfold no longer builds it; its
+      mkdocs.yml stays readable by a TechDocs build outside the repository.
     see_also: [Zensical]
   - name: Zensical
     context: Tooling
     definition: >
       The static site generator that renders Unfold's published human pages from
-      the same mkdocs.yml and Markdown sources. The builder image pins its version.
+      mkdocs.yml and the staged Markdown sources. pyproject.toml pins its version,
+      and `mise run docs-check` builds with it in strict mode.
     see_also: [TechDocs]
   - name: OpenSpec
     context: Tooling

@@ -89,7 +89,7 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 | --- | --- |
 | `mise run domain` | Regenerates the product model's domain pages and the combined glossary of both models. Ploeg regenerates its own domain pages and [configuration reference](../apps/ploeg/docs/reference/configuration.md) in its repository |
 | `mise exec -- node apps/unfold/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
-| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, the system and application ADR ledgers and the strict TechDocs build |
+| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, the system and application ADR ledgers, then builds the site with Zensical in strict mode and indexes it with Pagefind |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |
 | `mise run docs-stale` | Lists pages verified more than 180 days ago and pages marked `unverified`; never fails |
 | `mise run docs-tutorial-smoke` | Starts and stops the [local demo](workflows/local-demo.md), then runs its smoke check; skips without PostgreSQL |

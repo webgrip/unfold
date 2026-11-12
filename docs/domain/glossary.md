@@ -508,7 +508,7 @@ Whether a person is watching a Ploeg-authorized Session live (human) or has hand
 ## TechDocs
 *Context: Tooling*
 
-Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. `mise run docs-check` builds Unfold's TechDocs output in strict mode.
+Backstage's documentation format: a static site built from Markdown by MkDocs with the techdocs-core plugin. Unfold no longer builds it; its mkdocs.yml stays readable by a TechDocs build outside the repository.
 
 **See also:** [Zensical](#zensical)  
 
@@ -595,7 +595,7 @@ The working environment containing the files and tools available to a Run. Its c
 ## Zensical
 *Context: Tooling*
 
-The static site generator that renders Unfold's published human pages from the same mkdocs.yml and Markdown sources. The builder image pins its version.
+The static site generator that renders Unfold's published human pages from mkdocs.yml and the staged Markdown sources. pyproject.toml pins its version, and `mise run docs-check` builds with it in strict mode.
 
 **See also:** [TechDocs](#techdocs)  
 
