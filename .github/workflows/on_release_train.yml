@@ -1,0 +1,190 @@
+name: '[Workflow] On Release Train'
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: release-train
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pending:
+    if: github.repository == 'unfold-hq/unfold' && github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.pending.outputs.sha }}
+      unreleased: ${{ steps.pending.outputs.unreleased }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the development head and whether it holds unreleased application commits
+        id: pending
+        run: sh scripts/release-train.sh pending
+
+  checks:
+    needs: [pending]
+    if: github.repository == 'unfold-hq/unfold' && needs.pending.outputs.unreleased == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.pending.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          except: unfold
+
+  checks-unfold:
+    needs: [pending]
+    if: github.repository == 'unfold-hq/unfold' && needs.pending.outputs.unreleased == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.pending.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: verify
+        uses: ./.github/actions/verify
+        with:
+          only: unfold
+          setup: setup-unfold
+
+  build-contexts:
+    needs: [pending]
+    if: github.repository == 'unfold-hq/unfold' && needs.pending.outputs.unreleased == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.pending.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/build-contexts
+        with:
+          dhi-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dhi-token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  ploeg-pin:
+    needs: [pending]
+    if: github.repository == 'unfold-hq/unfold' && needs.pending.outputs.unreleased == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.pending.outputs.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: uv
+          cache: false
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py fetch
+      - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
+        run: mise exec uv -- uv run --no-project python scripts/ploeg-contract.py check --published
+
+  release:
+    if: github.repository == 'unfold-hq/unfold' && github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    needs: [pending, checks, checks-unfold, build-contexts, ploeg-pin]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Install the release toolchain from its lockfile
+        run: mise exec node -- npm ci --prefix scripts/release-config --omit=dev --ignore-scripts --no-audit --no-fund
+      - uses: ./.github/actions/release-policy
+      - name: Release only the commit the checks passed
+        id: head
+        env:
+          CHECKED: ${{ needs.pending.outputs.sha }}
+        run: sh scripts/release-train.sh current "$CHECKED"
+      - name: Semantic Release
+        id: release
+        if: steps.head.outputs.current == 'true'
+        working-directory: apps
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UNFOLD_RELEASE_FORGE: github
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: mise exec node -- node "$GITHUB_WORKSPACE/scripts/release-config/node_modules/semantic-release/bin/semantic-release.js"
+      - name: Start the publication of the release at its tag
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run on_release_published.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"
+
+  site-release:
+    if: github.repository == 'unfold-hq/unfold' && github.ref_name == 'development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    needs: [pending, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Install the release toolchain from its lockfile
+        run: mise exec node -- npm ci --prefix scripts/release-config --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Release only the commit the checks passed
+        id: head
+        env:
+          CHECKED: ${{ needs.pending.outputs.sha }}
+        run: sh scripts/release-train.sh current "$CHECKED"
+      - name: Semantic Release
+        id: release
+        if: steps.head.outputs.current == 'true'
+        working-directory: apps/site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UNFOLD_RELEASE_FORGE: github
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: mise exec node -- node "$GITHUB_WORKSPACE/scripts/release-config/node_modules/semantic-release/bin/semantic-release.js"
+      - name: Start the publication of the release at its tag
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run on_release_published.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f tag="$TAG"

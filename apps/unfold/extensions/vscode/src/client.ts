@@ -301,7 +301,7 @@ export class UnfoldClient {
   dashboard(id?: string): string { return `${this.origin}/#${id ? `session/${identifier(id)}` : 'sessions'}`; }
 }
 
-/** What a `vscode://webgrip.unfold/<path>?<query>` link from the workbench asks the extension to do. */
+/** What a `vscode://unfold-hq.unfold/<path>?<query>` link from the workbench asks the extension to do. */
 export type UnfoldLink =
   | { kind: 'checkout'; workItem?: string; origin?: string }
   | { kind: 'work-item' | 'session'; id: string; origin?: string }

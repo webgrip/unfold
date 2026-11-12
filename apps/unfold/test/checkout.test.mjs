@@ -36,8 +36,8 @@ test('a worktree folder is the clone’s name and the branch with slashes as das
 });
 
 test('the VS Code link carries only the Work Item id and the workbench it came from', () => {
-  assert.equal(checkoutLink('50', 'https://unfold.example'), 'vscode://webgrip.unfold/checkout?workItem=50&origin=https%3A%2F%2Funfold.example');
-  assert.equal(checkoutLink('50'), 'vscode://webgrip.unfold/checkout?workItem=50');
+  assert.equal(checkoutLink('50', 'https://unfold.example'), 'vscode://unfold-hq.unfold/checkout?workItem=50&origin=https%3A%2F%2Funfold.example');
+  assert.equal(checkoutLink('50'), 'vscode://unfold-hq.unfold/checkout?workItem=50');
   assert.equal(checkoutLink('0'), '');
   assert.equal(checkoutLink('50&x=1'), '');
 });

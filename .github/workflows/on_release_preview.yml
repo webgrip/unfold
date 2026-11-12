@@ -1,0 +1,60 @@
+name: '[Workflow] On Release Preview'
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: unfold-release-preview
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.repository == 'unfold-hq/unfold' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify the project home, the retired repository name and the publishing identities
+        shell: bash
+        env:
+          UNFOLD_RELEASE_HOME: github
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_preflight.py
+
+  preview:
+    if: github.repository == 'unfold-hq/unfold' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.10.25
+          install_args: node
+          cache: false
+      - name: Install the release toolchain from its lockfile
+        run: mise exec node -- npm ci --prefix scripts/release-config --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Fetch release channels
+        run: git fetch origin '+refs/notes/*:refs/notes/*'
+      - name: Record candidate revision
+        run: git rev-parse HEAD
+      - name: Preview version and release notes
+        working-directory: apps
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UNFOLD_RELEASE_FORGE: github
+        run: mise exec node -- node "$GITHUB_WORKSPACE/scripts/release-config/node_modules/semantic-release/bin/semantic-release.js" --dry-run

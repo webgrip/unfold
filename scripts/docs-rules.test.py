@@ -131,7 +131,7 @@ class FrontMatter(unittest.TestCase):
         cases = {
             'type: how-to': ('type: record', 'type must be'),
             'audience: [owner, operator]': ('audience: owner', 'audience must be'),
-            'owner: unfold': ('owner: webgrip', 'owner must be'),
+            'owner: unfold': ('owner: acme', 'owner must be'),
             'last_verified: 2026-09-22': ('last_verified: 2026-12-01', 'in the future'),
             'verified_by: "mise run docs-check"\n': ('', 'verified_by must'),
         }

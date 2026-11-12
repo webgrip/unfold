@@ -32,7 +32,7 @@ Follow [How work on Unfold is done](../../docs/contributing/way-of-working.md). 
 
 ## Reporting something
 
-Open an issue on [the project forge](https://forgejo.webgrip.dev/webgrip/unfold) and choose the
+Open an issue on [the project forge](https://github.com/unfold-hq/unfold) and choose the
 Report a problem template, which asks for the same details Unfold's in-app report files. For anything
 that looks like a security problem, say so in the issue title and leave out the working details
 until a maintainer replies.

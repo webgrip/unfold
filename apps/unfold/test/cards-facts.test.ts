@@ -199,7 +199,7 @@ test('the board, admission time, checkpoints and budget holds are read when Ploe
   const newer = document();
   newer.workItem.externalScope = '10';
   newer.workItem.admittedAt = '2026-09-21T10:00:00+02:00';
-  newer.checkpoints = [{ id: '4', phase: 'pushed', branch: 'ploeg/181', prUrl: 'https://forge.example/webgrip/ploeg/pulls/9', createdAt: '2026-09-20T10:00:00Z' }];
+  newer.checkpoints = [{ id: '4', phase: 'pushed', branch: 'ploeg/181', prUrl: 'https://forge.example/acme/ploeg/pulls/9', createdAt: '2026-09-20T10:00:00Z' }];
   newer.runBudgetHolds = [{ runId: '12', shiftId: null, reservedUsd: 0.75 }];
   newer.truncated.checkpoints = false;
   const parsed = parseWorkItemFacts(newer);

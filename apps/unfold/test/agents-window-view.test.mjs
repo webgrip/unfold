@@ -30,7 +30,7 @@ test('with an Agents window attached the dialog opens the session in Stable or I
 test('without an attached Agents window the dialog explains it and links to the connect flow first', () => {
   const markup = agentsWindowDialogMarkup({ kind: 'work-items', title: 'Work Item 205', link: link(false) }, { origin: 'https://unfold.example' });
   assert.match(markup, /No Agents window of yours is attached right now/);
-  assert.match(markup, /href="vscode:\/\/webgrip\.unfold\/connect-agents-window\?origin=https%3A%2F%2Funfold\.example"/);
+  assert.match(markup, /href="vscode:\/\/unfold-hq\.unfold\/connect-agents-window\?origin=https%3A%2F%2Funfold\.example"/);
   assert.match(markup, /href="#settings\/editors"/);
   assert.match(markup, /<a class="button secondary" href="vscode:\/\/agents\//, 'the link stays available, but is no longer the primary action');
   assert.match(markup, /Opens this Work Item in VS Code/);

@@ -6,7 +6,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -165,7 +165,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -285,7 +285,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -369,7 +369,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -503,7 +503,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -639,7 +639,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {
@@ -804,7 +804,7 @@
     "team": "silver",
     "target": {
       "forge": "forgejo",
-      "owner": "webgrip",
+      "owner": "acme",
       "repo": "ploeg"
     },
     "style": {

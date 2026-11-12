@@ -1,0 +1,49 @@
+name: Report a problem
+description: Something in Unfold or Ploeg did not do what you expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything that looks like a security problem, use **Report a security problem privately** instead; see [SECURITY.md](https://github.com/unfold-hq/unfold/blob/development/SECURITY.md). Blur source code, diffs and pull-request text from client repositories before you attach a screenshot.
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The page or view, for example Now, Work or a Work Item
+  - type: input
+    id: work-item
+    attributes:
+      label: Work Item or Shift
+  - type: input
+    id: unfold-version
+    attributes:
+      label: Unfold version
+      placeholder: 0.4.0-rc.140
+    validations:
+      required: true
+  - type: input
+    id: ploeg-version
+    attributes:
+      label: Ploeg version
+  - type: input
+    id: client
+    attributes:
+      label: Browser or editor
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag a screenshot here.

@@ -21,11 +21,11 @@ export function parseEditorWindow(value: unknown): EditorWindow | undefined {
   return protocols.has(protocol) && /^[1-9][0-9]{0,8}$/.test(windowId) ? { protocol, windowId } : undefined;
 }
 
-/** The `<protocol>://webgrip.unfold/<kind>?id=…&origin=…&windowId=…` link the extension in that window handles; '' for an unusable target. */
+/** The `<protocol>://unfold-hq.unfold/<kind>?id=…&origin=…&windowId=…` link the extension in that window handles; '' for an unusable target. */
 export function editorLink(window: EditorWindow, target: EditorTarget, origin = ''): string {
   if (!targetIds[target.kind].test(target.id)) return '';
   const query = new URLSearchParams({ id: target.id, ...(origin ? { origin: origin.replace(/\/+$/, '') } : {}), windowId: window.windowId });
-  return `${window.protocol}://webgrip.unfold/${target.kind}?${query}`;
+  return `${window.protocol}://unfold-hq.unfold/${target.kind}?${query}`;
 }
 
 /**

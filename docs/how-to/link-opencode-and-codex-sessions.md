@@ -61,7 +61,7 @@ Resume a session with `codex resume <id>`.
 
 ## 3. Work as usual
 
-Start on a branch that names the ticket, such as `feat/vik-2051-login`, and the session links itself to that ticket's Work Items. You can also link it on its page under **Settings › Agent sessions**, or with `unfold_link_session` when `unfold-mcp` is registered. End commit messages with `Unfold-Session: <the session's page>`. Both agents are told that line: Codex at session start, OpenCode in its system prompt once Unfold has answered the session's first report. Agent Trace records go to `refs/notes/agent-trace`; push them with `git push origin refs/notes/agent-trace`.
+Start on a branch that names the ticket, such as `feat/vik-123-login`, and the session links itself to that ticket's Work Items. You can also link it on its page under **Settings › Agent sessions**, or with `unfold_link_session` when `unfold-mcp` is registered. End commit messages with `Unfold-Session: <the session's page>`. Both agents are told that line: Codex at session start, OpenCode in its system prompt once Unfold has answered the session's first report. Agent Trace records go to `refs/notes/agent-trace`; push them with `git push origin refs/notes/agent-trace`.
 
 ## What each harness reports
 

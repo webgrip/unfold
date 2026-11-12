@@ -12,7 +12,7 @@ import { workInputOf } from '../public/live/work-fixtures.js';
 
 const now = Date.parse('2026-10-24T10:00:00.000Z');
 const ago = minutes => new Date(now - minutes * 60_000).toISOString();
-const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, title: `Session ${id}`, repository: 'https://forgejo.example.org/webgrip/unfold.git', branch: `feat/${id}`, state: 'working', waitingFor: '', remoteUrl: '', startedAt: ago(60), lastSeenAt: ago(2), workItems: [], commits: [], aiLines: 0, resume: `claude --resume ${id}`, ...fields });
+const session = (id, fields = {}) => ({ id, harness: 'claude-code', ownerName: 'ryan', mine: true, title: `Session ${id}`, repository: 'https://forgejo.example.org/acme/unfold.git', branch: `feat/${id}`, state: 'working', waitingFor: '', remoteUrl: '', startedAt: ago(60), lastSeenAt: ago(2), workItems: [], commits: [], aiLines: 0, resume: `claude --resume ${id}`, ...fields });
 
 test('a waiting session says in plain words what it waits for, and an unknown ask still reads', () => {
   assert.deepEqual(linkedWaitReason({ harness: 'claude-code', waitingFor: 'permission_prompt' }), { code: 'permission_prompt', chip: 'Approve a tool', sentence: 'Your Claude Code session waits for you to approve a tool.', fix: 'Approve or deny the tool in your terminal.' });
@@ -61,9 +61,9 @@ test('the desk and the loop put your waiting sessions above Ploeg work, and leav
 });
 
 test('repositories compare by owner and name whatever the address form', () => {
-  assert.equal(repositoryKey('https://forgejo.example.org/webgrip/Unfold.git'), 'webgrip/unfold');
-  assert.equal(repositoryKey('forgejo.example.org:webgrip/unfold.git'), 'webgrip/unfold');
-  assert.equal(repositoryKey({ owner: 'webgrip', repo: 'unfold' }), 'webgrip/unfold');
+  assert.equal(repositoryKey('https://forgejo.example.org/acme/Unfold.git'), 'acme/unfold');
+  assert.equal(repositoryKey('forgejo.example.org:acme/unfold.git'), 'acme/unfold');
+  assert.equal(repositoryKey({ owner: 'acme', repo: 'unfold' }), 'acme/unfold');
   assert.equal(repositoryKey(''), '');
   assert.equal(repositoryKey(null), '');
   assert.equal(isLiveSession({ state: 'idle' }), true);
@@ -71,10 +71,10 @@ test('repositories compare by owner and name whatever the address form', () => {
   assert.equal(isLiveSession({ state: 'ended' }), false);
 });
 
-const detail = { item: { id: '184', target: { owner: 'webgrip', repo: 'unfold', baseBranch: 'development' } }, shifts: [{ id: 's1', branch: 'agent/vik-2051' }], runs: [{ id: 'r1', workItemId: '184', shiftId: 's1', role: 'builder', state: 'running' }, { id: 'r0', workItemId: '184', shiftId: 's1', role: 'builder', state: 'finished' }] };
+const detail = { item: { id: '184', target: { owner: 'acme', repo: 'unfold', baseBranch: 'development' } }, shifts: [{ id: 's1', branch: 'agent/vik-2051' }], runs: [{ id: 'r1', workItemId: '184', shiftId: 's1', role: 'builder', state: 'running' }, { id: 'r0', workItemId: '184', shiftId: 's1', role: 'builder', state: 'finished' }] };
 
 test('the running Runs of a Work Item carry its repository and their Shift’s branch', () => {
-  assert.deepEqual(runningRunsOf(detail), [{ id: 'r1', workItemId: '184', role: 'builder', repository: 'webgrip/unfold', branch: 'agent/vik-2051', startedAt: null, shiftOpenedAt: null }]);
+  assert.deepEqual(runningRunsOf(detail), [{ id: 'r1', workItemId: '184', role: 'builder', repository: 'acme/unfold', branch: 'agent/vik-2051', startedAt: null, shiftOpenedAt: null }]);
   assert.deepEqual(runningRunsOf(null), []);
 });
 
@@ -89,13 +89,13 @@ test('two live sessions, or a session and a running Run, collide on a Work Item 
   assert.equal(collisionSentence(found[0]), 'Your Claude Code session, sam’s Claude Code session and Ploeg’s builder Run all work Work Item 184.');
   assert.equal(collisionSentence(found[0], { sessionId: 'cccccccc2' }), 'This session, your Claude Code session and Ploeg’s builder Run all work Work Item 184.');
 
-  const sameBranch = [session('dddddddd1', { branch: 'main' }), session('dddddddd2', { repository: 'forgejo.example.org:webgrip/unfold', branch: 'main', mine: false, ownerName: 'sam' })];
+  const sameBranch = [session('dddddddd1', { branch: 'main' }), session('dddddddd2', { repository: 'forgejo.example.org:acme/unfold', branch: 'main', mine: false, ownerName: 'sam' })];
   const branch = collisions({ sessions: sameBranch });
-  assert.deepEqual(branch.map(group => [group.on, group.repository, group.branch]), [['branch', 'webgrip/unfold', 'main']]);
-  assert.equal(collisionSentence(branch[0], { sessionId: 'dddddddd1' }), 'This session and sam’s Claude Code session are on webgrip/unfold, branch main.');
+  assert.deepEqual(branch.map(group => [group.on, group.repository, group.branch]), [['branch', 'acme/unfold', 'main']]);
+  assert.equal(collisionSentence(branch[0], { sessionId: 'dddddddd1' }), 'This session and sam’s Claude Code session are on acme/unfold, branch main.');
   const crowded = collisions({ sessions: ['dddddddd3', 'dddddddd4', 'dddddddd5'].map(id => session(id, { branch: 'main' })) });
-  assert.equal(collisionSentence(crowded[0], { sessionId: 'dddddddd3' }), 'This session and 2 of your other Claude Code sessions are on webgrip/unfold, branch main.');
-  assert.equal(collisionSentence(crowded[0]), '3 of your Claude Code sessions are on webgrip/unfold, branch main.');
+  assert.equal(collisionSentence(crowded[0], { sessionId: 'dddddddd3' }), 'This session and 2 of your other Claude Code sessions are on acme/unfold, branch main.');
+  assert.equal(collisionSentence(crowded[0]), '3 of your Claude Code sessions are on acme/unfold, branch main.');
   assert.match(collisionCallout(crowded, { sessionId: 'dddddddd3' }), /href="#linked-session\/dddddddd4">Session dddddddd4</);
   assert.deepEqual(collisions({ sessions: [session('dddddddd6', { branch: 'main' }), ...['dddddddd7', 'dddddddd8'].map(id => session(id, { branch: 'main', state: 'idle' }))] }), [], 'an idle session edits nothing, so it never collides');
 

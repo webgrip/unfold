@@ -55,7 +55,7 @@ const content = [
   '',
   '## History and maintenance',
   '',
-  'The [former compiled edition](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.',
+  'The [former compiled edition](https://github.com/unfold-hq/unfold/blob/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.',
   '',
   '`npm run design:check` checks this generated guide and local links in its source chapters. It does not validate proposed features or market claims.',
   ''

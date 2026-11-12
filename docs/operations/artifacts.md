@@ -8,6 +8,8 @@ verified_by: "Image, chart and registry identities checked against on_release_pu
 
 # Source mirrors and release artifacts
 
+This page describes the Forgejo setup that publishes today. From the cutover day in [ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md), GitHub becomes the home and publishes under new identities; see [After the move to GitHub](#after-the-move-to-github-proposed).
+
 [Forgejo](https://forgejo.webgrip.dev/webgrip/unfold) owns source changes and versioning. [GitHub](https://github.com/webgrip/unfold) receives the same branches and tags through a native SSH push mirror. semantic-release's Git notes stay on Forgejo, the only release authority; the native mirror omits them and nothing copies them. GitHub Actions is disabled for the mirror.
 
 Unfold releases under `unfold-v0.x.y-rc.N` tags ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)); every artifact below carries that version. Until `unfold-v0.4.0-rc.35` the same tags also published Ploeg ([ADR-0004](../adr/adr-0004-unfold-releases-one-version.md)). The imported `ploeg-v…` tags and the tags of the front end's former repository remain as history. The [release workflow](../../.forgejo/workflows/on_release_published.yml) builds each image once in Harbor, holds it to its application's CVE budget with the shared [CVE gate](../../.forgejo/actions/cve-gate/action.yml), signs it through OpenBao, and copies the resulting OCI index and signing artifacts to the other registries. A chart is packaged once, after every image of the release is pushed, with each image's digest as its default and the pinned Ploeg chart vendored ([publication order](ci.md#publication-and-recovery)); the chart's Harbor digest is signed with the same OpenBao key and verified against the committed public key; subsequent destinations receive the original OCI manifest and blobs, without the chart signature.
@@ -46,3 +48,34 @@ An existing destination version must have the expected digest. A mismatch fails 
 The extension publisher restores the already-attached VSIX before retrying Open VSX, so a newly generated ZIP timestamp cannot change the bytes for an existing version. It signs that VSIX with the same OpenBao key, attests its provenance, and verifies the checksum, signature and attestation against the committed public key before either registry receives it ([Release Unfold](../../apps/unfold/docs/operations/release.md#signature-and-provenance)). Release assets are compared before a retry skips an upload. A successful publication attaches `release-artifacts-unfold.json` to both Forgejo and GitHub with the verified digests, source mapping and extension checksum. Releases up to `unfold-v0.4.0-rc.35` also carry `release-artifacts-ploeg.json`.
 
 Run the [release preview](../../.forgejo/workflows/on_release_preview.yml) before enabling a new cutover. Its preflight checks that the Forgejo and GitHub APIs answer as `webgrip/unfold` rather than through a rename redirect, that no retired repository name (`webgrip/glide`, `webgrip/ploeg` or the front end's former repository) exists again with Actions enabled, that GitHub holds the same trunk and tags as Forgejo, that credentials authenticate, and that an Unfold OIDC identity can obtain the signing policy. The mirror comparison reads both remotes with `git ls-remote`, so the CI bot needs no repository administration. Actual uploads and destination verification remain the responsibility of the first publication. Follow the [cutover playbook](first-cutover.md) to distinguish publication from a live application rollout.
+
+## After the move to GitHub (proposed)
+
+Proposed: this takes effect on the cutover day in [ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md). [GitHub](https://github.com/unfold-hq/unfold) then owns source changes, versioning and publication. The GitHub repository `webgrip/unfold` is transferred to `unfold-hq`, so its tags and releases stay and the old name redirects; every `refs/notes/*` ref is pushed to it once on that day. Forgejo keeps a one-way pull mirror, `webgrip/unfold-mirror`, and archives the old repository. Nothing in GitHub pushes to Forgejo or to any other Webgrip system; whoever needs an artifact pulls it.
+
+| Artifact | Published at | Signed by |
+| --- | --- | --- |
+| Unfold application | `ghcr.io/unfold-hq/unfold` | keyless cosign, with a CycloneDX SBOM and the CVE-budget verdict attested, and BuildKit provenance and SBOM attached |
+| Unfold workspace image | `ghcr.io/unfold-hq/unfold-agent` | as above |
+| Unfold chart | `oci://ghcr.io/unfold-hq/charts/unfold` | keyless cosign |
+| Editor extension | [Open VSX `unfold-hq.unfold`](https://open-vsx.org/extension/unfold-hq/unfold); VSIX, SHA-256 file and sigstore bundle on the [GitHub release](https://github.com/unfold-hq/unfold/releases) | keyless `cosign sign-blob`, plus a GitHub build-provenance attestation |
+
+Every signature names the workflow at the release tag: certificate identity `https://github.com/unfold-hq/unfold/.github/workflows/on_release_published.yml@refs/tags/unfold-v0.x.y-rc.N`, issuer `https://token.actions.githubusercontent.com`, logged in the public Rekor log. A cluster's admission policy checks that identity with the regular expression `^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v0\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$`, which [`scripts/release_registry.py`](../../scripts/release_registry.py) also uses. Check a download with:
+
+```sh
+cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v' \
+  ghcr.io/unfold-hq/unfold:<version>
+cosign verify-blob --bundle unfold-<version>.vsix.sigstore.json \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/unfold-hq/unfold/\.github/workflows/on_release_published\.yml@refs/tags/unfold-v' \
+  unfold-<version>.vsix
+gh attestation verify unfold-<version>.vsix --repo unfold-hq/unfold
+```
+
+Each image is built once, for AMD64 and ARM64, straight into GHCR; nothing is copied between registries, so `regctl` and Harbor drop out. The chart defaults each image to the digest its job pushed and names `ghcr.io/unfold-hq` as their registry. The versions published before the cutover stay where they are: `harbor.webgrip.dev`, `forgejo.webgrip.dev` and `ghcr.io/webgrip` images and charts signed with the committed public key, and `webgrip.unfold` on Open VSX. An editor with `webgrip.unfold` does not move on its own; install `unfold-hq.unfold`.
+
+Trusted Publishing cannot create an extension, so `unfold-hq.unfold` must exist on Open VSX before the first GitHub release. Since this change the extension's `publisher` is `unfold-hq`, so the next Forgejo release publishes it with `OVSX_PAT`; the token's account must own the `unfold-hq` namespace by then ([Release Unfold](../../apps/unfold/docs/operations/release.md#registry-credentials)).
+
+The new GHCR packages start private. The first publication fails its anonymous pull check until each package (`unfold`, `unfold-agent`, `charts/unfold`) is made public; rerun the distribute job after that. The publisher then attaches `release-artifacts-unfold.json`, schema version 2, which lists each artifact by digest instead of a source and target per registry, and takes the GitHub release out of draft without marking it latest.
+

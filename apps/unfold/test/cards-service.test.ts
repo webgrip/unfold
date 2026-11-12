@@ -299,7 +299,7 @@ test('crack steps with facts are stored in Unfold and follow the two-person rule
 
 function ploegComment(store: CardStore) {
   store.db.prepare("INSERT INTO card_comments(work_item_id,pull_request,moment,comment_id,image,published_at,checked_at,origin,adopted) VALUES('177',?,'',555,1,'2026-09-20T12:31:00Z','2026-09-20T12:31:00Z','ploeg',0)")
-    .run(JSON.stringify({ id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }));
+    .run(JSON.stringify({ id: '94', forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 10 }));
 }
 
 test('the Status page’s Ploeg check keeps the recorded import result, and says nothing without one', async t => {
@@ -362,7 +362,7 @@ test('the card comment is published through Ploeg’s keyed comment only when tu
   assert.equal(body.markdown.includes('<!-- ploeg:'), false, 'Ploeg adds its own marker; Unfold sends none');
   assert.match(body.image.svg, /^<svg[\s>]/);
   assert.match(body.image.alt, /^Run card: /);
-  assert.deepEqual(on.store.comment('177'), { workItemId: '177', pullRequest: { id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, moment, commentId: 555, image: true, publishedAt: '2026-10-10T12:27:48Z', checkedAt: '2026-10-10T12:27:48Z', origin: 'unfold', adopted: true });
+  assert.deepEqual(on.store.comment('177'), { workItemId: '177', pullRequest: { id: '94', forge: 'forgejo', owner: 'acme', repo: 'ploeg', number: 10 }, moment, commentId: 555, image: true, publishedAt: '2026-10-10T12:27:48Z', checkedAt: '2026-10-10T12:27:48Z', origin: 'unfold', adopted: true });
 
   assert.equal(await on.cards.publishComment('177'), null, 'the same moment is not published again');
   assert.equal(puts().length, 1, 'and nothing more is written');

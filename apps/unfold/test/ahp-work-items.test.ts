@@ -1083,7 +1083,7 @@ test('a Work Item\'s chat opens its panel in the VS Code editor window the perso
 
   assert.equal((await register({ protocol: 'vscode', windowId: '3' })).status, 200);
   assert.equal((await register({ protocol: 'vscode', windowId: '7' })).status, 200, 'the window focused last replaces the one before');
-  assert.deepEqual(await lead(), { kind: 'markdown', id: 'wi-205-open-elsewhere', content: `[Open the Work Item in VS Code](vscode://webgrip.unfold/work-item?id=205&windowId=7) · ${pullRequest}\n\n` });
+  assert.deepEqual(await lead(), { kind: 'markdown', id: 'wi-205-open-elsewhere', content: `[Open the Work Item in VS Code](vscode://unfold-hq.unfold/work-item?id=205&windowId=7) · ${pullRequest}\n\n` });
 
   for (const body of [{ protocol: 'javascript', windowId: '7' }, { protocol: 'vscode', windowId: '7&id=1' }, { protocol: 'vscode' }]) {
     const refused = await register(body);
@@ -1094,7 +1094,7 @@ test('a Work Item\'s chat opens its panel in the VS Code editor window the perso
   assert.equal((await register({ protocol: 'vscode', windowId: '9' }, viewer.cookie)).status, 403, 'a viewer has no Agents window to link from');
   const peer = await f.attach('viewer-2');
   const seen = (await peer.rpc('subscribe', { channel: defaultChatOf('unfold:/wi-205') })).snapshot.state;
-  assert.ok(!JSON.stringify(seen).includes('webgrip.unfold'), 'another person never gets the owner\'s window');
+  assert.ok(!JSON.stringify(seen).includes('unfold-hq.unfold'), 'another person never gets the owner\'s window');
 
   const forgotten = await request(f.server.url, '/api/agent-host/editor-window', { method: 'DELETE', cookie: op.cookie });
   assert.deepEqual(forgotten.body, { forgotten: true });

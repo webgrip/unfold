@@ -56,7 +56,7 @@ test('under Ploeg the server says that the key Ploeg mints is not scoped to the 
   const [server] = sessionCustomizations(gatewayConfig(), subject({ execution }), 'abc', []);
   assert.equal(server.state.kind, 'error');
   assert.equal(server.state.error.errorType, 'gateway_key_unscoped');
-  assert.match(server.state.error.message, /VIK-1934/);
+  assert.match(server.state.error.message, /does not yet apply the repository's MCP access groups/);
   assert.equal(server._meta['dev.webgrip.unfold'].keyScope, 'ploeg');
   const owned = gatewayConfig(config => { config.repositories = config.repositories.map(repository => ({ ...repository, executionOwner: 'ploeg' })); });
   assert.equal(sessionCustomizations(owned, subject({ status: undefined }), 'abc', [])[0].state.kind, 'error', 'a repository Ploeg executes, before its session is bound');

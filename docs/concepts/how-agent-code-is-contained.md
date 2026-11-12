@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-29
-verified_by: "Chart values in apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) read on 2026-10-29; apps/unfold/src/runtime/kubernetes.ts and src/store.ts; the homelab's Talos workers read with talosctl (Kata 3.32.0, Cloud Hypervisor, virtio-fs, disable_guest_seccomp=true, no TPM on the three workers); sources in research/2026-10-24-sandbox-runtimes-and-encryption.md."
+verified_by: "Chart values in apps/unfold/ops/helm/unfold/values.yaml and templates/config.yaml, and Ploeg's chart 0.2.0-rc.94 (values.yaml, templates/_sandbox.tpl, templates/_helpers.tpl) read on 2026-10-29; apps/unfold/src/runtime/kubernetes.ts and src/store.ts; the owner's staging cluster's Talos workers read with talosctl (Kata 3.32.0, Cloud Hypervisor, virtio-fs, disable_guest_seccomp=true, no TPM on the three workers); sources in research/2026-10-24-sandbox-runtimes-and-encryption.md."
 ---
 
 # How agent code is contained

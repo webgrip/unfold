@@ -36,8 +36,8 @@ export function clashesWithRun(session, run) { return busyLinkedStates.includes(
 
 /**
  * The `owner/repo` a repository address or a Ploeg target names, lowercased and without `.git`, so
- * `https://forgejo.example.org/webgrip/Unfold.git`, `forgejo.example.org:webgrip/unfold` and
- * `{ owner: 'webgrip', repo: 'unfold' }` are the same repository. Empty when it names none.
+ * `https://forgejo.example.org/acme/Unfold.git`, `forgejo.example.org:acme/unfold` and
+ * `{ owner: 'acme', repo: 'unfold' }` are the same repository. Empty when it names none.
  * @param {string|{ owner?: string, repo?: string }|null|undefined} value
  * @returns {string}
  */
@@ -145,8 +145,8 @@ function memberGroups(members) {
 
 /**
  * One collision in plain words, seen from `sessionId` when given: "Your Claude Code session and Ploeg's builder Run
- * both work Work Item 184.", "This session and sam's Claude Code session are on webgrip/unfold, branch main." or
- * "This session and 2 of your other Claude Code sessions are on webgrip/unfold, branch main." Sessions of one person
+ * both work Work Item 184.", "This session and sam's Claude Code session are on acme/unfold, branch main." or
+ * "This session and 2 of your other Claude Code sessions are on acme/unfold, branch main." Sessions of one person
  * and harness are counted, not repeated.
  * @param {ReturnType<typeof collisions>[number]} group
  * @param {{ sessionId?: string }} [options]

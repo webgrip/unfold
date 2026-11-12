@@ -1,0 +1,24 @@
+{
+  "name": "unfold-release-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The semantic-release configuration and toolchain Unfold's GitHub Actions release jobs run: tags-only trains, conventional commits and GitHub releases.",
+  "main": "index.cjs",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.10.0"
+  },
+  "dependencies": {
+    "@semantic-release/commit-analyzer": "14.0.0-beta.4",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/github": "12.0.10",
+    "@semantic-release/release-notes-generator": "15.0.0-beta.3",
+    "conventional-changelog-conventionalcommits": "10.4.1",
+    "semantic-release": "25.0.9"
+  },
+  "overrides": {
+    "tar": "7.5.22",
+    "@semantic-release/commit-analyzer": "14.0.0-beta.4",
+    "@semantic-release/release-notes-generator": "15.0.0-beta.3"
+  }
+}

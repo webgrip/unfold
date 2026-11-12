@@ -32,4 +32,4 @@ On 2026-10-24, on kind 0.33.0 (Kubernetes 1.37.0, containerd 2.3.4, host kernel 
 * The admission policy refused an `unfold-agent` and a `ploeg-worker` pod without a runtime, admitted an `unfold-agent` pod under `gvisor` and an unlabelled pod under runc, and refused an `io.katacontainers.` annotation, all with `kubectl apply --dry-run=server`.
 * `talos/worker-runtimes.yaml` with each encryption patch passed `talosctl validate --mode metal` (talosctl 1.13.4), and the Image Factory accepted `talos/schematic.yaml` as schematic `e77adcb5f09fa573372ec1a870b07120dd9378bef391069c1f6073e9fa24cc96`.
 
-Kata was not run from this directory. The same RuntimeClass shape has run Unfold's workspaces and Ploeg's sandboxes on the homelab's Talos workers since homelab-cluster ADR-0070. gVisor has not run on Talos here yet.
+Kata was not run from this directory. The same RuntimeClass shape has run Unfold's workspaces and Ploeg's sandboxes on the owner's staging cluster's Talos workers since cluster repository ADR-0070. gVisor has not run on Talos here yet.

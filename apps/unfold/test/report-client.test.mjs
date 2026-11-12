@@ -141,13 +141,13 @@ test('the suggested title is the page name and the first sentence of what happen
 test('a followed report shows where it stands, the proof and the team’s words as text, and a reply box only when filed', async () => {
   const { followRow, stageLooks } = await import('../public/views/report.js');
   const row = followRow({
-    id: 'r1', title: 'Approve <does> nothing', status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252', createdAt: '2026-10-12T08:00:00.000Z',
+    id: 'r1', title: 'Approve <does> nothing', status: 'filed', url: 'https://forgejo.test/acme/unfold/issues/252', createdAt: '2026-10-12T08:00:00.000Z',
     stage: 'shipped', words: 'Fixed in 0.4.0-rc.75', unread: true, others: 2, joined: false,
-    fix: { number: '351', url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true }, release: { tag: '0.4.0-rc.75', url: 'https://forgejo.test/r', live: true },
+    fix: { number: '351', url: 'https://forgejo.test/acme/unfold/pulls/351', merged: true }, release: { tag: '0.4.0-rc.75', url: 'https://forgejo.test/r', live: true },
     comments: [{ author: 'ryangr0', text: '<img src=x onerror=alert(1)>', at: '2026-10-12T09:00:00.000Z', mine: false }],
   }, { reply: true });
   assert.match(row, /Fixed in 0\.4\.0-rc\.75/);
-  assert.match(row, /Fixed by <a href="https:\/\/forgejo\.test\/webgrip\/unfold\/pulls\/351"[^>]*>webgrip\/unfold#351<\/a>/);
+  assert.match(row, /Fixed by <a href="https:\/\/forgejo\.test\/acme\/unfold\/pulls\/351"[^>]*>acme\/unfold#351<\/a>/);
   assert.match(row, /live in <a [^>]*>0\.4\.0-rc\.75<\/a>/);
   assert.match(row, /2 other people hit this too/);
   assert.match(row, /Approve &lt;does&gt; nothing/);

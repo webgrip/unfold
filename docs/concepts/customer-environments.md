@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, agent]
 owner: unfold
 last_verified: 2026-11-01
-verified_by: "Source read on 2026-11-01 of webgrip/unfold origin/development (apps/unfold/src/tenancy.ts, tenant-scope.ts, oidc.ts, config.ts, tracker-connections.ts, tenant-export.ts, ops/helm/unfold/values.yaml), ploeg-hq/ploeg origin/development 7419f2f (no tenant_id in Go; ADR-0178, 0179 and 0181 proposed), webgrip/homelab-cluster main (kubernetes/apps/authentik, kubernetes/apps/security/access-plane, kubernetes/apps/network/cloudflare-tunnel, ADR-0056, 0057, 0059) and webgrip/unfold-cluster main (infra/unfold-staging-edge.tf, kubernetes/apps/unfold-staging). Identity broker facts from the vendors' documentation on the same day. Prompted by the owner on 2026-11-01 after Unfold staging went live behind Cloudflare Access with a one-time PIN. Nothing was run."
+verified_by: "Source read on 2026-11-01 of unfold origin/development (apps/unfold/src/tenancy.ts, tenant-scope.ts, oidc.ts, config.ts, tracker-connections.ts, tenant-export.ts, ops/helm/unfold/values.yaml), ploeg-hq/ploeg origin/development 7419f2f (no tenant_id in Go; ADR-0178, 0179 and 0181 proposed), the owner's cluster repository main (kubernetes/apps/authentik, kubernetes/apps/security/access-plane, kubernetes/apps/network/cloudflare-tunnel, ADR-0056, 0057, 0059) and the owner's production cluster repository main (infra/unfold-staging-edge.tf, kubernetes/apps/unfold-staging). Identity broker facts from the vendors' documentation on the same day. Prompted by the owner on 2026-11-01 after Unfold staging went live behind Cloudflare Access with a one-time PIN. Nothing was run."
 ---
 
 # Customer environments
@@ -43,13 +43,13 @@ A dedicated cluster per customer is not in scope; ADR-0009 keeps it as the pilot
 
 | Who | How they sign in | What it depends on |
 |---|---|---|
-| Webgrip staff on the homelab Unfold | Unfold's OIDC against the homelab Authentik, which signs in only through Google Workspace (`webgrip.nl`), only for people in the access-plane roster (homelab ADR-0057) | the homelab, and the LAN or VPN: Authentik is published on the internal gateway only |
-| Webgrip staff on Unfold staging | a one-time PIN from Cloudflare Access for the owners' email domain, then a local Unfold account (`auth.localLogin: true`) | Cloudflare; two logins |
+| The owner's staff on the owner's staging cluster Unfold | Unfold's OIDC against the owner's staging cluster Authentik, which signs in only through the owner's Google Workspace domain, only for people in the access-plane roster (an ADR of the owner's cluster) | the owner's staging cluster, and the LAN or VPN: Authentik is published on the internal gateway only |
+| The owner's staff on Unfold staging | a one-time PIN from Cloudflare Access for the owners' email domain, then a local Unfold account (`auth.localLogin: true`) | Cloudflare; two logins |
 | A customer | nothing | |
 
 Three facts close off the easy paths:
 
-- **Authentik cannot serve people outside the LAN.** The Cloudflare tunnel publishes `authentik.webgrip.dev` for exactly two paths, the discovery document and signing keys of `unfold-kubernetes`; everything else answers 404. A browser on the internet cannot reach the authorize endpoint, and Cloudflare Access cannot use Authentik as its identity provider. Homelab ADR-0056 names publishing the identity provider as a decision that "deserves its own record". Authentik also runs one server replica, pinned to the high-CPU nodes, one of which is the unstable `fringe-workstation`.
+- **Authentik cannot serve people outside the LAN.** The Cloudflare tunnel publishes the staging Authentik host for exactly two paths, the discovery document and signing keys of `unfold-kubernetes`; everything else answers 404. A browser on the internet cannot reach the authorize endpoint, and Cloudflare Access cannot use Authentik as its identity provider. An ADR of the owner's cluster names publishing the identity provider as a decision that "deserves its own record". Authentik also runs one server replica, pinned to the high-CPU nodes, one of which is the unstable `fringe-workstation`.
 - **Authentik is single-tenant by design here.** One brand, one Google source, no enrolment, a Git roster as the allow-list. Real Authentik tenancy is an Enterprise feature, documented as alpha in 2026.8, with a licence per tenant ([tenancy](https://docs.goauthentik.io/sys-mgmt/tenancy/)).
 - **Cloudflare Access is the wrong layer for customers.** Seats are counted per person who authenticates and new people are blocked once seats run out; an account holds at most 50 identity providers by default ([account limits](https://developers.cloudflare.com/cloudflare-one/account-limits/)); and Access gives the application no Tenant or role. It stays in front of staging and the operators' consoles, not in front of customers.
 
@@ -61,7 +61,7 @@ Proposed, for the owner to decide. They follow the order the owner chose on 2026
 
 Unfold already does OIDC with discovery, PKCE and a JWKS check (`apps/unfold/src/oidc.ts`). Every installation signs people in through it, and `auth.localLogin: false` removes the password form, the `POST /api/login` route and the bootstrap administrator. The chart already refuses `false` without `config.auth.oidc`. Cloudflare Access stays in front of staging as a second wall, with the same identity provider, so a person signs in once and both layers see the same session.
 
-On staging the owner chose Google Workspace directly until the broker exists (decided 2026-11-01). Access moves to it in [unfold-cluster#173](https://forgejo.webgrip.dev/webgrip/unfold-cluster/pulls/173) once a person has made the Google OAuth client. Unfold itself cannot follow yet: it takes a person's role from a role claim or a groups claim (`entitledRole` in `apps/unfold/src/oidc.ts`), and a Google ID token carries neither. Turning local login off on staging therefore waits for either the broker, which emits the groups, or a small Unfold change that maps a verified email address or Workspace domain to a role.
+On staging the owner chose Google Workspace directly until the broker exists (decided 2026-11-01). Access moves to it in a pull request in the owner's production cluster repository once a person has made the Google OAuth client. Unfold itself cannot follow yet: it takes a person's role from a role claim or a groups claim (`entitledRole` in `apps/unfold/src/oidc.ts`), and a Google ID token carries neither. Turning local login off on staging therefore waits for either the broker, which emits the groups, or a small Unfold change that maps a verified email address or Workspace domain to a role.
 
 ### 2. One customer identity broker, with an organisation per Tenant
 
@@ -79,7 +79,7 @@ A broker is the one sign-in service Unfold trusts. Each Agency's own Google Work
 
 Sources: [Zitadel domain discovery](https://zitadel.com/docs/guides/solution-scenarios/domain-discovery), [Zitadel licence FAQ](https://zitadel.com/license-faq), [Keycloak organisations](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/server_administration_guide/managing_organizations), [Keycloak sizing](https://docs.redhat.com/en/documentation/red_hat_build_of_keycloak/26.0/html/high_availability_guide/concepts-memory-and-cpu-sizing-), [Authentik pricing](https://goauthentik.io/pricing).
 
-For Webgrip the choice is between Zitadel and moving Authentik to the production cluster:
+For the owner the choice is between Zitadel and moving Authentik to the production cluster:
 
 | | Zitadel | Authentik on the production cluster |
 |---|---|---|
@@ -90,7 +90,7 @@ For Webgrip the choice is between Zitadel and moving Authentik to the production
 | What a mistake can reach | one organisation's settings | applications, sources and policies are global, so one bad policy reaches every customer |
 | Cost | none for the open source build | open source core; tenancy needs Enterprise |
 
-The proposal is **Zitadel on the production cluster**, not on the homelab, because customer sign-in must not depend on the homelab ([ADR-0040](../adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)). Webgrip staff reach it through federation: the Webgrip organisation in Zitadel links Google Workspace (or the homelab Authentik, once it is published), so staff keep one Google sign-in and the security-key check of homelab ADR-0077.
+The proposal is **Zitadel on the production cluster**, not on the owner's staging cluster, because customer sign-in must not depend on the owner's staging cluster ([ADR-0040](../adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)). The owner's staff reach it through federation: the owner's organisation in Zitadel links Google Workspace (or the owner's staging cluster Authentik, once it is published), so staff keep one Google sign-in and the security-key check of an ADR of the owner's cluster.
 
 ### 3. A Tenant is an object in Git with an owner screen
 
@@ -100,14 +100,14 @@ ADR-0017 says Unfold staff never see Tenant content. The Customers area therefor
 
 ### 4. One reconciler turns a Tenant record into everything it needs
 
-The *New customer* form opens a pull request that adds the customer's `Tenant` file, and one of the Webgrip operators reviews and merges it: every customer starts with one of us, for now (decided 2026-11-01). After the merge Flux applies the object, and a reconciler makes each piece, idempotently, and reports each as a line with a state, like the Connections checks:
+The *New customer* form opens a pull request that adds the customer's `Tenant` file, and one of the owner's operators reviews and merges it: every customer starts with one of us, for now (decided 2026-11-01). After the merge Flux applies the object, and a reconciler makes each piece, idempotently, and reports each as a line with a state, like the Connections checks:
 
 | Piece | Made through | ADR |
 |---|---|---|
 | Broker organisation, the three role groups, an invitation to the first admin | the broker's API | ADR-0017 |
 | Namespaces for Runs and previews, default-deny network policies, a resource quota, the sandboxed RuntimeClass | the Kubernetes API | ADR-0009, [ADR-0045](../adr/adr-0045-agent-code-runs-under-kata-or-gvisor-chosen-by-what-the-node-and-the-work-need.md) |
 | LiteLLM team and budget, with the Tenant's model routing | LiteLLM's admin API | ADR-0009 |
-| An OpenBao path and a write-only role for the Tenant's connections | OpenBao, through a role that may create Tenant paths and nothing else | homelab ADR-0055, Connections direction 6 |
+| An OpenBao path and a write-only role for the Tenant's connections | OpenBao, through a role that may create Tenant paths and nothing else | an ADR of the owner's cluster, Connections direction 6 |
 | The Tenant in Ploeg, and an operator consumer bound to it | Ploeg's API | Ploeg ADR-0178 |
 
 The reconciler is a small Kubernetes operator for the `Tenant` resource (decided 2026-11-01). It holds the rights to make namespaces, call the broker and LiteLLM, and write OpenBao; Unfold's web process, which faces the internet, holds none of them. It may only open a pull request on the cluster repository and read `Tenant` status. Kubernetes gives the operator retries, status conditions and events; Git gives every customer a reviewed history.
@@ -130,7 +130,7 @@ The preview controller of Ploeg ADR-0181 creates each preview in the Tenant's pr
 ## Order
 
 1. Staff sign-in on staging (direction 1): Access through Google Workspace, then Unfold through the same identity provider and `auth.localLogin: false`.
-2. The broker on the production cluster, with the Webgrip organisation only, and staging switched to it.
+2. The broker on the production cluster, with the owner's organisation only, and staging switched to it.
 3. The `Tenant` resource and its operator for the broker organisation and the namespaces, then the Platform → Customers area that opens the pull request.
 4. LiteLLM, OpenBao and Ploeg pieces, as Ploeg ADR-0178 lands; then `tenancy.enforce: true` on staging.
 5. Agency self-onboarding and the Tenant switcher.
@@ -140,9 +140,9 @@ The preview controller of Ploeg ADR-0181 creates each preview in the Tenant's pr
 
 Each is the owner's to decide. The owner answered 1, 3, 4 and 5 on 2026-11-01.
 
-1. ~~Staff sign-in on staging before the broker exists.~~ Google Workspace directly, for Access and Unfold ([unfold-cluster ADR 0014](https://forgejo.webgrip.dev/webgrip/unfold-cluster/src/branch/main/docs/adr/0014-operators-sign-in-to-production-through-google-directly.md)); one OAuth client made by hand in Google's console. Publishing the homelab Authentik was not chosen.
+1. ~~Staff sign-in on staging before the broker exists.~~ Google Workspace directly, for Access and Unfold (unfold-cluster ADR 0014); one OAuth client made by hand in Google's console. Publishing the owner's staging cluster Authentik was not chosen.
 2. The broker: Zitadel or Authentik moved to the production cluster. The owner asked for a closer comparison of the two first.
 3. ~~Self-hosted or managed.~~ Self-hosted on the production cluster.
 4. ~~Where the reconciler runs.~~ A `Tenant` custom resource and operator, with the `Tenant` files in Git.
-5. ~~Self sign-up.~~ Every customer starts with one of the Webgrip operators, for now.
+5. ~~Self sign-up.~~ Every customer starts with one of the owner's operators, for now.
 6. Until the broker exists: does Unfold on staging learn to map a verified Google email or Workspace domain to a role, so local login can go off now, or does local login stay on until the broker emits groups?

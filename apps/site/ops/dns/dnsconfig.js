@@ -13,6 +13,7 @@ D(
   MX('@', 0, '.'),
   TXT('@', 'v=spf1 -all'),
   TXT('_dmarc', 'v=DMARC1; p=reject'),
+  TXT('_gh-unfold-hq-o', '41a6656e33'),
 
   IGNORE('staging-app', 'CNAME'),
   IGNORE('_acme-challenge.**', 'TXT'),

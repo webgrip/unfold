@@ -10,7 +10,7 @@ import { evidenceEntry, evidenceKind, exitCodeOf, ledgerLimits, readLedger, reco
 
 const plugin = fileURLToPath(new URL('../extensions/claude-code/', import.meta.url));
 const sessionId = 'evidence-session-1';
-const bash = (command: string, extra: Record<string, unknown> = {}) => ({ session_id: sessionId, hook_event_name: 'PostToolUse', tool_name: 'Bash', cwd: '/work/homelab-cluster', tool_input: { command }, tool_response: { stdout: 'ok 12 tests\npass 12\n', stderr: '', interrupted: false }, ...extra });
+const bash = (command: string, extra: Record<string, unknown> = {}) => ({ session_id: sessionId, hook_event_name: 'PostToolUse', tool_name: 'Bash', cwd: '/work/infra', tool_input: { command }, tool_response: { stdout: 'ok 12 tests\npass 12\n', stderr: '', interrupted: false }, ...extra });
 const fake = (prefix: string, filler: string, length: number) => `${prefix}${filler.repeat(length)}`;
 
 test('commands that prove something are classified, and reading or editing commands are not evidence', () => {
@@ -51,7 +51,7 @@ test('secrets in commands and output are redacted before anything is written', (
 
 test('a passing command, a failing one and an interrupted one each record their outcome, exit code and a short output tail', () => {
   const passed = evidenceEntry(bash('npm test'), new Date('2026-10-29T20:00:00Z'));
-  assert.deepEqual(passed, { at: '2026-10-29T20:00:00.000Z', kind: 'test', command: 'npm test', cwd: 'homelab-cluster', outcome: 'passed', exitCode: 0, tail: 'ok 12 tests\npass 12' });
+  assert.deepEqual(passed, { at: '2026-10-29T20:00:00.000Z', kind: 'test', command: 'npm test', cwd: 'infra', outcome: 'passed', exitCode: 0, tail: 'ok 12 tests\npass 12' });
   const failed = evidenceEntry({ ...bash('npm test'), hook_event_name: 'PostToolUseFailure', error: `Exit code 1\nline 1\nline 2\nline 3\nnot ok 3 - token=${fake('', 'f', 12)}` });
   assert.equal(failed?.outcome, 'failed');
   assert.equal(failed?.exitCode, 1);

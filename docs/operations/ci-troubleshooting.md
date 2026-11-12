@@ -10,6 +10,8 @@ verified_by: "The release rows checked on 2026-10-25 against @webgrip/semantic-r
 
 Symptoms seen on Unfold's Forgejo Actions, what caused them and what fixed them. [CI and release workflows](ci.md) explains how the pipeline is meant to work.
 
+The [GitHub Actions section](#github-actions-proposed) lists what to expect once the home moves to GitHub ([ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md)).
+
 ## Read a run without a token
 
 The repository is public. Without a Forgejo token you can still read:
@@ -46,3 +48,21 @@ Re-running a job needs the web interface.
 | A publish step answers `GET ghcr.io … 401` at the anonymous pull check | The GitHub package exists but is private; new GHCR packages start private. | Check with `curl -s -o /dev/null -w '%{http_code}' "https://ghcr.io/token?service=ghcr.io&scope=repository:webgrip/<package>:pull"` (200 public, 401 private, 403 absent). The owner changes the visibility in GitHub, then re-runs the job. |
 | A release hangs about 30 minutes, then `context deadline exceeded` | Something still addressed the old repository name: Forgejo's redirect turned a POST into a GET, and a `git ls-remote` to a deleted repository waited for credentials (run 750). | Use `webgrip/unfold` everywhere; the publisher sets `GIT_TERMINAL_PROMPT=0` and fails on a redirected write. |
 | Release assets answer HTTP 500 `unable to seek`, registry pushes answer 400, or a job is reaped after "Job succeeded" | Forgejo's object storage is full or failing; writes appear to succeed. | Not a pipeline problem. Free the storage (cluster runbook), then re-run the failed publish jobs. |
+
+## GitHub Actions (proposed)
+
+Proposed: these apply from the cutover day in [ADR-0055](../adr/adr-0055-github-unfold-hq-is-the-project-home.md). Every run and log on `unfold-hq/unfold` is public: `gh run list --repo unfold-hq/unfold --workflow on_release_train.yml`, then `gh run view <run> --log-failed`. A rerun needs write access.
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Every job of every workflow is skipped | The run is not in `unfold-hq/unfold`: the mirror before the transfer, or a fork. Each job's condition starts with the repository check. | Expected. Run it in `unfold-hq/unfold`. |
+| A release tag exists but no **[Workflow] On Release Published** run started | A tag or release made with `GITHUB_TOKEN` starts no workflow, and the dispatch step after semantic-release failed or did not run. | Dispatch it at the tag: `gh workflow run on_release_published.yml --repo unfold-hq/unfold --ref <tag> -f tag=<tag>`. |
+| `parse-release-tag` fails with "Select the same tag as the workflow ref" | The publication was dispatched on a branch. A branch run would sign under a branch identity the cluster refuses. | Dispatch it with `--ref <tag>`. |
+| `build-contexts` or an image job fails with `unauthorized` from `dhi.io` | `DOCKERHUB_USERNAME` or `DOCKERHUB_TOKEN` is missing or expired; Docker Hardened Images need a sign-in. A pull request from a fork skips the build on purpose. | Renew the token and update the secrets. |
+| The distribute job fails its anonymous pull with HTTP 401 | A new GHCR package starts private. | Make the package public in its settings, then rerun only the distribute job. |
+| Open VSX refuses `--trusted-publishing` | `ovsx` is older than 1.4.0, the extension does not exist yet on Open VSX, or Trusted Publishing is not set up for this repository and workflow. | Move `ovsx` forward, publish the first `unfold-hq.unfold` with a token, or fix the publisher's Trusted Publishing settings. |
+| The extension job fails with "already published without" an asset | The release was published before its assets were attached; GitHub keeps a published release immutable. | Never publish an Unfold release by hand; the distribute job does it. Delete the release and its tag only if no artifact was published, otherwise release the next candidate. |
+| `on_ploeg_pin.yml` fails with "Auto merge is not allowed" | Auto-merge is off in the repository settings. | Allow auto-merge, then rerun the job. |
+| A Ploeg pin merged, but no **[Workflow] On Source Change** run followed | A merge made with `GITHUB_TOKEN` starts no push run. | Expected: the next release train checks the head that holds it. |
+| `release-policy` fails with `Cannot find module 'semantic-release'` | The job did not install the release toolchain before the tests. | Keep the `npm ci --prefix scripts/release-config` step before the release-policy action. |
+

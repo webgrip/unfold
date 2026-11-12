@@ -120,11 +120,11 @@ These entries use the same registered `application` repository. Choose the rows 
 
 | Provider | `baseUrl` example | `project` example | Environment variable example |
 | --- | --- | --- | --- |
-| Forgejo | `https://forge.example/api/v1` | `webgrip/application` | `UNFOLD_TASK_FORGEJO_TOKEN` |
-| GitHub.com | `https://api.github.com` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
-| GitHub Enterprise Cloud with data residency (GHE.com) | `https://api.octocorp.ghe.com` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
-| GitHub Enterprise Server | `https://github.example/api/v3` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
-| GitLab | `https://gitlab.example/api/v4` | `webgrip/platform/application` or `"123"` | `UNFOLD_TASK_GITLAB_TOKEN` |
+| Forgejo | `https://forge.example/api/v1` | `acme/application` | `UNFOLD_TASK_FORGEJO_TOKEN` |
+| GitHub.com | `https://api.github.com` | `acme/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
+| GitHub Enterprise Cloud with data residency (GHE.com) | `https://api.octocorp.ghe.com` | `acme/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
+| GitHub Enterprise Server | `https://github.example/api/v3` | `acme/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
+| GitLab | `https://gitlab.example/api/v4` | `acme/platform/application` or `"123"` | `UNFOLD_TASK_GITLAB_TOKEN` |
 | ClickUp | `https://api.clickup.com/api/v2` | `"901234567890"` | `UNFOLD_TASK_CLICKUP_TOKEN` |
 | Vikunja | `https://tasks.example/api/v1` | `"42"` | `UNFOLD_TASK_VIKUNJA_TOKEN` |
 | Jira Cloud, service account | `https://api.atlassian.com/ex/jira/CLOUD-ID/rest/api/3` | `APP` | `UNFOLD_TASK_JIRA_TOKEN` |
@@ -303,13 +303,13 @@ The status beside the task shows which team holds it, Ploeg's Work Items for it 
 Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report into any registered tracker whose adapter declares issue filing: a Forgejo issue, a Vikunja task or a Jira issue today, with the screenshot, `console.json` and `requests.json` attached. The adapter decides the body format (Markdown on Forgejo, HTML on Vikunja, ADF converted from Markdown on Jira), how files attach, and what Unfold reads back when it follows the report. It uses one of the task sources above:
 
 ```json
-"reports": { "source": "forgejo-unfold", "project": "webgrip/unfold" }
+"reports": { "source": "forgejo-unfold", "project": "acme/unfold" }
 ```
 
 Or give reports a connection of their own, which is not a task source and never appears on the Tasks page. Use this when no task source fits, for example when the repository is one Ploeg dispatches work for, where a task source owned by Unfold is refused at start-up:
 
 ```json
-"reports": { "provider": "forgejo", "baseUrl": "https://forgejo.example/api/v1", "project": "webgrip/unfold", "tokenEnv": "UNFOLD_REPORTS_FORGEJO_TOKEN" }
+"reports": { "provider": "forgejo", "baseUrl": "https://forgejo.example/api/v1", "project": "acme/unfold", "tokenEnv": "UNFOLD_REPORTS_FORGEJO_TOKEN" }
 ```
 
 * `source` names a task source with a token whose adapter files issues (Forgejo, Vikunja or Jira). Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.

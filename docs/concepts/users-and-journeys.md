@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, agent]
 owner: unfold
 last_verified: 2026-10-14
-verified_by: "Round-1 owner answers of 2026-10-11 (recorded on VIK-2008) and the owner decisions of 2026-10-14 on Access Role names, Try again and spent budgets (VIK-2011, VIK-2019); read against docs/adr 0005-0011, 0017, 0021, 0022, 0026, 0031, apps/unfold/docs/adrs 0023-0025, 0038, 0040, Ploeg ADRs 0012, 0044, 0066 at the pinned aad61107, and apps/unfold/src at origin/development 42c6a041. Today's status per stage comes from a source read; nothing was run. No user research has been done: every role and journey is the owner's decision or a hypothesis marked as one."
+verified_by: "Round-1 owner answers of 2026-10-11 and the owner decisions of 2026-10-14 on Access Role names, Try again and spent budgets; read against docs/adr 0005-0011, 0017, 0021, 0022, 0026, 0031, apps/unfold/docs/adrs 0023-0025, 0038, 0040, Ploeg ADRs 0012, 0044, 0066 at the pinned aad61107, and apps/unfold/src at origin/development 42c6a041. Today's status per stage comes from a source read; nothing was run. No user research has been done: every role and journey is the owner's decision or a hypothesis marked as one."
 ---
 
 # Users and their journeys
@@ -14,7 +14,7 @@ Every screen is judged against the owner's sentence for the primary user:
 
 > I was able to move much more development work than I would have normally, and frictionless. I felt like I found what I needed easily to make the decisions I had to. I didn't feel held back or annoyed. I was able to put my attention to where it mattered.
 
-**Status.** The roles, round-1 answers and the order of the journeys are the owner's decisions of 2026-10-11. Round 2 (the enterprise layer) is open in [VIK-2009](https://vikunja.webgrip.dev/tasks/2009); where a journey depends on it, the text says *open*. Where it says *hypothesis*, nobody has checked it with users.
+**Status.** The roles, round-1 answers and the order of the journeys are the owner's decisions of 2026-10-11. Round 2 (the enterprise layer) is open; where a journey depends on it, the text says *open*. Where it says *hypothesis*, nobody has checked it with users.
 
 ## Who buys and who uses
 
@@ -39,7 +39,7 @@ An **Agency** buys Unfold and pays for it; its **Client** pays the agency ([ADR-
 
 Juniors get full access "but RBAC etc granular"; product owners make Unfold their main place, "RBAC etc through SSO in proper ways"; any developer may hand work over. Unfold therefore needs permissions finer than today's three roles.
 
-**Access Roles.** The owner decided the built-in [Access Roles](../reference/glossary.md#access-role) on [VIK-2011](https://vikunja.webgrip.dev/tasks/2011); the permission table per role is that ticket's work, and nothing is built yet.
+**Access Roles.** The owner decided the built-in [Access Roles](../reference/glossary.md#access-role) on 2026-10-14; the permission table per role is still to be written, and nothing is built yet.
 
 | Access Role | May | Typical holder from the cast |
 |---|---|---|
@@ -85,7 +85,7 @@ Ranked by how often they happen times how much they decide trust, adoption or re
 | Done when | accepted, sent back with changes requested, or taken over, with my name on it |
 | How often | several times a day per developer |
 | Decided | Acceptance is an approval, a merge, or no decision 10 working days after the PR opened; reminders on day 3 and 7; closing without merging takes a one-click reason ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)). An agent verdict is evidence, never acceptance. Unfold never merges. Every PR names the reviewing developer ([ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md)). PRs stay within the size limits of [ADR-0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md). |
-| Enterprise | permission to accept per project; four-eyes and routing policies (*open*, [VIK-2012](https://vikunja.webgrip.dev/tasks/2012)); acceptance is an audit and billing event |
+| Enterprise | permission to accept per project; four-eyes and routing policies (*open*); acceptance is an audit and billing event |
 | States | first review · after changes requested · merge conflict · failed checks · no permission to accept · not routed to me · day-10 silent acceptance coming |
 | Success measure | time from ready to decision (median, per week) and share accepted without a fix Round; baseline: not instrumented yet |
 
@@ -128,7 +128,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Done when | it is moving with a Team, a budget and a reviewer, visible to whoever handed it over |
 | How often | daily |
 | Decided | assignment in the tracker starts tracker work and unassignment withdraws it; Unfold hands off by assigning the Team's tracker user ([Unfold ADR-0025](../../apps/unfold/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md)); Unfold submits work to Ploeg and never executes it ([Unfold ADR-0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md)); no account or Work Item without a hard budget |
-| Enterprise | permission to start work per project and budget limit per role (*open*, [VIK-2011](https://vikunja.webgrip.dev/tasks/2011)); every start, manual or automatic, records who or which policy version ([VIK-2014](https://vikunja.webgrip.dev/tasks/2014)) |
+| Enterprise | permission to start work per project and budget limit per role (*open*); every start, manual or automatic, records who or which policy version |
 | States | not Ready · no permission · budget reached · review room full · route refused · taken back |
 | Success measure | time from Ready to started; baseline: not instrumented |
 
@@ -137,7 +137,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Pick | Tasks, tracker | works: Tasks lists the backlog |
 | Check readiness | Tasks | missing |
 | See the terms | Tasks | missing: size, cap and reviewer are not shown before the hand-off |
-| Hand over | Tasks | works: one Team, refuses when another holds it; [PR #326](https://forgejo.webgrip.dev/webgrip/unfold/pulls/326) adds team pills, `h` and a live track |
+| Hand over | Tasks | works: one Team, refuses when another holds it; pull request #326 on the previous forge adds team pills, `h` and a live track |
 | Start by policy | Ploeg | missing: only Run-created follow-ups can start themselves |
 | See it move | Tasks, Now | partly: In flight on Now in PR #326 |
 
@@ -149,8 +149,8 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Starts when | an agent stopped (question, repeated failure, spent budget, closed PR) or a person wants to steer running work |
 | Done when | answered and resumed, tried again, split, taken over in the editor, given context, or cancelled |
 | How often | daily |
-| Decided | "Needs you" always carries its reason and a fix ([Unfold ADR-0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md), proposed); a spent budget stops the Shift and offers a split, never a silent top-up ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); context added while steering reaches the next Run ([ADR-0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)); Try again is a requeue from a chosen Round, with the actor recorded (Ploeg ADR-0044), and it happens in Unfold, never by reassigning in the tracker (owner, [VIK-2019](https://vikunja.webgrip.dev/tasks/2019)) |
-| Enterprise | who may raise a budget, cancel, discard, take over (*open*, [VIK-2011](https://vikunja.webgrip.dev/tasks/2011)); each choice audited |
+| Decided | "Needs you" always carries its reason and a fix ([Unfold ADR-0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md), proposed); a spent budget stops the Shift and offers a split, never a silent top-up ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); context added while steering reaches the next Run ([ADR-0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)); Try again is a requeue from a chosen Round, with the actor recorded (Ploeg ADR-0044), and it happens in Unfold, never by reassigning in the tracker (owner |
+| Enterprise | who may raise a budget, cancel, discard, take over (*open*); each choice audited |
 | States | each stop reason · no permission for a path · budget split proposed · work already resumed elsewhere |
 | Success measure | time from stop to resume; baseline: not instrumented |
 
@@ -182,7 +182,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Size and quote | Unfold, portal | missing |
 | Prioritise | tracker | works |
 
-*Open: whether a product owner working in Unfold changes "the tracker owns priority" (owner, Q3 and [VIK-2020](https://vikunja.webgrip.dev/tasks/2020)).*
+*Open: whether a product owner working in Unfold changes "the tracker owns priority" (owner, Q3).*
 
 ### 6. A client gets a change delivered (phase 2)
 
@@ -197,7 +197,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | States | waiting for quote · quote approved · in progress · preview ready · accepted · disputed |
 | Success measure | time from request to delivery; baseline: not instrumented |
 
-Every stage is missing: the portal is not built ([VIK-1500](https://vikunja.webgrip.dev/tasks/1500)). Stakeholder sign-off after a deploy, decided for the workbench in [VIK-1830](https://vikunja.webgrip.dev/tasks/1830), belongs to this journey.
+Every stage is missing: the portal is not built. Stakeholder sign-off after a deploy, decided for the workbench, belongs to this journey.
 
 ### 7. Steer cost, quality and pace
 
@@ -227,7 +227,7 @@ Every stage is missing: the portal is not built ([VIK-1500](https://vikunja.webg
 | Done when | people sign in with SSO into the right Tenant with the right role, and projects are connected |
 | How often | at onboarding, then monthly changes |
 | Decided | one Tenant per agency, Clients inside it, SSO groups `unfold/<tenant>/<role>` and `unfold/<tenant>/client/<client>`, no data without a group, a Tenant switcher, Unfold staff never see Tenant content ([ADR-0009](../adr/adr-0009-one-tenant-per-agency.md), [ADR-0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)); agencies define their own Teams; the hosted pilot runs 4 to 6 weeks on 5 to 10 real tickets ([ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md)) |
-| Enterprise | roles and permissions (*open*, [VIK-2011](https://vikunja.webgrip.dev/tasks/2011)); provisioning (*open*, R6); policies such as auto-start and review routing set here |
+| Enterprise | roles and permissions (*open*); provisioning (*open*, R6); policies such as auto-start and review routing set here |
 | States | identity provider misconfigured · group mapped to no role · person removed upstream · Team in two Tenants refused |
 | Success measure | time from signed pilot to the first accepted pull request; baseline: not instrumented |
 
@@ -262,7 +262,7 @@ Every stage is missing in Unfold: learnings exist only inside Ploeg. This journe
 | Done when | an answer with evidence for that change, exported; a reversal or dispute settled if needed |
 | How often | rare, decisive |
 | Decided | a reversal refunds the fee when a change is reverted within 14 days for a defect; a dispute gives 10 working days' notice ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); every PR states that an agent wrote it and who reviewed it ([ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md)) |
-| Enterprise | audit events, retention and export (*open*, [VIK-2013](https://vikunja.webgrip.dev/tasks/2013)) |
+| Enterprise | audit events, retention and export (*open*) |
 | States | part of the chain missing · change spans several attempts · client asks about another client's change (refused) |
 | Success measure | time to answer a question about one change; baseline: not instrumented |
 
@@ -282,7 +282,7 @@ Every stage is missing in Unfold: learnings exist only inside Ploeg. This journe
 
 ## Open questions
 
-Round 2 ([VIK-2009](https://vikunja.webgrip.dev/tasks/2009)) holds R1 to R12. Reading the decision records for this page added eight more. The owner decided three on 2026-10-14: the Access Role names ([VIK-2011](https://vikunja.webgrip.dev/tasks/2011)), Try again happens in Unfold, and a spent budget is split, never topped up ([VIK-2019](https://vikunja.webgrip.dev/tasks/2019)). These remain, each with the owner as the one who decides:
+Round 2 holds R1 to R12. Reading the decision records for this page added eight more. The owner decided three on 2026-10-14: the Access Role names, Try again happens in Unfold, and a spent budget is split, never topped up. These remain, each with the owner as the one who decides:
 
 1. **Notification scope.** ADR-0026 notifies "people who can read that Team"; ADR-0017 makes Tenant and Client the boundary, not Team.
 2. **Who opens the pull request.** Unfold ADR-0016 has it opened as the signed-in person; Unfold ADR-0040 uses the publisher identity.

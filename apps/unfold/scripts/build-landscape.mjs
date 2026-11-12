@@ -71,7 +71,7 @@ for (const page of rendered.pages) {
     if (pageId) return `href="#${pageId}"`;
     const embedded = embeddedSources.get(target);
     if (embedded) return `href="data:text/plain;charset=utf-8,${encodeURIComponent(embedded.content)}" download="${embedded.name}"`;
-    return `href="https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/${relative(root, target)}${fragment ? '#'+fragment : ''}"`;
+    return `href="https://github.com/unfold-hq/unfold/blob/development/${relative(root, target)}${fragment ? '#'+fragment : ''}"`;
   });
 }
 rendered.diagrams = rendered.diagrams.map(d => ({ ...d, svg: themed(d.svg) }));

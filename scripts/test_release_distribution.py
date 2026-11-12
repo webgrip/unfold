@@ -340,10 +340,92 @@ class DistributionTests(unittest.TestCase):
 
     def test_open_vsx_that_never_serves_the_version_fails_after_the_deadline(self):
         with patch.object(publish_release, 'api', lambda *a, **k: None), patch.object(publish_release, 'OPEN_VSX_SCAN_DEADLINE', 0), patch.object(publish_release.time, 'sleep') as sleep:
-            with self.assertRaisesRegex(RuntimeError, 'still does not serve webgrip.unfold 0.4.0-rc.41'):
+            with self.assertRaisesRegex(RuntimeError, 'still does not serve unfold-hq.unfold 0.4.0-rc.41'):
                 publish_release.open_vsx_extension('0.4.0-rc.41')
         sleep.assert_not_called()
 
+
+class GitHubHomeTests(unittest.TestCase):
+    def test_open_vsx_is_asked_for_the_extension_the_manifest_names(self):
+        urls = []
+        with patch.object(publish_release, 'api', lambda url, *a, **k: urls.append(url) or {'version': '0.4.0-rc.41'}):
+            publish_release.open_vsx_extension('0.4.0-rc.41')
+        namespace, name = publish_release.extension_identity()
+        self.assertEqual((namespace, name), ('unfold-hq', 'unfold'))
+        self.assertEqual(urls, ['https://open-vsx.org/api/unfold-hq/unfold/0.4.0-rc.41'])
+
+    def test_the_keyless_identity_is_the_publication_workflow_on_a_release_tag(self):
+        signer = re.compile(release_registry.GITHUB_SIGNER)
+        workflow = 'https://github.com/unfold-hq/unfold/.github/workflows/on_release_published.yml'
+        for ref in ['refs/tags/unfold-v0.4.0-rc.140', 'refs/tags/unfold-v0.5.0']:
+            self.assertTrue(signer.match(f'{workflow}@{ref}'), ref)
+        for subject in [f'{workflow}@refs/heads/development', f'{workflow}@refs/tags/unfold-site-v1.0.0', 'https://github.com/unfold-hq/unfold/.github/workflows/on_release_train.yml@refs/tags/unfold-v0.4.0-rc.140', 'https://github.com/webgrip/unfold/.github/workflows/on_release_published.yml@refs/tags/unfold-v0.4.0-rc.140']:
+            self.assertFalse(signer.match(subject), subject)
+        self.assertEqual(release_registry.KEYLESS_IDENTITY[2:], ('--certificate-oidc-issuer', 'https://token.actions.githubusercontent.com'))
+        self.assertTrue((Path(__file__).resolve().parent.parent / '.github/workflows/on_release_published.yml').is_file(), 'the identity names a workflow that exists')
+
+    def test_a_keyless_signature_is_made_only_when_none_verifies(self):
+        reference = 'ghcr.io/unfold-hq/charts/unfold@sha256:' + 'a' * 64
+        calls = []
+
+        def cosign(*args, env=None):
+            calls.append(args[1])
+            if args[1] == 'verify' and len(calls) == 1:
+                raise RuntimeError('no signatures found')
+            return ''
+
+        with patch.object(release_registry, 'command', side_effect=cosign):
+            self.assertTrue(release_registry.sign_keyless_once(reference))
+        self.assertEqual(calls, ['verify', 'sign', 'verify'])
+        with patch.object(release_registry, 'command', return_value='') as command:
+            self.assertFalse(release_registry.sign_keyless_once(reference))
+        command.assert_called_once_with('cosign', 'verify', *release_registry.KEYLESS_IDENTITY, reference)
+
+    def test_the_github_chart_points_every_image_at_the_unfold_hq_registry(self):
+        root = Path(__file__).resolve().parent.parent
+        digests = {'unfold': 'sha256:' + 'a' * 64, 'unfold-agent': 'sha256:' + 'b' * 64}
+        values = publish_chart.release_values((root / 'apps/unfold/ops/helm/unfold/values.yaml').read_text(), '0.4.0-rc.9', digests, 'ghcr.io/unfold-hq')
+        self.assertIn('image:\n  repository: ghcr.io/unfold-hq/unfold\n  tag: "0.4.0-rc.9"\n  digest: "sha256:' + 'a' * 64 + '"\n', values)
+        self.assertIn('\nworkspaceAgentImage:\n  repository: ghcr.io/unfold-hq/unfold-agent\n  tag: "0.4.0-rc.9"\n', values)
+        self.assertNotIn('ghcr.io/webgrip/', values.split('workspaceAgentImage:')[0].split('image:', 1)[1].split('\n', 2)[1])
+
+    def test_an_asset_missing_from_a_published_github_release_fails_plainly(self):
+        release = {'tag_name': 'unfold-v0.4.0-rc.9', 'draft': False, 'assets': [], 'upload_url': 'https://uploads.github.com/x{?name}'}
+        with self.assertRaisesRegex(RuntimeError, 'immutable'):
+            publish_release.attach_github(release, 'release-artifacts-unfold.json', b'{}', 'token', publish_release.HOME)
+
+    def test_publication_attaches_the_evidence_to_the_draft_and_then_publishes_it_without_moving_latest(self):
+        draft = {'id': 11, 'tag_name': 'unfold-v0.4.0-rc.9', 'draft': True, 'html_url': 'draft', 'upload_url': 'https://uploads.github.com/repos/unfold-hq/unfold/releases/11/assets{?name,label}',
+                 'assets': [{'name': 'unfold-0.4.0-rc.9.vsix', 'url': publish_release.HOME + '/releases/assets/1'}]}
+        calls, attached = [], []
+
+        def api(url, token, method='GET', data=None, missing=False):
+            calls.append((method, url.removeprefix(publish_release.HOME), data))
+            if method == 'PATCH':
+                return {**draft, **data, 'html_url': 'published'}
+            return draft if '/releases/tags/' in url else None
+
+        signed = []
+        with patch.dict('os.environ', {'GITHUB_TOKEN': 'token'}), \
+                patch.object(publish_release, 'git', lambda *a, **k: 'sha'), \
+                patch.object(publish_release, 'refuse_occupied'), \
+                patch.object(publish_release, 'api', api), \
+                patch.object(publish_release, 'Registry', lambda host: MemoryRegistry(host)), \
+                patch.object(publish_release, 'verify_image', lambda registry, repository, version, revision, source: (self.assertEqual(source, 'https://github.com/unfold-hq/unfold'), 'sha256:' + 'c' * 64)[1]), \
+                patch.object(publish_release, 'verify_keyless_signature', signed.append), \
+                patch.object(publish_release, 'verify_keyless', signed.append), \
+                patch.object(publish_release, 'digest', lambda data: 'sha256:' + 'd' * 64), \
+                patch.object(MemoryRegistry, 'manifest', lambda self, repository, reference, missing=False: b'chart'), \
+                patch.object(publish_release, 'open_vsx_extension', lambda version: {'version': version, 'files': {'download': 'https://open-vsx.org/vsix'}}), \
+                patch.object(publish_release, 'request', lambda url, **k: (b'vsix', {})), \
+                patch.object(publish_release, 'fetch_github_asset', lambda asset, token, draft, repository: b'vsix'), \
+                patch.object(publish_release, 'attach_github', lambda release, name, content, token, repository: attached.append((name, json.loads(content)))):
+            publish_release.publish_github('unfold', '0.4.0-rc.9')
+        self.assertEqual(signed, ['ghcr.io/unfold-hq/unfold@sha256:' + 'c' * 64, 'ghcr.io/unfold-hq/unfold-agent@sha256:' + 'c' * 64, 'ghcr.io/unfold-hq/charts/unfold@sha256:' + 'd' * 64])
+        self.assertEqual([name for name, _ in attached], ['release-artifacts-unfold.json'])
+        evidence = attached[0][1]
+        self.assertEqual((evidence['source'], evidence['extension']['id']), ('https://github.com/unfold-hq/unfold', 'unfold-hq.unfold'))
+        self.assertEqual(calls[-1], ('PATCH', '/releases/11', {'draft': False, 'make_latest': 'false'}))
 
 class FlakyOpener:
     def __init__(self, *outcomes):

@@ -3,12 +3,12 @@ type: reference
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-03
-verified_by: "K5 and D1 (VIK-1750): source read of Ploeg migrations 0023 and 0033, pkg/store/pull_requests.go, pkg/httpapi/pull_request_facts.go and the Forgejo and GitLab activity readers; the K5 query run against the migrated schema. The other KPIs were last checked 2026-09-27 against apps/ploeg/docs/backlog.md and VIK-1214/VIK-1215/VIK-1289"
+verified_by: "K5 and D1: source read of Ploeg migrations 0023 and 0033, pkg/store/pull_requests.go, pkg/httpapi/pull_request_facts.go and the Forgejo and GitLab activity readers; the K5 query run against the migrated schema. The other KPIs were last checked 2026-09-27 against apps/ploeg/docs/backlog.md and tickets of the earlier board"
 ---
 
 # Unfold KPIs
 
-**Status: proposal, two KPIs measured.** Unfold's Insights page shows a merged-Work-Item form of K2 (cost per merged Work Item) and K5 (clean-merge rate) for the selected window. Each one says how it is computed in its section below. The other KPIs are not measured. The KPIs, thresholds and dashboard below are a proposal for [VIK-1214](https://vikunja.webgrip.dev/tasks/1214) (the KPI set) and [VIK-1215](https://vikunja.webgrip.dev/tasks/1215) (the dashboard). Targets stay provisional until a baseline exists.
+**Status: proposal, two KPIs measured.** Unfold's Insights page shows a merged-Work-Item form of K2 (cost per merged Work Item) and K5 (clean-merge rate) for the selected window. Each one says how it is computed in its section below. The other KPIs are not measured. The KPIs, thresholds and dashboard below are a proposal for (the KPI set) and (the dashboard). Targets stay provisional until a baseline exists.
 
 Unfold's goal is one loop: Work Items go to agents, the agents do all the code work until a pull request is ready for your review, and the throughput limit becomes cluster size rather than your time ([Architecture](../concepts/architecture.md#goals)). These six KPIs tell you whether that loop is working and what to change when it is not. Each one names the decision it changes. A KPI that stops changing a decision comes off the list at the next review.
 
@@ -347,7 +347,7 @@ WHERE state = 'awaiting_review' AND NOT operator_owned AND team IN ($team);
 
 ## Grafana dashboard spec
 
-This is a spec only. The dashboard is provisioned in `homelab-cluster`, not in this repository.
+This is a spec only. The dashboard is provisioned in the owner's cluster repository, not in this repository.
 
 **Dashboard:** "Unfold KPIs". Default range: last 28 days. No auto-refresh; 5 minutes if one is wanted.
 

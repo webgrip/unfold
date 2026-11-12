@@ -14,7 +14,7 @@ export const tasksProtocol = '2026-07-28';
 
 export const installGuideUrl = 'https://code.claude.com/docs/en/setup';
 export const tasksGuideUrl = 'https://code.claude.com/docs/en/mcp#mcp-tasks-that-run-on-the-server';
-export const followGuideUrl = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/how-to/follow-hand-offs-as-tasks-in-a-terminal.md';
+export const followGuideUrl = 'https://github.com/unfold-hq/unfold/blob/development/docs/how-to/follow-hand-offs-as-tasks-in-a-terminal.md';
 
 /** The outcome of running one command: its exit code and output, or `missing` when the executable was not found. */
 export type CommandResult = { missing: true } | { missing?: false; code: number; stdout: string; stderr: string };

@@ -24,7 +24,7 @@ test('Now groups waiting work as the browser does: review, then needs you (stopp
 
 test('a pull request whose CI did not pass needs you, not a review; running, passed and unreported CI stay in review', () => {
   const ci = (state: string) => ({ state, checks: [{ context: 'e2e / flux-local', state }] });
-  const pr = 'https://forgejo.example/webgrip/homelab-cluster/pulls/784';
+  const pr = 'https://forgejo.example/acme/infra/pulls/784';
   for (const state of ['failure', 'error']) assert.equal(nowGroup(item('awaiting_review', { ci: ci(state) })), 'needs', state);
   assert.equal(nowGroup(item('awaiting_review', { ci: ci('pending') })), 'review');
   assert.equal(nowGroup(item('awaiting_review', { ci: ci('success') })), 'review');
@@ -59,9 +59,9 @@ test('a waiting group is truncated only when the server names its state, and an 
 });
 
 test('a pull request number is read only from a pull request path', () => {
-  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/unfold/pulls/88'), '88');
+  assert.equal(pullRequestNumber('https://forgejo.example/acme/unfold/pulls/88'), '88');
   assert.equal(pullRequestNumber('https://gitlab.example/g/p/-/merge_requests/12'), '12');
-  assert.equal(pullRequestNumber('https://forgejo.example/webgrip/unfold/issues/88'), undefined);
+  assert.equal(pullRequestNumber('https://forgejo.example/acme/unfold/issues/88'), undefined);
   assert.equal(pullRequestNumber(undefined), undefined);
 });
 
@@ -75,7 +75,7 @@ test('a Needs you row leads with its reason, and settled spend is named settled'
 });
 
 test('a review row names its pull request, and unknown spend is never zero', () => {
-  const text = describeItem(core, item('awaiting_review', { pullRequestUrl: 'https://forgejo.example/webgrip/unfold/pulls/88', spentUsd: null }), false);
+  const text = describeItem(core, item('awaiting_review', { pullRequestUrl: 'https://forgejo.example/acme/unfold/pulls/88', spentUsd: null }), false);
   assert.match(text.description, /PR #88 · bronze/);
   assert.ok(text.lines.some(line => line.includes('settled Not reported')));
 });
